@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  role          Role     @default(Super_Admin)
+  created_at    DateTime @default(now())
+}
+
+model Mustahik {
+  id              String     @id @default(uuid())
+  nrm             String?    @unique
+  nama            String
+  nik             String     @unique
+  tempat_lahir    String
+  tanggal_lahir   String
+  jenis_kelamin   String
+  pekerjaan       String?
+  alamat          String     @db.Text
+  handphone       String
+  email           String?
+  catatan         String?    @db.Text
+
+  status_graduasi String     @default("Belum")
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  proposals       Proposal[]
+}
+
+model Upz {
+  id         String      @id @default(uuid())
+  kategori   KategoriUPZ
+  nama_upz   String
+  alamat     String?
+  metadata   Json?
+  created_at DateTime    @default(now())
+}
+
+model Pilar {
+  code     String    @id
+  name     String
+  category String?
+  status   String?   @default("Aktif")
+  programs Program[]
+}
+
+model Program {
+  code       String     @id
+  pilar_code String
+  name       String
+  budget_rkat Int?      @default(0)
+  pilar      Pilar      @relation(fields: [pilar_code], references: [code])
+  proposals  Proposal[]
+
+  @@index([pilar_code], map: "Program_pilar_code_fkey")
+}
+
+model Proposal {
+  id                  String    @id @default(uuid())
+  agenda_no           Int       @unique @default(autoincrement())
+  tanggal_masuk       DateTime
+  nama_instansi       String?
+  pimpinan_organisasi String?
+  nama_pemohon        String
+  nama_anak           String?
+  nik                 String?
+  tempat_lahir        String?
+  tanggal_lahir       String?
+  jenis_kelamin       String?
+  alamat              String?   @db.Text
+  kelurahan           String?
+  kecamatan           String?
+  pekerjaan           String?
+  jenis_permohonan    String?
+  no_telpon           String?
+  email               String?
+  jam_pengajuan       String?
+  yang_mengajukan     String?
+  has_memo            Boolean   @default(false)
+  memo_source         String?
+  jenis_pengajuan     String    @default("")
+  rekomendasi         String?
+  keterangan          String?
+  status              String    @default("Pending")
+  file_gdrive_id      String?
+  file_gdrive_link    String?
+  mustahik_id         String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+  isBeingSurveyed     Boolean?  @default(false)
+  score               Int?
+  surveyorName        String?
+  urgencyLevel        String?
+  survey_data         Json?
+  surveySubmittedAt   DateTime?
+  catatanKepala       String?   @db.Text
+  catatanPimpinan     String?   @db.Text
+  nominal             Int?
+  tipe_bantuan        String?
+  alasan_perubahan_nominal String? @db.Text
+  program             Program?  @relation(fields: [jenis_permohonan], references: [code])
+  mustahik            Mustahik? @relation(fields: [mustahik_id], references: [id])
+
+  @@index([jenis_permohonan], map: "Proposal_jenis_permohonan_fkey")
+  @@index([mustahik_id], map: "Proposal_mustahik_id_fkey")
+}
+
+model Surat {
+  id                  String   @id @default(uuid())
+  agenda_no           Int      @unique @default(autoincrement())
+  tanggal_masuk       DateTime
+  nama_instansi       String?
+  pimpinan_organisasi String?
+  alamat              String?  @db.Text
+  kelurahan           String?
+  kecamatan           String?
+  kategori            String?  // Undangan, Surat Izin Kerja, dll
+  keperluan           String   @db.Text
+  tanggal_acara       DateTime?
+  jam_acara           String?
+  no_telpon           String?
+  jam_pengajuan       String?
+  yang_mengajukan     String?
+  arsip               String?
+  status              String   @default("Registrasi")
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  file_gdrive_id      String?
+  file_gdrive_link    String?
+  catatanKepala       String?  @db.Text
+  catatanPimpinan     String?  @db.Text
+}
+
+enum Role {
+  Super_Admin
+  Ketua
+  WK_Distribusi
+  WK_Pengumpulan
+  Kabag_Administrasi
+  Kepala_Pelaksana
+  Staf_Administrasi
+  Staf_Distribusi
+  Staf_Pelaporan_Pengumpulan
+  Keuangan
+  Relawan
+  Relawan_Sementara
+}
+
+enum KategoriUPZ {
+  Masjid
+  Yayasan_Lembaga
+  Sekolah
+  OPD
+}

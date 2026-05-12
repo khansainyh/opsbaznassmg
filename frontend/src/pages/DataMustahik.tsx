@@ -1,0 +1,1059 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  ChevronRight, 
+  Search, 
+  Plus, 
+  Edit2, 
+  Eye,
+  EyeOff,
+  ChevronLeft,
+  ChevronRight as ChevronRightIcon,
+  Users,
+  Wallet,
+  GraduationCap,
+  Upload,
+  Download,
+  X,
+  History,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle2,
+  Trash2
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
+import * as XLSX from 'xlsx';
+
+// Helper: mask NIK — show only last 3 digits
+const maskNIK = (nik: string) => {
+  if (!nik || nik.length <= 3) return nik;
+  return '*'.repeat(nik.length - 3) + nik.slice(-3);
+};
+
+export default function DataMustahik() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super_Admin';
+
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [graduationFilter, setGraduationFilter] = useState('Semua');
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isRiwayatMigrationModalOpen, setIsRiwayatMigrationModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedData, setSelectedData] = useState<any>(null);
+
+  // NIK reveal state — Set of mustahik IDs whose NIK is currently shown (Super Admin only)
+  const [revealedNIKs, setRevealedNIKs] = useState<Set<string>>(new Set());
+  const [detailNIKRevealed, setDetailNIKRevealed] = useState(false);
+
+  const toggleNIK = (id: string) => {
+    if (!isSuperAdmin) return;
+    setRevealedNIKs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const [localMustahikData, setLocalMustahikData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      const timer = setTimeout(() => setMessages([]), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [messages]);
+
+  const fetchData = async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:4000/api/mustahik');
+      if (res.data.status === 'success') {
+        setLocalMustahikData(res.data.data);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const filteredData = localMustahikData.filter(item => {
+    const matchesSearch = item.nama.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (item.nik && item.nik.includes(searchTerm)) || 
+                         (item.nrm && item.nrm.includes(searchTerm));
+    const matchesGraduation = graduationFilter === 'Semua' || item.status_graduasi === graduationFilter;
+    return matchesSearch && matchesGraduation;
+  });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    setMessages([]);
+    setIsMigrationModalOpen(false); 
+    
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const parsedData = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+
+      if (parsedData.length === 0) {
+          throw new Error("File kosong atau format salah.");
+      }
+
+      const res = await axios.post('http://127.0.0.1:4000/api/mustahik/import', parsedData);
+      
+      const newMessages = [];
+      if (res.data.insertedCount > 0) {
+        newMessages.push({ type: 'success', text: `Berhasil import ${res.data.insertedCount} data baru.` });
+      }
+      if (res.data.duplicatesFound > 0) {
+        newMessages.push({ type: 'warning', text: `Ditemukan ${res.data.duplicatesFound} data dengan NIK ganda yang dilewati otomatis.` });
+      }
+      if (res.data.nrmDuplicates > 0) {
+        newMessages.push({ type: 'error', text: `Ditemukan ${res.data.nrmDuplicates} data dengan NRM ganda yang dilewati.` });
+      }
+      if (res.data.insertedCount === 0 && res.data.duplicatesFound === 0 && !res.data.nrmDuplicates) {
+        newMessages.push({ type: 'warning', text: `Tidak ada data baru yang diproses.` });
+      }
+      
+      setMessages(newMessages as any);
+      fetchData();
+    } catch (error: any) {
+      console.error(error);
+      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Gagal mengupload atau format salah.';
+      setMessages([{ type: 'error', text: `Gagal: ${errMsg}` }]);
+    } finally {
+      setIsLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRiwayatFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    setMessages([]);
+    setIsRiwayatMigrationModalOpen(false); 
+    
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const parsedData = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+
+      if (parsedData.length === 0) {
+          throw new Error("File kosong atau format salah.");
+      }
+
+      const res = await axios.post('http://127.0.0.1:4000/api/mustahik/import-riwayat', parsedData);
+      
+      const newMessages = [];
+      if (res.data.insertedCount > 0) {
+        newMessages.push({ type: 'success', text: `Berhasil import ${res.data.insertedCount} riwayat bantuan.` });
+      }
+      if (res.data.skippedCount > 0) {
+        newMessages.push({ type: 'warning', text: `Dilewati ${res.data.skippedCount} baris (NIK tidak ditemukan atau NIK kosong).` });
+      }
+      if (res.data.insertedCount === 0 && res.data.skippedCount === 0) {
+        newMessages.push({ type: 'warning', text: `Tidak ada riwayat baru yang diproses.` });
+      }
+      
+      setMessages(newMessages as any);
+      fetchData();
+    } catch (error: any) {
+      console.error(error);
+      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Gagal mengupload atau format salah.';
+      setMessages([{ type: 'error', text: `Gagal: ${errMsg}` }]);
+    } finally {
+      setIsLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  const downloadTemplate = () => {
+    const worksheet = XLSX.utils.json_to_sheet([
+      { NRM: "M-001", Nama: "Contoh Nama", NIK: "1234567890123456", "Tempat Lahir": "Jakarta", "Tanggal Lahir": "1990-01-01", "Jenis Kelamin": "Pria", Pekerjaan: "Pedagang", Alamat: "Jl. Contoh No. 1", Handphone: "08123456789", Email: "contoh@email.com", Catatan: "Surveyor OK" }
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Data Mustahik");
+    XLSX.writeFile(workbook, "Template_Data_Mustahik.xlsx");
+  };
+
+  const downloadTemplateRiwayat = () => {
+    const worksheet = XLSX.utils.json_to_sheet([
+      { NIK: "1234567890123456", Tanggal: "2023-12-01", Kode_Program: "P-01", Keterangan: "Bantuan Gerobak Usaha" }
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Format Riwayat Bantuan");
+    XLSX.writeFile(workbook, "Template_Migrasi_Riwayat_Bantuan.xlsx");
+  };
+
+  const handleAddMustahik = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      nik: formData.get('nik'),
+      nrm: formData.get('nrm'),
+      nama: formData.get('name'),
+      tempat_lahir: formData.get('tempat_lahir'),
+      tanggal_lahir: formData.get('tanggal_lahir'),
+      jenis_kelamin: formData.get('jenis_kelamin'),
+      pekerjaan: formData.get('pekerjaan') || '',
+      alamat: formData.get('address'),
+      handphone: formData.get('handphone'),
+      email: formData.get('email'),
+      catatan: formData.get('catatan'),
+      kategori: formData.get('category'),
+      status_graduasi: formData.get('status')
+    };
+
+    setIsLoading(true);
+    try {
+      const res = await axios.post('http://127.0.0.1:4000/api/mustahik', data);
+      if (res.data.status === 'success') {
+        setIsModalOpen(false);
+        fetchData();
+        setMessages([{ type: 'success', text: 'Berhasil menambahkan data Mustahik manual.' }]);
+      }
+    } catch (error: any) {
+      console.error(error);
+      const msg = error.response?.data?.message || 'Terjadi kesalahan saat menyimpan data.';
+      alert(`Gagal menyimpan: ${msg}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateMustahik = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedData) return;
+
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      nik: formData.get('nik'),
+      nrm: formData.get('nrm'),
+      nama: formData.get('name'),
+      tempat_lahir: formData.get('tempat_lahir'),
+      tanggal_lahir: formData.get('tanggal_lahir'),
+      jenis_kelamin: formData.get('jenis_kelamin'),
+      pekerjaan: formData.get('pekerjaan') || '',
+      alamat: formData.get('address'),
+      handphone: formData.get('handphone'),
+      email: formData.get('email'),
+      catatan: formData.get('catatan'),
+      kategori: formData.get('category'),
+      status_graduasi: formData.get('status')
+    };
+
+    setIsLoading(true);
+    try {
+      const res = await axios.put(`http://127.0.0.1:4000/api/mustahik/${selectedData.id}`, data);
+      if (res.data.status === 'success') {
+        setIsEditModalOpen(false);
+        fetchData();
+        setMessages([{ type: 'success', text: 'Berhasil mengupdate data Mustahik.' }]);
+      }
+    } catch (error: any) {
+      console.error(error);
+      const msg = error.response?.data?.message || 'Terjadi kesalahan saat mengupdate data.';
+      alert(`Gagal mengupdate: ${msg}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteMustahik = async () => {
+    if (!selectedData) return;
+    if (!window.confirm("Apakah Anda yakin ingin menghapus data Mustahik ini? Aksi ini tidak dapat dibatalkan.")) return;
+    
+    try {
+      const res = await axios.delete(`http://127.0.0.1:4000/api/mustahik/${selectedData.id}`);
+      if (res.data.status === 'success') {
+        setIsEditModalOpen(false);
+        fetchData();
+        setMessages([{ type: 'success', text: 'Data Mustahik berhasil dihapus.' }]);
+      }
+    } catch (error: any) {
+       console.error(error);
+       alert("Gagal menghapus data.");
+    }
+  };
+
+  const totalMustahik = localMustahikData.length;
+  const lulusMustahik = localMustahikData.filter(m => m.status_graduasi === 'Lulus').length;
+  const totalBantuan = localMustahikData.reduce((acc, curr) => acc + (curr.proposals?.filter((p: any) => p.status === 'Selesai' || p.status === 'Pencairan_Dana').length || 0), 0);
+
+  return (
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8">
+      {/* Breadcrumbs & Title */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-2"
+      >
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Database Warga</span>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-primary font-bold">Data Mustahik</span>
+        </nav>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+          Data Mustahik
+        </h2>
+        <p className="text-slate-500 font-medium">
+          Manajemen data profil mustahik, kategori, dan riwayat status graduasi.
+        </p>
+      </motion.div>
+
+      {/* Toast Notifications */}
+      <AnimatePresence>
+        {messages.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, x: 100 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed top-8 right-8 z-[100] flex flex-col gap-2 shrink-0 w-80 shadow-2xl"
+          >
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`p-4 rounded-xl flex items-start gap-3 border shadow-sm ${
+                msg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                msg.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                {msg.type === 'success' ? <CheckCircle2 className="size-5 shrink-0" /> : <AlertCircle className="size-5 shrink-0" />}
+                <div className="flex-1">
+                  <p className="text-sm font-bold mb-1">{msg.type === 'success' ? 'Berhasil' : msg.type === 'warning' ? 'Peringatan' : 'Gagal'}</p>
+                  <p className="text-xs font-medium leading-relaxed">{msg.text}</p>
+                </div>
+                <button onClick={() => setMessages(messages.filter((_, i) => i !== idx))} className="shrink-0 p-1 hover:bg-black/5 rounded-md">
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Summary Cards */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      >
+        <SummaryCard 
+          title="Total Mustahik" 
+          value={totalMustahik.toLocaleString('id-ID')} 
+          trend="Aktif" 
+          trendUp={true}
+          icon={<Users className="size-5" />}
+        />
+        <SummaryCard 
+          title="Mustahik Lulus" 
+          value={lulusMustahik.toLocaleString('id-ID')} 
+          trend="Mandiri" 
+          trendUp={true}
+          icon={<GraduationCap className="size-5" />}
+          subtitle="(Graduasi)"
+        />
+        <SummaryCard 
+          title="Total Riwayat Bantuan" 
+          value={totalBantuan.toLocaleString('id-ID')} 
+          trend="Disalurkan" 
+          trendUp={true}
+          icon={<Wallet className="size-5" />}
+        />
+      </motion.div>
+
+      {/* Table Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden"
+      >
+        <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+              <input 
+                type="text"
+                placeholder="Cari nama, NIK, atau NRM..."
+                className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <select 
+              className="text-sm bg-slate-50 border-slate-200 rounded-lg py-2 px-4 focus:ring-primary focus:border-primary outline-none cursor-pointer"
+              value={graduationFilter}
+              onChange={(e) => setGraduationFilter(e.target.value)}
+            >
+              <option value="Semua">Status Graduasi: Semua</option>
+              <option value="Lulus">Lulus (Mandiri)</option>
+              <option value="Potensial">Potensial Lulus</option>
+              <option value="Belum">Belum Lulus</option>
+            </select>
+          </div>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setIsMigrationModalOpen(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Upload className="size-4" />
+              Migrasi Warga
+            </button>
+            <button 
+              onClick={() => setIsRiwayatMigrationModalOpen(true)}
+              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-indigo-200"
+            >
+              <History className="size-4" />
+              Migrasi Riwayat
+            </button>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
+            >
+              <Plus className="size-4" />
+              Tambah Mustahik
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto min-h-[300px]">
+          {isLoading ? (
+            <div className="flex h-64 items-center justify-center p-8 text-primary">Memproses Permintaan...</div>
+          ) : (
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
+                <th className="px-6 py-4">NRM</th>
+                <th className="px-6 py-4">NIK</th>
+                <th className="px-6 py-4">Nama Mustahik</th>
+                <th className="px-6 py-4">Alamat</th>
+                <th className="px-6 py-4 text-center">Status Graduasi</th>
+                <th className="px-6 py-4 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    Belum ada data atau tidak ada yang sesuai dengan pencarian.
+                  </td>
+                </tr>
+              ) : (
+              filteredData.map((warga) => (
+                <tr key={warga.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-500">{warga.nrm}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn('font-mono', !revealedNIKs.has(warga.id) && 'tracking-widest')}>
+                        {revealedNIKs.has(warga.id) ? warga.nik : maskNIK(warga.nik)}
+                      </span>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => toggleNIK(warga.id)}
+                          className="p-1 text-slate-300 hover:text-primary transition-colors shrink-0"
+                          title={revealedNIKs.has(warga.id) ? 'Sembunyikan NIK' : 'Tampilkan NIK'}
+                        >
+                          {revealedNIKs.has(warga.id)
+                            ? <EyeOff className="size-3.5" />
+                            : <Eye className="size-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-bold text-slate-900">{warga.nama}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Terdaftar: {new Date(warga.created_at).toLocaleDateString('id-ID')}</p>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-500 max-w-[200px] truncate">
+                    {warga.alamat || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={cn(
+                      "px-2 py-1 text-[10px] font-bold rounded uppercase",
+                      warga.status_graduasi === 'Lulus' 
+                        ? "bg-emerald-100 text-emerald-700" 
+                        : warga.status_graduasi === 'Potensial'
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-slate-100 text-slate-500"
+                    )}>
+                      {warga.status_graduasi || 'Belum'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => { setSelectedData(warga); setDetailNIKRevealed(false); setIsDetailModalOpen(true); }}
+                        className="p-1.5 hover:bg-primary/10 text-slate-400 hover:text-primary rounded transition-colors" title="Detail">
+                        <Eye className="size-4" />
+                      </button>
+                      <button 
+                        onClick={() => { setSelectedData(warga); setIsEditModalOpen(true); }}
+                        className="p-1.5 hover:bg-primary/10 text-slate-400 hover:text-primary rounded transition-colors" title="Edit">
+                        <Edit2 className="size-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )))}
+            </tbody>
+          </table>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
+          <p className="text-xs text-slate-500 font-medium">
+            Menampilkan 1-{Math.min(filteredData.length, 10)} dari {filteredData.length} data
+          </p>
+          <div className="flex gap-1">
+            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+              <ChevronLeft className="size-4" />
+            </button>
+            <button className="w-8 h-8 bg-primary text-white rounded-lg font-bold text-xs">1</button>
+            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+              <ChevronRightIcon className="size-4" />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Add Warga Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-xl font-black text-slate-900">Tambah Mustahik Baru</h3>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleAddMustahik} className="p-6 space-y-4 overflow-y-auto">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NIK (16 Digit)</label>
+                  <input required name="nik" type="text" maxLength={16} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Masukkan NIK..." />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NO. REGISTER MUSTAHIK (NRM)</label>
+                  <input required name="nrm" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Masukkan NRM..." />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lengkap</label>
+                  <input required name="name" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Masukkan nama lengkap..." />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
+                    <input required name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Lahir</label>
+                    <input required name="tanggal_lahir" type="date" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin</label>
+                    <select required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all">
+                      <option value="">Pilih...</option>
+                      <option value="Pria">Pria</option>
+                      <option value="Wanita">Wanita</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
+                    <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Handphone</label>
+                    <input required name="handphone" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email (Opsional)</label>
+                    <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
+                  <textarea required name="address" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catatan</label>
+                  <textarea required name="catatan" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                </div>
+                <div className="space-y-1 mt-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Graduasi</label>
+                    <select name="status" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all">
+                      <option value="Belum">Belum Lulus</option>
+                      <option value="Potensial">Potensial</option>
+                      <option value="Lulus">Lulus</option>
+                    </select>
+                  </div>
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Batal</button>
+                  <button type="submit" disabled={isLoading} className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
+                    {isLoading ? 'Menyimpan...' : 'Simpan Data'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Warga Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && selectedData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsEditModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-xl font-black text-slate-900">Edit Data Mustahik</h3>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleUpdateMustahik} className="p-6 space-y-4 overflow-y-auto">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NIK (16 Digit)</label>
+                  <input defaultValue={selectedData.nik} required name="nik" type="text" maxLength={16} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NO. REGISTER MUSTAHIK (NRM)</label>
+                  <input defaultValue={selectedData.nrm} required name="nrm" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lengkap</label>
+                  <input defaultValue={selectedData.nama} required name="name" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
+                    <input defaultValue={selectedData.tempat_lahir} required name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Lahir</label>
+                    <input defaultValue={selectedData.tanggal_lahir} required name="tanggal_lahir" type="date" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin</label>
+                    <select defaultValue={selectedData.jenis_kelamin} required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all">
+                      <option value="">Pilih...</option>
+                      <option value="Pria">Pria</option>
+                      <option value="Wanita">Wanita</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
+                    <input defaultValue={selectedData.pekerjaan} name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Handphone</label>
+                    <input defaultValue={selectedData.handphone} required name="handphone" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email (Opsional)</label>
+                    <input defaultValue={selectedData.email} name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
+                  <textarea defaultValue={selectedData.alamat || ''} required name="address" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catatan</label>
+                  <textarea defaultValue={selectedData.catatan || ''} required name="catatan" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                </div>
+                <div className="space-y-1 mt-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Graduasi</label>
+                    <select defaultValue={selectedData.status_graduasi || 'Belum'} name="status" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all">
+                      <option value="Belum">Belum Lulus</option>
+                      <option value="Potensial">Potensial</option>
+                      <option value="Lulus">Lulus</option>
+                    </select>
+                  </div>
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={handleDeleteMustahik} className="px-6 py-3 border border-red-200 bg-red-50 rounded-xl text-sm font-bold text-red-600 hover:bg-red-100 transition-all flex items-center justify-center">
+                    <Trash2 className="size-4" />
+                  </button>
+                  <div className="flex-1 flex gap-3">
+                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Batal</button>
+                    <button type="submit" disabled={isLoading} className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
+                      {isLoading ? 'Menyimpan...' : 'Update Data'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail Warga Modal */}
+      <AnimatePresence>
+        {isDetailModalOpen && selectedData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsDetailModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-xl font-black text-slate-900">Detail Mustahik</h3>
+                <button onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NIK</p>
+                     <div className="flex items-center gap-2 mt-0.5">
+                       <p className={cn('font-semibold text-slate-800 font-mono', !detailNIKRevealed && 'tracking-widest')}>
+                         {detailNIKRevealed ? selectedData.nik : maskNIK(selectedData.nik)}
+                       </p>
+                       {isSuperAdmin && (
+                         <button
+                           onClick={() => setDetailNIKRevealed(v => !v)}
+                           className="p-1 text-slate-300 hover:text-primary rounded transition-colors"
+                           title={detailNIKRevealed ? 'Sembunyikan NIK' : 'Tampilkan NIK'}
+                         >
+                           {detailNIKRevealed
+                             ? <EyeOff className="size-3.5" />
+                             : <Eye className="size-3.5" />}
+                         </button>
+                       )}
+                     </div>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NRM</p>
+                     <p className="font-semibold text-slate-800">{selectedData.nrm}</p>
+                   </div>
+                   <div className="col-span-2">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lengkap</p>
+                     <p className="font-semibold text-slate-800">{selectedData.nama}</p>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</p>
+                     <p className="font-semibold text-slate-800">{selectedData.tempat_lahir || '-'}</p>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Lahir</p>
+                     <p className="font-semibold text-slate-800">{selectedData.tanggal_lahir || '-'}</p>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin</p>
+                     <p className="font-semibold text-slate-800">{selectedData.jenis_kelamin || '-'}</p>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan</p>
+                     <p className="font-semibold text-slate-800">{selectedData.pekerjaan || '-'}</p>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Handphone</p>
+                     <p className="font-semibold text-slate-800">{selectedData.handphone || '-'}</p>
+                   </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</p>
+                     <p className="font-semibold text-slate-800">{selectedData.email || '-'}</p>
+                   </div>
+                   <div className="col-span-2">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</p>
+                     <p className="font-medium text-slate-600 border border-slate-100 bg-slate-50 p-3 rounded-lg mt-1">{selectedData.alamat || '-'}</p>
+                   </div>
+                   <div className="col-span-2">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catatan</p>
+                     <p className="font-medium text-slate-600 border border-slate-100 bg-slate-50 p-3 rounded-lg mt-1">{selectedData.catatan || '-'}</p>
+                   </div>
+                   <div className="col-span-2">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Graduasi</p>
+                     <span className={cn(
+                        "inline-block px-2 py-1 mt-1 text-[10px] font-bold rounded uppercase",
+                        selectedData.status_graduasi === 'Lulus' ? "bg-emerald-100 text-emerald-700" : selectedData.status_graduasi === 'Potensial' ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
+                      )}>
+                        {selectedData.status_graduasi || 'Belum'}
+                      </span>
+                   </div>
+                   <div className="col-span-2 mt-4 pt-4 border-t border-slate-100">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Riwayat Bantuan</p>
+                     <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                       {selectedData.proposals?.length > 0 ? (
+                         <div className="flex flex-col gap-2">
+                           {selectedData.proposals
+                             .sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+                             .map((p: any, idx: number) => (
+                             <div key={idx} className="bg-white p-3 rounded border border-slate-100 flex flex-col text-left shadow-sm">
+                                 <div className="flex justify-between items-start gap-4">
+                                   <div>
+                                     <p className="text-xs font-bold text-slate-700">{p.program?.name || p.keterangan || 'Bantuan Umum'}</p>
+                                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">Tertanggal: {new Date(p.tanggal_masuk || p.created_at).toLocaleDateString('id-ID')}</p>
+                                   </div>
+                                   <span className={cn(
+                                     "px-2 py-0.5 text-[9px] font-bold rounded uppercase shrink-0",
+                                     p.status === 'Selesai' ? "bg-emerald-100 text-emerald-700" :
+                                     p.status === 'Ditolak' ? "bg-rose-100 text-rose-700" :
+                                     "bg-amber-100 text-amber-700"
+                                   )}>
+                                     {p.status}
+                                   </span>
+                                 </div>
+                             </div>
+                           ))}
+                         </div>
+                       ) : (
+                         <p className="text-sm text-slate-400 text-center py-4">Belum ada riwayat bantuan terdata.</p>
+                       )}
+                     </div>
+                   </div>
+                </div>
+                <div className="pt-4 flex">
+                  <button onClick={() => setIsDetailModalOpen(false)} className="w-full px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Tutup</button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Migration Modal */}
+      <AnimatePresence>
+        {isMigrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsMigrationModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900">Migrasi Data Data Mustahik</h3>
+                <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <FileSpreadsheet className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
+                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom NIK, NRM, Nama, Alamat, Kategori, Status.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <button onClick={downloadTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-primary">Download Format Template</p>
+                        <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                    <ChevronRightIcon className="size-4 text-primary opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handleFileUpload} 
+                    />
+                  </label>
+                </div>
+
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="flex gap-3">
+                    <div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="text-amber-600 font-bold text-[10px]">!</span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+                      Pastikan kolom NIK dan NRM tidak kosong. Data duplikat NIK akan otomatis dilewati agar sistem tidak error.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Migration Riwayat Bantuan Modal */}
+      <AnimatePresence>
+        {isRiwayatMigrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsRiwayatMigrationModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-indigo-100 flex justify-between items-center bg-indigo-50/50">
+                <h3 className="text-xl font-black text-indigo-950 flex items-center gap-2">
+                  <History className="size-5 text-indigo-500" />
+                  Migrasi Riwayat Bantuan
+                </h3>
+                <button onClick={() => setIsRiwayatMigrationModalOpen(false)} className="p-2 hover:bg-indigo-100 rounded-full transition-colors">
+                  <X className="size-5 text-indigo-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                    Upload file Excel berisi histori bantuan.<br/>
+                    Pastikan kolom <span className="font-bold">ID_Bantuan, NIK, Tanggal, Jenis_Bantuan</span> tersedia. Data akan langsung terhubung ke NIK.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <button onClick={downloadTemplateRiwayat} className="w-full flex items-center justify-between p-4 border border-indigo-200 bg-indigo-50/50 rounded-xl group hover:bg-indigo-100 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-indigo-500" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-indigo-900">Download Format Template</p>
+                        <p className="text-[10px] text-indigo-500/70 font-medium">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                    <ChevronRightIcon className="size-4 text-indigo-500 opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border-2 border-indigo-200 border-dashed rounded-xl cursor-pointer hover:bg-indigo-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-indigo-900 group-hover:text-indigo-700 transition-colors">Upload Riwayat via (.xlsx)</p>
+                        <p className="text-[10px] text-indigo-400 font-medium">Pilih file xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handleRiwayatFileUpload} 
+                    />
+                  </label>
+                </div>
+
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="flex gap-3">
+                    <div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="text-amber-600 font-bold text-[10px]">!</span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+                      Baris yang menggunakan NIK yang tidak terdaftar di database akan dilewati secara otomatis.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SummaryCard({ title, value, trend, trendUp, icon, subtitle }: { 
+  title: string, 
+  value: string, 
+  trend: string, 
+  trendUp: boolean,
+  icon: React.ReactNode,
+  subtitle?: string
+}) {
+  return (
+    <div className="bg-white p-6 rounded-xl border border-primary/10 shadow-sm relative overflow-hidden group">
+      <div className="absolute -right-4 -bottom-4 size-24 bg-primary/5 rounded-full group-hover:scale-110 transition-transform" />
+      <div className="flex justify-between items-start mb-4 relative z-10">
+        <div className="p-2 bg-primary/10 rounded-lg text-primary">
+          {icon}
+        </div>
+        <span className={cn(
+          "text-[10px] font-bold px-2 py-1 rounded",
+          trendUp ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"
+        )}>
+          {trend}
+        </span>
+      </div>
+      <div className="relative z-10">
+        <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">{title}</p>
+        <div className="flex items-baseline gap-2 mt-1">
+          <h3 className="text-2xl font-black text-slate-900">{value}</h3>
+          {subtitle && <span className="text-[10px] font-bold text-slate-400 uppercase">{subtitle}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
