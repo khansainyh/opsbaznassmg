@@ -258,25 +258,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     const isSanitasi = selectedTask.jenisPermohonan?.toLowerCase().includes('sanitasi');
     const isProduktif = selectedTask.jenisPermohonan?.startsWith('21');
 
-    // Validasi kelengkapan foto saat submit (hanya wajib saat survei baru, bukan pas edit)
-    if (!isEditMode) {
-      if (!photos.fotoDepan || !photos.fotoDalam) {
-        alert("Mohon upload Foto Tampak Depan dan Tampak Dalam terlebih dahulu.");
-        return;
-      }
-      if (isKonsumtif && !photos.fotoOrang) {
-        alert("Mohon upload Foto Mustahik/Pemohon terlebih dahulu.");
-        return;
-      }
-      if (isSanitasi && !photos.fotoSanitasi) {
-        alert("Mohon upload Foto Toilet/Sanitasi terlebih dahulu.");
-        return;
-      }
-      if (isProduktif && !photos.fotoProduk) {
-        alert("Mohon upload Foto Produk/Usaha terlebih dahulu.");
-        return;
-      }
-    }
+    // [TEMP DISABLED] Validasi foto dinonaktifkan sementara karena Google Drive belum dikonfigurasi
     
     try {
       const formData = new FormData();
@@ -285,11 +267,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       formData.append('score', totalScore.toString());
       formData.append('survey_data', JSON.stringify(surveyForm));
 
-      if (photos.fotoDepan) formData.append('fotoDepan', photos.fotoDepan);
-      if (photos.fotoDalam) formData.append('fotoDalam', photos.fotoDalam);
-      if (photos.fotoOrang) formData.append('fotoOrang', photos.fotoOrang);
-      if (photos.fotoSanitasi) formData.append('fotoSanitasi', photos.fotoSanitasi);
-      if (photos.fotoProduk) formData.append('fotoProduk', photos.fotoProduk);
+      // [TEMP DISABLED] Upload foto dinonaktifkan sementara
 
       const response = await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedTask.id}`, formData, {
         headers: {
@@ -769,83 +747,17 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
             </div>
           </div>
 
-          {/* BAGIAN D: BUKTI DOKUMENTASI LAPANGAN */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-            <h4 className="text-lg font-black text-emerald-700 border-b pb-2 flex items-center gap-2">
+          {/* BAGIAN D: BUKTI DOKUMENTASI — SEMENTARA DINONAKTIFKAN */}
+          <div className="bg-slate-100 p-5 rounded-2xl border border-dashed border-slate-300 space-y-2 opacity-60">
+            <h4 className="text-lg font-black text-slate-500 flex items-center gap-2">
               <Camera className="size-5" /> Bagian D: Bukti Dokumentasi
             </h4>
-            <p className="text-[11px] text-slate-500 font-medium">Unggah foto menggunakan HP Anda. Sistem otomatis akan mengompres foto untuk menghemat kuota & ruang server.</p>
-            
-            <div className="space-y-4">
-              {/* Umum */}
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center justify-between">
-                  1. Foto Bangunan Tampak Depan <span className="text-rose-500">*</span>
-                </label>
-                {isEditMode && editingHistory?.survey_data?.fotoDepan && !photos.fotoDepan && (
-                  <a href={editingHistory.survey_data.fotoDepan} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline mb-1 block">Lihat Foto Tersimpan</a>
-                )}
-                <div className="relative">
-                  <input type="file" accept="image/*" capture="environment" onChange={e => handlePhotoUpload(e, 'fotoDepan')} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
-                </div>
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <span className="text-amber-600 text-lg">🚧</span>
+              <div>
+                <p className="text-xs font-black text-amber-700">Fitur Sedang Dalam Pengembangan</p>
+                <p className="text-[11px] text-amber-600 mt-0.5">Upload foto dokumentasi akan aktif setelah integrasi Google Drive selesai dikonfigurasi.</p>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center justify-between">
-                  2. Foto Bangunan Tampak Dalam <span className="text-rose-500">*</span>
-                </label>
-                {isEditMode && editingHistory?.survey_data?.fotoDalam && !photos.fotoDalam && (
-                  <a href={editingHistory.survey_data.fotoDalam} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline mb-1 block">Lihat Foto Tersimpan</a>
-                )}
-                <div className="relative">
-                  <input type="file" accept="image/*" capture="environment" onChange={e => handlePhotoUpload(e, 'fotoDalam')} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
-                </div>
-              </div>
-
-              {/* Konsumtif (awalan 1) */}
-              {selectedTask.jenisPermohonan?.startsWith('1') && (
-                <div className="space-y-2 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
-                  <label className="text-[11px] font-black text-blue-800 uppercase tracking-widest flex items-center justify-between">
-                    3. Foto Mustahik / Pemohon <span className="text-rose-500">*</span>
-                  </label>
-                  {isEditMode && editingHistory?.survey_data?.fotoOrang && !photos.fotoOrang && (
-                    <a href={editingHistory.survey_data.fotoOrang} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline mb-1 block">Lihat Foto Tersimpan</a>
-                  )}
-                  <div className="relative">
-                    <input type="file" accept="image/*" capture="environment" onChange={e => handlePhotoUpload(e, 'fotoOrang')} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200" />
-                  </div>
-                </div>
-              )}
-
-              {/* Sanitasi */}
-              {selectedTask.jenisPermohonan?.toLowerCase().includes('sanitasi') && (
-                <div className="space-y-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
-                  <label className="text-[11px] font-black text-indigo-800 uppercase tracking-widest flex items-center justify-between">
-                    3b. Foto Toilet / Sanitasi <span className="text-rose-500">*</span>
-                  </label>
-                  {isEditMode && editingHistory?.survey_data?.fotoSanitasi && !photos.fotoSanitasi && (
-                    <a href={editingHistory.survey_data.fotoSanitasi} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline mb-1 block">Lihat Foto Tersimpan</a>
-                  )}
-                  <div className="relative">
-                    <input type="file" accept="image/*" capture="environment" onChange={e => handlePhotoUpload(e, 'fotoSanitasi')} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200" />
-                  </div>
-                </div>
-              )}
-
-              {/* Produktif (Semarang Makmur - awalan 21) */}
-              {selectedTask.jenisPermohonan?.startsWith('21') && (
-                <div className="space-y-2 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
-                  <label className="text-[11px] font-black text-amber-800 uppercase tracking-widest flex items-center justify-between">
-                    3. Foto Produk / Usaha <span className="text-rose-500">*</span>
-                  </label>
-                  {isEditMode && editingHistory?.survey_data?.fotoProduk && !photos.fotoProduk && (
-                    <a href={editingHistory.survey_data.fotoProduk} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline mb-1 block">Lihat Foto Tersimpan</a>
-                  )}
-                  <div className="relative">
-                    <input type="file" accept="image/*" capture="environment" onChange={e => handlePhotoUpload(e, 'fotoProduk')} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200" />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </form>

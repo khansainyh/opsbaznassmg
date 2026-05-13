@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import {
   AreaChart,
@@ -13,6 +13,7 @@ import {
   Cell,
   PieChart,
   Pie,
+  LabelList,
 } from 'recharts';
 import {
   ChevronRight,
@@ -22,6 +23,8 @@ import {
   Banknote,
   PiggyBank,
   Users,
+  X,
+  MapPin,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import {
@@ -30,6 +33,7 @@ import {
   trenBulanan,
   topProgram,
   tahunAnggaran,
+  sebaranKecamatan,
 } from '../data/executiveDashboardData';
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -77,6 +81,9 @@ const PilarTooltip = ({ active, payload }: any) => {
 // ─── Main Component ─────────────────────────────────────────
 export default function ExecutiveDashboard() {
   const { pengumpulan, pendistribusian, sisaAnggaran } = bigThreeData;
+  const [activePilar, setActivePilar] = useState<typeof proporsiPilar[0] | null>(null);
+
+  const kecamatanData = activePilar ? (sebaranKecamatan[activePilar.kode] ?? []) : [];
 
   const pctPengumpulan = pct(pengumpulan.realisasi, pengumpulan.target);
   const pctDistribusi = pct(pendistribusian.realisasi, pendistribusian.target);
@@ -212,22 +219,16 @@ export default function ExecutiveDashboard() {
                   <stop offset="5%" stopColor="var(--color-primary, #16a34a)" stopOpacity={0.15} />
                   <stop offset="95%" stopColor="var(--color-primary, #16a34a)" stopOpacity={0} />
                 </linearGradient>
-                <linearGradient id="gPenyaluran" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="bulan" tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={v => formatRupiah(v)} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={64} />
               <Tooltip content={<CustomTooltip />} />
               <Area type="monotone" dataKey="pengumpulan" name="Pengumpulan" stroke="#16a34a" strokeWidth={2.5} fill="url(#gPengumpulan)" dot={{ fill: '#16a34a', r: 3 }} />
-              <Area type="monotone" dataKey="penyaluran" name="Penyaluran" stroke="#10b981" strokeWidth={2.5} fill="url(#gPenyaluran)" dot={{ fill: '#10b981', r: 3 }} />
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-6 mt-4 justify-center">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-primary" />Pengumpulan</div>
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-emerald-500" />Penyaluran</div>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-primary" />Pengumpulan ZIS</div>
           </div>
         </div>
 
@@ -247,14 +248,23 @@ export default function ExecutiveDashboard() {
                 outerRadius={78}
                 paddingAngle={3}
                 dataKey="value"
+                onClick={(entry) => setActivePilar(proporsiPilar.find(p => p.kode === entry.kode) ?? null)}
+                style={{ cursor: 'pointer' }}
               >
                 {pieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.warna} />
+                  <Cell
+                    key={i}
+                    fill={entry.warna}
+                    stroke={activePilar?.kode === entry.kode ? '#1e293b' : 'transparent'}
+                    strokeWidth={activePilar?.kode === entry.kode ? 3 : 0}
+                    opacity={activePilar && activePilar.kode !== entry.kode ? 0.45 : 1}
+                  />
                 ))}
               </Pie>
               <Tooltip content={<PilarTooltip />} />
             </PieChart>
           </ResponsiveContainer>
+
           <div className="space-y-2 mt-2">
             {proporsiPilar.map(p => (
               <div key={p.kode} className="flex items-center justify-between">
@@ -345,6 +355,126 @@ export default function ExecutiveDashboard() {
           </div>
         </div>
       </motion.div>
+
+      {/* ── Modal Drill-down Sebaran Kecamatan ── */}
+      {activePilar && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setActivePilar(null)}
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 24 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          >
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0"
+              style={{ background: `linear-gradient(135deg, ${activePilar.warna}18, transparent)` }}>
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-xl flex items-center justify-center"
+                  style={{ background: `${activePilar.warna}25` }}>
+                  <MapPin className="size-5" style={{ color: activePilar.warna }} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg leading-tight">
+                    Sebaran Wilayah — {activePilar.nama}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
+                    {kecamatanData.reduce((a, b) => a + b.jumlah, 0)} proposal · 16 Kecamatan Kota Semarang
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setActivePilar(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <X className="size-5 text-slate-400" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
+              {/* Bar Chart */}
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart
+                  data={[...kecamatanData].sort((a, b) => b.jumlah - a.jumlah)}
+                  layout="vertical"
+                  margin={{ top: 0, right: 40, left: 8, bottom: 0 }}
+                  barCategoryGap="20%"
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="kecamatan"
+                    tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={115}
+                  />
+                  <Tooltip
+                    formatter={(val: any) => [`${val} Proposal`, 'Jumlah']}
+                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.1)', fontSize: 12 }}
+                  />
+                  <Bar dataKey="jumlah" radius={[0, 6, 6, 0]} fill={activePilar.warna}>
+                    <LabelList dataKey="jumlah" position="right"
+                      style={{ fontSize: 11, fontWeight: 800, fill: '#334155' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+
+              {/* Tabel ringkasan */}
+              <div className="border border-slate-100 rounded-xl overflow-hidden">
+                <div className="px-4 py-2.5 bg-slate-50 grid grid-cols-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <span>Kecamatan</span>
+                  <span className="text-center">Proposal</span>
+                  <span className="text-right">Proporsi</span>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {[...kecamatanData]
+                    .sort((a, b) => b.jumlah - a.jumlah)
+                    .map((row, idx) => {
+                      const total = kecamatanData.reduce((a, b) => a + b.jumlah, 0);
+                      const pctRow = Math.round((row.jumlah / total) * 100);
+                      return (
+                        <div key={row.kecamatan} className="px-4 py-2 grid grid-cols-3 items-center hover:bg-slate-50/50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="size-5 rounded-md flex items-center justify-center text-[9px] font-black text-white shrink-0"
+                              style={{ background: idx < 3 ? activePilar.warna : '#cbd5e1' }}>
+                              {idx + 1}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-700">{row.kecamatan}</span>
+                          </div>
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="flex-1 max-w-[80px] bg-slate-100 rounded-full h-1.5">
+                              <div className="h-1.5 rounded-full transition-all"
+                                style={{ width: `${pctRow}%`, background: activePilar.warna }} />
+                            </div>
+                            <span className="text-xs font-black text-slate-800 w-6 text-right">{row.jumlah}</span>
+                          </div>
+                          <span className="text-right text-[11px] font-bold text-slate-500">{pctRow}%</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+              <p className="text-[10px] text-slate-400 font-medium">Data dummy · akan terhubung dengan data real</p>
+              <button onClick={() => setActivePilar(null)}
+                className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
+                Tutup
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
     </div>
   );

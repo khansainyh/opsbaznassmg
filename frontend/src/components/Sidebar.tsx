@@ -54,7 +54,7 @@ const menuGroups = [
   {
     title: "OPERASIONAL",
     items: [
-      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
+      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "WK_Distribusi", "WK_Pengumpulan", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
       { name: "Tracking Surat", icon: ClipboardCheck, roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },

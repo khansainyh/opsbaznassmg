@@ -20,6 +20,7 @@ import ReviewPimpinan from '@/src/pages/ReviewPimpinan';
 import PenentuanNominal from '@/src/pages/PenentuanNominal';
 import AntreanBantuan from '@/src/pages/AntreanBantuan';
 import ExecutiveDashboard from '@/src/pages/ExecutiveDashboard';
+import TrackingProposal from '@/src/pages/TrackingProposal';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -183,6 +184,8 @@ function App() {
             data={proposals}
             onUpdate={handleUpdateProposals}
           />
+        ) : activeMenu === 'Tracking Proposal' ? (
+          <TrackingProposal data={proposals} />
         ) : activeMenu === 'Pilar & Program' ? (
           <PilarProgram />
         ) : activeMenu === 'Data Mustahik' ? (

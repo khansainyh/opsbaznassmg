@@ -939,9 +939,11 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                         <select name="memoSource" className="w-full bg-white border-emerald-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-200 outline-none transition-all" defaultValue={editingProposal?.memoSource || ""}>
                           <option value="">Pilih Sumber...</option>
                           <option value="Ketua BAZNAS">Ketua BAZNAS</option>
-                          <option value="Ketua Pelaksana">Ketua Pelaksana</option>
                           <option value="Wakil Ketua I">Wakil Ketua I</option>
                           <option value="Wakil Ketua II">Wakil Ketua II</option>
+                          <option value="Wakil Ketua III">Wakil Ketua III</option>
+                          <option value="Wakil Ketua IV">Wakil Ketua IV</option>
+                          <option value="Kepala Pelaksana">Kepala Pelaksana</option>
                         </select>
                       </div>
                     </div>
