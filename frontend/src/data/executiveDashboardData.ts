@@ -8,17 +8,17 @@ export const tahunAnggaran = 2026;
 // ============================================================
 export const bigThreeData = {
   pengumpulan: {
-    realisasi: 3_847_250_000,
-    target: 8_500_000_000,
+    realisasi: 7_284_500_000,
+    target: 18_000_000_000,
     bulan: 'Mei 2026',
   },
   pendistribusian: {
-    realisasi: 2_193_500_000,
-    target: 7_650_000_000,
+    realisasi: 4_912_750_000,
+    target: 16_200_000_000,
     bulan: 'Mei 2026',
   },
   sisaAnggaran: {
-    nilai: 1_653_750_000,
+    nilai: 2_371_750_000,
     keterangan: 'Saldo tersedia untuk didistribusikan',
   },
 };

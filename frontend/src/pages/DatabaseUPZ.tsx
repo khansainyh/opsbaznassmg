@@ -13,7 +13,6 @@ import {
   PlusCircle, 
   Eye, 
   MapPin, 
-  Phone, 
   User, 
   Info,
   Calendar,
@@ -23,8 +22,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { upzData as initialUpzData, skHistoryData } from '@/src/data/upzData';
-import { UPZ } from '@/src/types/upz';
+import { upzData as initialUpzData, skHistoryData as initialSkHistoryData } from '@/src/data/upzData';
+import { UPZ, SKHistory } from '@/src/types/upz';
+import { getNextRenewalSKNumber, getNextBaseSKNumber, isSKPembentukan } from '@/src/utils/skUtils';
 
 const kecamatanData: Record<string, string[]> = {
   "Semarang Tengah": ["Pekunden", "Sekayu", "Kembangsari", "Miroto"],
@@ -34,7 +34,7 @@ const kecamatanData: Record<string, string[]> = {
 };
 
 export default function DatabaseUPZ() {
-  const [data] = useState<UPZ[]>(initialUpzData);
+  const [data, setData] = useState<UPZ[]>(initialUpzData);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
   const [kecamatanFilter, setKecamatanFilter] = useState('Semua');
@@ -44,6 +44,17 @@ export default function DatabaseUPZ() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // History modal view: 'list' | 'perubahan' | 'pembaruan'
+  const [historyView, setHistoryView] = useState<'list' | 'perubahan' | 'pembaruan'>('list');
+
+  // SK History state (reactive so we can add entries)
+  const [skHistory, setSkHistory] = useState<SKHistory[]>(initialSkHistoryData);
+
+  // Pembaruan (SK renewal) form state
+  const [renewalForm, setRenewalForm] = useState({ startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
+
+
 
   // Form States for Add/Edit
   const [formKecamatan, setFormKecamatan] = useState('');
@@ -152,11 +163,150 @@ export default function DatabaseUPZ() {
 
   const handleHistoryClick = (upz: UPZ) => {
     setSelectedUPZ(upz);
+    setHistoryView('list');
+    
+    // Load current data into forms
+    setRenewalForm({ 
+      startYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear()).toString() : '', 
+      endYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear() + 5).toString() : '', 
+      pimpinanName: upz.metadata.pimpinanName || '', 
+      keterangan: '' 
+    });
+
+    // Load current pengurus structure
+    const p = upz.metadata.pengurus;
+    if (p) {
+      setFormPengurus({
+        penasehat: { nama: p.penasehat?.nama || '', alamat: p.penasehat?.alamat || '' },
+        ketua: { nama: p.ketua?.nama || '', alamat: p.ketua?.alamat || '' },
+        sekretaris: { nama: p.sekretaris?.nama || '', alamat: p.sekretaris?.alamat || '' },
+        bendahara: { nama: p.bendahara?.nama || '', alamat: p.bendahara?.alamat || '' },
+        anggota1: { nama: p.anggota1?.nama || '', alamat: p.anggota1?.alamat || '' },
+        anggota2: { nama: p.anggota2?.nama || '', alamat: p.anggota2?.alamat || '' },
+      });
+      setAnggotaTambahan((p.anggotaTambahan || []).map(a => ({ nama: a.nama, alamat: a.alamat || '' })));
+    }
+
     setIsHistoryModalOpen(true);
   };
 
   const getHistoryForUPZ = (upzId: string) => {
-    return skHistoryData.filter((h: any) => h.upzId === upzId);
+    return skHistory
+      .filter((h: SKHistory) => h.upzId === upzId)
+      .sort((a, b) => a.skNumber.localeCompare(b.skNumber, undefined, { numeric: true }));
+  };
+
+  // Computed: next SK number for selected UPZ
+  const nextRenewalSK = selectedUPZ ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) : '';
+  // Computed: next base SK number for new UPZ registration
+  const nextBaseSK = getNextBaseSKNumber(skHistory);
+
+  const handleRenewalSK = () => {
+    if (!selectedUPZ || !renewalForm.startYear || !renewalForm.endYear || !formPengurus.penasehat.nama) {
+      alert('Harap isi minimal Tahun dan Nama Penasehat/Ketua.');
+      return;
+    }
+    const newEntry: SKHistory = {
+      id: `sk-${Date.now()}`,
+      upzId: selectedUPZ.id,
+      skNumber: nextRenewalSK,
+      startDate: `${renewalForm.startYear}-01-01`,
+      endDate: `${renewalForm.endYear}-12-31`,
+      pimpinanName: formPengurus.penasehat.nama,
+      status: 'Aktif',
+    };
+    
+    setSkHistory(prev => [
+      ...prev.map(h => h.upzId === selectedUPZ.id && h.status === 'Aktif' ? { ...h, status: 'Tidak Aktif' as const } : h),
+      newEntry,
+    ]);
+
+    setData(prev => prev.map(u => u.id === selectedUPZ.id ? { 
+      ...u, 
+      activeSKNumber: nextRenewalSK,
+      skExpiryDate: `${renewalForm.endYear}-12-31`,
+      metadata: { 
+        ...u.metadata, 
+        pimpinanName: formPengurus.penasehat.nama,
+        pengurus: {
+          ...formPengurus,
+          anggotaTambahan: anggotaTambahan
+        }
+      } 
+    } : u));
+    
+    setSelectedUPZ(prev => prev ? { 
+      ...prev, 
+      activeSKNumber: nextRenewalSK,
+      skExpiryDate: `${renewalForm.endYear}-12-31`,
+      metadata: { 
+        ...prev.metadata, 
+        pimpinanName: formPengurus.penasehat.nama,
+        pengurus: {
+          ...formPengurus,
+          anggotaTambahan: anggotaTambahan
+        }
+      }
+    } : prev);
+
+    setRenewalForm({ startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
+    setHistoryView('list');
+    alert(`✅ SK Pembaruan ${nextRenewalSK} berhasil disimpan dengan struktur pengurus baru!`);
+  };
+
+  const handlePerubahanSK = () => {
+    if (!selectedUPZ || !formPengurus.penasehat.nama) {
+      alert('Harap isi minimal Nama Penasehat/Ketua.');
+      return;
+    }
+
+    // Get current SK dates to keep them same
+    const currentSK = skHistory.find(h => h.upzId === selectedUPZ.id && h.status === 'Aktif');
+    
+    const newEntry: SKHistory = {
+      id: `sk-${Date.now()}`,
+      upzId: selectedUPZ.id,
+      skNumber: nextRenewalSK, // Perubahan juga ganti nomor SK versi baru
+      startDate: currentSK?.startDate || '',
+      endDate: currentSK?.endDate || '',
+      pimpinanName: formPengurus.penasehat.nama,
+      status: 'Aktif',
+    };
+
+    setSkHistory(prev => [
+      ...prev.map(h => h.upzId === selectedUPZ.id && h.status === 'Aktif' ? { ...h, status: 'Tidak Aktif' as const } : h),
+      newEntry,
+    ]);
+
+    setData(prev => prev.map(u => u.id === selectedUPZ.id ? { 
+      ...u, 
+      activeSKNumber: nextRenewalSK,
+      metadata: { 
+        ...u.metadata, 
+        pimpinanName: formPengurus.penasehat.nama,
+        pengurus: {
+          ...formPengurus,
+          anggotaTambahan: anggotaTambahan
+        }
+      } 
+    } : u));
+
+    setSelectedUPZ(prev => prev ? { 
+      ...prev, 
+      activeSKNumber: nextRenewalSK,
+      metadata: { 
+        ...prev.metadata, 
+        pimpinanName: formPengurus.penasehat.nama,
+        pengurus: {
+          ...formPengurus,
+          anggotaTambahan: anggotaTambahan
+        }
+      }
+    } : prev);
+
+
+    setHistoryView('list');
+    alert(`✅ Perubahan pengurus berhasil disimpan. No. SK diperbarui menjadi ${nextRenewalSK}. Masa berlaku tetap.`);
   };
 
   return (
@@ -388,138 +538,268 @@ export default function DatabaseUPZ() {
         </div>
       </motion.div>
 
-      {/* SK History Modal */}
+      {/* SK History + Perubahan/Pembaruan — satu modal, tanpa stacking */}
       <AnimatePresence>
         {isHistoryModalOpen && selectedUPZ && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
               onClick={() => setIsHistoryModalOpen(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              {/* Modal Header */}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95, y:20 }}
+              className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
+              {/* Header — berubah sesuai view */}
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center gap-4">
-                  <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                    <History className="size-6" />
+                  {historyView !== 'list' && (
+                    <button onClick={() => setHistoryView('list')}
+                      className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
+                      <ChevronRight className="size-5 rotate-180" />
+                    </button>
+                  )}
+                  <div className={cn('size-12 rounded-xl flex items-center justify-center',
+                    historyView === 'list' ? 'bg-primary/10 text-primary' :
+                    historyView === 'perubahan' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600')}>
+                    {historyView === 'list' ? <History className="size-6" /> :
+                     historyView === 'perubahan' ? <Edit2 className="size-6" /> : <PlusCircle className="size-6" />}
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 leading-tight uppercase tracking-tight">Riwayat SK & Kepengurusan</h3>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight uppercase tracking-tight">
+                      {historyView === 'list' ? 'Riwayat SK & Kepengurusan' :
+                       historyView === 'perubahan' ? 'Perubahan Kepengurusan' : 'Pembaruan SK'}
+                    </h3>
                     <div className="flex items-center gap-3 mt-1">
                       <p className="text-xs text-primary font-bold flex items-center gap-1">
-                        <Building2 className="size-3" />
-                        {selectedUPZ.name} ({selectedUPZ.code})
+                        <Building2 className="size-3" />{selectedUPZ.name} ({selectedUPZ.code})
                       </p>
                       <span className="text-slate-300">|</span>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                        <MapPin className="size-3" />
-                        {selectedUPZ.kelurahan}, {selectedUPZ.kecamatan}
+                        <MapPin className="size-3" />{selectedUPZ.kelurahan}, {selectedUPZ.kecamatan}
                       </p>
                     </div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setIsHistoryModalOpen(false)}
-                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
-                >
+                <button onClick={() => setIsHistoryModalOpen(false)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
 
-              {/* Modal Content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Daftar Rekam Jejak SK</h4>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
-                    <PlusCircle className="size-4" />
-                    Perbarui SK Baru
-                  </button>
-                </div>
+              {/* ── VIEW: LIST ── */}
+              {historyView === 'list' && (
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                  {/* Action buttons */}
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Daftar Rekam Jejak SK</h4>
+                    <div className="flex gap-2">
+                      <button onClick={() => setHistoryView('perubahan')}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20">
+                        <Edit2 className="size-4" />Perubahan
+                      </button>
+                      <button onClick={() => { setRenewalForm({ startYear:'', endYear:'', pimpinanName:'', keterangan:'' }); setHistoryView('pembaruan'); }}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
+                        <PlusCircle className="size-4" />Pembaruan
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
-                        <th className="px-6 py-4">No. SK</th>
-                        <th className="px-6 py-4">Masa Berlaku</th>
-                        <th className="px-6 py-4">Pengurus Utama</th>
-                        <th className="px-6 py-4 text-center">Status</th>
-                        <th className="px-6 py-4 text-right">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {getHistoryForUPZ(selectedUPZ.id).map((history: any) => (
-                        <tr key={history.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-black text-slate-900">{history.skNumber}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                              <Calendar className="size-4 text-slate-400" />
-                              <span>{new Date(history.startDate).getFullYear()} - {new Date(history.endDate).getFullYear()}</span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Masa Jabatan 5 Tahun</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                                <User className="size-4" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-slate-900">{history.pimpinanName}</p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedUPZ.metadata.pimpinanTitle}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={cn(
-                              "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                              history.status === 'Aktif' 
-                                ? "bg-emerald-100 text-emerald-700" 
-                                : "bg-rose-100 text-rose-700"
-                            )}>
-                              {history.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button className="px-4 py-1.5 border border-primary/20 text-primary rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/5 transition-all flex items-center gap-2 ml-auto">
-                              <Eye className="size-3" />
-                              Detail
-                            </button>
-                          </td>
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                          <th className="px-6 py-4">No. SK</th>
+                          <th className="px-6 py-4">Masa Berlaku</th>
+                          <th className="px-6 py-4">Pengurus Utama</th>
+                          <th className="px-6 py-4 text-center">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
+                          <tr key={history.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="space-y-1">
+                                <span className="text-sm font-black text-slate-900">{history.skNumber}</span>
+                                <p className="text-[9px] font-bold uppercase tracking-wider"
+                                  style={{ color: isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb' }}>
+                                  {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                                <Calendar className="size-4 text-slate-400" />
+                                <span>{new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                                  <User className="size-4" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">{history.pimpinanName}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase">Penasehat</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
+                                history.status === 'Aktif' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
+                                {history.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3">
-                  <Info className="size-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-amber-900">Catatan Legalitas</p>
-                    <p className="text-[10px] text-amber-800 leading-relaxed font-medium">
-                      Setiap pergantian pengurus wajib disertai dengan SK baru yang diterbitkan oleh BAZNAS Kota Semarang. Masa berlaku SK standar adalah 5 tahun sejak tanggal ditetapkan. Data riwayat ini digunakan untuk memvalidasi pengajuan proposal di masa lalu agar sesuai dengan pengurus yang menjabat saat itu.
-                    </p>
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed">
+                    <span className="font-black text-slate-700">Perubahan</span> = pergantian pengurus, No. SK diperbarui, masa berlaku tetap. &nbsp;
+                    <span className="font-black text-slate-700">Pembaruan</span> = masa berlaku SK habis, No. SK diperbarui, masa berlaku baru (5 thn).
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Modal Footer */}
-              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end">
-                <button 
-                  onClick={() => setIsHistoryModalOpen(false)}
-                  className="px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
-                >
-                  Tutup
-                </button>
+              {/* ── VIEW: PERUBAHAN ── */}
+              {historyView === 'perubahan' && (
+                <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Nomor SK Baru (Perubahan)</p>
+                    <p className="text-2xl font-black text-amber-800">{nextRenewalSK}</p>
+                    <p className="text-[10px] text-amber-600 font-medium">Masa berlaku tetap mengikuti SK aktif saat ini.</p>
+                  </div>
+
+                  {/* Pengurus Form */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <User className="size-4" />
+                      <h4 className="text-xs font-black uppercase tracking-widest">Update Struktur Kepengurusan</h4>
+                    </div>
+                    {(['penasehat', 'ketua', 'sekretaris', 'bendahara', 'anggota1', 'anggota2'] as const).map(jabatan => (
+                      <div key={jabatan} className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="col-span-2">
+                          <span className="text-[10px] font-black text-primary uppercase tracking-widest">
+                            {jabatan === 'anggota1' ? 'Anggota 1' : jabatan === 'anggota2' ? 'Anggota 2' : jabatan.charAt(0).toUpperCase() + jabatan.slice(1)}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama</label>
+                          <input type="text" value={formPengurus[jabatan].nama} onChange={e => updatePengurusField(jabatan, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                      </div>
+                    ))}
+                    {isFlexibleAnggota && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
+                          <button type="button" onClick={addAnggotaTambahan} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
+                        </div>
+                        {anggotaTambahan.map((a, idx) => (
+                          <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                            <div className="flex gap-2">
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder="Alamat..." className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              )}
+
+              {/* ── VIEW: PEMBARUAN ── */}
+              {historyView === 'pembaruan' && (
+                <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+                  <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl space-y-1">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">Nomor SK Baru (Auto-Generated)</p>
+                    <p className="text-3xl font-black text-primary tracking-tight">{nextRenewalSK}</p>
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Mulai</label>
+                        <input type="number" value={renewalForm.startYear} onChange={e => setRenewalForm(prev => ({ ...prev, startYear: e.target.value }))} className="w-full bg-white border-slate-200 rounded-xl px-4 py-2 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Berakhir</label>
+                        <input type="number" value={renewalForm.endYear} onChange={e => setRenewalForm(prev => ({ ...prev, endYear: e.target.value }))} className="w-full bg-white border-slate-200 rounded-xl px-4 py-2 text-sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pengurus Form */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary">
+                      <User className="size-4" />
+                      <h4 className="text-xs font-black uppercase tracking-widest">Update Struktur Kepengurusan</h4>
+                    </div>
+                    {(['penasehat', 'ketua', 'sekretaris', 'bendahara', 'anggota1', 'anggota2'] as const).map(jabatan => (
+                      <div key={jabatan} className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="col-span-2">
+                          <span className="text-[10px] font-black text-primary uppercase tracking-widest">
+                            {jabatan === 'anggota1' ? 'Anggota 1' : jabatan === 'anggota2' ? 'Anggota 2' : jabatan.charAt(0).toUpperCase() + jabatan.slice(1)}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama</label>
+                          <input type="text" value={formPengurus[jabatan].nama} onChange={e => updatePengurusField(jabatan, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                      </div>
+                    ))}
+                    {isFlexibleAnggota && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
+                          <button type="button" onClick={addAnggotaTambahan} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
+                        </div>
+                        {anggotaTambahan.map((a, idx) => (
+                          <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                            <div className="flex gap-2">
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder="Alamat..." className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                {historyView !== 'list' ? (
+                  <>
+                    <button onClick={() => setHistoryView('list')}
+                      className="text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-700 transition-all px-4 py-2">
+                      ← Kembali
+                    </button>
+                    <button
+                      onClick={historyView === 'perubahan' ? handlePerubahanSK : handleRenewalSK}
+                      className={cn('px-8 py-2.5 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg transition-all',
+                        historyView === 'perubahan'
+                          ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                          : 'bg-primary hover:bg-primary/90 shadow-primary/20'
+                      )}>
+                      {historyView === 'perubahan' ? 'Simpan Perubahan' : `Simpan SK ${nextRenewalSK}`}
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => setIsHistoryModalOpen(false)}
+                    className="ml-auto px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
+                    Tutup
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
@@ -1115,7 +1395,7 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. SK Penetapan</label>
                       <input 
                         type="text" 
-                        placeholder="Contoh: 12.1"
+                        defaultValue={nextBaseSK.toString()}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
                     </div>

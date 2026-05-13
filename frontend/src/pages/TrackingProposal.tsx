@@ -87,18 +87,20 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
   if (!years.includes(selectedYear)) years.push(selectedYear);
 
   const filtered = useMemo(() => {
-    return data.filter(item => {
-      const date = new Date(item.tanggalMasuk);
-      const yearOk = date.getFullYear().toString() === selectedYear;
-      const monthOk = selectedMonth === 'Semua' || (date.getMonth()+1).toString().padStart(2,'0') === MONTH_MAP[selectedMonth];
-      const memoOk = selectedMemo === 'Semua' || (selectedMemo === 'Tanpa Memo' ? !item.hasMemo : item.memoSource === selectedMemo);
-      const searchOk = !searchTerm ||
-        item.agendaNo.toString().includes(searchTerm) ||
-        item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        item.nik.includes(searchTerm);
-      return yearOk && monthOk && memoOk && searchOk;
-    });
+    return data
+      .filter(item => {
+        const date = new Date(item.tanggalMasuk);
+        const yearOk = date.getFullYear().toString() === selectedYear;
+        const monthOk = selectedMonth === 'Semua' || (date.getMonth()+1).toString().padStart(2,'0') === MONTH_MAP[selectedMonth];
+        const memoOk = selectedMemo === 'Semua' || (selectedMemo === 'Tanpa Memo' ? !item.hasMemo : item.memoSource === selectedMemo);
+        const searchOk = !searchTerm ||
+          item.agendaNo.toString().includes(searchTerm) ||
+          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          item.nik.includes(searchTerm);
+        return yearOk && monthOk && memoOk && searchOk;
+      })
+      .sort((a, b) => Number(a.agendaNo) - Number(b.agendaNo));
   }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo]);
 
   const stats = useMemo(() => ({

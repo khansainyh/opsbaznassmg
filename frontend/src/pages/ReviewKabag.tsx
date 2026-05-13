@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import { 
   Search, 
-  Filter, 
   ChevronRight, 
   Eye, 
   CheckCircle2, 
@@ -12,13 +11,11 @@ import {
   ChevronRight as ChevronRightIcon,
   X,
   ClipboardList,
-  History,
-  Printer,
-  Edit2
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { proposalMemoData, ProposalMemo } from '../data/proposalMemoData';
+import { ProposalMemo } from '../data/proposalMemoData';
 import { Surat } from './InputSurat';
 
 interface ReviewKabagProps {
@@ -39,7 +36,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   // Filter proposals with 'Review Kabag Administrasi' status
   const filteredProposals = useMemo(() => {
     return data.filter(item => {
-      const isReviewKabag = item.status === 'Review Kabag Administrasi' || item.status === 'Review Kabag Admin' || item.status === 'Review Kabag';
+      const isReviewKabag = item.status === 'Review Kabag Admin';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -51,7 +48,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   // Filter surat with 'Review Kabag Administrasi' status
   const filteredSurat = useMemo(() => {
     return suratData.filter(item => {
-      const isReviewKabag = item.status === 'Review Kabag Administrasi' || item.status === 'Review Kabag Admin' || item.status === 'Review Kabag';
+      const isReviewKabag = item.status === 'Review Kabag Admin';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          (item.namaInstansi && item.namaInstansi.toLowerCase().includes(searchTerm.toLowerCase())) ||
                          item.keperluan.toLowerCase().includes(searchTerm.toLowerCase());
@@ -60,8 +57,8 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   }, [suratData, searchTerm]);
 
   const stats = useMemo(() => {
-    const reviewKabagCount = data.filter(d => d.status === 'Review Kabag Administrasi' || d.status === 'Review Kabag Admin' || d.status === 'Review Kabag').length;
-    const reviewSuratCount = suratData.filter(d => d.status === 'Review Kabag Administrasi' || d.status === 'Review Kabag Admin' || d.status === 'Review Kabag').length;
+    const reviewKabagCount = data.filter(d => d.status === 'Review Kabag Admin').length;
+    const reviewSuratCount = suratData.filter(d => d.status === 'Review Kabag Admin').length;
     return {
       proposal: reviewKabagCount,
       surat: reviewSuratCount,
