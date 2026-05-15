@@ -11,6 +11,7 @@ import suratRoutes from './routes/surat.route';
 import mustahikRoutes from './routes/mustahik.route';
 import authRoutes from './routes/auth.route';
 import userRoutes from './routes/user.route';
+import notificationRoutes from './routes/notification.route';
 
 dotenv.config();
 
@@ -44,7 +45,11 @@ app.use('/api/surats', suratRoutes);
 app.use('/api/mustahik', mustahikRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+import { initCronJobs } from './utils/cronJobs';
 
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
+  initCronJobs();
 });

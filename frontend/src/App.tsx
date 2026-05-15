@@ -21,6 +21,7 @@ import PenentuanNominal from '@/src/pages/PenentuanNominal';
 import AntreanBantuan from '@/src/pages/AntreanBantuan';
 import ExecutiveDashboard from '@/src/pages/ExecutiveDashboard';
 import TrackingProposal from '@/src/pages/TrackingProposal';
+import NotificationBell from '@/src/components/NotificationBell';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -86,7 +87,10 @@ function App() {
           yangMengajukan: item.yang_mengajukan || '',
           arsip: item.arsip || '',
           status: item.status.replace(/_/g, ' '),
-          fileGdriveLink: item.file_gdrive_link || ''
+          fileGdriveLink: item.file_gdrive_link || '',
+          kategori: item.kategori || '',
+          tanggalAcara: item.tanggal_acara || '',
+          jamAcara: item.jam_acara || ''
         }));
         setSurats(mappedSurats);
       })
@@ -115,18 +119,26 @@ function App() {
       />
       
       <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+        {/* Desktop Notification Bell */}
+        <div className="absolute top-6 right-8 z-50 hidden xl:block">
+          <NotificationBell />
+        </div>
+
         {/* Mobile Header */}
         <header className="xl:hidden bg-white border-b border-primary/10 px-4 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <div className="size-8 rounded-md bg-primary flex items-center justify-center text-white font-bold">B</div>
             <span className="font-bold text-slate-900">BAZNAS HUB</span>
           </div>
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 bg-slate-50 text-slate-600 rounded-lg"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 bg-slate-50 text-slate-600 rounded-lg"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            </button>
+          </div>
         </header>
 
         {activeMenu === 'Executive' ? (

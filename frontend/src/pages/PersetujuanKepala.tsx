@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import {
   Search, Eye, CheckCircle2, ChevronRight, X,
@@ -27,6 +27,15 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const [catatan, setCatatan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [approvedToday, setApprovedToday] = useState(0);
+  const [users, setUsers] = useState<any[]>([]);
+  const [assignedStaff, setAssignedStaff] = useState<string[]>([]);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+
+  useEffect(() => {
+    axios.get('http://127.0.0.1:4000/api/users')
+      .then(res => setUsers(res.data.filter((u: any) => u.role.startsWith('Staf') || u.role === 'Relawan')))
+      .catch(console.error);
+  }, []);
 
   const antreanProposal = useMemo(() =>
     data.filter(d => d.status === 'Review Kepala Pelaksana'), [data]);
@@ -67,6 +76,8 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setSelectedSurat(item);
     setSelectedProposal(null);
     setCatatan('');
+    setAssignedStaff([]);
+    setStaffSearchQuery('');
     setIsModalOpen(true);
   };
 
@@ -83,7 +94,8 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
       } else if (selectedSurat) {
         await axios.put(`http://127.0.0.1:4000/api/surats/${selectedSurat.id}`, {
           status: 'Review_Pimpinan',
-          catatanKepala: catatan.trim()
+          catatanKepala: catatan.trim(),
+          assigned_staff: assignedStaff
         });
         onUpdateSurat(suratData.map(d => d.id === selectedSurat.id
           ? { ...d, status: 'Review Pimpinan', catatanKepala: catatan.trim() } : d));
@@ -494,20 +506,84 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                       </div>
                     </div>
 
-                    {/* Catatan Kepala (opsional untuk surat) */}
+                    {/* Catatan Kepala */}
                     <div className="space-y-2 pt-2 border-t border-slate-100">
                       <label className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
                         <MessageSquare className="size-3.5 text-primary" />
                         Catatan Kepala Pelaksana
-                        <span className="text-slate-400 font-normal normal-case tracking-normal">(opsional)</span>
+                        <span className="text-rose-500">*</span>
                       </label>
                       <textarea rows={3} value={catatan} onChange={e => setCatatan(e.target.value)}
-                        placeholder="Catatan tambahan untuk Ketua (opsional)..."
+                        placeholder="Catatan untuk Pimpinan / Staf..."
                         className={cn(
                           'w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none leading-relaxed',
                           catatan.trim() ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200'
                         )} />
+                      {catatan.trim()
+                        ? <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="size-3" /> {catatan.trim().length} karakter · Siap dikirim</p>
+                        : <p className="text-[11px] text-rose-500 font-bold">⚠ Catatan wajib diisi sebelum menyetujui surat</p>}
                     </div>
+
+                    {selectedSurat.kategori === 'Undangan' && (
+                      <div className="space-y-3 pt-2 border-t border-slate-100 mt-4">
+                        <div>
+                          <label className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 mb-1">
+                            <User className="size-3.5 text-primary" />
+                            Tugaskan Staf (Notifikasi &amp; Pengingat H-1)
+                          </label>
+                          <p className="text-[11px] text-slate-400">Cari dan tambahkan staf yang wajib menghadiri undangan ini.</p>
+                        </div>
+                        
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                          <input 
+                            type="text" 
+                            placeholder="Ketik nama staf untuk mencari..." 
+                            value={staffSearchQuery} 
+                            onChange={e => setStaffSearchQuery(e.target.value)}
+                            className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all" 
+                          />
+                        </div>
+
+                        {staffSearchQuery && (
+                          <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-lg flex flex-col divide-y divide-slate-50 relative z-10">
+                            {users.filter(u => !assignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase())).map(u => (
+                              <button
+                                key={u.id}
+                                onClick={() => {
+                                  setAssignedStaff(prev => [...prev, u.id]);
+                                  setStaffSearchQuery('');
+                                }}
+                                className="px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex justify-between items-center group"
+                              >
+                                <span>{u.name} <span className="font-medium text-slate-400 ml-1">({u.role.replace(/_/g, ' ')})</span></span>
+                                <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity">Tambahkan</span>
+                              </button>
+                            ))}
+                            {users.filter(u => !assignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase())).length === 0 && (
+                              <div className="px-4 py-3 text-xs text-slate-400 text-center italic">Tidak ditemukan staf dengan nama tersebut.</div>
+                            )}
+                          </div>
+                        )}
+
+                        {assignedStaff.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {assignedStaff.map(id => {
+                              const u = users.find(x => x.id === id);
+                              if (!u) return null;
+                              return (
+                                <div key={u.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold shadow-sm">
+                                  {u.name}
+                                  <button onClick={() => setAssignedStaff(prev => prev.filter(x => x !== u.id))} className="hover:text-rose-300 transition-colors p-0.5 rounded-full hover:bg-white/10">
+                                    <X className="size-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -519,10 +595,10 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                   Batal
                 </button>
                 <button onClick={handleApprove}
-                  disabled={isSubmitting || (!!selectedProposal && !catatan.trim())}
+                  disabled={isSubmitting || !catatan.trim()}
                   className={cn(
                     'flex-1 px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg',
-                    (!isSubmitting && (selectedSurat || catatan.trim()))
+                    (!isSubmitting && catatan.trim())
                       ? 'bg-primary text-white hover:bg-primary/90 shadow-primary/20'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                   )}>

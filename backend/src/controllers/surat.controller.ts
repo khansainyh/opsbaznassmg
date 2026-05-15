@@ -49,10 +49,34 @@ export const updateSurat = async (req: Request, res: Response) => {
     if (data.tanggal_acara) {
       data.tanggal_acara = new Date(data.tanggal_acara);
     }
+    const existingSurat = await prisma.surat.findUnique({ where: { id } });
+
     const surat = await prisma.surat.update({
       where: { id },
       data
     });
+
+    // Handle notifications for assigned staff in 'Undangan'
+    if (existingSurat?.kategori === 'Undangan' && data.assigned_staff && Array.isArray(data.assigned_staff)) {
+      const oldStaff = Array.isArray(existingSurat.assigned_staff) ? existingSurat.assigned_staff as string[] : [];
+      const newStaff = data.assigned_staff as string[];
+      
+      const addedStaff = newStaff.filter(staffId => !oldStaff.includes(staffId));
+
+      if (addedStaff.length > 0) {
+        const notifications = addedStaff.map(userId => ({
+          userId,
+          title: 'Penugasan Undangan Baru',
+          message: `Anda ditugaskan oleh Kepala Pelaksana untuk menghadiri undangan dari ${surat.nama_instansi || 'Instansi Terkait'} pada ${surat.tanggal_acara ? new Date(surat.tanggal_acara).toLocaleDateString('id-ID') : '-'} jam ${surat.jam_acara || '-'}.`,
+          link: `/surat/${surat.id}`
+        }));
+
+        await prisma.notification.createMany({
+          data: notifications
+        });
+      }
+    }
+
     res.status(200).json(surat);
   } catch (error) {
     res.status(500).json({ error: String(error) });

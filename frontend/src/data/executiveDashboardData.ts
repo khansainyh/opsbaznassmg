@@ -95,7 +95,7 @@ export const topProgram = [
 // SEBARAN PROPOSAL PER KECAMATAN (Drill-down Pie Chart)
 // 16 Kecamatan Kota Semarang
 // ============================================================
-const kecamatanList = [
+export const kecamatanList = [
   'Semarang Barat', 'Semarang Tengah', 'Semarang Timur', 'Semarang Selatan',
   'Semarang Utara', 'Pedurungan', 'Tembalang', 'Banyumanik',
   'Gayamsari', 'Genuk', 'Ngaliyan', 'Candisari',

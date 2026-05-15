@@ -12,8 +12,9 @@ model User {
   name          String
   email         String   @unique
   password_hash String
-  role          Role     @default(Super_Admin)
-  created_at    DateTime @default(now())
+  role          Role           @default(Super_Admin)
+  created_at    DateTime       @default(now())
+  notifications Notification[]
 }
 
 model Mustahik {
@@ -138,6 +139,21 @@ model Surat {
   file_gdrive_link    String?
   catatanKepala       String?  @db.Text
   catatanPimpinan     String?  @db.Text
+  assigned_staff      Json?    // Array of User IDs assigned to attend the event
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum Role {
@@ -159,5 +175,11 @@ enum KategoriUPZ {
   Masjid
   Yayasan_Lembaga
   Sekolah
-  OPD
+}
+
+model SystemParameter {
+  key         String   @id
+  value       String   @db.Text
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
 }
