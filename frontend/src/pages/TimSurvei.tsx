@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
 import { 
-  MapPin, Phone, Camera, CheckCircle2, FileText, Navigation, ChevronLeft, ChevronRight, X, Send, AlertCircle, Search, Map, Eye, Download, Home, History, FileEdit
+  MapPin, Phone, Camera, CheckCircle2, FileText, Navigation, ChevronLeft, X, Send, AlertCircle, Search, Map, Eye, Download, Home, History, FileEdit
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -21,15 +21,21 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const [bottomNav, setBottomNav] = useState<'home' | 'riwayat'>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingHistory, setEditingHistory] = useState<ProposalMemo | null>(null);
+  const [bpsPovertyLine, setBpsPovertyLine] = useState<number>(709785); // Default value
 
-  // Survey Photos State
-  const [photos, setPhotos] = useState<{
-    fotoDepan?: File;
-    fotoDalam?: File;
-    fotoOrang?: File;
-    fotoSanitasi?: File;
-    fotoProduk?: File;
-  }>({});
+  React.useEffect(() => {
+    const fetchBps = async () => {
+      try {
+        const res = await axios.get('http://127.0.0.1:4000/api/parameters/GARIS_KEMISKINAN_BPS');
+        if (res.data && res.data.value) {
+          setBpsPovertyLine(parseInt(res.data.value));
+        }
+      } catch (err) {
+        console.error('Failed to fetch BPS poverty line:', err);
+      }
+    };
+    fetchBps();
+  }, []);
 
   // Survey Form State
   const [surveyForm, setSurveyForm] = useState({
@@ -69,10 +75,13 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
 
   const pendapatanScore = useMemo(() => {
     if (!surveyForm.pendapatanTotal || !surveyForm.jumlahTanggungan) return 0;
-    if (pendapatanPerKapita <= 709785) return 3;
-    if (pendapatanPerKapita <= 851742) return 2;
+    // BPS Poverty Line + 20% for Rentan Miskin
+    const rentanMiskinLimit = Math.round(bpsPovertyLine * 1.2);
+    
+    if (pendapatanPerKapita <= bpsPovertyLine) return 3;
+    if (pendapatanPerKapita <= rentanMiskinLimit) return 2;
     return 1;
-  }, [pendapatanPerKapita, surveyForm.pendapatanTotal, surveyForm.jumlahTanggungan]);
+  }, [pendapatanPerKapita, surveyForm.pendapatanTotal, surveyForm.jumlahTanggungan, bpsPovertyLine]);
 
   const asetScore = useMemo(() => {
     if (surveyForm.aset.length === 0) return 0;
@@ -183,67 +192,6 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     }
   };
 
-  const compressImage = (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = event => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1200;
-          const MAX_HEIGHT = 1200;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          
-          canvas.toBlob(blob => {
-            if (blob) {
-              const newFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(newFile);
-            } else {
-              reject(new Error('Canvas to Blob failed'));
-            }
-          }, 'image/jpeg', 0.7); // 70% quality
-        };
-        img.onerror = error => reject(error);
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      try {
-        const compressedFile = await compressImage(file);
-        setPhotos(prev => ({ ...prev, [key]: compressedFile }));
-      } catch (error) {
-        console.error('Error compressing image:', error);
-        alert('Gagal memproses foto. Silakan coba lagi.');
-      }
-    }
-  };
-
   const handleSubmitSurvey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask) return;
@@ -253,12 +201,6 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       return;
     }
     
-    const isEditMode = !!editingHistory;
-    const isKonsumtif = selectedTask.jenisPermohonan?.startsWith('1');
-    const isSanitasi = selectedTask.jenisPermohonan?.toLowerCase().includes('sanitasi');
-    const isProduktif = selectedTask.jenisPermohonan?.startsWith('21');
-
-    // [TEMP DISABLED] Validasi foto dinonaktifkan sementara karena Google Drive belum dikonfigurasi
     
     try {
       const formData = new FormData();
@@ -266,8 +208,6 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       formData.append('urgencyLevel', urgencyLevel);
       formData.append('score', totalScore.toString());
       formData.append('survey_data', JSON.stringify(surveyForm));
-
-      // [TEMP DISABLED] Upload foto dinonaktifkan sementara
 
       const response = await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedTask.id}`, formData, {
         headers: {
@@ -326,7 +266,6 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         catatanLapangan: task.survey_data.catatanLapangan ?? '',
       });
     }
-    setPhotos({}); // reset photos when editing
     setEditingHistory(task);
     setSelectedTask(task);
     setViewMode('surveyForm');

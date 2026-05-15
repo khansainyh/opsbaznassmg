@@ -22,6 +22,7 @@ import AntreanBantuan from '@/src/pages/AntreanBantuan';
 import ExecutiveDashboard from '@/src/pages/ExecutiveDashboard';
 import TrackingProposal from '@/src/pages/TrackingProposal';
 import NotificationBell from '@/src/components/NotificationBell';
+import ParameterSistem from '@/src/pages/ParameterSistem';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -208,6 +209,8 @@ function App() {
           <DatabaseUPZ />
         ) : activeMenu === 'User Management' ? (
           <UserManagement />
+        ) : activeMenu === 'Parameter Sistem' ? (
+          <ParameterSistem />
         ) : activeMenu === 'Ganti Password' ? (
           <GantiPassword />
         ) : (

@@ -92,6 +92,7 @@ const settingsGroup = {
   items: [
     { name: "User Management", icon: Settings2, roles: ["Super_Admin"] },
     { name: "Audit Logs", icon: History, roles: ["Super_Admin"] },
+    { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin"] },
   ]
 };
 

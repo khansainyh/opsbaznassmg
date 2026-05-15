@@ -12,6 +12,7 @@ import mustahikRoutes from './routes/mustahik.route';
 import authRoutes from './routes/auth.route';
 import userRoutes from './routes/user.route';
 import notificationRoutes from './routes/notification.route';
+import parameterRoutes from './routes/parameter.route';
 
 dotenv.config();
 
@@ -46,6 +47,7 @@ app.use('/api/mustahik', mustahikRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/parameters', parameterRoutes);
 
 import { initCronJobs } from './utils/cronJobs';
 

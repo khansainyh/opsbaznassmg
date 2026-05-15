@@ -175,6 +175,7 @@ enum KategoriUPZ {
   Masjid
   Yayasan_Lembaga
   Sekolah
+  OPD
 }
 
 model SystemParameter {
