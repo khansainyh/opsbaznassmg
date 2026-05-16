@@ -3,8 +3,10 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 export type Role = 
   | 'Super_Admin' 
   | 'Ketua' 
-  | 'WK_Distribusi' 
-  | 'WK_Pengumpulan' 
+  | 'Wakil_Ketua_I'
+  | 'Wakil_Ketua_II'
+  | 'Wakil_Ketua_III'
+  | 'Wakil_Ketua_IV'
   | 'Kabag_Administrasi' 
   | 'Kepala_Pelaksana' 
   | 'Staf_Administrasi' 
@@ -12,7 +14,8 @@ export type Role =
   | 'Staf_Pelaporan_Pengumpulan'
   | 'Keuangan' 
   | 'Relawan' 
-  | 'Relawan_Sementara';
+  | 'Relawan_Sementara'
+  | 'Tim_Monev';
 
 export interface User {
   id: string;

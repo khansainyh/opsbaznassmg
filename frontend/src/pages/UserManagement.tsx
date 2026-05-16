@@ -16,10 +16,10 @@ interface User {
 }
 
 const ALL_ROLES = [
-  'Super_Admin', 'Ketua', 'WK_Distribusi', 'WK_Pengumpulan', 
+  'Super_Admin', 'Ketua', 'Wakil_Ketua_I', 'Wakil_Ketua_II', 'Wakil_Ketua_III', 'Wakil_Ketua_IV', 
   'Kabag_Administrasi', 'Kepala_Pelaksana', 'Staf_Administrasi', 
   'Staf_Distribusi', 'Staf_Pelaporan_Pengumpulan', 'Keuangan', 
-  'Relawan', 'Relawan_Sementara'
+  'Relawan', 'Relawan_Sementara', 'Tim_Monev'
 ];
 
 export default function UserManagement() {
@@ -140,8 +140,8 @@ export default function UserManagement() {
 
   const downloadTemplate = () => {
     const templateData = [
-      { 'Name': 'John Doe', 'Email': 'john@baznas.org', 'Role': 'Staf_Administrasi' },
-      { 'Name': 'Jane Smith', 'Email': 'jane@baznas.org', 'Role': 'Relawan' }
+      { 'Name': 'Budi Santoso', 'Email': 'budi@baznas.org', 'Role': 'Staf_Administrasi' },
+      { 'Name': 'Siti Aminah', 'Email': 'siti@baznas.org', 'Role': 'Wakil_Ketua_I' }
     ];
     const ws = xlsx.utils.json_to_sheet(templateData);
     const wb = xlsx.utils.book_new();

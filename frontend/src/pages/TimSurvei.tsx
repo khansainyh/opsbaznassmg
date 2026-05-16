@@ -120,8 +120,20 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   }, [totalScore]);
 
   const baseTasks = useMemo(() => {
-    return data.filter(item => item.status === 'Survei Assessment' || item.status === 'Proses Disposisi');
-  }, [data]);
+    return data.filter(item => {
+      if (item.status !== 'Survei Assessment' && item.status !== 'Proses Disposisi') return false;
+      
+      const isMonevTask = item.jenisPermohonan?.startsWith('2101') || item.jenisPermohonan?.startsWith('2103');
+      
+      if (user?.role === 'Tim_Monev') {
+        return isMonevTask;
+      }
+      if (user?.role === 'Relawan' || user?.role === 'Relawan_Sementara') {
+        return !isMonevTask;
+      }
+      return true;
+    });
+  }, [data, user?.role]);
 
   const availableTasks = useMemo(() => baseTasks.filter(t => !t.surveyorName), [baseTasks]);
   const myTasks = useMemo(() => baseTasks.filter(t => t.surveyorName === user?.name), [baseTasks, user]);

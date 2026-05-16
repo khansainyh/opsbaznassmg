@@ -25,14 +25,14 @@ import {
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
 
-type Role = 'Super_Admin' | 'Ketua' | 'WK_Distribusi' | 'WK_Pengumpulan' | 'Kabag_Administrasi' | 'Kepala_Pelaksana' | 'Staf_Administrasi' | 'Staf_Distribusi' | 'Staf_Pelaporan_Pengumpulan' | 'Keuangan' | 'Relawan' | 'Relawan_Sementara';
+type Role = 'Super_Admin' | 'Ketua' | 'Wakil_Ketua_I' | 'Wakil_Ketua_II' | 'Wakil_Ketua_III' | 'Wakil_Ketua_IV' | 'Kabag_Administrasi' | 'Kepala_Pelaksana' | 'Staf_Administrasi' | 'Staf_Distribusi' | 'Staf_Pelaporan_Pengumpulan' | 'Keuangan' | 'Relawan' | 'Relawan_Sementara' | 'Tim_Monev';
 
 const menuGroups = [
   {
     title: "MENU UTAMA",
     items: [
-      { name: "Executive", icon: LayoutDashboard, active: true, roles: ["Super_Admin", "Ketua", "WK_Distribusi", "WK_Pengumpulan", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan_Pengumpulan"] },
-      { name: "Monitoring & Evaluasi", icon: LineChart, roles: ["Super_Admin", "WK_Pengumpulan", "Staf_Pelaporan_Pengumpulan"] },
+      { name: "Executive", icon: LayoutDashboard, active: true, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan_Pengumpulan"] },
+      { name: "Monitoring & Evaluasi", icon: LineChart, roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan_Pengumpulan"] },
     ]
   },
   {
@@ -54,7 +54,7 @@ const menuGroups = [
   {
     title: "OPERASIONAL",
     items: [
-      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "WK_Distribusi", "WK_Pengumpulan", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
+      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
       { name: "Tracking Surat", icon: ClipboardCheck, roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },
@@ -64,7 +64,7 @@ const menuGroups = [
       { name: "Persetujuan Kepala Bagian", icon: ShieldCheck, roles: ["Super_Admin", "Kabag_Administrasi"] },
       { name: "Persetujuan Kepala Pelaksana", icon: ShieldCheck, roles: ["Super_Admin", "Kepala_Pelaksana"] },
       { name: "Persetujuan Pimpinan", icon: PenTool, roles: ["Super_Admin", "Ketua"] },
-      { name: "Penentuan Nominal", icon: ShieldCheck, roles: ["Super_Admin", "WK_Distribusi", "Kepala_Pelaksana"] },
+      { name: "Penentuan Nominal", icon: ShieldCheck, roles: ["Super_Admin", "Wakil_Ketua_II", "Kepala_Pelaksana"] },
     ]
   },
   {
@@ -72,8 +72,8 @@ const menuGroups = [
     items: [
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi"] },
       { name: "Antrean Bantuan", icon: AlertCircle, roles: ["Super_Admin", "Staf_Distribusi"] },
-      { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "WK_Distribusi", "Staf_Distribusi"] },
-      { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara"] },
+      { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
+      { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev"] },
     ]
   },
   {

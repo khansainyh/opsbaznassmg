@@ -141,12 +141,14 @@ async function main() {
 
   console.log('Menyuntikkan Dummy Akun (User)...');
   const defaultPassword = await bcrypt.hash('password123', 10);
-  
+
   const users = [
     { email: 'superadmin@baznas.org', password_hash: defaultPassword, role: 'Super_Admin' as const, name: 'Super Admin BAZNAS' },
     { email: 'ketua@baznas.org', password_hash: defaultPassword, role: 'Ketua' as const, name: 'Ketua BAZNAS' },
-    { email: 'wkdistribusi@baznas.org', password_hash: defaultPassword, role: 'WK_Distribusi' as const, name: 'Wakil Ketua Distribusi' },
-    { email: 'wkpengumpulan@baznas.org', password_hash: defaultPassword, role: 'WK_Pengumpulan' as const, name: 'Wakil Ketua Monev' },
+    { email: 'wakilketua1@baznas.org', password_hash: defaultPassword, role: 'Wakil_Ketua_I' as const, name: 'Wakil Ketua I' },
+    { email: 'wakilketua2@baznas.org', password_hash: defaultPassword, role: 'Wakil_Ketua_II' as const, name: 'Wakil Ketua II' },
+    { email: 'wakilketua3@baznas.org', password_hash: defaultPassword, role: 'Wakil_Ketua_III' as const, name: 'Wakil Ketua III' },
+    { email: 'wakilketua4@baznas.org', password_hash: defaultPassword, role: 'Wakil_Ketua_IV' as const, name: 'Wakil Ketua IV' },
     { email: 'kalak@baznas.org', password_hash: defaultPassword, role: 'Kepala_Pelaksana' as const, name: 'Kepala Pelaksana' },
     { email: 'kabagadmin@baznas.org', password_hash: defaultPassword, role: 'Kabag_Administrasi' as const, name: 'Kabag Admin' },
     { email: 'stafadmin@baznas.org', password_hash: defaultPassword, role: 'Staf_Administrasi' as const, name: 'Staf Admin' },
@@ -154,10 +156,11 @@ async function main() {
     { email: 'stafpelaporan@baznas.org', password_hash: defaultPassword, role: 'Staf_Pelaporan_Pengumpulan' as const, name: 'Staf Pelaporan' },
     { email: 'keuangan@baznas.org', password_hash: defaultPassword, role: 'Keuangan' as const, name: 'Divisi Keuangan' },
     { email: 'relawan@baznas.org', password_hash: defaultPassword, role: 'Relawan' as const, name: 'Relawan Lapangan' },
+    { email: 'timmonev@baznas.org', password_hash: defaultPassword, role: 'Tim_Monev' as const, name: 'Tim Monev' },
   ];
 
   for (const user of users) {
-    await prisma.user.create({ data: user });
+    await prisma.user.create({ data: user as any });
   }
 
   console.log('✅ Seeding SELESAI!');

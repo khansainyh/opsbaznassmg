@@ -159,8 +159,10 @@ model Notification {
 enum Role {
   Super_Admin
   Ketua
-  WK_Distribusi
-  WK_Pengumpulan
+  Wakil_Ketua_I
+  Wakil_Ketua_II
+  Wakil_Ketua_III
+  Wakil_Ketua_IV
   Kabag_Administrasi
   Kepala_Pelaksana
   Staf_Administrasi
@@ -169,6 +171,7 @@ enum Role {
   Keuangan
   Relawan
   Relawan_Sementara
+  Tim_Monev
 }
 
 enum KategoriUPZ {
