@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
-import { 
+import {
   MapPin, Phone, Camera, CheckCircle2, FileText, Navigation, ChevronLeft, X, Send, AlertCircle, Search, Map, Eye, Download, Home, History, FileEdit
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -77,7 +77,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     if (!surveyForm.pendapatanTotal || !surveyForm.jumlahTanggungan) return 0;
     // BPS Poverty Line + 20% for Rentan Miskin
     const rentanMiskinLimit = Math.round(bpsPovertyLine * 1.2);
-    
+
     if (pendapatanPerKapita <= bpsPovertyLine) return 3;
     if (pendapatanPerKapita <= rentanMiskinLimit) return 2;
     return 1;
@@ -122,9 +122,10 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const baseTasks = useMemo(() => {
     return data.filter(item => {
       if (item.status !== 'Survei Assessment' && item.status !== 'Proses Disposisi') return false;
-      
-      const isMonevTask = item.jenisPermohonan?.startsWith('2101') || item.jenisPermohonan?.startsWith('2103');
-      
+
+      const permohonanCode = item.programCode || '';
+      const isMonevTask = permohonanCode.startsWith('2101') || permohonanCode.startsWith('2103');
+
       if (user?.role === 'Tim_Monev') {
         return isMonevTask;
       }
@@ -166,8 +167,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const displayedTasks = useMemo(() => {
     let tasks = activeTab === 'tersedia' ? availableTasks : myTasks;
     if (searchQuery.trim()) {
-      tasks = tasks.filter(t => 
-        t.namaPemohon.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      tasks = tasks.filter(t =>
+        t.namaPemohon.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.kecamatan?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -207,13 +208,13 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const handleSubmitSurvey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask) return;
-    
+
     if (totalScore === 0) {
       alert("Harap isi setidaknya satu pertanyaan survei.");
       return;
     }
-    
-    
+
+
     try {
       const formData = new FormData();
       formData.append('status', 'Survei_Selesai');
@@ -229,8 +230,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       const now = new Date().toISOString();
       const updatedSurveyData = response.data.survey_data || surveyForm;
 
-      const updated = data.map(d => d.id === selectedTask.id ? { 
-        ...d, 
+      const updated = data.map(d => d.id === selectedTask.id ? {
+        ...d,
         status: 'Survei Selesai' as const,
         urgencyLevel: urgencyLevel as any,
         score: totalScore,
@@ -238,7 +239,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         survey_data: updatedSurveyData
       } : d);
       onUpdate(updated);
-      
+
       // Reset edit mode
       setEditingHistory(null);
       setViewMode('list');
@@ -292,7 +293,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     });
   };
 
-  const renderRadio = (name: keyof typeof surveyForm, label: string, options: {val: number, label: string}[], editMode = false) => (
+  const renderRadio = (name: keyof typeof surveyForm, label: string, options: { val: number, label: string }[], editMode = false) => (
     <div className="space-y-2">
       <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{label}</label>
       <div className="space-y-2">
@@ -305,10 +306,10 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                 ? "bg-emerald-50 border-emerald-400 ring-1 ring-emerald-300"
                 : "bg-slate-50 border-slate-200 hover:bg-emerald-50 hover:border-emerald-200"
             )}>
-              <input 
-                type="radio" 
-                name={name} 
-                value={opt.val} 
+              <input
+                type="radio"
+                name={name}
+                value={opt.val}
                 checked={isSelected}
                 onChange={() => setSurveyForm(prev => ({ ...prev, [name]: opt.val }))}
                 className="mr-3 w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-slate-300"
@@ -343,7 +344,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     return (
       <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 min-h-screen flex flex-col relative overflow-hidden shadow-2xl">
         <div className="bg-emerald-600 pt-12 pb-6 px-6 text-white rounded-b-3xl shrink-0 shadow-lg relative z-10">
-          <button 
+          <button
             onClick={() => setViewMode('list')}
             className="mb-4 flex items-center gap-2 text-emerald-50 bg-white/20 px-3 py-1.5 rounded-full hover:bg-white/30 transition shadow-sm backdrop-blur-sm w-fit font-bold text-sm"
           >
@@ -393,21 +394,21 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none flex flex-col justify-end">
           <div className="p-6 bg-gradient-to-t from-white via-white to-transparent pt-12 pointer-events-auto">
             {!selectedTask.surveyorName ? (
-              <button 
+              <button
                 onClick={() => handleClaimTask(selectedTask)}
                 className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Download className="size-5" /> Ambil Tugas Ini
               </button>
             ) : !selectedTask.isBeingSurveyed ? (
-              <button 
+              <button
                 onClick={() => handleStartSurvey(selectedTask)}
                 className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Navigation className="size-5" /> Mulai Perjalanan
               </button>
             ) : (
-              <button 
+              <button
                 onClick={() => setViewMode('surveyForm')}
                 className="w-full py-4 bg-amber-500 text-white rounded-2xl text-base font-black shadow-xl shadow-amber-500/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
@@ -425,7 +426,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     return (
       <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 min-h-screen flex flex-col relative shadow-2xl">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-30 shrink-0">
-          <button 
+          <button
             onClick={() => {
               if (isEditMode) {
                 // Kembali ke riwayat saat edit mode
@@ -453,17 +454,17 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         </div>
 
         <form id="survey-form" onSubmit={handleSubmitSurvey} className="flex-1 overflow-y-auto p-6 space-y-8 pb-32 custom-scrollbar">
-          
+
           {/* BAGIAN A: KONDISI RUMAH */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
             <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian A: Kondisi Rumah</h4>
-            
+
             {renderRadio('luasBangunan', 'Luas Bangunan', [
               { val: 3, label: '≤ 8 m² (Sangat sempit)' },
               { val: 2, label: '8 m² - 10 m²' },
               { val: 1, label: '> 10 m² (Lebih luas)' }
             ], isEditMode)}
-            
+
             {renderRadio('jenisLantai', 'Jenis Lantai Tanah', [
               { val: 3, label: 'Tanah' },
               { val: 2, label: 'Plester / Semen' },
@@ -525,12 +526,12 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                 ].map(opt => (
                   <label key={opt.val} className={cn(
                     "flex items-start p-3 border rounded-xl cursor-pointer transition-all",
-                    surveyForm.aset.includes(opt.val) 
+                    surveyForm.aset.includes(opt.val)
                       ? (opt.val === 1 ? 'bg-rose-50 border-rose-300' : 'bg-emerald-50 border-emerald-300')
                       : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                   )}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={surveyForm.aset.includes(opt.val)}
                       onChange={() => toggleAset(opt.val)}
                       className={cn(
@@ -548,7 +549,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
           {/* BAGIAN B: KONDISI EKONOMI */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
             <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian B: Kondisi Ekonomi</h4>
-            
+
             {renderRadio('pendidikanKepala', 'Pendidikan Kepala Rumah Tangga', [
               { val: 3, label: 'Tidak Pernah Sekolah' },
               { val: 2, label: 'SD - SMP' },
@@ -567,8 +568,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Total Pendapatan (Per Bulan)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">Rp</span>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     value={surveyForm.pendapatanTotal ? formatRupiah(surveyForm.pendapatanTotal).replace('Rp', '').trim() : ''}
                     onChange={handlePendapatanChange}
@@ -579,8 +580,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
               </div>
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Jumlah Tanggungan (Orang)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   min="1"
                   required
                   value={surveyForm.jumlahTanggungan}
@@ -595,8 +596,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                 <div className={cn(
                   "p-3 rounded-xl border flex items-start gap-2 mt-2",
                   pendapatanScore === 3 ? "bg-rose-50 border-rose-200 text-rose-800" :
-                  pendapatanScore === 2 ? "bg-amber-50 border-amber-200 text-amber-800" :
-                  "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    pendapatanScore === 2 ? "bg-amber-50 border-amber-200 text-amber-800" :
+                      "bg-emerald-50 border-emerald-200 text-emerald-800"
                 )}>
                   <div className="flex-1">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Pendapatan Per Kapita</p>
@@ -643,7 +644,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
           {/* BAGIAN C: FISIK & TANGGUNGAN */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
             <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian C: Kondisi Fisik & Tanggungan</h4>
-            
+
             {renderRadio('keadaanFisik', 'Keadaan Fisik', [
               { val: 4, label: 'Manula dan Sakit (Bedridden)' },
               { val: 3, label: 'Manula (Sehat tapi tidak kuat kerja)' },
@@ -680,15 +681,15 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                 <span className={cn(
                   "text-sm font-black uppercase px-3 py-1 rounded-full",
                   urgencyLevel === 'Sangat Kritis' ? "bg-rose-100 text-rose-700" :
-                  urgencyLevel === 'Tinggi' ? "bg-amber-100 text-amber-700" :
-                  "bg-emerald-100 text-emerald-700"
+                    urgencyLevel === 'Tinggi' ? "bg-amber-100 text-amber-700" :
+                      "bg-emerald-100 text-emerald-700"
                 )}>{urgencyLevel}</span>
               </div>
             </div>
 
             <div className="space-y-3 pt-2">
               <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Catatan Lapangan Tambahan (Opsional)</label>
-              <textarea 
+              <textarea
                 rows={3}
                 value={surveyForm.catatanLapangan}
                 onChange={e => setSurveyForm(prev => ({ ...prev, catatanLapangan: e.target.value }))}
@@ -714,7 +715,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         </form>
 
         <div className="p-6 bg-white border-t border-slate-100 sticky bottom-0 left-0 right-0 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] z-20">
-          <button 
+          <button
             type="submit"
             form="survey-form"
             className={cn(
@@ -748,7 +749,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
           </div>
 
           <div className="flex px-4 border-b border-slate-200 bg-white shrink-0">
-            <button 
+            <button
               onClick={() => setActiveTab('tersedia')}
               className={cn(
                 "flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors",
@@ -757,7 +758,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
             >
               Tugas Tersedia
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('tugasSaya')}
               className={cn(
                 "flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors",
@@ -780,11 +781,11 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         <div className="p-4 relative sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 px-5">
           <div className="bg-white rounded-xl border border-slate-200 flex items-center px-4 py-3.5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
             <Search className="size-5 text-emerald-500/70 mr-3" />
-            <input 
-              placeholder="Cari nama / wilayah..." 
+            <input
+              placeholder="Cari nama / wilayah..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 outline-none text-sm text-slate-700 placeholder:text-slate-400 font-medium bg-transparent" 
+              className="flex-1 outline-none text-sm text-slate-700 placeholder:text-slate-400 font-medium bg-transparent"
             />
           </div>
         </div>
@@ -801,8 +802,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
               const remaining = getRemainingEditTime(task);
               const urgencyColor =
                 task.urgencyLevel === 'Sangat Kritis' ? 'bg-rose-50 border-rose-200 text-rose-700' :
-                task.urgencyLevel === 'Tinggi' ? 'bg-amber-50 border-amber-200 text-amber-700' :
-                'bg-emerald-50 border-emerald-200 text-emerald-700';
+                  task.urgencyLevel === 'Tinggi' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                    'bg-emerald-50 border-emerald-200 text-emerald-700';
               return (
                 <div key={task.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mt-4">
                   <div className="flex justify-between items-center mb-3">
@@ -846,98 +847,98 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
               );
             })
           ) : (
-          <AnimatePresence>
-            {displayedTasks.map((task) => (
-              <motion.div
-                key={task.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className={cn(
-                  "bg-white p-5 rounded-2xl shadow-sm border transition-all cursor-pointer block",
-                  task.isBeingSurveyed ? "border-amber-400/50 bg-amber-50/30" : "border-slate-100 hover:border-emerald-600/30"
-                )}
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-full uppercase tracking-widest">
-                    NO AGENDA {task.agendaNo}
+            <AnimatePresence>
+              {displayedTasks.map((task) => (
+                <motion.div
+                  key={task.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className={cn(
+                    "bg-white p-5 rounded-2xl shadow-sm border transition-all cursor-pointer block",
+                    task.isBeingSurveyed ? "border-amber-400/50 bg-amber-50/30" : "border-slate-100 hover:border-emerald-600/30"
+                  )}
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-full uppercase tracking-widest">
+                      NO AGENDA {task.agendaNo}
+                    </div>
+                    <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
+                      <MapPin className="size-3" /> Lokasi
+                    </span>
                   </div>
-                  <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
-                    <MapPin className="size-3" /> Lokasi
-                  </span>
-                </div>
-                
-                <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">{task.namaPemohon}</h3>
-                
-                <div className="flex items-center gap-1.5 text-slate-500 mb-4">
-                  <Map className="size-[14px]" /> 
-                  <span className="text-xs font-semibold">Kec. {task.kecamatan}</span>
-                </div>
 
-                <div className="bg-slate-50 border-l-[3px] border-l-emerald-600 rounded-r-lg p-3 mb-5 pl-4">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Program & Jenis</p>
-                  <p className="text-sm font-bold text-slate-800 leading-snug">{task.jenisPermohonan || 'Pendistribusian Zakat'}</p>
-                </div>
+                  <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">{task.namaPemohon}</h3>
 
-                <div className="flex gap-3 mt-4">
-                  <button 
-                    onClick={() => {
-                      setSelectedTask(task);
-                      setViewMode('detail');
-                    }}
-                    className="flex-1 max-w-[120px] py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
-                  >
-                    <Eye className="size-[14px]" /> DETAIL
-                  </button>
-                  {activeTab === 'tersedia' ? (
-                    <button 
-                      onClick={() => handleClaimTask(task)}
-                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-emerald-600/20 active:scale-[0.98]"
-                    >
-                      <Download className="size-[14px]" /> AMBIL TUGAS INI
-                    </button>
-                  ) : !task.isBeingSurveyed ? (
-                    <button 
-                      onClick={() => handleStartSurvey(task)}
-                      className="flex-1 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-indigo-500/20 active:scale-[0.98]"
-                    >
-                      <Navigation className="size-[14px]" /> MULAI JALAN
-                    </button>
-                  ) : (
-                    <button 
+                  <div className="flex items-center gap-1.5 text-slate-500 mb-4">
+                    <Map className="size-[14px]" />
+                    <span className="text-xs font-semibold">Kec. {task.kecamatan}</span>
+                  </div>
+
+                  <div className="bg-slate-50 border-l-[3px] border-l-emerald-600 rounded-r-lg p-3 mb-5 pl-4">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Program & Jenis</p>
+                    <p className="text-sm font-bold text-slate-800 leading-snug">{task.jenisPermohonan || 'Pendistribusian Zakat'}</p>
+                  </div>
+
+                  <div className="flex gap-3 mt-4">
+                    <button
                       onClick={() => {
                         setSelectedTask(task);
-                        setViewMode('surveyForm');
+                        setViewMode('detail');
                       }}
-                      className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-amber-500/20 active:scale-[0.98]"
+                      className="flex-1 max-w-[120px] py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
                     >
-                      <Camera className="size-[14px]" /> ISI FORMULIR
+                      <Eye className="size-[14px]" /> DETAIL
                     </button>
-                  )}
+                    {activeTab === 'tersedia' ? (
+                      <button
+                        onClick={() => handleClaimTask(task)}
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-emerald-600/20 active:scale-[0.98]"
+                      >
+                        <Download className="size-[14px]" /> AMBIL TUGAS INI
+                      </button>
+                    ) : !task.isBeingSurveyed ? (
+                      <button
+                        onClick={() => handleStartSurvey(task)}
+                        className="flex-1 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-indigo-500/20 active:scale-[0.98]"
+                      >
+                        <Navigation className="size-[14px]" /> MULAI JALAN
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setViewMode('surveyForm');
+                        }}
+                        className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-amber-500/20 active:scale-[0.98]"
+                      >
+                        <Camera className="size-[14px]" /> ISI FORMULIR
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+              {displayedTasks.length === 0 && (
+                <div className="pt-12 flex flex-col items-center justify-center text-slate-400 space-y-4">
+                  <CheckCircle2 className="size-16 opacity-20" />
+                  <p className="text-sm font-medium">Tidak ada tugas yang ditemukan.</p>
                 </div>
-              </motion.div>
-            ))}
-            {displayedTasks.length === 0 && (
-              <div className="pt-12 flex flex-col items-center justify-center text-slate-400 space-y-4">
-                <CheckCircle2 className="size-16 opacity-20" />
-                <p className="text-sm font-medium">Tidak ada tugas yang ditemukan.</p>
-              </div>
-            )}
-          </AnimatePresence>
+              )}
+            </AnimatePresence>
           )}
         </div>
       </div>
 
       {/* Bottom Fixed Navigation Bar */}
       <div className="fixed bottom-0 w-full max-w-md bg-white border-t border-slate-100 flex justify-around py-3 pb-safe z-30 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)]">
-        <button 
+        <button
           onClick={() => setBottomNav('home')}
           className={cn("flex flex-col items-center gap-1.5 w-20 transition-colors", bottomNav === 'home' ? "text-emerald-600" : "text-slate-300 hover:text-slate-400")}
         >
           <Home className="size-5" />
           <span className="text-[9px] font-black tracking-widest">HOME</span>
         </button>
-        <button 
+        <button
           onClick={() => setBottomNav('riwayat')}
           className={cn("flex flex-col items-center gap-1.5 w-20 transition-colors relative", bottomNav === 'riwayat' ? "text-emerald-600" : "text-slate-300 hover:text-slate-400")}
         >

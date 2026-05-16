@@ -49,6 +49,7 @@ function App() {
           kecamatan: item.kecamatan || '',
           pekerjaan: item.pekerjaan || '',
           jenisPermohonan: item.program ? item.program.name : item.jenis_permohonan,
+          programCode: item.jenis_permohonan || '',
           noTelpon: item.no_telpon || '',
           jamPengajuan: item.jam_pengajuan || '',
           yangMengajukan: item.yang_mengajukan || '',

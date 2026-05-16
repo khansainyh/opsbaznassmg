@@ -163,6 +163,46 @@ async function main() {
     await prisma.user.create({ data: user as any });
   }
 
+  console.log('Menyuntikkan Dummy Proposal untuk Testing Tim Survei...');
+  const proposals = [
+    {
+      nama_pemohon: 'Bapak Sudirman (Khusus Tim Monev)',
+      jenis_permohonan: '2101', // Bantuan Modal Usaha
+      tanggal_masuk: new Date(),
+      status: 'Survei Assessment',
+      kecamatan: 'Semarang Tengah',
+      alamat: 'Jl. Pemuda No. 1'
+    },
+    {
+      nama_pemohon: 'Ibu Wati (Khusus Tim Monev)',
+      jenis_permohonan: '2103', // Bantuan Pengembangan Usaha
+      tanggal_masuk: new Date(),
+      status: 'Proses Disposisi',
+      kecamatan: 'Semarang Barat',
+      alamat: 'Jl. Jendral Sudirman No. 2'
+    },
+    {
+      nama_pemohon: 'Bapak Agus (Khusus Relawan)',
+      jenis_permohonan: '1102', // Bantuan Biaya Hidup
+      tanggal_masuk: new Date(),
+      status: 'Survei Assessment',
+      kecamatan: 'Semarang Utara',
+      alamat: 'Jl. Hasanudin No. 3'
+    },
+    {
+      nama_pemohon: 'Mbah Karyo (Khusus Relawan)',
+      jenis_permohonan: '1201', // Bantuan Pengobatan
+      tanggal_masuk: new Date(),
+      status: 'Proses Disposisi',
+      kecamatan: 'Semarang Timur',
+      alamat: 'Jl. Majapahit No. 4'
+    }
+  ];
+
+  for (const prop of proposals) {
+    await prisma.proposal.create({ data: prop as any });
+  }
+
   console.log('✅ Seeding SELESAI!');
 }
 

@@ -17,6 +17,7 @@ export interface ProposalMemo {
   kecamatan: string;
   pekerjaan: string;
   jenisPermohonan: string;
+  programCode?: string;
   noTelpon: string;
   jamPengajuan: string;
   yangMengajukan: string;
