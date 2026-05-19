@@ -25,7 +25,7 @@ import {
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
 
-type Role = 'Super_Admin' | 'Ketua' | 'Wakil_Ketua_I' | 'Wakil_Ketua_II' | 'Wakil_Ketua_III' | 'Wakil_Ketua_IV' | 'Kabag_Administrasi' | 'Kepala_Pelaksana' | 'Staf_Administrasi' | 'Staf_Distribusi' | 'Staf_Pelaporan_Pengumpulan' | 'Keuangan' | 'Relawan' | 'Relawan_Sementara' | 'Tim_Monev';
+type Role = 'Super_Admin' | 'Ketua' | 'Wakil_Ketua_I' | 'Wakil_Ketua_II' | 'Wakil_Ketua_III' | 'Wakil_Ketua_IV' | 'Kabag_Administrasi' | 'Kepala_Pelaksana' | 'Staf_Administrasi' | 'Staf_Distribusi' | 'Staf_Pelaporan_Pengumpulan' | 'Keuangan' | 'Relawan' | 'Relawan_Sementara' | 'Tim_Monev' | 'Kabag_Pendistribusian' | 'Kabag_Pendayagunaan';
 
 const menuGroups = [
   {
@@ -70,7 +70,7 @@ const menuGroups = [
   {
     title: "PENDISTRIBUSIAN & PENDAYAGUNAAN",
     items: [
-      { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi"] },
+      { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Antrean Bantuan", icon: AlertCircle, roles: ["Super_Admin", "Staf_Distribusi"] },
       { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
       { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev"] },

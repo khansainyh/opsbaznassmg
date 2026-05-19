@@ -64,7 +64,14 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     hutang: 0,
     kesehatan: 0,
     // Catatan
-    catatanLapangan: ''
+    catatanLapangan: '',
+    // Form Lembaga
+    berbadanHukum: '',
+    usiaBerdiri: '',
+    bidangGarapan: '',
+    daerahJangkauan: '',
+    layakJenisKegiatan: '',
+    layakJumlahPenerima: ''
   });
 
   const pendapatanPerKapita = useMemo(() => {
@@ -209,7 +216,9 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     e.preventDefault();
     if (!selectedTask) return;
 
-    if (totalScore === 0) {
+    const isLembagaSubmit = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
+
+    if (!isLembagaSubmit && totalScore === 0) {
       alert("Harap isi setidaknya satu pertanyaan survei.");
       return;
     }
@@ -277,6 +286,12 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         hutang: task.survey_data.hutang ?? 0,
         kesehatan: task.survey_data.kesehatan ?? 0,
         catatanLapangan: task.survey_data.catatanLapangan ?? '',
+        berbadanHukum: task.survey_data.berbadanHukum ?? '',
+        usiaBerdiri: task.survey_data.usiaBerdiri ?? '',
+        bidangGarapan: task.survey_data.bidangGarapan ?? '',
+        daerahJangkauan: task.survey_data.daerahJangkauan ?? '',
+        layakJenisKegiatan: task.survey_data.layakJenisKegiatan ?? '',
+        layakJumlahPenerima: task.survey_data.layakJumlahPenerima ?? '',
       });
     }
     setEditingHistory(task);
@@ -423,6 +438,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
 
   if (viewMode === 'surveyForm' && selectedTask) {
     const isEditMode = !!editingHistory;
+    const isLembaga = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
+
     return (
       <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 min-h-screen flex flex-col relative shadow-2xl">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-30 shrink-0">
@@ -450,13 +467,132 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
               <p className="text-[10px] text-amber-600 font-bold">Mode Edit Aktif</p>
             )}
           </div>
-          <div className="size-9 font-bold text-emerald-600 flex items-center justify-center">{totalScore}</div>
+          {!isLembaga && (
+            <div className="size-9 font-bold text-emerald-600 flex items-center justify-center">{totalScore}</div>
+          )}
         </div>
 
         <form id="survey-form" onSubmit={handleSubmitSurvey} className="flex-1 overflow-y-auto p-6 space-y-8 pb-32 custom-scrollbar">
 
-          {/* BAGIAN A: KONDISI RUMAH */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+          {isLembaga ? (
+            <div className="space-y-6">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Profil Pemohon (Lembaga)</h4>
+                
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Berbadan Hukum</label>
+                  <select 
+                    value={surveyForm.berbadanHukum} 
+                    onChange={(e) => setSurveyForm(prev => ({ ...prev, berbadanHukum: e.target.value }))}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="">Pilih Kondisi...</option>
+                    <option value="Yayasan">Yayasan</option>
+                    <option value="Pemerintah">Pemerintah</option>
+                    <option value="Tidak Berbadan Hukum">Tidak Berbadan Hukum</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Usia Berdiri</label>
+                  <select 
+                    value={surveyForm.usiaBerdiri} 
+                    onChange={(e) => setSurveyForm(prev => ({ ...prev, usiaBerdiri: e.target.value }))}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="">Pilih Usia Berdiri...</option>
+                    <option value="8-10 th">8-10 th</option>
+                    <option value="6-8 th">6-8 th</option>
+                    <option value="4-6 th">4-6 th</option>
+                    <option value="2-4 th">2-4 th</option>
+                    <option value="0-2 th">0-2 th</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Bidang Garapan</label>
+                  <select 
+                    value={surveyForm.bidangGarapan} 
+                    onChange={(e) => setSurveyForm(prev => ({ ...prev, bidangGarapan: e.target.value }))}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="">Pilih Bidang Garapan...</option>
+                    <option value="Pendidikan">Pendidikan</option>
+                    <option value="Sosial">Sosial</option>
+                    <option value="Jasa">Jasa</option>
+                    <option value="Dakwah">Dakwah</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Daerah Jangkauan</label>
+                  <select 
+                    value={surveyForm.daerahJangkauan} 
+                    onChange={(e) => setSurveyForm(prev => ({ ...prev, daerahJangkauan: e.target.value }))}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="">Pilih Daerah Jangkauan...</option>
+                    <option value="Nasional">Nasional</option>
+                    <option value="Provinsi">Provinsi</option>
+                    <option value="Kabupaten/Kota">Kabupaten/Kota</option>
+                    <option value="Kecamatan">Kecamatan</option>
+                    <option value="Kelurahan">Kelurahan</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Jenis Bantuan & Kelayakan</h4>
+                
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Kelayakan Jenis Kegiatan</label>
+                  <select 
+                    value={surveyForm.layakJenisKegiatan} 
+                    onChange={(e) => setSurveyForm(prev => ({ ...prev, layakJenisKegiatan: e.target.value }))}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="">Pilih Kelayakan...</option>
+                    <option value="Layak">Layak</option>
+                    <option value="Tidak Layak">Tidak Layak</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Kelayakan Jumlah Penerima Manfaat</label>
+                  <select 
+                    value={surveyForm.layakJumlahPenerima} 
+                    onChange={(e) => setSurveyForm(prev => ({ ...prev, layakJumlahPenerima: e.target.value }))}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                    required
+                  >
+                    <option value="">Pilih Kelayakan...</option>
+                    <option value="Layak">Layak</option>
+                    <option value="Tidak Layak">Tidak Layak</option>
+                  </select>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Catatan Lapangan Tambahan (Opsional)</label>
+                  <textarea
+                    rows={3}
+                    value={surveyForm.catatanLapangan}
+                    onChange={e => setSurveyForm(prev => ({ ...prev, catatanLapangan: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-600/20 outline-none transition-all"
+                    placeholder="Observasi unik di lapangan yang tidak tercakup dalam form..."
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* BAGIAN A: KONDISI RUMAH */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
             <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian A: Kondisi Rumah</h4>
 
             {renderRadio('luasBangunan', 'Luas Bangunan', [
@@ -687,17 +823,21 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
               </div>
             </div>
 
-            <div className="space-y-3 pt-2">
-              <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Catatan Lapangan Tambahan (Opsional)</label>
-              <textarea
-                rows={3}
-                value={surveyForm.catatanLapangan}
-                onChange={e => setSurveyForm(prev => ({ ...prev, catatanLapangan: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-600/20 outline-none transition-all"
-                placeholder="Observasi unik di lapangan yang tidak tercakup dalam form..."
-              ></textarea>
-            </div>
+            {!isLembaga && (
+              <div className="space-y-3 pt-2">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Catatan Lapangan Tambahan (Opsional)</label>
+                <textarea
+                  rows={3}
+                  value={surveyForm.catatanLapangan}
+                  onChange={e => setSurveyForm(prev => ({ ...prev, catatanLapangan: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-600/20 outline-none transition-all"
+                  placeholder="Observasi unik di lapangan yang tidak tercakup dalam form..."
+                ></textarea>
+              </div>
+            )}
           </div>
+            </>
+          )}
 
           {/* BAGIAN D: BUKTI DOKUMENTASI — SEMENTARA DINONAKTIFKAN */}
           <div className="bg-slate-100 p-5 rounded-2xl border border-dashed border-slate-300 space-y-2 opacity-60">

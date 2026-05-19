@@ -15,7 +15,9 @@ export type Role =
   | 'Keuangan' 
   | 'Relawan' 
   | 'Relawan_Sementara'
-  | 'Tim_Monev';
+  | 'Tim_Monev'
+  | 'Kabag_Pendistribusian'
+  | 'Kabag_Pendayagunaan';
 
 export interface User {
   id: string;

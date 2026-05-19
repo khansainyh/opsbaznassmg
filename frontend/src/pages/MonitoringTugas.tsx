@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 type SurveyStatus = 'Antrean Tugas' | 'Pending' | 'On Progress' | 'Selesai' | 'Disetujui';
 
@@ -32,6 +33,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [statusFilter, setStatusFilter] = useState<SurveyStatus | 'Semua'>('Semua');
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  const { user } = useAuth();
+  const isKabagPendistribusian = user?.role === 'Kabag_Pendistribusian';
+  const isKabagPendayagunaan = user?.role === 'Kabag_Pendayagunaan';
+
+  const [rekomendasiKabag, setRekomendasiKabag] = useState<'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Layak');
+  const [hasilIdentifikasi, setHasilIdentifikasi] = useState('');
+  const [selectedAsnaf, setSelectedAsnaf] = useState('Fakir');
+  const asnafOptions = ['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharimin', 'Fisabilillah', 'Ibnu Sabil'];
+
 
   const getSurveyStatus = (item: ProposalMemo): SurveyStatus => {
     if (item.status === 'Monitoring Tugas') return 'Antrean Tugas';
@@ -77,10 +88,44 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     }
   };
 
+  const handleApproveKabag = async (task: ProposalMemo) => {
+    if (!hasilIdentifikasi.trim()) {
+      alert('Harap isi hasil identifikasi terlebih dahulu.');
+      return;
+    }
+    try {
+      const payload = {
+        status: 'Review_Kepala_Pelaksana',
+        asnaf: selectedAsnaf,
+        rekomendasi_kabag: rekomendasiKabag,
+        hasil_identifikasi: hasilIdentifikasi,
+        approval_kabag: true
+      };
+      await axios.put(`http://127.0.0.1:4000/api/proposals/${task.id}`, payload);
+      const updatedData = data.map(item => item.id === task.id ? { 
+        ...item, 
+        status: 'Review Kepala Pelaksana',
+        asnaf: selectedAsnaf,
+        rekomendasi_kabag: rekomendasiKabag,
+        hasil_identifikasi: hasilIdentifikasi,
+        approval_kabag: true
+      } : item);
+      onUpdate(updatedData);
+      setIsDetailModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menyimpan hasil identifikasi dan rekomendasi');
+    }
+  };
+
   const handleViewDetail = (task: ProposalMemo) => {
     setSelectedTask(task);
+    setHasilIdentifikasi(task.hasil_identifikasi || '');
+    setRekomendasiKabag((task.rekomendasi_kabag as any) || 'Layak');
+    setSelectedAsnaf(task.asnaf || 'Fakir');
     setIsDetailModalOpen(true);
   };
+
 
   const getStatusBadge = (status: SurveyStatus) => {
     switch (status) {
@@ -104,6 +149,116 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
   }, [tasks, statusFilter, getSurveyStatus]);
+
+  const konsumtifTasks = filteredTasks.filter(t => t.programCode?.startsWith('1'));
+  const produktifTasks = filteredTasks.filter(t => t.programCode?.startsWith('2'));
+  const otherTasks = filteredTasks.filter(t => !t.programCode?.startsWith('1') && !t.programCode?.startsWith('2'));
+
+  const renderTaskTable = (title: string, tableTasks: typeof filteredTasks) => {
+    if (tableTasks.length === 0) return null;
+    return (
+      <div className="mb-0 border-b border-slate-100">
+        <div className="bg-slate-50 px-6 py-3 border-y border-slate-200 sticky top-0 z-20">
+          <h4 className="text-xs font-black text-slate-600 uppercase tracking-widest">{title} ({tableTasks.length})</h4>
+        </div>
+        <table className="w-full text-left bg-white">
+          <thead className="bg-white text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+            <tr>
+              <th className="px-6 py-4">No. Agenda</th>
+              <th className="px-6 py-4">Mustahik & Alamat</th>
+              <th className="px-6 py-4">Petugas Survei</th>
+              <th className="px-6 py-4">Status Survei</th>
+              <th className="px-6 py-4 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {tableTasks.map((task) => {
+              const status = getSurveyStatus(task);
+              return (
+                <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                  <span className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg font-mono font-bold text-[11px] border border-slate-200">
+                    {task.agendaNo}
+                  </span>
+                </td>
+                  <td className="px-6 py-4">
+                    <p className="font-bold text-slate-900">{task.namaPemohon}</p>
+                    <p className="text-xs text-slate-500">{task.alamat}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      {task.surveyorName ? (
+                        <>
+                          <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-8 h-8 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                          <span className="font-medium text-slate-700">{task.surveyorName}</span>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2 text-slate-400 italic">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+                            <UserRound className="size-4" />
+                          </div>
+                          <span className="text-xs font-medium">Belum Ditugaskan</span>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      <span className={cn(
+                        "px-3 py-1 text-[10px] font-black rounded-full uppercase border w-fit",
+                        getStatusBadge(status)
+                      )}>
+                        {getStatusLabel(status)}
+                      </span>
+                      {(['Selesai', 'Disetujui'].includes(status)) && (task.score !== null || task.survey_data) && (
+                        <div className={cn(
+                          "text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1 w-fit",
+                          task.urgencyLevel === 'Sangat Kritis' ? "bg-rose-50 text-rose-600" :
+                          task.urgencyLevel === 'Tinggi' ? "bg-orange-50 text-orange-600" :
+                          "bg-emerald-50 text-emerald-600"
+                        )}>
+                          <AlertCircle className="size-3" />
+                          {task.urgencyLevel} {task.score ? `(${task.score})` : ''}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-2">
+                      {status === 'Antrean Tugas' && (
+                        <button 
+                          onClick={() => handleUpdateStatus(task.id, 'Survei Assessment')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all"
+                        >
+                          <Send className="size-3.5" />
+                          Tampilkan
+                        </button>
+                      )}
+                      {status === 'Selesai' && !isKabagPendistribusian && !isKabagPendayagunaan && (
+                        <button 
+                          onClick={() => handleUpdateStatus(task.id, 'Review Kepala Pelaksana')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-all"
+                        >
+                          <CheckCircle className="size-3.5" />
+                          Approve
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleViewDetail(task)}
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                      >
+                        <Eye className="size-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden">
@@ -146,101 +301,9 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
           </div>
 
           <div className="flex-1 overflow-y-auto p-0 custom-scrollbar relative">
-            <table className="w-full text-left bg-white">
-              <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                <tr>
-                  <th className="px-6 py-4">No. Agenda</th>
-                  <th className="px-6 py-4">Mustahik & Alamat</th>
-                  <th className="px-6 py-4">Petugas Survei</th>
-                  <th className="px-6 py-4">Status Survei</th>
-                  <th className="px-6 py-4 text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {filteredTasks.map((task) => {
-                  const status = getSurveyStatus(task);
-                  return (
-                    <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                      <span className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg font-mono font-bold text-[11px] border border-slate-200">
-                        {task.agendaNo}
-                      </span>
-                    </td>
-                      <td className="px-6 py-4">
-                        <p className="font-bold text-slate-900">{task.namaPemohon}</p>
-                        <p className="text-xs text-slate-500">{task.alamat}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {task.surveyorName ? (
-                            <>
-                              <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-8 h-8 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
-                              <span className="font-medium text-slate-700">{task.surveyorName}</span>
-                            </>
-                          ) : (
-                            <div className="flex items-center gap-2 text-slate-400 italic">
-                              <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
-                                <UserRound className="size-4" />
-                              </div>
-                              <span className="text-xs font-medium">Belum Ditugaskan</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <span className={cn(
-                            "px-3 py-1 text-[10px] font-black rounded-full uppercase border w-fit",
-                            getStatusBadge(status)
-                          )}>
-                            {getStatusLabel(status)}
-                          </span>
-                          {(['Selesai', 'Disetujui'].includes(status)) && (task.score !== null || task.survey_data) && (
-                            <div className={cn(
-                              "text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1 w-fit",
-                              task.urgencyLevel === 'Sangat Kritis' ? "bg-rose-50 text-rose-600" :
-                              task.urgencyLevel === 'Tinggi' ? "bg-orange-50 text-orange-600" :
-                              "bg-emerald-50 text-emerald-600"
-                            )}>
-                              <AlertCircle className="size-3" />
-                              {task.urgencyLevel} ({task.score})
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          {status === 'Antrean Tugas' && (
-                            <button 
-                              onClick={() => handleUpdateStatus(task.id, 'Survei Assessment')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all"
-                            >
-                              <Send className="size-3.5" />
-                              Tampilkan
-                            </button>
-                          )}
-                          {status === 'Selesai' && (
-                            <button 
-                              onClick={() => handleUpdateStatus(task.id, 'Review Kepala Pelaksana')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-all"
-                            >
-                              <CheckCircle className="size-3.5" />
-                              Approve
-                            </button>
-                          )}
-                          <button 
-                            onClick={() => handleViewDetail(task)}
-                            className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                          >
-                            <Eye className="size-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {renderTaskTable('Bantuan Konsumtif', konsumtifTasks)}
+            {renderTaskTable('Bantuan Produktif', produktifTasks)}
+            {renderTaskTable('Kategori Lainnya', otherTasks)}
           </div>
         </div>
       ) : (
@@ -410,49 +473,68 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   <div className="space-y-6">
                     {(selectedTask.score !== null || selectedTask.survey_data) && (
                       <div className="space-y-6">
-                        <div className={cn("p-5 rounded-2xl border", selectedTask.urgencyLevel === 'Sangat Kritis' ? "bg-rose-50 border-rose-100" : selectedTask.urgencyLevel === 'Tinggi' ? "bg-orange-50 border-orange-100" : "bg-emerald-50 border-emerald-100")}>
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <AlertCircle className={cn("size-5", selectedTask.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedTask.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")} />
-                              <p className={cn("text-sm font-black uppercase tracking-widest", selectedTask.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedTask.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")}>Hasil Survei: {selectedTask.urgencyLevel}</p>
+                        {!(selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok')) && (
+                          <div className={cn("p-5 rounded-2xl border", selectedTask.urgencyLevel === 'Sangat Kritis' ? "bg-rose-50 border-rose-100" : selectedTask.urgencyLevel === 'Tinggi' ? "bg-orange-50 border-orange-100" : "bg-emerald-50 border-emerald-100")}>
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className={cn("size-5", selectedTask.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedTask.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")} />
+                                <p className={cn("text-sm font-black uppercase tracking-widest", selectedTask.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedTask.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")}>Hasil Survei: {selectedTask.urgencyLevel}</p>
+                              </div>
+                              <span className="text-lg font-black">{selectedTask.score} Pts</span>
                             </div>
-                            <span className="text-lg font-black">{selectedTask.score} Pts</span>
+                            <div className="grid grid-cols-2 gap-4 text-xs font-bold">
+                              <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Per Kapita</p>
+                                <p className="text-slate-700">
+                                  {selectedTask.survey_data?.pendapatanTotal && selectedTask.survey_data?.jumlahTanggungan 
+                                    ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Math.round(parseInt(selectedTask.survey_data.pendapatanTotal) / parseInt(selectedTask.survey_data.jumlahTanggungan)))
+                                    : '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggungan</p>
+                                <p className="text-slate-700">{selectedTask.survey_data?.jumlahTanggungan || 0} Orang</p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4 text-xs font-bold">
-                            <div>
-                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Per Kapita</p>
-                              <p className="text-slate-700">
-                                {selectedTask.survey_data?.pendapatanTotal && selectedTask.survey_data?.jumlahTanggungan 
-                                  ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Math.round(parseInt(selectedTask.survey_data.pendapatanTotal) / parseInt(selectedTask.survey_data.jumlahTanggungan)))
-                                  : '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggungan</p>
-                              <p className="text-slate-700">{selectedTask.survey_data?.jumlahTanggungan || 0} Orang</p>
-                            </div>
-                          </div>
-                        </div>
+                        )}
 
                         <div className="space-y-4">
                           <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 flex items-center gap-2"><Home className="size-3.5" /> Rincian Lapangan</h4>
                           <div className="space-y-2">
-                            <SurveyDetailSection title="A. Kondisi Rumah" items={[
-                              { label: 'Luas Bangunan', value: getLabelForScore('luasBangunan', selectedTask.survey_data?.luasBangunan) },
-                              { label: 'Jenis Lantai', value: getLabelForScore('jenisLantai', selectedTask.survey_data?.jenisLantai) },
-                              { label: 'Jenis Dinding', value: getLabelForScore('jenisDinding', selectedTask.survey_data?.jenisDinding) },
-                              { label: 'Status Tinggal', value: getLabelForScore('statusTempatTinggal', selectedTask.survey_data?.statusTempatTinggal) },
-                            ]} />
-                            <SurveyDetailSection title="B. Kondisi Ekonomi" items={[
-                              { label: 'Pekerjaan KRT', value: getLabelForScore('pekerjaanKepala', selectedTask.survey_data?.pekerjaanKepala) },
-                              { label: 'Frekuensi Makan', value: getLabelForScore('frekuensiMakan', selectedTask.survey_data?.frekuensiMakan) },
-                              { label: 'Kemampuan Lauk', value: getLabelForScore('kemampuanLauk', selectedTask.survey_data?.kemampuanLauk) },
-                            ]} />
-                            <SurveyDetailSection title="C. Fisik & Lainnya" items={[
-                              { label: 'Keadaan Fisik', value: getLabelForScore('keadaanFisik', selectedTask.survey_data?.keadaanFisik) },
-                              { label: 'Kondisi Hutang', value: getLabelForScore('hutang', selectedTask.survey_data?.hutang) },
-                              { label: 'BPJS/Kesehatan', value: getLabelForScore('kesehatan', selectedTask.survey_data?.kesehatan) },
-                            ]} />
+                            {(selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok')) ? (
+                              <>
+                                <SurveyDetailSection title="A. Profil Lembaga" items={[
+                                  { label: 'Berbadan Hukum', value: selectedTask.survey_data?.berbadanHukum || '-' },
+                                  { label: 'Usia Berdiri', value: selectedTask.survey_data?.usiaBerdiri || '-' },
+                                  { label: 'Bidang Garapan', value: selectedTask.survey_data?.bidangGarapan || '-' },
+                                  { label: 'Daerah Jangkauan', value: selectedTask.survey_data?.daerahJangkauan || '-' },
+                                ]} />
+                                <SurveyDetailSection title="B. Kelayakan" items={[
+                                  { label: 'Jenis Kegiatan', value: selectedTask.survey_data?.layakJenisKegiatan || '-' },
+                                  { label: 'Jumlah Penerima Manfaat', value: selectedTask.survey_data?.layakJumlahPenerima || '-' },
+                                ]} />
+                              </>
+                            ) : (
+                              <>
+                                <SurveyDetailSection title="A. Kondisi Rumah" items={[
+                                  { label: 'Luas Bangunan', value: getLabelForScore('luasBangunan', selectedTask.survey_data?.luasBangunan) },
+                                  { label: 'Jenis Lantai', value: getLabelForScore('jenisLantai', selectedTask.survey_data?.jenisLantai) },
+                                  { label: 'Jenis Dinding', value: getLabelForScore('jenisDinding', selectedTask.survey_data?.jenisDinding) },
+                                  { label: 'Status Tinggal', value: getLabelForScore('statusTempatTinggal', selectedTask.survey_data?.statusTempatTinggal) },
+                                ]} />
+                                <SurveyDetailSection title="B. Kondisi Ekonomi" items={[
+                                  { label: 'Pekerjaan KRT', value: getLabelForScore('pekerjaanKepala', selectedTask.survey_data?.pekerjaanKepala) },
+                                  { label: 'Frekuensi Makan', value: getLabelForScore('frekuensiMakan', selectedTask.survey_data?.frekuensiMakan) },
+                                  { label: 'Kemampuan Lauk', value: getLabelForScore('kemampuanLauk', selectedTask.survey_data?.kemampuanLauk) },
+                                ]} />
+                                <SurveyDetailSection title="C. Fisik & Lainnya" items={[
+                                  { label: 'Keadaan Fisik', value: getLabelForScore('keadaanFisik', selectedTask.survey_data?.keadaanFisik) },
+                                  { label: 'Kondisi Hutang', value: getLabelForScore('hutang', selectedTask.survey_data?.hutang) },
+                                  { label: 'BPJS/Kesehatan', value: getLabelForScore('kesehatan', selectedTask.survey_data?.kesehatan) },
+                                ]} />
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -488,13 +570,88 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                       </div>
                     </div>
                   </div>
+                  
+                  {/* KABAG FORM OR DISPLAY */}
+                  {selectedTask.rekomendasi_kabag ? (
+                    <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
+                      <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                        <ClipboardList className="size-4 text-primary" />
+                        Identifikasi & Rekomendasi Kepala Bagian
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Asnaf</p>
+                           <p className="text-sm font-bold text-slate-800">{selectedTask.asnaf || '-'}</p>
+                         </div>
+                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Rekomendasi</p>
+                           <p className={cn("text-sm font-bold", selectedTask.rekomendasi_kabag === 'Layak' ? "text-emerald-600" : selectedTask.rekomendasi_kabag === 'Tidak Layak' ? "text-rose-600" : "text-amber-600")}>{selectedTask.rekomendasi_kabag}</p>
+                         </div>
+                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 col-span-full">
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Hasil Identifikasi</p>
+                           <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedTask.hasil_identifikasi || '-'}</p>
+                         </div>
+                      </div>
+                    </div>
+                  ) : (
+                    getSurveyStatus(selectedTask) === 'Selesai' && 
+                    ((isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
+                     (isKabagPendayagunaan && selectedTask.programCode?.startsWith('2'))) && (
+                      <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
+                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                          <ClipboardList className="size-4 text-primary" />
+                          Identifikasi & Rekomendasi Kepala Bagian
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Asnaf</label>
+                            <select 
+                              value={selectedAsnaf} 
+                              onChange={(e) => setSelectedAsnaf(e.target.value)}
+                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
+                            >
+                              {asnafOptions.map(asnaf => <option key={asnaf} value={asnaf}>{asnaf}</option>)}
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rekomendasi</label>
+                            <select 
+                              value={rekomendasiKabag} 
+                              onChange={(e) => setRekomendasiKabag(e.target.value as any)}
+                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
+                            >
+                              <option value="Layak">Layak</option>
+                              <option value="Tidak Layak">Tidak Layak</option>
+                              <option value="Dipertimbangkan">Dipertimbangkan</option>
+                            </select>
+                          </div>
+                          <div className="col-span-full space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hasil Identifikasi</label>
+                            <textarea 
+                              value={hasilIdentifikasi}
+                              onChange={(e) => setHasilIdentifikasi(e.target.value)}
+                              placeholder="Tuliskan hasil identifikasi lapangan/lembaga..."
+                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[100px] resize-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
                 <button onClick={() => setIsDetailModalOpen(false)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Tutup</button>
                 {getSurveyStatus(selectedTask) === 'Selesai' && (
-                  <button onClick={() => { handleUpdateStatus(selectedTask.id, 'Review Kepala Pelaksana'); setIsDetailModalOpen(false); }} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Approve → Kep. Pelaksana</button>
+                  <>
+                    {((isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
+                      (isKabagPendayagunaan && selectedTask.programCode?.startsWith('2'))) ? (
+                      <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Simpan & Approve → Kep. Pelaksana</button>
+                    ) : (!isKabagPendistribusian && !isKabagPendayagunaan) ? (
+                      <button onClick={() => { handleUpdateStatus(selectedTask.id, 'Review Kepala Pelaksana'); setIsDetailModalOpen(false); }} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Approve → Kep. Pelaksana</button>
+                    ) : null}
+                  </>
                 )}
               </div>
             </motion.div>

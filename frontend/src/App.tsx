@@ -55,6 +55,7 @@ function App() {
           yangMengajukan: item.yang_mengajukan || '',
           hasMemo: item.has_memo,
           memoSource: item.memo_source || '',
+          jenisPengajuan: item.jenis_pengajuan || '',
           status: item.status.replace(/_/g, ' '),
           fileGdriveLink: item.file_gdrive_link || '',
           surveyorName: item.surveyorName || undefined,
@@ -66,7 +67,11 @@ function App() {
           catatanKepala: item.catatanKepala || undefined,
           nominal: item.nominal,
           tipeBantuan: item.tipe_bantuan,
-          alasanPerubahanNominal: item.alasan_perubahan_nominal
+          alasanPerubahanNominal: item.alasan_perubahan_nominal,
+          asnaf: item.asnaf || undefined,
+          hasil_identifikasi: item.hasil_identifikasi || undefined,
+          rekomendasi_kabag: item.rekomendasi_kabag || undefined,
+          approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined
         }));
         setProposals(mappedData);
       })

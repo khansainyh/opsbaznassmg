@@ -100,7 +100,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           item.nik.includes(searchTerm);
         return yearOk && monthOk && memoOk && searchOk;
       })
-      .sort((a, b) => Number(a.agendaNo) - Number(b.agendaNo));
+      .sort((a, b) => Number(b.agendaNo) - Number(a.agendaNo));
   }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo]);
 
   const stats = useMemo(() => ({

@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
-import { 
-  Search, 
-  ChevronRight, 
-  Eye, 
-  FileText, 
-  X, 
-  ClipboardList, 
-  AlertTriangle, 
+import {
+  Search,
+  ChevronRight,
+  Eye,
+  FileText,
+  X,
+  ClipboardList,
+  AlertTriangle,
   Banknote,
   UserCheck,
   Info,
@@ -38,11 +38,23 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
       .catch(console.error);
   }, []);
 
-  const getRKATBudget = (jenisPermohonan: string): number | undefined => {
+  const getRKATBudget = (jenisPermohonan: string, asnaf?: string): number | undefined => {
     for (const pilar of pilars) {
       for (const prog of pilar.programs) {
-        if (prog.name === jenisPermohonan && typeof prog.budget_rkat === 'number') {
-          return prog.budget_rkat;
+        if (prog.name === jenisPermohonan || prog.code === jenisPermohonan) {
+          if (asnaf && prog.rkat_details) {
+            const match = prog.rkat_details.find(detail => {
+              const dAsnaf = detail.asnaf.toLowerCase();
+              const pAsnaf = asnaf.toLowerCase();
+              return dAsnaf.includes(pAsnaf) || pAsnaf.includes(dAsnaf);
+            });
+            if (match) {
+              return match.nominal;
+            }
+          }
+          if (typeof prog.budget_rkat === 'number') {
+            return prog.budget_rkat;
+          }
         }
       }
     }
@@ -53,10 +65,10 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
   const filteredData = useMemo(() => {
     return data.filter(item => {
       const isPenentuanNominal = item.status === 'Penentuan Nominal' && !item.nominal;
-      const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
-                         item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (item.nik || '').includes(searchTerm);
+      const searchMatch = item.agendaNo.toString().includes(searchTerm) ||
+        item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (item.nik || '').includes(searchTerm);
       return isPenentuanNominal && searchMatch;
     });
   }, [data, searchTerm]);
@@ -67,7 +79,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
     const initialNominals: Record<string, string> = { ...nominalInputs };
     filteredData.forEach(item => {
       if (initialNominals[item.id] === undefined) {
-        const defaultNominal = getRKATBudget(item.jenisPermohonan);
+        const defaultNominal = getRKATBudget(item.jenisPermohonan, item.asnaf);
         if (defaultNominal !== undefined) {
           initialNominals[item.id] = defaultNominal.toString();
         }
@@ -97,7 +109,8 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
   };
 
   const handleResetToRKAT = (id: string, jenis: string) => {
-    const defaultValue = getRKATBudget(jenis);
+    const item = data.find(d => d.id === id);
+    const defaultValue = getRKATBudget(jenis, item?.asnaf);
     if (defaultValue !== undefined) {
       setNominalInputs(prev => ({ ...prev, [id]: defaultValue.toString() }));
       setAlasanInputs(prev => {
@@ -113,7 +126,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
       await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
         tipe_bantuan: tipe
       });
-      const updatedData = data.map(item => 
+      const updatedData = data.map(item =>
         item.id === id ? { ...item, tipeBantuan: tipe } : item
       );
       onUpdate(updatedData);
@@ -128,9 +141,9 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
 
     const nominalStr = nominalInputs[id] || '0';
     const nominal = parseInt(nominalStr);
-    const defaultNominal = getRKATBudget(item.jenisPermohonan);
+    const defaultNominal = getRKATBudget(item.jenisPermohonan, item.asnaf);
     const alasan = alasanInputs[id] || '';
-    
+
     if (nominal <= 0) {
       alert('Mohon tentukan nominal bantuan.');
       return;
@@ -154,10 +167,10 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
         status: 'Antrean_Bantuan'
       });
 
-      const updatedData = data.map(p => 
-        p.id === id ? { 
-          ...p, 
-          nominal, 
+      const updatedData = data.map(p =>
+        p.id === id ? {
+          ...p,
+          nominal,
           status: 'Antrean Bantuan' as any,
           alasanPerubahanNominal: (defaultNominal !== undefined && nominal !== defaultNominal) ? alasan : undefined
         } : p
@@ -180,7 +193,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
@@ -199,21 +212,21 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard 
-          title="Total Menunggu" 
-          value={stats.total.toString()} 
+        <StatCard
+          title="Total Menunggu"
+          value={stats.total.toString()}
           icon={<FileText className="size-5" />}
           color="primary"
         />
-        <StatCard 
-          title="Urgensi Tinggi" 
-          value={stats.urgent.toString()} 
+        <StatCard
+          title="Urgensi Tinggi"
+          value={stats.urgent.toString()}
           icon={<AlertTriangle className="size-5" />}
           color="red"
         />
-        <StatCard 
-          title="Belum Ditentukan" 
-          value={stats.pending.toString()} 
+        <StatCard
+          title="Belum Ditentukan"
+          value={stats.pending.toString()}
           icon={<Banknote className="size-5" />}
           color="amber"
         />
@@ -223,7 +236,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <div className="relative w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-            <input 
+            <input
               type="text"
               placeholder="Cari No. Agenda / Nama..."
               className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
@@ -247,7 +260,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredData.length > 0 ? filteredData.map((item) => {
-                const defaultNominal = getRKATBudget(item.jenisPermohonan);
+                const defaultNominal = getRKATBudget(item.jenisPermohonan, item.asnaf);
                 const currentNominal = parseInt(nominalInputs[item.id] || '0');
                 const isDifferentFromRKAT = defaultNominal !== undefined && currentNominal !== defaultNominal;
 
@@ -279,7 +292,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                         <div className="flex items-center gap-2">
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">Rp</span>
-                            <input 
+                            <input
                               type="text"
                               value={nominalInputs[item.id] !== undefined ? nominalInputs[item.id] : (item.nominal?.toString() || '')}
                               onChange={(e) => handleNominalChange(item.id, e.target.value)}
@@ -291,7 +304,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                             />
                           </div>
                           {isDifferentFromRKAT && (
-                            <button 
+                            <button
                               onClick={() => handleResetToRKAT(item.id, item.jenisPermohonan)}
                               className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                               title="Reset ke RKAT"
@@ -300,20 +313,25 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                             </button>
                           )}
                         </div>
-                        
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+
+                        <div className="flex flex-col gap-1 text-[10px] font-bold text-slate-400">
+                          {item.asnaf && (
+                            <span className="text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded w-fit">
+                              Asnaf: {item.asnaf}
+                            </span>
+                          )}
                           {defaultNominal !== undefined ? (
-                            <>
-                              <Info className="size-3" />
+                            <div className="flex items-center gap-1">
+                              <Info className="size-3 text-slate-400" />
                               <span>RKAT: {formatCurrency(defaultNominal)}</span>
-                            </>
+                            </div>
                           ) : (
                             <span className="italic">Belum ada budget RKAT</span>
                           )}
                         </div>
 
                         {isDifferentFromRKAT && (
-                          <motion.div 
+                          <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             className="space-y-1.5"
@@ -322,7 +340,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                               Alasan Perubahan
                               <span className="text-rose-500">*</span>
                             </label>
-                            <textarea 
+                            <textarea
                               value={alasanInputs[item.id] || ''}
                               onChange={(e) => handleAlasanChange(item.id, e.target.value)}
                               placeholder="Jelaskan alasan perubahan nominal..."
@@ -334,23 +352,23 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-1">
-                        <button 
+                        <button
                           onClick={() => handleSetTipe(item.id, 'Tunai')}
                           className={cn(
                             "px-2 py-1 rounded text-[10px] font-bold border transition-all",
-                            item.tipeBantuan === 'Tunai' 
-                              ? "bg-primary text-white border-primary" 
+                            item.tipeBantuan === 'Tunai'
+                              ? "bg-primary text-white border-primary"
                               : "bg-white text-slate-400 border-slate-200 hover:border-primary/50"
                           )}
                         >
                           Tunai
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleSetTipe(item.id, 'Barang')}
                           className={cn(
                             "px-2 py-1 rounded text-[10px] font-bold border transition-all",
-                            item.tipeBantuan === 'Barang' 
-                              ? "bg-primary text-white border-primary" 
+                            item.tipeBantuan === 'Barang'
+                              ? "bg-primary text-white border-primary"
                               : "bg-white text-slate-400 border-slate-200 hover:border-primary/50"
                           )}
                         >
@@ -360,7 +378,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
-                        <button 
+                        <button
                           onClick={() => {
                             setSelectedProposal(item);
                             setIsDetailModalOpen(true);
@@ -370,7 +388,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                         >
                           <Eye className="size-4" />
                         </button>
-                        <button 
+                        <button
                           disabled={isSubmitting}
                           onClick={() => handleApprove(item.id)}
                           className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white text-[10px] font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
@@ -400,14 +418,14 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
       <AnimatePresence>
         {isDetailModalOpen && selectedProposal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
               onClick={() => setIsDetailModalOpen(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -422,7 +440,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
@@ -452,7 +470,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
-                <button 
+                <button
                   onClick={() => setIsDetailModalOpen(false)}
                   className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                 >
@@ -476,9 +494,9 @@ function DetailItem({ label, value }: { label: string, value: string }) {
   );
 }
 
-function StatCard({ title, value, icon, color }: { 
-  title: string, 
-  value: string, 
+function StatCard({ title, value, icon, color }: {
+  title: string,
+  value: string,
   icon: React.ReactNode,
   color: 'primary' | 'emerald' | 'amber' | 'red'
 }) {

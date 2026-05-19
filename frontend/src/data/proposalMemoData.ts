@@ -21,6 +21,7 @@ export interface ProposalMemo {
   noTelpon: string;
   jamPengajuan: string;
   yangMengajukan: string;
+  jenisPengajuan?: string;
   hasMemo: boolean;
   memoSource: string;
   status: string;
@@ -53,6 +54,13 @@ export interface ProposalMemo {
     hutang: number;
     kesehatan: number;
     catatanLapangan: string;
+    // Form Lembaga
+    berbadanHukum?: string;
+    usiaBerdiri?: string;
+    bidangGarapan?: string;
+    daerahJangkauan?: string;
+    layakJenisKegiatan?: string;
+    layakJumlahPenerima?: string;
   };
   catatanKepala?: string;
   catatanPimpinan?: string;
@@ -61,6 +69,10 @@ export interface ProposalMemo {
   program?: string;
   alasanPerubahanNominal?: string;
   deskripsi?: string;
+  asnaf?: string;
+  hasil_identifikasi?: string;
+  rekomendasi_kabag?: string;
+  approval_kabag?: boolean;
 }
 
 export const proposalMemoData: ProposalMemo[] = [];
