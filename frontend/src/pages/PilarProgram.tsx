@@ -114,7 +114,7 @@ export default function PilarProgram() {
           const res = await axios.put(`http://127.0.0.1:4000/api/programs/${editingProgram.program.code}`, {
             pilar_code: editingProgram.pilarCode,
             name: formData.name,
-            budget_rkat: formData.budget_rkat ? parseInt(formData.budget_rkat) : undefined,
+            budget_rkat: formData.budget_rkat ? parseInt(formData.budget_rkat) : 0,
             rkat_details: rkatDetails
           });
           setData(prev => prev.map(p => p.code === editingProgram.pilarCode ? {
@@ -126,7 +126,7 @@ export default function PilarProgram() {
             code: formData.code,
             pilar_code: editingProgram.pilarCode,
             name: formData.name,
-            budget_rkat: formData.budget_rkat ? parseInt(formData.budget_rkat) : undefined,
+            budget_rkat: formData.budget_rkat ? parseInt(formData.budget_rkat) : 0,
             rkat_details: rkatDetails
           });
           setData(prev => prev.map(p => p.code === editingProgram.pilarCode ? {
@@ -346,13 +346,13 @@ export default function PilarProgram() {
                                        {prog.rkat_details && prog.rkat_details.length > 0 ? (
                                          <div className="mt-2 flex flex-wrap gap-1">
                                            {prog.rkat_details.map((detail, idx) => (
-                                             <span key={idx} className="inline-flex px-2 py-0.5 rounded bg-emerald-50 border border-emerald-100 text-xs font-black text-emerald-600">
+                                             <span key={idx} className="inline-flex px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-[10px] font-black text-emerald-600 w-fit">
                                                Rp {detail.nominal.toLocaleString('id-ID')}
                                              </span>
                                            ))}
                                          </div>
                                        ) : prog.budget_rkat ? (
-                                         <span className="inline-flex px-2 py-0.5 rounded bg-emerald-50 border border-emerald-100 text-xs font-black text-emerald-600 mt-2">
+                                         <span className="inline-flex px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-xs font-black text-emerald-600 mt-2 w-fit">
                                            Rp {prog.budget_rkat.toLocaleString('id-ID')}
                                          </span>
                                        ) : null}
@@ -473,7 +473,21 @@ export default function PilarProgram() {
                 )}
 
                 {editType === 'program' && (
-                  <div className="space-y-3 pt-2">
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nominal RKAT Umum (Tanpa Asnaf)</label>
+                      <input
+                        type="number"
+                        value={formData.budget_rkat || ''}
+                        onChange={(e) => setFormData({ ...formData, budget_rkat: e.target.value })}
+                        placeholder="Contoh: 1000000"
+                        className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all font-medium text-slate-900"
+                      />
+                      <p className="text-[10px] text-slate-400">Gunakan ini jika program menggunakan tarif/patokan budget tunggal tanpa membeda-bedakan Asnaf.</p>
+                    </div>
+
+                    <div className="border-t border-slate-100 my-2"></div>
+
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Detail RKAT per Asnaf</label>
                       <button

@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
-import { pilarData } from '../data/pilarData';
+import { pilarData, Pilar } from '../data/pilarData';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 
 /**
@@ -77,6 +77,17 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   const [selectedKelurahan, setSelectedKelurahan] = useState('');
   const [jenisPengajuanState, setJenisPengajuanState] = useState<'Individu' | 'Kelompok'>('Individu');
   const [isKtpSemarang, setIsKtpSemarang] = useState(true);
+  const [pilarsList, setPilarsList] = useState<Pilar[]>(pilarData);
+
+  React.useEffect(() => {
+    axios.get('http://127.0.0.1:4000/api/pilars')
+      .then(res => {
+        if (res.data && res.data.length > 0) {
+          setPilarsList(res.data);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const kelurahanOptions = kecamatanKelurahanSemarang.find(
     k => k.kecamatan === selectedKecamatan
@@ -902,11 +913,11 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                       </div>
                     </div>
 
-                    <div className="space-y-1">
+                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Permohonan (Program)</label>
                       <select required name="jenisPermohonan" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingProposal?.jenisPermohonan || ""}>
                         <option value="">Pilih Program...</option>
-                        {pilarData.map(pilar => (
+                        {pilarsList.map(pilar => (
                           <optgroup key={pilar.code} label={pilar.name}>
                             {pilar.programs.map(prog => (
                               <option key={prog.code} value={prog.code}>{prog.code} - {prog.name}</option>

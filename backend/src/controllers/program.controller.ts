@@ -14,9 +14,15 @@ export const getPrograms = async (req: Request, res: Response) => {
 
 export const createProgram = async (req: Request, res: Response) => {
   try {
-    const { code, pilar_code, name, budget_rkat } = req.body;
+    const { code, pilar_code, name, budget_rkat, rkat_details } = req.body;
     const program = await prisma.program.create({
-      data: { code, pilar_code, name, budget_rkat: budget_rkat ? parseInt(budget_rkat) : 0 }
+      data: { 
+        code, 
+        pilar_code, 
+        name, 
+        budget_rkat: budget_rkat ? parseInt(budget_rkat) : 0,
+        rkat_details: rkat_details || null
+      }
     });
     res.status(201).json(program);
   } catch (error) {
@@ -27,10 +33,15 @@ export const createProgram = async (req: Request, res: Response) => {
 export const updateProgram = async (req: Request, res: Response) => {
   try {
     const code = req.params.code as string;
-    const { pilar_code, name, budget_rkat } = req.body;
+    const { pilar_code, name, budget_rkat, rkat_details } = req.body;
     const program = await prisma.program.update({
       where: { code },
-      data: { pilar_code, name, budget_rkat: budget_rkat !== undefined ? parseInt(budget_rkat) : undefined }
+      data: { 
+        pilar_code, 
+        name, 
+        budget_rkat: budget_rkat !== undefined ? (budget_rkat ? parseInt(budget_rkat) : 0) : undefined,
+        rkat_details: rkat_details !== undefined ? rkat_details : undefined
+      }
     });
     res.status(200).json(program);
   } catch (error) {
