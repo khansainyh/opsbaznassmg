@@ -17,7 +17,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
-import { Pilar, Program, RKATDetail, ASNAF_OPTIONS } from '../data/pilarData';
+import { Pilar, Program } from '../data/pilarData';
 
 export default function PilarProgram() {
   const [data, setData] = useState<Pilar[]>([]);
@@ -36,8 +36,7 @@ export default function PilarProgram() {
   const [editType, setEditType] = useState<'pilar' | 'program'>('pilar');
   const [editingPilar, setEditingPilar] = useState<Pilar | null>(null);
   const [editingProgram, setEditingProgram] = useState<{ pilarCode: string, program: Program } | null>(null);
-  const [formData, setFormData] = useState({ code: '', name: '', category: '', budget_rkat: '' });
-  const [rkatDetails, setRkatDetails] = useState<RKATDetail[]>([]);
+  const [formData, setFormData] = useState({ code: '', name: '', category: '' });
 
   const togglePilar = (code: string) => {
     setExpandedPilar(expandedPilar === code ? null : code);
@@ -47,7 +46,7 @@ export default function PilarProgram() {
     setEditType('pilar');
     setIsAdding(false);
     setEditingPilar(pilar);
-    setFormData({ code: pilar.code, name: pilar.name, category: pilar.category, budget_rkat: '' });
+    setFormData({ code: pilar.code, name: pilar.name, category: pilar.category });
     setIsModalOpen(true);
   };
 
@@ -55,8 +54,7 @@ export default function PilarProgram() {
     setEditType('program');
     setIsAdding(false);
     setEditingProgram({ pilarCode, program });
-    setFormData({ code: program.code, name: program.name, category: '', budget_rkat: program.budget_rkat?.toString() || '' });
-    setRkatDetails(program.rkat_details || []);
+    setFormData({ code: program.code, name: program.name, category: '' });
     setIsModalOpen(true);
   };
 
@@ -64,7 +62,7 @@ export default function PilarProgram() {
     setEditType('pilar');
     setIsAdding(true);
     setEditingPilar(null);
-    setFormData({ code: (Math.max(...data.map(p => parseInt(p.code))) + 100).toString(), name: '', category: '', budget_rkat: '' });
+    setFormData({ code: (Math.max(...data.map(p => parseInt(p.code))) + 100).toString(), name: '', category: '' });
     setIsModalOpen(true);
   };
 
@@ -88,8 +86,7 @@ export default function PilarProgram() {
     setEditType('program');
     setIsAdding(true);
     setEditingProgram({ pilarCode, program: { code: nextCode, name: '' } });
-    setFormData({ code: nextCode, name: '', category: '', budget_rkat: '' });
-    setRkatDetails([]);
+    setFormData({ code: nextCode, name: '', category: '' });
     setIsModalOpen(true);
   };
 
@@ -113,9 +110,7 @@ export default function PilarProgram() {
         if (!isAdding) {
           const res = await axios.put(`http://127.0.0.1:4000/api/programs/${editingProgram.program.code}`, {
             pilar_code: editingProgram.pilarCode,
-            name: formData.name,
-            budget_rkat: formData.budget_rkat ? parseInt(formData.budget_rkat) : 0,
-            rkat_details: rkatDetails
+            name: formData.name
           });
           setData(prev => prev.map(p => p.code === editingProgram.pilarCode ? {
             ...p,
@@ -125,9 +120,7 @@ export default function PilarProgram() {
           const res = await axios.post('http://127.0.0.1:4000/api/programs', {
             code: formData.code,
             pilar_code: editingProgram.pilarCode,
-            name: formData.name,
-            budget_rkat: formData.budget_rkat ? parseInt(formData.budget_rkat) : 0,
-            rkat_details: rkatDetails
+            name: formData.name
           });
           setData(prev => prev.map(p => p.code === editingProgram.pilarCode ? {
             ...p,
@@ -343,19 +336,6 @@ export default function PilarProgram() {
                                      <div className="flex flex-col flex-1">
                                        <span className="text-[10px] font-black text-primary uppercase tracking-wider">{prog.code}</span>
                                        <span className="text-sm font-bold text-slate-700 leading-tight">{prog.name}</span>
-                                       {prog.rkat_details && prog.rkat_details.length > 0 ? (
-                                         <div className="mt-2 flex flex-wrap gap-1">
-                                           {prog.rkat_details.map((detail, idx) => (
-                                             <span key={idx} className="inline-flex px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-[10px] font-black text-emerald-600 w-fit">
-                                               Rp {detail.nominal.toLocaleString('id-ID')}
-                                             </span>
-                                           ))}
-                                         </div>
-                                       ) : prog.budget_rkat ? (
-                                         <span className="inline-flex px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-xs font-black text-emerald-600 mt-2 w-fit">
-                                           Rp {prog.budget_rkat.toLocaleString('id-ID')}
-                                         </span>
-                                       ) : null}
                                      </div>
                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
@@ -472,106 +452,6 @@ export default function PilarProgram() {
                   </div>
                 )}
 
-                {editType === 'program' && (
-                  <div className="space-y-4 pt-2">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nominal RKAT Umum (Tanpa Asnaf)</label>
-                      <input
-                        type="number"
-                        value={formData.budget_rkat || ''}
-                        onChange={(e) => setFormData({ ...formData, budget_rkat: e.target.value })}
-                        placeholder="Contoh: 1000000"
-                        className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all font-medium text-slate-900"
-                      />
-                      <p className="text-[10px] text-slate-400">Gunakan ini jika program menggunakan tarif/patokan budget tunggal tanpa membeda-bedakan Asnaf.</p>
-                    </div>
-
-                    <div className="border-t border-slate-100 my-2"></div>
-
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Detail RKAT per Asnaf</label>
-                      <button
-                        type="button"
-                        onClick={() => setRkatDetails(prev => [...prev, { asnaf: 'Fakir', nominal: 0, frekuensi: '1' }])}
-                        className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/5 px-2.5 py-1 rounded-lg border border-primary/10 transition-all hover:bg-primary/10 font-bold"
-                      >
-                        <PlusCircle className="size-3.5" />
-                        Tambah Asnaf
-                      </button>
-                    </div>
-
-                    {rkatDetails.length > 0 ? (
-                      <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
-                        {rkatDetails.map((detail, index) => (
-                          <div key={index} className="flex gap-2 items-start bg-slate-50 p-3 rounded-xl border border-slate-200/60 relative group/row animate-fade-in">
-                            <div className="flex-1 space-y-2.5">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Asnaf</span>
-                                  <select
-                                    value={detail.asnaf}
-                                    onChange={(e) => {
-                                      const updated = [...rkatDetails];
-                                      updated[index] = { ...detail, asnaf: e.target.value as any };
-                                      setRkatDetails(updated);
-                                    }}
-                                    className="w-full text-xs h-8 px-2 rounded-lg border border-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none bg-white font-medium text-slate-700"
-                                  >
-                                    {ASNAF_OPTIONS.map((opt) => (
-                                      <option key={opt} value={opt}>{opt}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div className="space-y-1">
-                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Frekuensi (Kali)</span>
-                                  <input
-                                    type="number"
-                                    value={detail.frekuensi}
-                                    onChange={(e) => {
-                                      const updated = [...rkatDetails];
-                                      updated[index] = { ...detail, frekuensi: e.target.value };
-                                      setRkatDetails(updated);
-                                    }}
-                                    placeholder="1"
-                                    className="w-full text-xs h-8 px-2 rounded-lg border border-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none bg-white font-medium text-slate-700"
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Nominal (Rp)</span>
-                                <input
-                                  type="number"
-                                  value={detail.nominal || ''}
-                                  onChange={(e) => {
-                                    const updated = [...rkatDetails];
-                                    updated[index] = { ...detail, nominal: parseInt(e.target.value) || 0 };
-                                    setRkatDetails(updated);
-                                  }}
-                                  placeholder="0"
-                                  className="w-full text-xs h-8 px-2 rounded-lg border border-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none bg-white font-black text-slate-800"
-                                />
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                  setRkatDetails(prev => prev.filter((_, idx) => idx !== index));
-                              }}
-                              className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg mt-5 transition-colors border border-transparent hover:border-red-100"
-                              title="Hapus Asnaf"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-center">
-                        Belum ada budget per Asnaf untuk program ini.
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="p-6 bg-slate-50 flex items-center gap-3">

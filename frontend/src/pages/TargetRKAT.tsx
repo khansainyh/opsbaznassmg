@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import { 
   Target, 
   TrendingUp, 
   Percent, 
-  Users, 
   Calendar, 
   Plus, 
   Download, 
@@ -15,12 +15,14 @@ import {
   Info, 
   ChevronRight,
   BarChart4,
-  Briefcase
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import { Pilar, AsnafTarget } from '../data/pilarData';
+import { useAuth } from '../context/AuthContext';
 
 interface TargetRKATProps {
   proposals: ProposalMemo[];
@@ -48,6 +50,10 @@ export interface RKATAccount {
 }
 
 export default function TargetRKAT({ proposals }: TargetRKATProps) {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super_Admin';
+  
+  const [activeTab, setActiveTab] = useState<'Pengumpulan' | 'Penyaluran' | 'Operasional'>('Penyaluran');
   // 1. Dynamic Pilar Data synced with backend API
   const [data, setData] = useState<Pilar[]>([]);
 
@@ -85,7 +91,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               id: fallbackId,
               pilarCode: pilar.code,
               pilarName: pilar.name,
-              name: prog.name, // Display name clean Program name without suffix
+              name: target.name || prog.name, // Display custom activity name if present, fallback to clean Program name
               keterangan: target.keterangan || `Penyaluran program ${prog.name} khusus kriteria asnaf ${target.asnaf}`,
               mustahik: target.mustahik || 0,
               frekuensi: Number(target.frekuensi) || 1,
@@ -94,22 +100,6 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               asnafTargetId: fallbackId,
               asnaf: target.asnaf
             });
-          });
-        } else {
-          // Fallback program row so it still exists in RKAT if a program is general (nominalUmum)
-          const nominalVal = prog.nominalUmum || 0;
-          list.push({
-            id: `prog-general-${prog.code}`,
-            pilarCode: pilar.code,
-            pilarName: pilar.name,
-            name: prog.name, // Keep program name clean
-            keterangan: `Pagu program umum (Tanpa Asnaf)`,
-            mustahik: 1,
-            frekuensi: 1,
-            unitCost: nominalVal,
-            programCode: prog.code,
-            asnafTargetId: '',
-            asnaf: undefined
           });
         }
       });
@@ -153,25 +143,23 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
   // UI Control States
   const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('Semua');
-  const [viewModeMonthly, setViewModeMonthly] = useState<'realisasi' | 'target'>('realisasi');
   
   // Modals / Add/Edit States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   
   // Form fields for adding program activities per Asnaf
   const [formPilar, setFormPilar] = useState<string>('1100');
   const [formProgramCode, setFormProgramCode] = useState<string>('');
-  const [formAsnaf, setFormAsnaf] = useState<string>('Miskin');
+  const [formNamaKegiatan, setFormNamaKegiatan] = useState<string>('');
+  const [formAsnaf, setFormAsnaf] = useState<string>('');
   const [formKeterangan, setFormKeterangan] = useState<string>('');
   const [formMustahik, setFormMustahik] = useState<number>(10);
   const [formFrekuensi, setFormFrekuensi] = useState<number>(1);
   const [formUnitCost, setFormUnitCost] = useState<number>(250000);
 
-  // Quick inline edits for Table 2
-  const [inlineEditId, setInlineEditId] = useState<string | null>(null);
-  const [inlineMustahik, setInlineMustahik] = useState<number>(0);
-  const [inlineFrekuensi, setInlineFrekuensi] = useState<number>(0);
-  const [inlineUnitCost, setInlineUnitCost] = useState<number>(0);
+  // Edit modal state variables
+  const [editingActivity, setEditingActivity] = useState<RKATActivity | null>(null);
 
   // Filter programs based on selected pilar in form
   const formProgramsAvailable = useMemo(() => {
@@ -337,13 +325,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     return realizedProposals.reduce((sum, p) => sum + (p.nominal || 0), 0);
   }, [realizedProposals]);
 
-  const totalMustahikTarget = useMemo(() => {
-    return activities.reduce((sum, act) => sum + (act.mustahik * act.frekuensi), 0);
-  }, [activities]);
 
-  const actualMustahikServed = useMemo(() => {
-    return realizedProposals.length;
-  }, [realizedProposals]);
 
   const overallPercentage = useMemo(() => {
     if (grandTotalTarget === 0) return 0;
@@ -359,11 +341,12 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
     const newTarget: AsnafTarget = {
       id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      asnaf: formAsnaf as any,
+      name: formNamaKegiatan.trim() || undefined,
+      asnaf: (formAsnaf || undefined) as any,
       frekuensi: formFrekuensi,
       nominal: formUnitCost,
       mustahik: formMustahik,
-      keterangan: formKeterangan || `Penyaluran Asnaf ${formAsnaf}`
+      keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`)
     };
 
     let currentTargets: AsnafTarget[] = [];
@@ -376,16 +359,20 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     });
 
     const updatedTargets = [...currentTargets, newTarget];
+    const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
 
     axios.put(`http://127.0.0.1:4000/api/programs/${formProgramCode}`, {
-      rkat_details: updatedTargets
+      rkat_details: updatedTargets,
+      budget_rkat: newBudget
     }).then(() => {
       fetchPilars();
       // Reset
+      setFormNamaKegiatan('');
       setFormKeterangan('');
       setFormMustahik(10);
       setFormFrekuensi(1);
       setFormUnitCost(250000);
+      setFormAsnaf('');
       setIsAddModalOpen(false);
     }).catch(err => {
       console.error('Gagal menambah activity', err);
@@ -405,9 +392,19 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
           if (id === `prog-general-${prog.code}`) {
             isGeneral = true;
             targetProgramCode = prog.code;
-          } else if (prog.asnafTargets && prog.asnafTargets.some(t => t.id === id)) {
-            targetProgramCode = prog.code;
-            updatedTargets = prog.asnafTargets.filter(t => t.id !== id);
+          } else {
+            const targets = prog.asnafTargets || [];
+            const matchIndex = targets.findIndex((t, tIdx) => {
+              const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf || 'General'}-${tIdx}`;
+              return fallbackId === id;
+            });
+            if (matchIndex !== -1) {
+              targetProgramCode = prog.code;
+              updatedTargets = targets.filter((_, tIdx) => {
+                const fallbackId = targets[tIdx].id || `act-auto-${prog.code}-${targets[tIdx].asnaf || 'General'}-${tIdx}`;
+                return fallbackId !== id;
+              });
+            }
           }
         });
       });
@@ -417,64 +414,120 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
           budget_rkat: 0
         }).then(() => fetchPilars()).catch(console.error);
       } else if (targetProgramCode) {
+        const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
         axios.put(`http://127.0.0.1:4000/api/programs/${targetProgramCode}`, {
-          rkat_details: updatedTargets
+          rkat_details: updatedTargets,
+          budget_rkat: newBudget
         }).then(() => fetchPilars()).catch(console.error);
       }
     }
   };
 
-  // Inline Quick edit controls
-  const startInlineEdit = (act: RKATActivity) => {
-    setInlineEditId(act.id);
-    setInlineMustahik(act.mustahik);
-    setInlineFrekuensi(act.frekuensi);
-    setInlineUnitCost(act.unitCost);
+  // Edit Modal helper functions
+  const startEditModal = (act: RKATActivity) => {
+    setEditingActivity(act);
+    setFormPilar(act.pilarCode);
+    setFormProgramCode(act.programCode);
+    setFormNamaKegiatan(act.name);
+    setFormAsnaf(act.asnaf || '');
+    setFormKeterangan(act.keterangan);
+    setFormMustahik(act.mustahik);
+    setFormFrekuensi(act.frekuensi);
+    setFormUnitCost(act.unitCost);
   };
 
-  const saveInlineEdit = (id: string) => {
-    let targetProgramCode = '';
-    let updatedTargets: AsnafTarget[] = [];
-    let isGeneral = false;
+  const saveEditActivity = async () => {
+    if (!editingActivity) return;
+    if (!formProgramCode) {
+      alert('Pilih Program SIMBA yang ingin dihubungkan.');
+      return;
+    }
 
-    data.forEach(p => {
-      p.programs.forEach(prog => {
-        if (id === `prog-general-${prog.code}`) {
-          isGeneral = true;
-          targetProgramCode = prog.code;
-        } else if (prog.asnafTargets && prog.asnafTargets.some(t => t.id === id)) {
-          targetProgramCode = prog.code;
-          updatedTargets = prog.asnafTargets.map(t => {
-            if (t.id === id) {
-              return {
-                ...t,
-                mustahik: inlineMustahik,
-                frekuensi: inlineFrekuensi,
-                nominal: inlineUnitCost
-              };
+    const updatedTarget: AsnafTarget = {
+      id: editingActivity.asnafTargetId || editingActivity.id,
+      name: formNamaKegiatan.trim() || undefined,
+      asnaf: (formAsnaf || undefined) as any,
+      frekuensi: formFrekuensi,
+      nominal: formUnitCost,
+      mustahik: formMustahik,
+      keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`)
+    };
+
+    // If Program changed
+    if (editingActivity.programCode !== formProgramCode) {
+      try {
+        // 1. Remove from old program
+        let oldTargets: AsnafTarget[] = [];
+        data.forEach(p => {
+          p.programs.forEach(prog => {
+            if (prog.code === editingActivity.programCode) {
+              const targets = prog.asnafTargets || [];
+              oldTargets = targets.filter((t, tIdx) => {
+                const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf || 'General'}-${tIdx}`;
+                return fallbackId !== editingActivity.id && t.id !== editingActivity.id;
+              });
             }
-            return t;
           });
-        }
-      });
-    });
+        });
+        const oldBudget = oldTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+        await axios.put(`http://127.0.0.1:4000/api/programs/${editingActivity.programCode}`, {
+          rkat_details: oldTargets,
+          budget_rkat: oldBudget
+        });
 
-    if (isGeneral) {
-      axios.put(`http://127.0.0.1:4000/api/programs/${targetProgramCode}`, {
-        budget_rkat: inlineUnitCost
-      }).then(() => {
+        // 2. Add to new program
+        let newTargets: AsnafTarget[] = [];
+        data.forEach(p => {
+          p.programs.forEach(prog => {
+            if (prog.code === formProgramCode) {
+              newTargets = prog.asnafTargets || [];
+            }
+          });
+        });
+        const updatedNewTargets = [...newTargets, updatedTarget];
+        const newBudget = updatedNewTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+        await axios.put(`http://127.0.0.1:4000/api/programs/${formProgramCode}`, {
+          rkat_details: updatedNewTargets,
+          budget_rkat: newBudget
+        });
+
         fetchPilars();
-        setInlineEditId(null);
-      }).catch(console.error);
-    } else if (targetProgramCode) {
-      axios.put(`http://127.0.0.1:4000/api/programs/${targetProgramCode}`, {
-        rkat_details: updatedTargets
-      }).then(() => {
-        fetchPilars();
-        setInlineEditId(null);
-      }).catch(console.error);
+        setEditingActivity(null);
+      } catch (err) {
+        console.error('Gagal memindahkan kegiatan:', err);
+        alert('Gagal memindahkan kegiatan program.');
+      }
     } else {
-      setInlineEditId(null);
+      // Program did not change, just update the target inside the program
+      let currentTargets: AsnafTarget[] = [];
+      data.forEach(p => {
+        p.programs.forEach(prog => {
+          if (prog.code === formProgramCode) {
+            const targets = prog.asnafTargets || [];
+            // Match and replace
+            currentTargets = targets.map((t, tIdx) => {
+              const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf || 'General'}-${tIdx}`;
+              if (fallbackId === editingActivity.id || t.id === editingActivity.id) {
+                return updatedTarget;
+              }
+              return t;
+            });
+          }
+        });
+      });
+
+      const newBudget = currentTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+
+      axios.put(`http://127.0.0.1:4000/api/programs/${formProgramCode}`, {
+        rkat_details: currentTargets,
+        budget_rkat: newBudget
+      }).then(() => {
+        fetchPilars();
+        setEditingActivity(null);
+      }).catch(err => {
+        console.error('Gagal memperbarui kegiatan', err);
+        alert('Gagal memperbarui kegiatan ke database');
+      });
     }
   };
 
@@ -496,7 +549,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   };
 
   return (
-    <div className="p-4 md:p-8 space-y-8 bg-slate-50/50">
+    <div className="p-4 md:p-8 space-y-8 bg-slate-50/50 h-full overflow-y-auto">
       
       {/* Header and overview */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -504,91 +557,69 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
           <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
             <span className="hover:text-primary transition-colors cursor-pointer">Pelaporan Keuangan</span>
             <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">Target RKAT &amp; Realisasi</span>
+            <span className="text-primary font-black">Target RKAT</span>
           </nav>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <Target className="size-8 text-primary" />
-            RKAT Pendistribusian &amp; Pendayagunaan
+            Target RKAT
           </h2>
-          <p className="text-slate-500 font-medium">
-            Monitor realisasi anggaran program <strong className="text-slate-700">terkoneksi langsung (LinkedIn)</strong> dengan asnaf di master data <strong className="text-primary">Pilar &amp; Program</strong>.
+          <p className="text-slate-500 font-medium text-sm mt-2">
+            Monitor target dan realisasi anggaran berdasarkan kategori pengelolaan.
           </p>
         </div>
-
-        <button
-          onClick={() => {
-            const defaultPilarCode = '1100';
-            setFormPilar(defaultPilarCode);
-            setIsAddModalOpen(true);
-          }}
-          className="bg-primary hover:bg-primary/90 text-white px-5 py-3 rounded-xl flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/20 transition-all active:scale-95 shrink-0"
-        >
-          <Plus className="size-4 stroke-[3]" />
-          Tambah Kegiatan RKAT (Asnaf)
-        </button>
       </div>
 
-      {/* Sync Banner */}
-      <div className="bg-gradient-to-r from-primary/10 via-emerald-500/10 to-emerald-500/5 p-4 rounded-2xl border border-emerald-500/10 text-xs text-slate-700 leading-relaxed font-medium flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <span className="size-2 rounded-full bg-emerald-500 animate-ping"></span>
-          <span>
-            🔌 <strong>Connected Database:</strong> RKAT ini dihitung dynamic berdasarkan database program di tab <strong>Pilar &amp; Program</strong>. Setiap edit asnaf pada program master akan me-remap baris-baris RKAT ini.
-          </span>
-        </div>
-        <div className="bg-white/80 border border-emerald-500/20 px-3 py-1 rounded-lg text-emerald-800 font-bold uppercase tracking-wider text-[10px]">
-          Simba DB Active
-        </div>
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 gap-6">
+        {(['Pengumpulan', 'Penyaluran', 'Operasional'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === tab
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            RKAT {tab}
+          </button>
+        ))}
       </div>
+
+      {activeTab !== 'Penyaluran' ? (
+        <div className="py-24 text-center bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center">
+          <Target className="size-16 text-slate-200 mb-4" />
+          <h3 className="text-lg font-bold text-slate-600">Modul RKAT {activeTab} Belum Tersedia</h3>
+          <p className="text-slate-400 text-sm mt-1">Data dan tampilan untuk RKAT {activeTab} saat ini sedang dalam pengembangan.</p>
+        </div>
+      ) : (
+        <div className="space-y-8 animate-fade-in">
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
-            <TrendingUp className="size-6" />
+          <div className="p-4 bg-emerald-100 text-emerald-700 rounded-xl">
+            <TrendingUp className="size-8" />
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Anggaran Pagu RKAT</p>
-            <p className="text-xl font-black text-slate-900 leading-tight mt-0.5">{formatCurrency(grandTotalTarget)}</p>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Anggaran RKAT</p>
+            <p className="text-2xl font-black text-slate-900 leading-tight mt-1">{formatCurrency(grandTotalTarget)}</p>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-primary/10 text-primary rounded-xl">
-            <Percent className="size-6" />
+          <div className="p-4 bg-primary/10 text-primary rounded-xl">
+            <Percent className="size-8" />
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Capai Realisasi Berjalan</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-xl font-black text-slate-900">{formatCurrency(grandTotalRealisasi)}</span>
-              <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Capai Realisasi Berjalan</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-2xl font-black text-slate-900">{formatCurrency(grandTotalRealisasi)}</span>
+              <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
                 {overallPercentage.toFixed(1)}%
               </span>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-amber-100 text-amber-700 rounded-xl">
-            <Users className="size-6" />
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Target Mustahik Terlayani</p>
-            <p className="text-xl font-black text-slate-900 leading-tight mt-0.5">
-              {totalMustahikTarget.toLocaleString('id-ID')} Jiwa
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-100 text-blue-700 rounded-xl">
-            <Briefcase className="size-6" />
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Realisasi Berkas Bantuan</p>
-            <p className="text-xl font-black text-slate-900 leading-tight mt-0.5">
-              {actualMustahikServed} Berkas Mustahik
-            </p>
           </div>
         </div>
       </div>
@@ -599,7 +630,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
           <button
             onClick={() => setSelectedPilarFilter('Semua')}
             className={cn(
-              "px-4 py-2 text-xs font-black uppercase rounded-lg transition-all",
+              "px-4 py-2 text-xs font-black uppercase rounded-lg transition-all whitespace-nowrap",
               selectedPilarFilter === 'Semua' ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100"
             )}
           >
@@ -618,45 +649,21 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
             </button>
           ))}
         </div>
-
-        <div className="flex items-center gap-3 p-1 shrink-0 border-t md:border-0 border-slate-150">
-          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Tampilan Bulanan:</span>
-          <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1">
-            <button
-              onClick={() => setViewModeMonthly('realisasi')}
-              className={cn(
-                "px-2.5 py-1 text-[9px] font-black uppercase rounded-md transition-all",
-                viewModeMonthly === 'realisasi' ? "bg-white text-primary shadow-xs" : "text-slate-500"
-              )}
-            >
-              🟢 Realisasi Aktual
-            </button>
-            <button
-              onClick={() => setViewModeMonthly('target')}
-              className={cn(
-                "px-2.5 py-1 text-[9px] font-black uppercase rounded-md transition-all",
-                viewModeMonthly === 'target' ? "bg-white text-primary shadow-xs" : "text-slate-500"
-              )}
-            >
-              📌 Alokasi Target
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* TABLE 1: ACCOUNT LEDGER SPLIT */}
       <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-primary/5 bg-slate-50/40 flex justify-between items-center flex-wrap gap-2">
+        <div className="p-5 border-b border-primary/5 bg-slate-50/40 flex justify-between items-center flex-wrap gap-4">
           <div>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <BarChart4 className="size-4 text-primary" />
-              1. Ikhtisar Akun Anggaran &amp; Realisasi (Linked Ledger)
+              Anggaran &amp; Realisasi Pilar
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Ringkasan total pagu anggaran, realisasi mustahik terbayar, dan persentase serapan kumulatif per pilar.</p>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Ringkasan total anggaran, realisasi yang tersalurkan, dan persentase serapan kumulatif untuk masing-masing pilar program.</p>
           </div>
           
           <span className="text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 px-3 py-1 rounded-md border border-emerald-100">
-            {viewModeMonthly === 'realisasi' ? '⚡ Menampilkan Realisasi per Bulan Aktual' : '📌 Menampilkan Target Alokasi Rata-rata'}
+            ⚡ Menampilkan Realisasi per Bulan Aktual
           </span>
         </div>
 
@@ -722,13 +729,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
                       {/* Display Jan - Dec Columns */}
                       {Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
-                        let cellVal = 0;
-                        if (viewModeMonthly === 'realisasi') {
-                          cellVal = monthlyRealizationsByPilar[acc.pilarName]?.[month] || 0;
-                        } else {
-                          const pctWeight = acc.monthlyTargetAllocations[month] || 0;
-                          cellVal = (targetAnggaran * pctWeight) / 100;
-                        }
+                        let cellVal = monthlyRealizationsByPilar[acc.pilarName]?.[month] || 0;
 
                         return (
                           <td 
@@ -767,17 +768,9 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                   {/* Monthly totals summary */}
                   {Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
                     let sumMonth = 0;
-                    if (viewModeMonthly === 'realisasi') {
-                      accounts.forEach(acc => {
-                        sumMonth += monthlyRealizationsByPilar[acc.pilarName]?.[month] || 0;
-                      });
-                    } else {
-                      accounts.forEach(acc => {
-                        const targetAnggaran = pilarBudgets[acc.pilarName]?.target || 0;
-                        const pctWeight = acc.monthlyTargetAllocations[month] || 0;
-                        sumMonth += (targetAnggaran * pctWeight) / 100;
-                      });
-                    }
+                    accounts.forEach(acc => {
+                      sumMonth += monthlyRealizationsByPilar[acc.pilarName]?.[month] || 0;
+                    });
 
                     return (
                       <td key={month} className="px-3 py-4 text-right font-mono text-xs font-black text-slate-950 border-l border-slate-200 bg-slate-150/50">
@@ -798,16 +791,43 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
           <div>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <Calendar className="size-4 text-primary" />
-              2. Matriks Detail Program Kerja &amp; Anggaran Biaya (Pilar &gt; Asnaf Split)
+              Detail Target &amp; Realisasi Kegiatan
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Kelola draf kuota, frekuensi, serta nilai unit asnaf. Perubahan akan merombak tab master dan ledger di atas.</p>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Rincian target kegiatan, kriteria asnaf yang disasar, serta estimasi unit cost untuk tiap program.</p>
           </div>
           
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">Pilar Aktif:</span>
-            <span className="px-3 py-1 bg-primary/10 text-primary font-black uppercase text-[10px] rounded-md tracking-wider">
-              {selectedPilarFilter}
-            </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 mr-2">
+              <span className="text-xs font-bold text-slate-400">Pilar Aktif:</span>
+              <span className="px-3 py-1 bg-primary/10 text-primary font-black uppercase text-[10px] rounded-md tracking-wider">
+                {selectedPilarFilter}
+              </span>
+            </div>
+            
+            {activeTab === 'Penyaluran' && isSuperAdmin && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsMigrationModalOpen(true)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all active:scale-95 shrink-0 border border-slate-200"
+                >
+                  <Upload className="size-3.5 stroke-[3]" />
+                  Migrasi
+                </button>
+                <button
+                  onClick={() => {
+                    const activePilarObj = data.find(p => p.name === selectedPilarFilter);
+                    const defaultPilarCode = activePilarObj ? activePilarObj.code : (data[0]?.code || '1100');
+                    setFormPilar(defaultPilarCode);
+                    setFormNamaKegiatan('');
+                    setIsAddModalOpen(true);
+                  }}
+                  className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-md shadow-primary/15 transition-all active:scale-95 shrink-0"
+                >
+                  <Plus className="size-3.5 stroke-[3]" />
+                  Tambah Kegiatan
+                </button>
+              </div>
+            )}
           </div>
         </div>
         
@@ -821,7 +841,6 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Keterangan Spesifikasi</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right w-48">Target RKAT &amp; Rincian</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right w-48">Realisasi Aktual &amp; Sisa</th>
-                <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-72">Memo SIMBA Terkoneksi (Otomatis) 🔌</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center w-24">Aksi</th>
               </tr>
             </thead>
@@ -834,9 +853,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                 </tr>
               ) : (
                 filteredActivities.map((act, index) => {
-                  const isEditingInline = inlineEditId === act.id;
                   const itemBudgetTotal = act.mustahik * act.frekuensi * act.unitCost;
-                  const editedBudgetTotal = inlineMustahik * inlineFrekuensi * inlineUnitCost;
                   
                   // Query proposals linked to this specific activity (automatically matched)
                   const linkedMemos = getLinkedMemosForActivity(act, proposals);
@@ -875,51 +892,15 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                         {act.keterangan || '-'}
                       </td>
                       <td className="px-4 py-4 text-right">
-                        {isEditingInline ? (
-                          <div className="flex flex-col gap-1 items-end bg-slate-50 p-1.5 rounded-lg border border-primary/10">
-                            <div className="flex items-center gap-1.5 justify-end">
-                              <span className="text-[9px] text-slate-400 font-bold uppercase">Mustahik:</span>
-                              <input 
-                                type="number" 
-                                value={inlineMustahik}
-                                onChange={(e) => setInlineMustahik(Math.max(1, parseInt(e.target.value) || 0))}
-                                className="w-16 h-7 text-right text-[11px] font-bold px-1 py-0.5 border border-slate-250 rounded focus:ring-1 focus:ring-primary focus:outline-none"
-                              />
-                            </div>
-                            <div className="flex items-center gap-1.5 justify-end">
-                              <span className="text-[9px] text-slate-400 font-bold uppercase">Freq:</span>
-                              <input 
-                                type="number" 
-                                value={inlineFrekuensi}
-                                onChange={(e) => setInlineFrekuensi(Math.max(1, parseInt(e.target.value) || 0))}
-                                className="w-12 h-7 text-right text-[11px] font-bold px-1 py-0.5 border border-slate-250 rounded focus:ring-1 focus:ring-primary focus:outline-none"
-                              />
-                            </div>
-                            <div className="flex items-center gap-1.5 justify-end">
-                              <span className="text-[9px] text-slate-400 font-bold uppercase">Cost:</span>
-                              <input 
-                                type="number" 
-                                step={10000}
-                                value={inlineUnitCost}
-                                onChange={(e) => setInlineUnitCost(Math.max(0, parseInt(e.target.value) || 0))}
-                                className="w-24 h-7 text-right text-[11px] font-mono font-bold px-1 py-0.5 border border-slate-250 rounded focus:ring-1 focus:ring-primary focus:outline-none"
-                              />
-                            </div>
-                            <span className="text-xs font-black text-primary leading-none mt-1">
-                              {formatCurrency(editedBudgetTotal)}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col">
-                            <span className="text-xs font-black text-slate-900">{formatCurrency(itemBudgetTotal)}</span>
-                            <span className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5">
-                              {(act.mustahik || 0).toLocaleString('id-ID')} jiwa × {act.frekuensi}x / th
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              @ {formatCurrency(act.unitCost)}
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-slate-900">{formatCurrency(itemBudgetTotal)}</span>
+                          <span className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5">
+                            {(act.mustahik || 0).toLocaleString('id-ID')} jiwa × {act.frekuensi}x / th
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            @ {formatCurrency(act.unitCost)}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex flex-col items-end">
@@ -956,63 +937,11 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="flex flex-col gap-1.5 max-w-[245px]">
-                          
-                          {/* List of associated proposals */}
-                          {linkedMemos.length === 0 ? (
-                            <span className="text-[10px] font-semibold text-slate-400 italic block">
-                              Belum ada berkas terhubung
-                            </span>
-                          ) : (
-                            <div className="flex flex-col gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
-                              {linkedMemos.map(p => {
-                                return (
-                                  <div 
-                                    key={p.id} 
-                                    className="flex flex-col gap-1 bg-emerald-50/70 border border-emerald-500/10 p-1.5 rounded-lg text-[10px] font-bold text-emerald-950 hover:bg-emerald-100/70 transition-colors"
-                                  >
-                                    <div className="flex items-center justify-between gap-1.5">
-                                      <span className="truncate pr-1" title={`Agenda #${p.agendaNo} - ${p.namaPemohon}`}>
-                                        📋 <strong>#{p.agendaNo}</strong> {p.namaPemohon} ({formatCurrency(p.nominal || 0)})
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center">
-                                      <span className="text-[8.5px] bg-emerald-100/80 text-emerald-800 px-1 rounded tracking-wider font-extrabold uppercase flex items-center gap-0.5">
-                                        ⚡ Otomatis
-                                      </span>
-                                      <span className="text-[8px] text-slate-400 font-mono ml-auto">Asnaf: {p.asnaf || 'Miskin'}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
                         <div className="flex items-center justify-center gap-1.5">
-                          {isEditingInline ? (
+                          {isSuperAdmin && (
                             <>
                               <button 
-                                onClick={() => saveInlineEdit(act.id)}
-                                className="p-1 px-2 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase transition-all flex items-center gap-1 border border-emerald-200"
-                                title="Simpan"
-                              >
-                                <Check className="size-3.5 stroke-[3]" />
-                                OK
-                              </button>
-                              <button 
-                                onClick={() => setInlineEditId(null)}
-                                className="p-1 text-rose-600 hover:bg-rose-50 rounded"
-                                title="Batal"
-                              >
-                                <X className="size-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button 
-                                onClick={() => startInlineEdit(act)}
+                                onClick={() => startEditModal(act)}
                                 className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-all"
                                 title="Ubah Anggaran"
                               >
@@ -1063,9 +992,9 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         </button>
       </div>
 
-      {/* ADD TARGET ACTIVITY DIALOG MODAL */}
+      {/* ADD / EDIT TARGET ACTIVITY DIALOG MODAL */}
       <AnimatePresence>
-        {isAddModalOpen && (
+        {(isAddModalOpen || editingActivity !== null) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -1076,11 +1005,14 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               {/* Modal Header */}
               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Plus className="size-5 text-primary" />
-                  Tambah Target Asnaf RKAT
+                  {editingActivity ? <Edit2 className="size-5 text-primary" /> : <Plus className="size-5 text-primary" />}
+                  {editingActivity ? 'Ubah Target RKAT' : 'Tambah Target Asnaf RKAT'}
                 </h3>
                 <button
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={() => {
+                    setIsAddModalOpen(false);
+                    setEditingActivity(null);
+                  }}
                   className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-all"
                 >
                   <X className="size-5" />
@@ -1122,12 +1054,24 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                 </div>
 
                 <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Nama Kegiatan</label>
+                  <input
+                    type="text"
+                    value={formNamaKegiatan}
+                    onChange={(e) => setFormNamaKegiatan(e.target.value)}
+                    placeholder="Misal: Pemberian paket sembako dhuafa Semarang Utara"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">Kategori Asnaf (8 Golongan)</label>
                   <select
                     value={formAsnaf}
                     onChange={(e) => setFormAsnaf(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
                   >
+                    <option value="">-- Kosong (Umum / Non-Asnaf) --</option>
                     <option value="Fakir">Fakir</option>
                     <option value="Miskin">Miskin</option>
                     <option value="Amil">Amil</option>
@@ -1206,23 +1150,196 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               {/* Modal Footer */}
               <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
                 <button
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={() => {
+                    setIsAddModalOpen(false);
+                    setEditingActivity(null);
+                  }}
                   className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
                 >
                   Batal
                 </button>
                 <button
-                  onClick={saveNewActivity}
+                  onClick={editingActivity ? saveEditActivity : saveNewActivity}
                   className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2"
                 >
                   <Check className="size-4" />
-                  Simpan Target RKAT
+                  {editingActivity ? 'Simpan Perubahan' : 'Simpan Target RKAT'}
                 </button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* Migration Modal RKAT */}
+      <AnimatePresence>
+        {isMigrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsMigrationModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900">Migrasi Data RKAT</h3>
+                <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <FileSpreadsheet className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
+                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom: Kode Pilar, Kode Program, Nama Kegiatan, Asnaf, Keterangan, Target Jiwa, Frekuensi, Unit Cost.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => {
+                      const ws = XLSX.utils.json_to_sheet([
+                        { 
+                          "Kode Pilar": "1100",
+                          "Kode Program": "1102",
+                          "Nama Kegiatan": "Bantuan Biaya Hidup Sembako",
+                          "Asnaf": "Miskin",
+                          "Keterangan": "Pemberian paket sembako dhuafa Semarang Utara",
+                          "Target Jiwa": 100,
+                          "Frekuensi": 1,
+                          "Unit Cost": 250000
+                        }
+                      ]);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, "Template_RKAT");
+                      XLSX.writeFile(wb, "Template_Migrasi_RKAT.xlsx");
+                    }} 
+                    className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-primary">Download Format Template</p>
+                        <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-primary opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+
+                        const reader = new FileReader();
+                        reader.onload = async (evt) => {
+                          try {
+                            const bstr = evt.target?.result;
+                            const wb = XLSX.read(bstr, { type: 'binary' });
+                            const wsname = wb.SheetNames[0];
+                            const ws = wb.Sheets[wsname];
+                            const dataExcel = XLSX.utils.sheet_to_json(ws) as any[];
+                            
+                            if (dataExcel.length === 0) {
+                              alert('File Excel kosong atau tidak terbaca.');
+                              return;
+                            }
+
+                            // Group activities by Kode Program
+                            const groupedByProgram: { [code: string]: any[] } = {};
+                            dataExcel.forEach((row) => {
+                              const progCode = String(row["Kode Program"] || row["Kode_Program"] || row["kode_program"] || "").trim();
+                              if (!progCode) return;
+                              if (!groupedByProgram[progCode]) {
+                                groupedByProgram[progCode] = [];
+                              }
+                              
+                              const mustahik = Number(row["Target Jiwa"] || row["Target_Jiwa"] || row["target_jiwa"] || 0);
+                              const frekuensi = Number(row["Frekuensi"] || row["Frekuensi_Tahun"] || row["frekuensi_tahun"] || 1);
+                              const nominal = Number(row["Unit Cost"] || row["Unit_Cost_Rp"] || row["unit_cost"] || 0);
+
+                              groupedByProgram[progCode].push({
+                                id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                                name: String(row["Nama Kegiatan"] || row["Nama_Kegiatan"] || row["nama_kegiatan"] || "").trim(),
+                                asnaf: String(row["Asnaf"] || row["asnaf"] || "Miskin").trim(),
+                                frekuensi,
+                                nominal,
+                                mustahik,
+                                keterangan: String(row["Keterangan"] || row["keterangan"] || "").trim()
+                              });
+                            });
+
+                            const programCodes = Object.keys(groupedByProgram);
+                            if (programCodes.length === 0) {
+                              alert('Tidak ditemukan kolom Kode Program yang valid.');
+                              return;
+                            }
+
+                            let successCount = 0;
+                            for (const code of programCodes) {
+                              try {
+                                const rkatDetails = groupedByProgram[code];
+                                const budgetRkat = rkatDetails.reduce((sum, t) => sum + (t.mustahik * t.frekuensi * t.nominal), 0);
+                                await axios.put(`http://127.0.0.1:4000/api/programs/${code}`, {
+                                  rkat_details: rkatDetails,
+                                  budget_rkat: budgetRkat
+                                });
+                                successCount++;
+                              } catch (err) {
+                                console.error(`Gagal migrasi program ${code}:`, err);
+                              }
+                            }
+
+                            alert(`Migrasi Berhasil! Data Excel terbaca sebanyak ${dataExcel.length} baris. Berhasil memperbarui ${successCount} program di database.`);
+                            fetchPilars();
+                            setIsMigrationModalOpen(false);
+                          } catch (err) {
+                            console.error(err);
+                            alert('Gagal memproses file Excel');
+                          }
+                        };
+                        reader.readAsBinaryString(file);
+                      }} 
+                    />
+                  </label>
+                </div>
+
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="flex gap-3">
+                    <div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="text-amber-600 font-bold text-[10px]">!</span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+                      Pastikan Kode Program sesuai dengan referensi master data SIMBA BAZNAS untuk menghindari kegagalan sinkronisasi.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 }

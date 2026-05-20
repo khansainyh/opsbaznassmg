@@ -44,9 +44,9 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
         if (prog.name === jenisPermohonan || prog.code === jenisPermohonan) {
           if (asnaf && prog.rkat_details) {
             const match = prog.rkat_details.find(detail => {
-              const dAsnaf = detail.asnaf.toLowerCase();
+              const dAsnaf = (detail.asnaf || '').toLowerCase();
               const pAsnaf = asnaf.toLowerCase();
-              return dAsnaf.includes(pAsnaf) || pAsnaf.includes(dAsnaf);
+              return dAsnaf && (dAsnaf.includes(pAsnaf) || pAsnaf.includes(dAsnaf));
             });
             if (match) {
               return match.nominal;
