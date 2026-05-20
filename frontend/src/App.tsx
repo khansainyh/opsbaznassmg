@@ -24,6 +24,7 @@ import TrackingProposal from '@/src/pages/TrackingProposal';
 import NotificationBell from '@/src/components/NotificationBell';
 import ParameterSistem from '@/src/pages/ParameterSistem';
 import TargetRKAT from '@/src/pages/TargetRKAT';
+import PengaturanKeuangan from '@/src/pages/PengaturanKeuangan';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -217,6 +218,8 @@ function App() {
           <TrackingProposal data={proposals} />
         ) : activeMenu === 'Target RKAT' ? (
           <TargetRKAT proposals={proposals} onUpdate={handleUpdateProposals} />
+        ) : activeMenu === 'Pengaturan Keuangan' ? (
+          <PengaturanKeuangan />
         ) : activeMenu === 'Pilar & Program' ? (
           <PilarProgram />
         ) : activeMenu === 'Data Mustahik' ? (
