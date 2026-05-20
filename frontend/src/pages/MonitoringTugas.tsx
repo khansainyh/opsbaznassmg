@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   ChevronRight, 
   ClipboardList, 
@@ -35,6 +35,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super_Admin';
   const isKabagPendistribusian = user?.role === 'Kabag_Pendistribusian';
   const isKabagPendayagunaan = user?.role === 'Kabag_Pendayagunaan';
 
@@ -42,6 +43,229 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [hasilIdentifikasi, setHasilIdentifikasi] = useState('');
   const [selectedAsnaf, setSelectedAsnaf] = useState('Fakir');
   const asnafOptions = ['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharimin', 'Fisabilillah', 'Ibnu Sabil'];
+
+  const [pilars, setPilars] = useState<any[]>([]);
+
+  const fetchPilars = useCallback(() => {
+    axios.get('http://127.0.0.1:4000/api/pilars')
+      .then(res => {
+        if (res.data) {
+          setPilars(res.data);
+        }
+      })
+      .catch(err => console.error('Failed to fetch pilars in MonitoringTugas', err));
+  }, []);
+
+  useEffect(() => {
+    fetchPilars();
+  }, [fetchPilars]);
+
+  const realizedProposals = useMemo(() => {
+    return data.filter(p => 
+      ['Selesai & Arsip', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana', 'Selesai'].includes(p.status)
+    );
+  }, [data]);
+
+  const getParentProgramCode = (code?: string): string => {
+    if (!code) return "";
+    return code.split('.')[0].trim();
+  };
+
+  const activities = useMemo(() => {
+    const list: any[] = [];
+    (pilars || []).forEach((pilar) => {
+      (pilar.programs || []).forEach((prog: any) => {
+        const details = typeof prog.rkat_details === 'string'
+          ? JSON.parse(prog.rkat_details || '[]')
+          : (prog.rkat_details || []);
+        details.forEach((target: any, tIdx: number) => {
+          const fallbackId = target.id || `act-auto-${prog.code}-${target.asnaf || 'General'}-${tIdx}`;
+          list.push({
+            id: fallbackId,
+            pilarCode: pilar.code,
+            pilarName: pilar.name,
+            name: target.name || prog.name,
+            keterangan: target.keterangan || `Penyaluran program ${prog.name} khusus kriteria asnaf ${target.asnaf}`,
+            mustahik: target.mustahik || 0,
+            frekuensi: Number(target.frekuensi) || 1,
+            unitCost: target.nominal || 0,
+            programCode: prog.code,
+            asnaf: target.asnaf
+          });
+        });
+      });
+    });
+    return list;
+  }, [pilars]);
+
+  const isProposalMatchedToActivity = (p: ProposalMemo, act: any) => {
+    if (p.programCode) {
+      const parentP = getParentProgramCode(p.programCode);
+      const parentAct = getParentProgramCode(act.programCode);
+      if (parentP !== parentAct) return false;
+      if (act.asnaf) {
+        const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+        return act.asnaf.toLowerCase() === pAsnaf;
+      }
+      return true;
+    }
+    
+    // Name fallback
+    const matchesPilar = p.program === act.pilarName;
+    const matchesProgram = p.jenisPermohonan === act.name;
+    if (matchesPilar && matchesProgram) {
+      if (act.asnaf) {
+        const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+        return act.asnaf.toLowerCase() === pAsnaf;
+      }
+      return true;
+    }
+    return false;
+  };
+
+  const getActivityUsage = (act: any) => {
+    const matched = realizedProposals.filter(p => isProposalMatchedToActivity(p, act));
+    return matched.reduce((sum, p) => sum + (p.nominal || 0), 0);
+  };
+
+  const matchedActivities = useMemo(() => {
+    if (!selectedTask) return [];
+    
+    let list = [];
+    if (selectedTask.programCode) {
+      const parentP = getParentProgramCode(selectedTask.programCode);
+      list = activities.filter(act => getParentProgramCode(act.programCode) === parentP);
+    }
+    
+    if (list.length === 0) {
+      // Fallback to name matching
+      list = activities.filter(act => 
+        act.pilarName === selectedTask.program && 
+        act.name === selectedTask.jenisPermohonan
+      );
+    }
+    
+    return list;
+  }, [selectedTask, activities]);
+
+  const renderSingleRKATInfo = (act: any) => {
+    const targetBudget = act.mustahik * act.frekuensi * act.unitCost;
+    const usedBudget = getActivityUsage(act);
+    const remainingBudget = targetBudget - usedBudget;
+    const isOverBudget = remainingBudget < 0;
+    
+    const formatCurrency = (val: number) => {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+    };
+
+    return (
+      <div className="bg-gradient-to-br from-slate-50 to-white p-6 rounded-2xl border border-primary/10 shadow-sm space-y-4 relative overflow-hidden">
+        <div className="absolute -right-12 -top-12 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+          <div className="p-1.5 bg-primary/10 text-primary rounded-lg">
+            <ClipboardList className="size-4" />
+          </div>
+          <span className="text-sm font-bold text-slate-800">
+            Status RKAT: <span className="text-primary">{act.programCode} - {act.name}</span>
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white p-3 rounded-xl border border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Target Anggaran</p>
+            <p className="text-sm font-black text-slate-800">{formatCurrency(targetBudget)}</p>
+          </div>
+          
+          <div className="bg-white p-3 rounded-xl border border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Realisasi Saat Ini</p>
+            <p className="text-sm font-black text-slate-800">{formatCurrency(usedBudget)}</p>
+          </div>
+          
+          <div className={cn("p-3 rounded-xl border", isOverBudget ? "bg-rose-50/30 border-rose-100" : "bg-emerald-50/30 border-emerald-100")}>
+            <p className={cn("text-[10px] font-black uppercase tracking-wider mb-1", isOverBudget ? "text-rose-500" : "text-emerald-600")}>
+              Sisa Anggaran
+            </p>
+            <div className="flex items-center justify-between gap-1.5">
+              <span className={cn("text-sm font-black", isOverBudget ? "text-rose-600" : "text-emerald-700")}>
+                {formatCurrency(remainingBudget)}
+              </span>
+              <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter shrink-0", isOverBudget ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-800")}>
+                {isOverBudget ? "Over Limit" : "Aman"}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+          <span className="text-primary font-bold">*</span>
+          <span>Estimasi Unit Cost: <span className="font-bold text-slate-700">{formatCurrency(act.unitCost)}</span> per pencairan bantuan</span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMultipleRKATInfo = (acts: any[]) => {
+    const formatCurrency = (val: number) => {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+    };
+
+    return (
+      <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+          <div className="p-1.5 bg-primary/10 text-primary rounded-lg">
+            <ClipboardList className="size-4" />
+          </div>
+          <span className="text-sm font-bold text-slate-800">Daftar Kegiatan RKAT Terkait Program</span>
+        </div>
+        
+        <div className="overflow-x-auto custom-scrollbar -mx-6 px-6">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-wider">
+                <th className="pb-3 px-4 first:pl-0 font-bold">Nama Kegiatan & Asnaf</th>
+                <th className="pb-3 px-4 font-bold text-right">Target 1 Tahun</th>
+                <th className="pb-3 px-4 font-bold text-right">Realisasi</th>
+                <th className="pb-3 px-4 font-bold text-right">Sisa Anggaran</th>
+                <th className="pb-3 px-4 font-bold text-right">Unit Cost</th>
+                <th className="pb-3 px-4 last:pr-0 font-bold text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {acts.map((act) => {
+                const targetBudget = act.mustahik * act.frekuensi * act.unitCost;
+                const usedBudget = getActivityUsage(act);
+                const remainingBudget = targetBudget - usedBudget;
+                const isOverBudget = remainingBudget < 0;
+
+                return (
+                  <tr key={act.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-4 px-4 first:pl-0 pr-6">
+                      <p className="font-bold text-slate-800 text-xs sm:text-sm">{act.name}</p>
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-black uppercase rounded">
+                        Asnaf: {act.asnaf || 'Semua'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 font-semibold text-slate-700 text-xs sm:text-sm text-right">{formatCurrency(targetBudget)}</td>
+                    <td className="py-4 px-4 font-semibold text-slate-700 text-xs sm:text-sm text-right">{formatCurrency(usedBudget)}</td>
+                    <td className={cn("py-4 px-4 font-black text-xs sm:text-sm text-right", isOverBudget ? "text-rose-600" : "text-emerald-600")}>
+                      {formatCurrency(remainingBudget)}
+                    </td>
+                    <td className="py-4 px-4 text-slate-500 text-xs sm:text-sm text-right">{formatCurrency(act.unitCost)}</td>
+                    <td className="py-4 px-4 last:pr-0 text-center">
+                      <span className={cn("px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter shrink-0", isOverBudget ? "bg-rose-50 text-rose-700 border border-rose-100" : "bg-emerald-50 text-emerald-800 border border-emerald-100")}>
+                        {isOverBudget ? "Over Limit" : "Aman"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
 
   const getSurveyStatus = (item: ProposalMemo): SurveyStatus => {
@@ -546,6 +770,18 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                         <p className="text-sm font-bold text-slate-900">{selectedTask.namaPemohon}</p>
                       </div>
                       <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Program Bantuan</p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {selectedTask.programCode ? `[${selectedTask.programCode}] ` : ''}
+                          {selectedTask.jenisPermohonan || '-'}
+                        </p>
+                        {selectedTask.program && (
+                          <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase rounded border border-emerald-100">
+                            {selectedTask.program}
+                          </span>
+                        )}
+                      </div>
+                      <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase">Alamat</p>
                         <p className="text-xs font-medium text-slate-700 leading-relaxed">{selectedTask.alamat}</p>
                       </div>
@@ -571,6 +807,15 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     </div>
                   </div>
                   
+                  {/* RKAT STATUS WIDGET */}
+                  {matchedActivities.length > 0 && (
+                    <div className="col-span-full mt-4 pt-4 border-t border-slate-100">
+                      {matchedActivities.length === 1 
+                        ? renderSingleRKATInfo(matchedActivities[0]) 
+                        : renderMultipleRKATInfo(matchedActivities)}
+                    </div>
+                  )}
+
                   {/* KABAG FORM OR DISPLAY */}
                   {selectedTask.rekomendasi_kabag ? (
                     <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
@@ -595,7 +840,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     </div>
                   ) : (
                     getSurveyStatus(selectedTask) === 'Selesai' && 
-                    ((isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
+                    (isSuperAdmin || 
+                     (isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
                      (isKabagPendayagunaan && selectedTask.programCode?.startsWith('2'))) && (
                       <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
                         <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
@@ -645,7 +891,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 <button onClick={() => setIsDetailModalOpen(false)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Tutup</button>
                 {getSurveyStatus(selectedTask) === 'Selesai' && (
                   <>
-                    {((isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
+                    {(isSuperAdmin || 
+                      (isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
                       (isKabagPendayagunaan && selectedTask.programCode?.startsWith('2'))) ? (
                       <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Simpan & Approve → Kep. Pelaksana</button>
                     ) : (!isKabagPendistribusian && !isKabagPendayagunaan) ? (

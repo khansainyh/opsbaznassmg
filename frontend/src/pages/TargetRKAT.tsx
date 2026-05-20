@@ -42,12 +42,7 @@ export interface RKATActivity {
   asnafTargetId: string; // Associated asnaf target id
   asnaf?: string;      // Specific Asnaf criteria for the activity
 }
-export interface RKATAccount {
-  code: string;        // e.g. "5.1.01"
-  pilarCode: string;   // Matching Pilar e.g. "1300"
-  pilarName: string;   // e.g. "Semarang Cerdas"
-  monthlyTargetAllocations: { [key: number]: number }; // percentage distribution per month (1-12)
-}
+
 
 export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const { user } = useAuth();
@@ -107,39 +102,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     return list;
   }, [data]);
 
-  // 2. Ledger Accounts configuration (Linked to Pillars)
-  const accounts: RKATAccount[] = useMemo(() => [
-    { 
-      code: "5.1.04", 
-      pilarCode: "1100", 
-      pilarName: "Semarang Peduli",
-      monthlyTargetAllocations: { 1: 8, 2: 9, 3: 12, 4: 15, 5: 9, 6: 8, 7: 8, 8: 8, 9: 8, 10: 9, 11: 8, 12: 8 } 
-    },
-    { 
-      code: "5.1.02", 
-      pilarCode: "1200", 
-      pilarName: "Semarang Sehat",
-      monthlyTargetAllocations: { 1: 8, 2: 8, 3: 10, 4: 10, 5: 8, 6: 8, 7: 10, 8: 10, 9: 8, 10: 10, 11: 5, 12: 5 } 
-    },
-    { 
-      code: "5.1.01", 
-      pilarCode: "1300", 
-      pilarName: "Semarang Cerdas",
-      monthlyTargetAllocations: { 1: 5, 2: 5, 3: 15, 4: 10, 5: 5, 6: 10, 7: 15, 8: 10, 9: 5, 10: 10, 11: 5, 12: 5 } 
-    },
-    { 
-      code: "5.1.03", 
-      pilarCode: "1400", 
-      pilarName: "Semarang Taqwa",
-      monthlyTargetAllocations: { 1: 5, 2: 5, 3: 15, 4: 25, 5: 5, 6: 5, 7: 10, 8: 10, 9: 5, 10: 5, 11: 5, 12: 5 } 
-    },
-    { 
-      code: "5.1.05", 
-      pilarCode: "2100", 
-      pilarName: "Semarang Makmur",
-      monthlyTargetAllocations: { 1: 5, 2: 5, 3: 10, 4: 10, 5: 15, 6: 10, 7: 5, 8: 10, 9: 15, 10: 5, 11: 5, 12: 5 } 
-    }
-  ], []);
+
 
   // UI Control States
   const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('Semua');
@@ -187,9 +150,31 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     );
   }, [proposals]);
 
+  const getParentProgramCode = (code?: string): string => {
+    if (!code) return "";
+    return code.split('.')[0].trim();
+  };
+
   // Robust automatic helper matching a proposal dynamically to an RKAT activity based on Pilar + Program + Asnaf
   const getMatchedActivityForProposal = (p: ProposalMemo, currentActivities: typeof activities) => {
-    // Auto match by Pilar, Program Name, and Asnaf alignment
+    // 1. Match by parent program code if programCode is present
+    if (p.programCode) {
+      const parentP = getParentProgramCode(p.programCode);
+      const matchByCode = currentActivities.find(act => {
+        const parentAct = getParentProgramCode(act.programCode);
+        const matchesCode = parentP === parentAct;
+        if (!matchesCode) return false;
+
+        if (act.asnaf) {
+          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          return act.asnaf.toLowerCase() === pAsnaf;
+        }
+        return true;
+      });
+      if (matchByCode) return matchByCode;
+    }
+
+    // 2. Fallback to name-based matching
     return currentActivities.find(act => {
       const matchesPilar = p.program === act.pilarName;
       if (!matchesPilar) return false;
@@ -208,6 +193,22 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   // Queries all proposals assigned/auto-assigned to a specific activity
   const getLinkedMemosForActivity = (act: any, proposalsList: ProposalMemo[]) => {
     return proposalsList.filter(p => {
+      // 1. Match by parent program code if programCode is present
+      if (p.programCode) {
+        const parentP = getParentProgramCode(p.programCode);
+        const parentAct = getParentProgramCode(act.programCode);
+        const matchesCode = parentP === parentAct;
+        if (matchesCode) {
+          if (act.asnaf) {
+            const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+            return act.asnaf.toLowerCase() === pAsnaf;
+          }
+          return true;
+        }
+        return false;
+      }
+
+      // 2. Fallback to name-based matching
       const matchesPilar = p.program === act.pilarName;
       if (!matchesPilar) return false;
       
@@ -222,12 +223,33 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     });
   };
 
+  // Helper to categorize Semarang Sehat/Cerdas into Konsumtif (Pendistribusian) vs Produktif (Pendayagunaan)
+  const getPilarCategory = useCallback((pilarName: string, programCode?: string, jenisPermohonan?: string): string => {
+    if (pilarName === 'Semarang Sehat') {
+      const isProduktif = programCode?.startsWith('22') || 
+        (jenisPermohonan && [
+          'sanitasi', 'sumur', 'stunting', 'air bersih', 'lingkungan', 'promosi'
+        ].some(word => jenisPermohonan.toLowerCase().includes(word)));
+      return isProduktif ? 'Semarang Sehat (Produktif)' : 'Semarang Sehat (Konsumtif)';
+    }
+    if (pilarName === 'Semarang Cerdas') {
+      const isProduktif = programCode?.startsWith('23') || 
+        (jenisPermohonan && [
+          'tinggi', 'infrastruktur', 'pembinaan', 'karakter', 'kompetensi'
+        ].some(word => jenisPermohonan.toLowerCase().includes(word)));
+      return isProduktif ? 'Semarang Cerdas (Produktif)' : 'Semarang Cerdas (Konsumtif)';
+    }
+    return pilarName;
+  }, []);
+
   // Aggregate static total budget & dynamic realized budgets
   const pilarBudgets = useMemo(() => {
     const sums: { [pilarName: string]: { target: number, realisasi: number } } = {
       'Semarang Peduli': { target: 0, realisasi: 0 },
-      'Semarang Sehat': { target: 0, realisasi: 0 },
-      'Semarang Cerdas': { target: 0, realisasi: 0 },
+      'Semarang Sehat (Konsumtif)': { target: 0, realisasi: 0 },
+      'Semarang Sehat (Produktif)': { target: 0, realisasi: 0 },
+      'Semarang Cerdas (Konsumtif)': { target: 0, realisasi: 0 },
+      'Semarang Cerdas (Produktif)': { target: 0, realisasi: 0 },
       'Semarang Taqwa': { target: 0, realisasi: 0 },
       'Semarang Makmur': { target: 0, realisasi: 0 }
     };
@@ -235,8 +257,9 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     // Sum Target Budgets from Flattened Activities State
     activities.forEach(act => {
       const budget = act.mustahik * act.frekuensi * act.unitCost;
-      if (sums[act.pilarName]) {
-        sums[act.pilarName].target += budget;
+      const cat = getPilarCategory(act.pilarName, act.programCode, act.name);
+      if (sums[cat]) {
+        sums[cat].target += budget;
       }
     });
 
@@ -245,26 +268,30 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       const amt = p.nominal || 0;
       const matchedAct = getMatchedActivityForProposal(p, activities);
       if (matchedAct) {
-        if (sums[matchedAct.pilarName]) {
-          sums[matchedAct.pilarName].realisasi += amt;
+        const cat = getPilarCategory(matchedAct.pilarName, matchedAct.programCode, matchedAct.name);
+        if (sums[cat]) {
+          sums[cat].realisasi += amt;
         }
       } else {
         const prog = p.program || 'Semarang Peduli';
-        if (sums[prog]) {
-          sums[prog].realisasi += amt;
+        const cat = getPilarCategory(prog, p.programCode, p.jenisPermohonan);
+        if (sums[cat]) {
+          sums[cat].realisasi += amt;
         }
       }
     });
 
     return sums;
-  }, [activities, realizedProposals]);
+  }, [activities, realizedProposals, getPilarCategory]);
 
   // Monthly values breakdown (Jan to Dec, 1 to 12)
   const monthlyRealizationsByPilar = useMemo(() => {
     const matrix: { [pilarName: string]: { [month: number]: number } } = {
       'Semarang Peduli': {},
-      'Semarang Sehat': {},
-      'Semarang Cerdas': {},
+      'Semarang Sehat (Konsumtif)': {},
+      'Semarang Sehat (Produktif)': {},
+      'Semarang Cerdas (Konsumtif)': {},
+      'Semarang Cerdas (Produktif)': {},
       'Semarang Taqwa': {},
       'Semarang Makmur': {}
     };
@@ -280,11 +307,17 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     realizedProposals.forEach(p => {
       const amt = p.nominal || 0;
       let pName = p.program || 'Semarang Peduli';
+      let prCode = p.programCode;
+      let jPerm = p.jenisPermohonan;
       
       const matchedAct = getMatchedActivityForProposal(p, activities);
       if (matchedAct) {
         pName = matchedAct.pilarName;
+        prCode = matchedAct.programCode;
+        jPerm = matchedAct.name;
       }
+
+      const cat = getPilarCategory(pName, prCode, jPerm);
 
       const dateStr = p.tglCairBank || p.tanggalMasuk;
       if (dateStr) {
@@ -292,21 +325,21 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         if (parts.length >= 2) {
           const monthNum = parseInt(parts[1], 10);
           if (monthNum >= 1 && monthNum <= 12) {
-            if (matrix[pName]) {
-              matrix[pName][monthNum] += amt;
+            if (matrix[cat]) {
+              matrix[cat][monthNum] += amt;
             }
           }
         }
       } else {
         // default distribution
-        if (matrix[pName]) {
-          matrix[pName][3] += amt;
+        if (matrix[cat]) {
+          matrix[cat][3] += amt;
         }
       }
     });
 
     return matrix;
-  }, [realizedProposals, activities]);
+  }, [realizedProposals, activities, getPilarCategory]);
 
   const listPilarKeys = ['Semarang Peduli', 'Semarang Sehat', 'Semarang Cerdas', 'Semarang Taqwa', 'Semarang Makmur'];
 
@@ -548,6 +581,66 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     return months[idx - 1];
   };
 
+  const renderPilarRow = (code: string, displayName: string, budgetKey: string, indexNumber: number) => {
+    const targetAnggaran = pilarBudgets[budgetKey]?.target || 0;
+    const realisAsi = pilarBudgets[budgetKey]?.realisasi || 0;
+    const percent = targetAnggaran > 0 ? (realisAsi / targetAnggaran) * 100 : 0;
+    
+    return (
+      <tr key={code} className="hover:bg-slate-50/50 transition-colors">
+        <td className="px-4 py-3.5 text-xs text-slate-500 font-bold text-center">
+          {indexNumber}
+        </td>
+        <td className="px-4 py-3.5">
+          <div className="flex flex-col">
+            <span className="text-xs font-black text-primary font-mono">{code}</span>
+            <span className="text-xs font-semibold text-slate-900 mt-0.5">{displayName}</span>
+          </div>
+        </td>
+        <td className="px-4 py-3.5 text-right font-mono text-xs font-semibold text-slate-900">
+          {formatCurrency(targetAnggaran)}
+        </td>
+        <td className="px-4 py-3.5 text-right font-mono text-xs font-black text-emerald-700">
+          {formatCurrency(realisAsi)}
+        </td>
+        <td className="px-4 py-3.5">
+          <div className="flex flex-col items-center justify-center gap-1">
+            <span className="text-[11px] font-bold text-slate-700">
+              {percent.toFixed(1)}%
+            </span>
+            <div className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+              <div 
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  percent >= 80 ? "bg-emerald-500" : percent >= 40 ? "bg-amber-400" : "bg-primary"
+                )}
+                style={{ width: `${Math.min(percent, 100)}%` }}
+              />
+            </div>
+          </div>
+        </td>
+
+        {/* Display Jan - Dec Columns */}
+        {Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
+          let cellVal = monthlyRealizationsByPilar[budgetKey]?.[month] || 0;
+          return (
+            <td 
+              key={month} 
+              className={cn(
+                "px-3 py-3.5 text-right font-mono text-xs border-l border-slate-100/40",
+                cellVal > 0 ? "text-slate-900 font-bold" : "text-slate-350"
+              )}
+            >
+              {cellVal > 0 ? formatCurrency(cellVal) : 'Rp 0'}
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+
+
   return (
     <div className="p-4 md:p-8 space-y-8 bg-slate-50/50 h-full overflow-y-auto">
       
@@ -625,13 +718,15 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       </div>
 
       {/* FILTERS TOOLBAR */}
-      <div className="bg-white p-1.5 rounded-xl border border-slate-200/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-1 overflow-x-auto p-1 custom-scrollbar">
+      <div className="bg-slate-100 p-1.5 rounded-2xl border border-slate-200/50 flex items-center w-full shadow-inner max-w-6xl mx-auto overflow-x-auto custom-scrollbar">
+        <div className="flex flex-row items-center gap-1.5 w-full min-w-max md:min-w-0 md:justify-center md:flex-wrap">
           <button
             onClick={() => setSelectedPilarFilter('Semua')}
             className={cn(
-              "px-4 py-2 text-xs font-black uppercase rounded-lg transition-all whitespace-nowrap",
-              selectedPilarFilter === 'Semua' ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100"
+              "py-2.5 px-4 text-[10px] md:text-xs font-black uppercase rounded-xl transition-all text-center tracking-wider focus:outline-none whitespace-nowrap",
+              selectedPilarFilter === 'Semua' 
+                ? "bg-white text-primary shadow-sm font-extrabold border border-slate-200/10" 
+                : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
             )}
           >
             Semua Pilar
@@ -641,8 +736,10 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               key={pName}
               onClick={() => setSelectedPilarFilter(pName)}
               className={cn(
-                "px-4 py-2 text-xs font-black uppercase rounded-lg transition-all whitespace-nowrap",
-                selectedPilarFilter === pName ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100"
+                "py-2.5 px-4 text-[10px] md:text-xs font-black uppercase rounded-xl transition-all text-center tracking-wider focus:outline-none whitespace-nowrap",
+                selectedPilarFilter === pName 
+                  ? "bg-white text-primary shadow-sm font-extrabold border border-slate-200/10" 
+                  : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
               )}
             >
               {pName}
@@ -686,66 +783,40 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {accounts
-                .filter(acc => selectedPilarFilter === 'Semua' || acc.pilarName === selectedPilarFilter)
-                .map((acc, index) => {
-                  const targetAnggaran = pilarBudgets[acc.pilarName]?.target || 0;
-                  const realisAsi = pilarBudgets[acc.pilarName]?.realisasi || 0;
-                  const percent = targetAnggaran > 0 ? (realisAsi / targetAnggaran) * 100 : 0;
-                  
-                  return (
-                    <tr key={acc.code} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-3.5 text-xs text-slate-500 font-bold text-center">
-                        {index + 1}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-black text-primary font-mono">{acc.code}</span>
-                          <span className="text-xs font-extrabold text-slate-900">{acc.pilarName}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-right font-mono text-xs font-semibold text-slate-900">
-                        {formatCurrency(targetAnggaran)}
-                      </td>
-                      <td className="px-4 py-3.5 text-right font-mono text-xs font-black text-emerald-700">
-                        {formatCurrency(realisAsi)}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex flex-col items-center justify-center gap-1">
-                          <span className="text-[11px] font-bold text-slate-700">
-                            {percent.toFixed(1)}%
-                          </span>
-                          <div className="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className={cn(
-                                "h-full rounded-full transition-all duration-500",
-                                percent >= 80 ? "bg-emerald-500" : percent >= 40 ? "bg-amber-400" : "bg-primary"
-                              )}
-                              style={{ width: `${Math.min(percent, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Display Jan - Dec Columns */}
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
-                        let cellVal = monthlyRealizationsByPilar[acc.pilarName]?.[month] || 0;
-
-                        return (
-                          <td 
-                            key={month} 
-                            className={cn(
-                              "px-3 py-3.5 text-right font-mono text-xs border-l border-slate-100/40",
-                              cellVal > 0 ? "text-slate-900 font-bold" : "text-slate-350"
-                            )}
-                          >
-                            {cellVal > 0 ? formatCurrency(cellVal) : 'Rp 0'}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+              {/* Row 1: Semarang Peduli */}
+              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Peduli') && (
+                renderPilarRow("1100", "Semarang Peduli", "Semarang Peduli", 1)
+              )}
+              
+              {/* Row 2: Semarang Sehat (Konsumtif) */}
+              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Sehat') && (
+                renderPilarRow("1200", "Semarang Sehat (Konsumtif)", "Semarang Sehat (Konsumtif)", 2)
+              )}
+              
+              {/* Row 3: Semarang Sehat (Produktif) */}
+              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Sehat') && (
+                renderPilarRow("2200", "Semarang Sehat (Produktif)", "Semarang Sehat (Produktif)", 3)
+              )}
+              
+              {/* Row 4: Semarang Cerdas (Konsumtif) */}
+              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Cerdas') && (
+                renderPilarRow("1300", "Semarang Cerdas (Konsumtif)", "Semarang Cerdas (Konsumtif)", 4)
+              )}
+              
+              {/* Row 5: Semarang Cerdas (Produktif) */}
+              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Cerdas') && (
+                renderPilarRow("2300", "Semarang Cerdas (Produktif)", "Semarang Cerdas (Produktif)", 5)
+              )}
+              
+              {/* Row 6: Semarang Taqwa */}
+              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Taqwa') && (
+                renderPilarRow("1400", "Semarang Taqwa", "Semarang Taqwa", 6)
+              )}
+              
+              {/* Row 7: Semarang Makmur */}
+              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Makmur') && (
+                renderPilarRow("2100", "Semarang Makmur", "Semarang Makmur", 7)
+              )}
               
               {/* Grand Total Row */}
               {selectedPilarFilter === 'Semua' && (
@@ -768,8 +839,8 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                   {/* Monthly totals summary */}
                   {Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
                     let sumMonth = 0;
-                    accounts.forEach(acc => {
-                      sumMonth += monthlyRealizationsByPilar[acc.pilarName]?.[month] || 0;
+                    Object.keys(monthlyRealizationsByPilar).forEach(cat => {
+                      sumMonth += monthlyRealizationsByPilar[cat]?.[month] || 0;
                     });
 
                     return (
@@ -1280,7 +1351,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                               groupedByProgram[progCode].push({
                                 id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
                                 name: String(row["Nama Kegiatan"] || row["Nama_Kegiatan"] || row["nama_kegiatan"] || "").trim(),
-                                asnaf: String(row["Asnaf"] || row["asnaf"] || "Miskin").trim(),
+                                asnaf: String(row["Asnaf"] || row["asnaf"] || "").trim(),
                                 frekuensi,
                                 nominal,
                                 mustahik,

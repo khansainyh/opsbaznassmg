@@ -18,7 +18,7 @@ const MONTH_MAP: Record<string, string> = { Januari:'01',Februari:'02',Maret:'03
 
 const STATUS_ORDER = [
   'Registrasi',
-  'Review Kabag Admin','Review Kabag',
+  'Review Kabag Admin','Review Kabag','Review Kabag Administrasi',
   'Survei Assessment','Proses Disposisi','Monitoring Tugas','Tim Survei',
   'Survei Selesai',
   'Review Kepala Pelaksana',
@@ -58,6 +58,7 @@ function getStatusColor(status: string) {
     'Registrasi': 'bg-slate-100 text-slate-600',
     'Review Kabag Admin': 'bg-indigo-100 text-indigo-700',
     'Review Kabag': 'bg-indigo-100 text-indigo-700',
+    'Review Kabag Administrasi': 'bg-indigo-100 text-indigo-700',
     'Survei Assessment': 'bg-amber-100 text-amber-700',
     'Survei Selesai': 'bg-orange-100 text-orange-700',
     'Review Kepala Pelaksana': 'bg-blue-100 text-blue-700',

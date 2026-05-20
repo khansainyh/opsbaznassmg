@@ -284,7 +284,9 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Registrasi': return 'bg-slate-100 text-slate-600';
-      case 'Review Kabag': return 'bg-indigo-100 text-indigo-700';
+      case 'Review Kabag':
+      case 'Review Kabag Admin':
+      case 'Review Kabag Administrasi': return 'bg-indigo-100 text-indigo-700';
       case 'Survei & Asessment': return 'bg-amber-100 text-amber-700';
       case 'Review Kepala Pelaksana': return 'bg-blue-100 text-blue-700';
       case 'Persetujuan Pimpinan': return 'bg-purple-100 text-purple-700';

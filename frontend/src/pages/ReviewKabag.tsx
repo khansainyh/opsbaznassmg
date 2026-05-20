@@ -36,7 +36,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   // Filter proposals with 'Review Kabag Administrasi' status
   const filteredProposals = useMemo(() => {
     return data.filter(item => {
-      const isReviewKabag = item.status === 'Review Kabag Admin';
+      const isReviewKabag = item.status === 'Review Kabag Admin' || item.status === 'Review Kabag Administrasi';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -48,7 +48,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   // Filter surat with 'Review Kabag Administrasi' status
   const filteredSurat = useMemo(() => {
     return suratData.filter(item => {
-      const isReviewKabag = item.status === 'Review Kabag Admin';
+      const isReviewKabag = item.status === 'Review Kabag Admin' || (item.status as any) === 'Review Kabag Administrasi';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          (item.namaInstansi && item.namaInstansi.toLowerCase().includes(searchTerm.toLowerCase())) ||
                          item.keperluan.toLowerCase().includes(searchTerm.toLowerCase());
@@ -57,8 +57,8 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   }, [suratData, searchTerm]);
 
   const stats = useMemo(() => {
-    const reviewKabagCount = data.filter(d => d.status === 'Review Kabag Admin').length;
-    const reviewSuratCount = suratData.filter(d => d.status === 'Review Kabag Admin').length;
+    const reviewKabagCount = data.filter(d => d.status === 'Review Kabag Admin' || d.status === 'Review Kabag Administrasi').length;
+    const reviewSuratCount = suratData.filter(d => d.status === 'Review Kabag Admin' || (d.status as any) === 'Review Kabag Administrasi').length;
     return {
       proposal: reviewKabagCount,
       surat: reviewSuratCount,
