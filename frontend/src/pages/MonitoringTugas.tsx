@@ -38,7 +38,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const isKabagPendistribusian = user?.role === 'Kabag_Pendistribusian';
   const isKabagPendayagunaan = user?.role === 'Kabag_Pendayagunaan';
 
-  const [rekomendasiKabag, setRekomendasiKabag] = useState<'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Layak');
+  const [rekomendasiKabag, setRekomendasiKabag] = useState<'Zakat' | 'Infak Tidak Terikat' | 'Infak Terikat' | 'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Zakat');
   const [hasilIdentifikasi, setHasilIdentifikasi] = useState('');
   const [selectedAsnaf, setSelectedAsnaf] = useState('Fakir');
   const asnafOptions = ['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharimin', 'Fisabilillah', 'Ibnu Sabil'];
@@ -121,7 +121,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const handleViewDetail = (task: ProposalMemo) => {
     setSelectedTask(task);
     setHasilIdentifikasi(task.hasil_identifikasi || '');
-    setRekomendasiKabag((task.rekomendasi_kabag as any) || 'Layak');
+    setRekomendasiKabag((task.rekomendasi_kabag as any) || 'Zakat');
     setSelectedAsnaf(task.asnaf || 'Fakir');
     setIsDetailModalOpen(true);
   };
@@ -584,8 +584,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                            <p className="text-sm font-bold text-slate-800">{selectedTask.asnaf || '-'}</p>
                          </div>
                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Rekomendasi</p>
-                           <p className={cn("text-sm font-bold", selectedTask.rekomendasi_kabag === 'Layak' ? "text-emerald-600" : selectedTask.rekomendasi_kabag === 'Tidak Layak' ? "text-rose-600" : "text-amber-600")}>{selectedTask.rekomendasi_kabag}</p>
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Rekomendasi Dana</p>
+                           <p className={cn("text-sm font-bold", selectedTask.rekomendasi_kabag === 'Zakat' ? "text-emerald-600" : selectedTask.rekomendasi_kabag === 'Infak Tidak Terikat' ? "text-blue-600" : "text-indigo-600")}>{selectedTask.rekomendasi_kabag}</p>
                          </div>
                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 col-span-full">
                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Hasil Identifikasi</p>
@@ -614,15 +614,15 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             </select>
                           </div>
                           <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rekomendasi</label>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rekomendasi Dana</label>
                             <select 
                               value={rekomendasiKabag} 
                               onChange={(e) => setRekomendasiKabag(e.target.value as any)}
                               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
                             >
-                              <option value="Layak">Layak</option>
-                              <option value="Tidak Layak">Tidak Layak</option>
-                              <option value="Dipertimbangkan">Dipertimbangkan</option>
+                              <option value="Zakat">Zakat</option>
+                              <option value="Infak Tidak Terikat">Infak Tidak Terikat</option>
+                              <option value="Infak Terikat">Infak Terikat</option>
                             </select>
                           </div>
                           <div className="col-span-full space-y-2">

@@ -248,7 +248,7 @@ export default function ExecutiveDashboard() {
                 outerRadius={78}
                 paddingAngle={3}
                 dataKey="value"
-                onClick={(entry) => setActivePilar(proporsiPilar.find(p => p.kode === entry.kode) ?? null)}
+                onClick={(entry: any) => setActivePilar(proporsiPilar.find(p => p.kode === entry.kode) ?? null)}
                 style={{ cursor: 'pointer' }}
               >
                 {pieData.map((entry, i) => (

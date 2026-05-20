@@ -4,11 +4,22 @@ export interface RKATDetail {
   frekuensi: string;
 }
 
+export interface AsnafTarget {
+  id: string;
+  asnaf: 'Fakir' | 'Miskin' | 'Amil' | 'Mualaf' | 'Riqab' | 'Gharim' | 'Fisabilillah' | 'Ibnu Sabil';
+  frekuensi: number | string;
+  nominal: number;
+  mustahik: number;
+  keterangan?: string;
+}
+
 export interface Program {
   code: string;
   name: string;
   budget_rkat?: number;
   rkat_details?: RKATDetail[];
+  asnafTargets?: AsnafTarget[];
+  nominalUmum?: number;
 }
 
 export interface Pilar {

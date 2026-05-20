@@ -80,7 +80,7 @@ const menuGroups = [
     title: "PENGUMPULAN & KEUANGAN",
     items: [
       { name: "Data ZIS", icon: Wallet, roles: ["Super_Admin", "Keuangan"] },
-      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Keuangan"] },
+      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Keuangan", "Kabag_Administrasi", "Staf_Administrasi", "Ketua", "Staf_Distribusi"] },
       { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Keuangan"] },
       { name: "Validasi Kas", icon: CheckCircle2, roles: ["Super_Admin", "Keuangan"] },
     ]

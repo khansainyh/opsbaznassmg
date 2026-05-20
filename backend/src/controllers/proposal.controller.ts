@@ -99,7 +99,8 @@ export const updateProposal = async (req: Request, res: Response) => {
       'rekomendasi', 'keterangan', 'status', 'file_gdrive_id',
       'file_gdrive_link', 'mustahik_id', 'surveyorName', 'isBeingSurveyed',
       'urgencyLevel', 'score', 'survey_data', 'surveySubmittedAt', 'catatanKepala', 'catatanPimpinan',
-      'nominal', 'tipe_bantuan', 'alasan_perubahan_nominal'
+      'nominal', 'tipe_bantuan', 'alasan_perubahan_nominal',
+      'asnaf', 'rekomendasi_kabag', 'hasil_identifikasi', 'approval_kabag', 'rkat_activity_id'
     ];
 
     const data: Record<string, any> = {};

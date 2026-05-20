@@ -59,6 +59,7 @@ model Program {
   pilar_code String
   name       String
   budget_rkat Int?      @default(0)
+  rkat_details Json?
   pilar      Pilar      @relation(fields: [pilar_code], references: [code])
   proposals  Proposal[]
 
@@ -108,6 +109,11 @@ model Proposal {
   nominal             Int?
   tipe_bantuan        String?
   alasan_perubahan_nominal String? @db.Text
+  asnaf               String?
+  rekomendasi_kabag   String?
+  hasil_identifikasi  String?   @db.Text
+  approval_kabag      Boolean?
+  rkat_activity_id    String?
   program             Program?  @relation(fields: [jenis_permohonan], references: [code])
   mustahik            Mustahik? @relation(fields: [mustahik_id], references: [id])
 
@@ -164,6 +170,8 @@ enum Role {
   Wakil_Ketua_III
   Wakil_Ketua_IV
   Kabag_Administrasi
+  Kabag_Pendistribusian
+  Kabag_Pendayagunaan
   Kepala_Pelaksana
   Staf_Administrasi
   Staf_Distribusi

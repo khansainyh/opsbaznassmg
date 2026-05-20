@@ -73,6 +73,8 @@ export interface ProposalMemo {
   hasil_identifikasi?: string;
   rekomendasi_kabag?: string;
   approval_kabag?: boolean;
+  tglCairBank?: string;
+  rkatActivityId?: string;
 }
 
 export const proposalMemoData: ProposalMemo[] = [];

@@ -23,6 +23,7 @@ import ExecutiveDashboard from '@/src/pages/ExecutiveDashboard';
 import TrackingProposal from '@/src/pages/TrackingProposal';
 import NotificationBell from '@/src/components/NotificationBell';
 import ParameterSistem from '@/src/pages/ParameterSistem';
+import TargetRKAT from '@/src/pages/TargetRKAT';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -71,7 +72,16 @@ function App() {
           asnaf: item.asnaf || undefined,
           hasil_identifikasi: item.hasil_identifikasi || undefined,
           rekomendasi_kabag: item.rekomendasi_kabag || undefined,
-          approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined
+          approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
+          rkatActivityId: item.rkat_activity_id || undefined,
+          program: item.program ? (
+            item.program.pilar_code === '1100' ? 'Semarang Peduli' :
+            item.program.pilar_code === '1200' ? 'Semarang Sehat' :
+            item.program.pilar_code === '1300' ? 'Semarang Cerdas' :
+            item.program.pilar_code === '1400' ? 'Semarang Taqwa' :
+            item.program.pilar_code === '2100' ? 'Semarang Makmur' :
+            undefined
+          ) : undefined
         }));
         setProposals(mappedData);
       })
@@ -205,6 +215,8 @@ function App() {
           />
         ) : activeMenu === 'Tracking Proposal' ? (
           <TrackingProposal data={proposals} />
+        ) : activeMenu === 'Target RKAT' ? (
+          <TargetRKAT proposals={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Pilar & Program' ? (
           <PilarProgram />
         ) : activeMenu === 'Data Mustahik' ? (
