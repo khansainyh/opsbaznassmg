@@ -24,7 +24,7 @@ const STATUS_ORDER = [
   'Review Kepala Pelaksana',
   'Persetujuan Pimpinan',
   'Penentuan Nominal',
-  'Antrean Bantuan','Pencairan Dana',
+  'Pencairan Dana',
   'Realisasi Bantuan',
   'Selesai & Arsip',
 ];
@@ -44,8 +44,8 @@ function getProgressSteps(status: string) {
   if (status === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
   const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === status.toLowerCase());
   return STEPS.map((step, i) => {
-    // ADM: idx 0-2, SURV: 3-7, KEPEL: 8, PIMP: 9-10, KEU: 11-12, DIST: 13, ARSIP: 14, DONE: 14+
-    const ranges = [[0,2],[3,7],[8,8],[9,10],[11,12],[13,13],[14,14],[14,14]];
+    // ADM: idx 0-2, SURV: 3-7, KEPEL: 8, PIMP: 9-10, KEU: 11, DIST: 12, ARSIP: 13, DONE: 13+
+    const ranges = [[0,2],[3,7],[8,8],[9,10],[11,11],[12,12],[13,13],[13,13]];
     const [lo, hi] = ranges[i];
     const active = idx >= lo && idx <= hi;
     const completed = idx > hi;
@@ -64,7 +64,6 @@ function getStatusColor(status: string) {
     'Review Kepala Pelaksana': 'bg-blue-100 text-blue-700',
     'Persetujuan Pimpinan': 'bg-purple-100 text-purple-700',
     'Penentuan Nominal': 'bg-pink-100 text-pink-700',
-    'Antrean Bantuan': 'bg-cyan-100 text-cyan-700',
     'Pencairan Dana': 'bg-teal-100 text-teal-700',
     'Realisasi Bantuan': 'bg-blue-100 text-blue-700',
     'Selesai & Arsip': 'bg-emerald-100 text-emerald-700',

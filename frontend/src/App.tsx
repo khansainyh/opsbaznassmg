@@ -18,7 +18,7 @@ import TimSurvei from '@/src/pages/TimSurvei';
 import PersetujuanKepala from '@/src/pages/PersetujuanKepala';
 import ReviewPimpinan from '@/src/pages/ReviewPimpinan';
 import PenentuanNominal from '@/src/pages/PenentuanNominal';
-import AntreanBantuan from '@/src/pages/AntreanBantuan';
+import AntreanPencairan from '@/src/pages/AntreanPencairan';
 import ExecutiveDashboard from '@/src/pages/ExecutiveDashboard';
 import TrackingProposal from '@/src/pages/TrackingProposal';
 import NotificationBell from '@/src/components/NotificationBell';
@@ -209,8 +209,8 @@ function App() {
             data={proposals}
             onUpdate={handleUpdateProposals}
           />
-        ) : activeMenu === 'Antrean Bantuan' ? (
-          <AntreanBantuan
+        ) : activeMenu === 'Antrean Pencairan' ? (
+          <AntreanPencairan
             data={proposals}
             onUpdate={handleUpdateProposals}
           />

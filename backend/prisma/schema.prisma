@@ -195,3 +195,90 @@ model SystemParameter {
   description String?  @db.Text
   updatedAt   DateTime @updatedAt
 }
+
+model ChartOfAccounts {
+  coa_code    String    @id @db.VarChar(20)
+  nama_akun   String    @db.VarChar(255)
+  klasifikasi String?   @db.VarChar(50) // 'Aktiva', 'Kewajiban', 'Saldo', 'Penerimaan', 'Penyaluran'
+  tipe_dana   String?   @db.VarChar(30) // 'ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT', 'AMIL', 'APBD'
+
+  bankAccounts BankAccount[]
+  debitRules   CoaMappingRule[] @relation("DebitCoa")
+  kreditRules  CoaMappingRule[] @relation("KreditCoa")
+  journalEntries JournalEntry[]
+}
+
+model BankAccount {
+  account_id    String    @id @default(uuid())
+  nama_akun     String    @db.VarChar(100) // Contoh: 'BSI - Rekening Utama Zakat', 'Kas Utama Tunai (A) - Zakat'
+  tipe_kas      String    @db.VarChar(20)  // 'TUNAI' atau 'BANK'
+  kelompok_dana String    @db.VarChar(20)  // 'ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT', 'AMIL', 'APBD', 'NON-HALAL'
+  saldo         Decimal   @db.Decimal(15, 2) @default(0.00)
+  no_rekening   String?   @db.VarChar(50)
+  kode_laci     String?   @db.VarChar(1)   // 'A' s.d 'G' untuk tipe TUNAI
+  coa_code      String    @db.VarChar(20)
+  
+  coa           ChartOfAccounts @relation(fields: [coa_code], references: [coa_code])
+  journalEntries JournalEntry[]
+  sourceMutations CashMutation[]
+  targetMutationDetails CashMutationDetail[]
+}
+
+model CoaMappingRule {
+  rule_id         String    @id @default(uuid())
+  program_code    String    @db.VarChar(50) // references Program.code
+  asnaf_id        String?   @db.VarChar(50) // can be NULL
+  tipe_kas        String    @db.VarChar(20)  // 'TUNAI' or 'BANK'
+  sumber_dana_tag String    @db.VarChar(20)  // 'ZAKAT', 'IST', 'ISTT', 'AMIL', 'APBD'
+  debit_coa_code  String    @db.VarChar(20)
+  kredit_coa_code String    @db.VarChar(20)
+
+  debitCoa        ChartOfAccounts @relation("DebitCoa", fields: [debit_coa_code], references: [coa_code])
+  kreditCoa       ChartOfAccounts @relation("KreditCoa", fields: [kredit_coa_code], references: [coa_code])
+}
+
+model Realisasi {
+  transaksi_id String    @id @default(uuid())
+  proposal_id  String?   @db.VarChar(191) // references Proposal.id
+  rkat_id      String?   @db.VarChar(100) // References target/asnaf id or Program.code
+  tanggal      DateTime  @default(now())
+  keterangan   String?   @db.Text
+  nrm          String?   @db.VarChar(100)
+
+  journalEntries JournalEntry[]
+}
+
+model JournalEntry {
+  entry_id     String    @id @default(uuid())
+  transaksi_id String    @db.VarChar(191)
+  coa_code     String    @db.VarChar(20)
+  debit        Decimal   @db.Decimal(15, 2) @default(0.00)
+  kredit       Decimal   @db.Decimal(15, 2) @default(0.00)
+  account_id   String?   @db.VarChar(191)
+
+  realisasi    Realisasi       @relation(fields: [transaksi_id], references: [transaksi_id], onDelete: Cascade)
+  coa          ChartOfAccounts @relation(fields: [coa_code], references: [coa_code])
+  account      BankAccount?    @relation(fields: [account_id], references: [account_id])
+}
+
+model CashMutation {
+  mutation_id       String    @id @default(uuid())
+  source_account_id String    @db.VarChar(191)
+  nominal_total     Decimal   @db.Decimal(15, 2)
+  tanggal           DateTime  @default(now())
+  keterangan        String?   @db.Text
+
+  sourceAccount     BankAccount @relation(fields: [source_account_id], references: [account_id])
+  details           CashMutationDetail[]
+}
+
+model CashMutationDetail {
+  detail_id         String    @id @default(uuid())
+  mutation_id       String    @db.VarChar(191)
+  target_account_id String    @db.VarChar(191)
+  nominal_alokasi   Decimal   @db.Decimal(15, 2)
+
+  mutation          CashMutation @relation(fields: [mutation_id], references: [mutation_id], onDelete: Cascade)
+  targetAccount     BankAccount  @relation(fields: [target_account_id], references: [account_id])
+}
+

@@ -85,6 +85,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
             pilarCode: pilar.code,
             pilarName: pilar.name,
             name: target.name || prog.name,
+            programName: prog.name,
             keterangan: target.keterangan || `Penyaluran program ${prog.name} khusus kriteria asnaf ${target.asnaf}`,
             mustahik: target.mustahik || 0,
             frekuensi: Number(target.frekuensi) || 1,
@@ -102,15 +103,25 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     if (p.programCode) {
       const parentP = getParentProgramCode(p.programCode);
       const parentAct = getParentProgramCode(act.programCode);
-      if (parentP !== parentAct) return false;
-      if (act.asnaf) {
-        const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
-        return act.asnaf.toLowerCase() === pAsnaf;
+      if (parentP === parentAct) {
+        if (act.asnaf) {
+          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          return act.asnaf.toLowerCase() === pAsnaf;
+        }
+        return true;
       }
-      return true;
     }
     
-    // Name fallback
+    if (p.jenisPermohonan && act.programName) {
+      if (p.jenisPermohonan.toLowerCase().trim() === act.programName.toLowerCase().trim()) {
+        if (act.asnaf) {
+          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          return act.asnaf.toLowerCase() === pAsnaf;
+        }
+        return true;
+      }
+    }
+
     const matchesPilar = p.program === act.pilarName;
     const matchesProgram = p.jenisPermohonan === act.name;
     if (matchesPilar && matchesProgram) {
@@ -132,16 +143,26 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     if (!selectedTask) return [];
     
     let list = [];
+    
+    // 1. Match by program code
     if (selectedTask.programCode) {
       const parentP = getParentProgramCode(selectedTask.programCode);
       list = activities.filter(act => getParentProgramCode(act.programCode) === parentP);
     }
     
-    if (list.length === 0) {
-      // Fallback to name matching
+    // 2. Match by clean program name
+    if (list.length === 0 && selectedTask.jenisPermohonan) {
       list = activities.filter(act => 
-        act.pilarName === selectedTask.program && 
-        act.name === selectedTask.jenisPermohonan
+        act.programName && 
+        act.programName.toLowerCase().trim() === selectedTask.jenisPermohonan.toLowerCase().trim()
+      );
+    }
+
+    // 3. Fallback name-based matching
+    if (list.length === 0 && selectedTask.jenisPermohonan) {
+      list = activities.filter(act => 
+        act.name.toLowerCase().includes(selectedTask.jenisPermohonan.toLowerCase()) ||
+        selectedTask.jenisPermohonan.toLowerCase().includes(act.name.toLowerCase())
       );
     }
     
@@ -289,7 +310,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
       { title: "Total Tugas", value: tasks.length.toString(), subtitle: "Bulan ini", icon: <ClipboardList className="size-5" />, color: "slate" },
       { title: "Sedang Disurvei", value: tasks.filter(t => getSurveyStatus(t) === 'On Progress').length.toString(), subtitle: "In Progress", icon: <RefreshCw className="size-5 animate-spin-slow" />, color: "primary", trend: "In Progress" },
       { title: "Menunggu Approve", value: tasks.filter(t => getSurveyStatus(t) === 'Selesai').length.toString(), subtitle: "Butuh Tindakan Segera", icon: <AlertCircle className="size-5" />, color: "amber" },
-      { title: "Disetujui / Selesai", value: tasks.filter(t => getSurveyStatus(t) === 'Disetujui').length.toString(), subtitle: "Masuk Antrean Bantuan", icon: <CheckCircle2 className="size-5" />, color: "emerald" },
+      { title: "Disetujui / Selesai", value: tasks.filter(t => getSurveyStatus(t) === 'Disetujui').length.toString(), subtitle: "Masuk Antrean Pencairan", icon: <CheckCircle2 className="size-5" />, color: "emerald" },
     ];
   }, [tasks, getSurveyStatus]);
 

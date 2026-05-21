@@ -13,6 +13,7 @@ import authRoutes from './routes/auth.route';
 import userRoutes from './routes/user.route';
 import notificationRoutes from './routes/notification.route';
 import parameterRoutes from './routes/parameter.route';
+import financeRoutes from './routes/finance.route';
 
 dotenv.config();
 
@@ -48,6 +49,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/parameters', parameterRoutes);
+app.use('/api/finance', financeRoutes);
+
 
 import { initCronJobs } from './utils/cronJobs';
 

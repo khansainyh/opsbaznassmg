@@ -1,498 +1,755 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
 import { 
   ChevronRight, 
   Plus, 
   Edit, 
   Trash2, 
   Search, 
-  Palette, 
-  Bell, 
-  BarChart3, 
-  Filter,
-  Download,
-  Building2,
-  Wallet,
-  BookOpen,
-  Headset,
-  RefreshCw,
-  CreditCard,
-  X,
-  AlertTriangle,
-  BadgeAlert
+  Wallet, 
+  Building2, 
+  X, 
+  AlertTriangle, 
+  CreditCard, 
+  CheckCircle2, 
+  Calculator, 
+  Settings2, 
+  Layers, 
+  Activity, 
+  FileText, 
+  RefreshCw, 
+  SlidersHorizontal,
+  Banknote,
+  TrendingUp,
+  Percent,
+  Check,
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
-export interface KasAccount {
-  id: string;
-  kode: string;
-  nama: string;
-  saldo: number;
-  status: 'Aktif' | 'Non-Aktif';
+export interface COAItem {
+  coa_code: string;
+  nama_akun: string;
+  klasifikasi: string;
+  tipe_dana: string;
 }
 
-export interface RekeningAccount {
-  id: string;
-  kode: string;
-  nama: string;
+export interface BankAccountItem {
+  account_id: string;
+  nama_akun: string;
+  tipe_kas: 'TUNAI' | 'BANK';
+  kelompok_dana: 'ZAKAT' | 'INFAK_TERIKAT' | 'INFAK_TIDAK_TERIKAT' | 'AMIL' | 'APBD' | 'NON-HALAL';
   saldo: number;
-  status: 'Aktif' | 'Non-Aktif';
+  no_rekening?: string;
+  kode_laci?: string;
+  coa_code: string;
+  coa?: COAItem;
+}
+
+export interface CoaMappingRuleItem {
+  rule_id: string;
+  program_code: string;
+  asnaf_id?: string;
+  tipe_kas: 'TUNAI' | 'BANK';
+  sumber_dana_tag: 'ZAKAT' | 'INFAK_TERIKAT' | 'INFAK_TIDAK_TERIKAT' | 'AMIL' | 'APBD';
+  debit_coa_code: string;
+  kredit_coa_code: string;
+  debitCoa?: COAItem;
+  kreditCoa?: COAItem;
+}
+
+export interface LedgerEntryItem {
+  entry_id: string;
+  transaksi_id: string;
+  coa_code: string;
+  debit: number;
+  kredit: number;
+  account_id?: string;
+  coa: COAItem;
+  account?: BankAccountItem;
+  realisasi: {
+    transaksi_id: string;
+    proposal_id?: string;
+    rkat_id?: string;
+    tanggal: string;
+    keterangan: string;
+  };
+}
+
+export interface ProposalItem {
+  id: string;
+  agenda_no: number;
+  nama_pemohon: string;
+  jenis_permohonan: string; // program code
+  nominal: number;
+  asnaf?: string;
+  tipe_bantuan?: string;
+  status: string;
+  program?: {
+    name: string;
+  };
 }
 
 export default function PengaturanKeuangan() {
-  const [activeMainTab, setActiveMainTab] = useState<'Manajemen Kas' | 'Manajemen Rekening'>('Manajemen Kas');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'replenish' | 'simulator' | 'ledger'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Kas Account State
-  const [kasAccounts, setKasAccounts] = useState<KasAccount[]>([
-    { id: 'k1', kode: '101.01', nama: 'Kas Utama Tunai (A)', saldo: 245000000, status: 'Aktif' },
-    { id: 'k2', kode: '101.02', nama: 'Kas Utama Tunai (B)', saldo: 120000000, status: 'Aktif' },
-    { id: 'k3', kode: '101.03', nama: 'Kas Kecil Operasional', saldo: 15000000, status: 'Aktif' },
-    { id: 'k4', kode: '101.04', nama: 'Kas Darurat Bencana', saldo: 50000000, status: 'Non-Aktif' },
-  ]);
 
-  // Rekening Account State
-  const [rekeningAccounts, setRekeningAccounts] = useState<RekeningAccount[]>([
-    { id: 'r1', kode: '110.01', nama: 'Bank Jateng - Zakat (0101-23)', saldo: 850000000, status: 'Aktif' },
-    { id: 'r2', kode: '110.02', nama: 'Bank Jateng - Infak (0101-24)', saldo: 350000000, status: 'Aktif' },
-    { id: 'r3', kode: '110.03', nama: 'Bank Syariah Indonesia - Amil (7122-10)', saldo: 180000000, status: 'Aktif' },
-    { id: 'r4', kode: '110.04', nama: 'Bank Jateng - Dana APBD (0101-25)', saldo: 70000000, status: 'Aktif' },
-  ]);
+  // DB States
+  const [coas, setCoas] = useState<COAItem[]>([]);
+  const [accounts, setAccounts] = useState<BankAccountItem[]>([]);
+  const [rules, setRules] = useState<CoaMappingRuleItem[]>([]);
+  const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
+  const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
 
-  // Modal State
-  const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
+  // Loading indicator
+  const [loading, setLoading] = useState(false);
+
+  // Modals / Add/Edit Forms
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isCOAModalOpen, setIsCOAModalOpen] = useState(false);
+  const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
 
-  // Form State
-  const [formKode, setFormKode] = useState('');
-  const [formNama, setFormNama] = useState('');
-  const [formSaldo, setFormSaldo] = useState(0);
-  const [formStatus, setFormStatus] = useState<'Aktif' | 'Non-Aktif'>('Aktif');
+  // Form states - Accounts
+  const [accountForm, setAccountForm] = useState({
+    nama_akun: '',
+    tipe_kas: 'TUNAI' as 'TUNAI' | 'BANK',
+    kelompok_dana: 'ZAKAT' as any,
+    saldo: 0,
+    no_rekening: '',
+    kode_laci: '',
+    coa_code: ''
+  });
 
-  const formatCurrency = (value: number) => {
+  // Form states - COA
+  const [coaForm, setCoaForm] = useState({
+    coa_code: '',
+    nama_akun: '',
+    klasifikasi: 'Aktiva',
+    tipe_dana: 'ZAKAT'
+  });
+
+  // Form states - Rules
+  const [ruleForm, setRuleForm] = useState({
+    program_code: '',
+    asnaf_id: '',
+    tipe_kas: 'TUNAI' as 'TUNAI' | 'BANK',
+    sumber_dana_tag: 'ZAKAT' as any,
+    debit_coa_code: '',
+    kredit_coa_code: ''
+  });
+
+  // Form states - Replenishment
+  const [replenishBank, setReplenishBank] = useState('');
+  const [replenishKeterangan, setReplenishKeterangan] = useState('');
+  const [replenishAllocations, setReplenishAllocations] = useState<Array<{ targetAccountId: string, nominal: number }>>([
+    { targetAccountId: '', nominal: 0 }
+  ]);
+
+  // Form states - Simulator & Double-Guard
+  const [simProposalId, setSimProposalId] = useState('');
+  const [simAccountId, setSimAccountId] = useState('');
+  const [simKeterangan, setSimKeterangan] = useState('');
+  const [simGuardResult, setSimGuardResult] = useState<any | null>(null);
+  const [simPreviewResult, setSimPreviewResult] = useState<any | null>(null);
+  const [simGuardLoading, setSimGuardLoading] = useState(false);
+  const [simExecuting, setSimExecuting] = useState(false);
+
+  // Fetch Data
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [resCoas, resAccounts, resRules, resLedger, resProposals, resPrograms] = await Promise.all([
+        axios.get('http://127.0.0.1:4000/api/finance/coa'),
+        axios.get('http://127.0.0.1:4000/api/finance/accounts'),
+        axios.get('http://127.0.0.1:4000/api/finance/mapping-rules'),
+        axios.get('http://127.0.0.1:4000/api/finance/ledger'),
+        axios.get('http://127.0.0.1:4000/api/proposals'),
+        axios.get('http://127.0.0.1:4000/api/programs')
+      ]);
+
+      setCoas(resCoas.data);
+      setAccounts(resAccounts.data);
+      setRules(resRules.data);
+      setLedger(resLedger.data);
+      setPrograms(resPrograms.data);
+      
+      // Filter proposals that are ready for disbursement (e.g. Antrean Bantuan or Approved by Kabag/Pimpinan)
+      const validProps = resProposals.data.filter(
+        (p: any) => p.status === 'Antrean Bantuan' || p.status === 'Pencairan Dana' || p.status === 'Registrasi'
+      );
+      setProposals(validProps);
+    } catch (error) {
+      console.error('Gagal mengambil data keuangan:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Format IDR Currency
+  const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0
-    }).format(value);
+    }).format(val);
   };
 
-  // Open modal for Adding
-  const handleOpenAddModal = () => {
-    setEditingItem(null);
-    setFormKode('');
-    setFormNama('');
-    setFormSaldo(0);
-    setFormStatus('Aktif');
-    setIsAddEditModalOpen(true);
+  // Helper lists
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter(a => 
+      a.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.coa_code.includes(searchTerm)
+    );
+  }, [accounts, searchTerm]);
+
+  const filteredCOAs = useMemo(() => {
+    return coas.filter(c => 
+      c.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.coa_code.includes(searchTerm)
+    );
+  }, [coas, searchTerm]);
+
+  const filteredRules = useMemo(() => {
+    return rules.filter(r => 
+      r.program_code.includes(searchTerm) ||
+      (r.asnaf_id || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [rules, searchTerm]);
+
+  const filteredLedger = useMemo(() => {
+    return ledger.filter(l => 
+      l.coa.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      l.realisasi.keterangan.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [ledger, searchTerm]);
+
+  // ==========================================
+  // Account Actions
+  // ==========================================
+  const handleOpenAccountModal = (item: any = null) => {
+    if (item) {
+      setEditingItem(item);
+      setAccountForm({
+        nama_akun: item.nama_akun,
+        tipe_kas: item.tipe_kas,
+        kelompok_dana: item.kelompok_dana,
+        saldo: Number(item.saldo),
+        no_rekening: item.no_rekening || '',
+        kode_laci: item.kode_laci || '',
+        coa_code: item.coa_code
+      });
+    } else {
+      setEditingItem(null);
+      setAccountForm({
+        nama_akun: '',
+        tipe_kas: 'TUNAI',
+        kelompok_dana: 'ZAKAT',
+        saldo: 0,
+        no_rekening: '',
+        kode_laci: '',
+        coa_code: coas[0]?.coa_code || ''
+      });
+    }
+    setIsAccountModalOpen(true);
   };
 
-  // Open modal for Editing
-  const handleOpenEditModal = (item: any) => {
-    setEditingItem(item);
-    setFormKode(item.kode);
-    setFormNama(item.nama);
-    setFormSaldo(item.saldo);
-    setFormStatus(item.status);
-    setIsAddEditModalOpen(true);
-  };
-
-  // Handle Delete Item
-  const handleDeleteItem = (id: string) => {
-    if (window.confirm(`Yakin ingin menghapus akun ini?`)) {
-      if (activeMainTab === 'Manajemen Kas') {
-        setKasAccounts(prev => prev.filter(k => k.id !== id));
+  const handleSaveAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingItem) {
+        await axios.put(`http://127.0.0.1:4000/api/finance/accounts/${editingItem.account_id}`, accountForm);
       } else {
-        setRekeningAccounts(prev => prev.filter(r => r.id !== id));
+        await axios.post('http://127.0.0.1:4000/api/finance/accounts', accountForm);
       }
+      setIsAccountModalOpen(false);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menyimpan akun: ' + (e.response?.data?.error || e.message));
     }
   };
 
-  // Save Add/Edit
-  const handleSaveItem = (e: React.FormEvent) => {
+  const handleDeleteAccount = async (id: string) => {
+    if (!window.confirm('Yakin ingin menghapus akun fisik ini?')) return;
+    try {
+      await axios.delete(`http://127.0.0.1:4000/api/finance/accounts/${id}`);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menghapus: ' + e.message);
+    }
+  };
+
+  // ==========================================
+  // COA Actions
+  // ==========================================
+  const handleOpenCOAModal = (item: any = null) => {
+    if (item) {
+      setEditingItem(item);
+      setCoaForm({
+        coa_code: item.coa_code,
+        nama_akun: item.nama_akun,
+        klasifikasi: item.klasifikasi || 'Aktiva',
+        tipe_dana: item.tipe_dana || 'ZAKAT'
+      });
+    } else {
+      setEditingItem(null);
+      setCoaForm({
+        coa_code: '',
+        nama_akun: '',
+        klasifikasi: 'Aktiva',
+        tipe_dana: 'ZAKAT'
+      });
+    }
+    setIsCOAModalOpen(true);
+  };
+
+  const handleSaveCOA = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formKode.trim() || !formNama.trim()) {
-      alert('Harap isi semua kolom wajib!');
+    try {
+      if (editingItem) {
+        await axios.put(`http://127.0.0.1:4000/api/finance/coa/${editingItem.coa_code}`, coaForm);
+      } else {
+        await axios.post('http://127.0.0.1:4000/api/finance/coa', coaForm);
+      }
+      setIsCOAModalOpen(false);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menyimpan COA: ' + (e.response?.data?.error || e.message));
+    }
+  };
+
+  const handleDeleteCOA = async (code: string) => {
+    if (!window.confirm('Yakin ingin menghapus kode COA master ini?')) return;
+    try {
+      await axios.delete(`http://127.0.0.1:4000/api/finance/coa/${code}`);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menghapus: ' + e.message);
+    }
+  };
+
+  // ==========================================
+  // Rule Actions
+  // ==========================================
+  const handleOpenRuleModal = (item: any = null) => {
+    if (item) {
+      setEditingItem(item);
+      setRuleForm({
+        program_code: item.program_code,
+        asnaf_id: item.asnaf_id || '',
+        tipe_kas: item.tipe_kas,
+        sumber_dana_tag: item.sumber_dana_tag,
+        debit_coa_code: item.debit_coa_code,
+        kredit_coa_code: item.kredit_coa_code
+      });
+    } else {
+      setEditingItem(null);
+      setRuleForm({
+        program_code: programs[0]?.code || '',
+        asnaf_id: '',
+        tipe_kas: 'TUNAI',
+        sumber_dana_tag: 'ZAKAT',
+        debit_coa_code: coas.find(c => c.klasifikasi === 'Penyaluran')?.coa_code || '',
+        kredit_coa_code: coas.find(c => c.klasifikasi === 'Aktiva')?.coa_code || ''
+      });
+    }
+    setIsRuleModalOpen(true);
+  };
+
+  const handleSaveRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingItem) {
+        await axios.put(`http://127.0.0.1:4000/api/finance/mapping-rules/${editingItem.rule_id}`, ruleForm);
+      } else {
+        await axios.post('http://127.0.0.1:4000/api/finance/mapping-rules', ruleForm);
+      }
+      setIsRuleModalOpen(false);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menyimpan aturan: ' + (e.response?.data?.error || e.message));
+    }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+    if (!window.confirm('Yakin ingin menghapus aturan mapping ini?')) return;
+    try {
+      await axios.delete(`http://127.0.0.1:4000/api/finance/mapping-rules/${id}`);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menghapus: ' + e.message);
+    }
+  };
+
+  // ==========================================
+  // Cash Replenishment (Tarik Tunai Split)
+  // ==========================================
+  const handleAddReplenishAllocation = () => {
+    setReplenishAllocations([...replenishAllocations, { targetAccountId: '', nominal: 0 }]);
+  };
+
+  const handleRemoveReplenishAllocation = (idx: number) => {
+    setReplenishAllocations(replenishAllocations.filter((_, i) => i !== idx));
+  };
+
+  const handleReplenishAllocationChange = (idx: number, field: string, val: any) => {
+    const updated = replenishAllocations.map((item, i) => {
+      if (i === idx) {
+        return { ...item, [field]: val };
+      }
+      return item;
+    });
+    setReplenishAllocations(updated);
+  };
+
+  const handleExecuteReplenish = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replenishBank) {
+      alert('Pilih Bank Sumber Terlebih Dahulu');
+      return;
+    }
+    const filteredAlloc = replenishAllocations.filter(a => a.targetAccountId && a.nominal > 0);
+    if (filteredAlloc.length === 0) {
+      alert('Mohon isi alokasi laci tujuan dan nominal dengan benar');
       return;
     }
 
-    if (activeMainTab === 'Manajemen Kas') {
-      if (editingItem) {
-        // Edit Existing
-        setKasAccounts(prev => prev.map(item => item.id === editingItem.id ? {
-          ...item,
-          kode: formKode,
-          nama: formNama,
-          saldo: Number(formSaldo),
-          status: formStatus
-        } : item));
-      } else {
-        // Add New
-        const newKas: KasAccount = {
-          id: `k-${Date.now()}`,
-          kode: formKode,
-          nama: formNama,
-          saldo: Number(formSaldo),
-          status: formStatus
-        };
-        setKasAccounts(prev => [...prev, newKas]);
-      }
-    } else {
-      if (editingItem) {
-        // Edit Existing
-        setRekeningAccounts(prev => prev.map(item => item.id === editingItem.id ? {
-          ...item,
-          kode: formKode,
-          nama: formNama,
-          saldo: Number(formSaldo),
-          status: formStatus
-        } : item));
-      } else {
-        // Add New
-        const newRekening: RekeningAccount = {
-          id: `r-${Date.now()}`,
-          kode: formKode,
-          nama: formNama,
-          saldo: Number(formSaldo),
-          status: formStatus
-        };
-        setRekeningAccounts(prev => [...prev, newRekening]);
-      }
+    try {
+      setLoading(true);
+      const res = await axios.post('http://127.0.0.1:4000/api/finance/replenish', {
+        sourceBankId: replenishBank,
+        allocations: filteredAlloc,
+        keterangan: replenishKeterangan
+      });
+      alert(res.data.message);
+      // Reset
+      setReplenishBank('');
+      setReplenishKeterangan('');
+      setReplenishAllocations([{ targetAccountId: '', nominal: 0 }]);
+      fetchData();
+    } catch (error: any) {
+      alert('Gagal melakukan replenishment: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
     }
-
-    setIsAddEditModalOpen(false);
   };
 
-  // Filtered List based on Search Term
-  const filteredKas = kasAccounts.filter(k => 
-    k.kode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    k.nama.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ==========================================
+  // Double-Guard & Simulator & Preview
+  // ==========================================
+  const handleProposalSelect = async (proposalId: string) => {
+    setSimProposalId(proposalId);
+    setSimGuardResult(null);
+    setSimPreviewResult(null);
 
-  const filteredRekening = rekeningAccounts.filter(r => 
-    r.kode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.nama.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    if (!proposalId) return;
 
-  // Consolidated statistics
-  const totalKasSaldo = kasAccounts.reduce((sum, item) => sum + item.saldo, 0);
-  const totalRekeningSaldo = rekeningAccounts.reduce((sum, item) => sum + item.saldo, 0);
+    setSimGuardLoading(true);
+    try {
+      const res = await axios.get(`http://127.0.0.1:4000/api/finance/check-availability/${proposalId}`);
+      setSimGuardResult(res.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSimGuardLoading(false);
+    }
+  };
+
+  const handlePaymentAccountSelect = async (accountId: string) => {
+    setSimAccountId(accountId);
+    setSimPreviewResult(null);
+
+    if (!simProposalId || !accountId) return;
+
+    try {
+      const res = await axios.post('http://127.0.0.1:4000/api/finance/disburse/preview', {
+        proposalId: simProposalId,
+        selectedAccountId: accountId
+      });
+      setSimPreviewResult(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleExecutePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!simProposalId || !simAccountId) {
+      alert('Mohon pilih agenda proposal dan akun bayar');
+      return;
+    }
+
+    setSimExecuting(true);
+    try {
+      const res = await axios.post('http://127.0.0.1:4000/api/finance/disburse/execute', {
+        proposalId: simProposalId,
+        selectedAccountId: simAccountId,
+        keterangan: simKeterangan
+      });
+      alert(res.data.message);
+      // Reset
+      setSimProposalId('');
+      setSimAccountId('');
+      setSimKeterangan('');
+      setSimGuardResult(null);
+      setSimPreviewResult(null);
+      fetchData();
+    } catch (error: any) {
+      alert('Pencairan Gagal: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSimExecuting(false);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
-      {/* Breadcrumbs & Title */}
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-6"
-      >
+      {/* Title Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
           <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Pengaturan Keuangan</span>
+            <span className="hover:text-primary transition-colors cursor-pointer">Pelaporan Keuangan</span>
             <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">{activeMainTab}</span>
+            <span className="text-primary font-black">Pengaturan Keuangan</span>
           </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-            {activeMainTab === 'Manajemen Kas' ? 'Manajemen Kas Utama & Kecil' : 'Master Rekening & Saldo (COA)'}
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <SlidersHorizontal className="size-8 text-primary" />
+            Pengaturan &amp; Pelaporan Keuangan
           </h2>
           <p className="text-slate-500 font-medium">
-            {activeMainTab === 'Manajemen Kas' 
-              ? 'Kelola daftar saldo kas fisik dan kas kecil untuk keperluan penyaluran operasional.' 
-              : 'Kelola bagan akun bank (COA) untuk dana zakat, infak, amil, dan APBD.'}
+            Kelola posisi kas, aturan pemetaan COA otomatis, replenishment laci kas kecil, dan eksekusi pencairan bantuan.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex gap-2">
           <button 
-            onClick={handleOpenAddModal}
-            className="px-6 py-3 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider"
+            onClick={fetchData}
+            disabled={loading}
+            className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center disabled:opacity-50"
+            title="Refresh Data"
           >
-            <Plus className="size-4" />
-            {activeMainTab === 'Manajemen Kas' ? 'Tambah Akun Kas' : 'Tambah Rekening Baru'}
+            <RefreshCw className={cn("size-5 text-slate-500", loading && "animate-spin")} />
           </button>
+          {activeTab === 'accounts' && (
+            <button 
+              onClick={() => handleOpenAccountModal()}
+              className="px-5 py-3 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider"
+            >
+              <Plus className="size-4" /> Tambah Akun
+            </button>
+          )}
+          {activeTab === 'coa' && (
+            <button 
+              onClick={() => handleOpenCOAModal()}
+              className="px-5 py-3 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider"
+            >
+              <Plus className="size-4" /> Tambah COA
+            </button>
+          )}
+          {activeTab === 'mapping' && (
+            <button 
+              onClick={() => handleOpenRuleModal()}
+              className="px-5 py-3 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider"
+            >
+              <Plus className="size-4" /> Tambah Rule
+            </button>
+          )}
         </div>
-      </motion.div>
-
-      {/* Main Tab Navigation */}
-      <div className="flex bg-white border border-slate-200 p-1 rounded-2xl w-fit shrink-0">
-        <button
-          onClick={() => {
-            setActiveMainTab('Manajemen Kas');
-            setSearchTerm('');
-          }}
-          className={cn(
-            "px-8 py-2.5 rounded-xl text-sm font-black transition-all flex items-center gap-2",
-            activeMainTab === 'Manajemen Kas' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-slate-500 hover:text-slate-900"
-          )}
-        >
-          <Wallet className="size-4" />
-          Manajemen Kas
-        </button>
-        <button
-          onClick={() => {
-            setActiveMainTab('Manajemen Rekening');
-            setSearchTerm('');
-          }}
-          className={cn(
-            "px-8 py-2.5 rounded-xl text-sm font-black transition-all flex items-center gap-2",
-            activeMainTab === 'Manajemen Rekening' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-slate-500 hover:text-slate-900"
-          )}
-        >
-          <Building2 className="size-4" />
-          Manajemen Rekening
-        </button>
       </div>
 
-      <AnimatePresence mode="wait">
-        {activeMainTab === 'Manajemen Kas' ? (
-          <motion.div 
-            key="kas"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="space-y-8"
+      {/* Tabs Menu Navigation */}
+      <div className="flex border-b border-slate-200 w-full max-w-6xl overflow-x-auto custom-scrollbar shrink-0 pb-px mb-4">
+        <div className="flex flex-row gap-6 w-full min-w-max">
+          <button
+            onClick={() => { setActiveTab('accounts'); setSearchTerm(''); }}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === 'accounts'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
           >
-            {/* Stats Grid for Kas */}
+            Kas &amp; Bank
+          </button>
+          <button
+            onClick={() => { setActiveTab('mapping'); setSearchTerm(''); }}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === 'mapping'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Mapping COA
+          </button>
+          <button
+            onClick={() => { setActiveTab('coa'); setSearchTerm(''); }}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === 'coa'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Master COA
+          </button>
+          <button
+            onClick={() => { setActiveTab('replenish'); setSearchTerm(''); }}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === 'replenish'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Tarik Tunai
+          </button>
+          <button
+            onClick={() => { setActiveTab('simulator'); setSearchTerm(''); }}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === 'simulator'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Simulator Pencairan
+          </button>
+          <button
+            onClick={() => { setActiveTab('ledger'); setSearchTerm(''); }}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === 'ledger'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Buku Besar
+          </button>
+        </div>
+      </div>
+
+      {/* Main Tab Panels */}
+      <AnimatePresence mode="wait">
+        
+        {/* ==========================================
+            TAB: KAS & BANK LIST
+            ========================================== */}
+        {activeTab === 'accounts' && (
+          <motion.div
+            key="accounts"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            {/* Quick Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 relative overflow-hidden group">
                 <div className="size-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
                   <Wallet className="size-6" />
                 </div>
                 <div>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total Kas Aktif</p>
-                  <p className="text-xl font-black text-slate-900">{kasAccounts.filter(k => k.status === 'Aktif').length} Akun Kas</p>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Saldo Kas Fisik</p>
+                  <p className="text-xl font-black text-slate-950 mt-1">
+                    {formatCurrency(accounts.filter(a => a.tipe_kas === 'TUNAI').reduce((sum, item) => sum + Number(item.saldo), 0))}
+                  </p>
                 </div>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 relative overflow-hidden group">
                 <div className="size-12 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-600">
-                  <CreditCard className="size-6" />
-                </div>
-                <div>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Saldo Kas Utama</p>
-                  <p className="text-xl font-black text-slate-900">{formatCurrency(totalKasSaldo)}</p>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="size-12 bg-orange-600/10 rounded-full flex items-center justify-center text-orange-600">
-                  <RefreshCw className="size-6" />
-                </div>
-                <div>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Sinkronisasi Kas</p>
-                  <p className="text-xl font-black text-slate-900">Realtime</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Kas Table */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-6">
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                  <input 
-                    type="text"
-                    placeholder="Cari kode atau nama kas..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="flex items-center gap-2 px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-xs font-black uppercase tracking-widest">
-                    <Filter className="size-4" /> Filter
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-xs font-black uppercase tracking-widest">
-                    <Download className="size-4" /> Export
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Akun</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kas Utama / Tunai</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Fisik</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredKas.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">Tidak ada kas ditemukan</td>
-                      </tr>
-                    ) : filteredKas.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-6 py-5">
-                          <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
-                            {item.kode}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="size-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                              <Wallet className="size-4" />
-                            </div>
-                            <span className="text-sm font-bold text-slate-900">{item.nama}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className="text-sm font-black text-slate-900">{formatCurrency(item.saldo)}</span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className={cn(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                            item.status === 'Aktif' ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"
-                          )}>
-                            <span className={cn("size-1.5 rounded-full", item.status === 'Aktif' ? "bg-emerald-500" : "bg-slate-400")} />
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button 
-                              onClick={() => handleOpenEditModal(item)}
-                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                            >
-                              <Edit className="size-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteItem(item.id)}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="p-6 bg-slate-50/30 border-t border-slate-50 flex items-center justify-between">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Menampilkan {filteredKas.length} dari {kasAccounts.length} akun kas
-                </p>
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-400 cursor-not-allowed">Previous</button>
-                  <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:border-primary hover:text-primary transition-all">Next</button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div 
-            key="rekening"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-8"
-          >
-            {/* Stats Grid for Rekening */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="size-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
                   <Building2 className="size-6" />
                 </div>
                 <div>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total Akun Aktif</p>
-                  <p className="text-xl font-black text-slate-900">{rekeningAccounts.filter(r => r.status === 'Aktif').length} Rekening</p>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Saldo Bank</p>
+                  <p className="text-xl font-black text-slate-950 mt-1">
+                    {formatCurrency(accounts.filter(a => a.tipe_kas === 'BANK').reduce((sum, item) => sum + Number(item.saldo), 0))}
+                  </p>
                 </div>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="size-12 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
-                  <CreditCard className="size-6" />
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 relative overflow-hidden group">
+                <div className="size-12 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-600">
+                  <Activity className="size-6" />
                 </div>
                 <div>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Saldo Terkonsolidasi</p>
-                  <p className="text-xl font-black text-slate-900">{formatCurrency(totalRekeningSaldo)}</p>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="size-12 bg-orange-600/10 rounded-full flex items-center justify-center text-orange-600">
-                  <RefreshCw className="size-6" />
-                </div>
-                <div>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Terakhir Sinkronisasi</p>
-                  <p className="text-xl font-black text-slate-900">10 Menit Lalu</p>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Akun Terhubung</p>
+                  <p className="text-xl font-black text-slate-950 mt-1">{accounts.length} Akun Fisik</p>
                 </div>
               </div>
             </div>
 
-            {/* Rekening Table */}
+            {/* List Table */}
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-6">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="relative w-full sm:w-80">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
                   <input 
                     type="text"
-                    placeholder="Cari kode atau nama rekening..."
+                    placeholder="Cari kode/nama akun kas..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <button className="flex items-center gap-2 px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-xs font-black uppercase tracking-widest">
-                    <Filter className="size-4" /> Filter
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-xs font-black uppercase tracking-widest">
-                    <Download className="size-4" /> Export
-                  </button>
-                </div>
               </div>
+              
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Akun</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Akun Bank</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe &amp; Kode Laci</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening &amp; Kas Fisik</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Riil (IDR)</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredRekening.length === 0 ? (
+                    {filteredAccounts.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">Tidak ada rekening ditemukan</td>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada kas/bank ditemukan</td>
                       </tr>
-                    ) : filteredRekening.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-6 py-5">
-                          <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
-                            {item.kode}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="size-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                              <CreditCard className="size-4" />
-                            </div>
-                            <span className="text-sm font-bold text-slate-900">{item.nama}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className="text-sm font-black text-slate-900">{formatCurrency(item.saldo)}</span>
-                        </td>
+                    ) : filteredAccounts.map((item) => (
+                      <tr key={item.account_id} className="hover:bg-slate-50/30 transition-colors group">
                         <td className="px-6 py-5">
                           <span className={cn(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                            item.status === 'Aktif' ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"
+                            "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border",
+                            item.tipe_kas === 'BANK' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-orange-50 text-orange-600 border-orange-100"
                           )}>
-                            <span className={cn("size-1.5 rounded-full", item.status === 'Aktif' ? "bg-emerald-500" : "bg-slate-400")} />
-                            {item.status}
+                            {item.tipe_kas} {item.kode_laci ? `(LACI ${item.kode_laci})` : ''}
                           </span>
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-900">
+                          {item.nama_akun}
+                          {item.no_rekening && <span className="block font-mono text-[10px] text-slate-400 mt-1 font-bold">REK: {item.no_rekening}</span>}
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-700">
+                          {item.kelompok_dana}
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
+                            {item.coa_code}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.coa?.nama_akun || 'Chart of Account'}</span>
+                        </td>
+                        <td className="px-6 py-5 font-black text-slate-950">
+                          {formatCurrency(Number(item.saldo))}
                         </td>
                         <td className="px-6 py-5">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button 
-                              onClick={() => handleOpenEditModal(item)}
+                              onClick={() => handleOpenAccountModal(item)}
                               className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                             >
                               <Edit className="size-4" />
                             </button>
                             <button 
-                              onClick={() => handleDeleteItem(item.id)}
+                              onClick={() => handleDeleteAccount(item.account_id)}
                               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                             >
                               <Trash2 className="size-4" />
@@ -503,114 +760,740 @@ export default function PengaturanKeuangan() {
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <div className="p-6 bg-slate-50/30 border-t border-slate-50 flex items-center justify-between">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Menampilkan {filteredRekening.length} dari {rekeningAccounts.length} rekening
-                </p>
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-400 cursor-not-allowed">Previous</button>
-                  <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:border-primary hover:text-primary transition-all">Next</button>
-                </div>
               </div>
             </div>
           </motion.div>
         )}
+
+        {/* ==========================================
+            TAB: AUTOMATIC COA MAPPING RULES
+            ========================================== */}
+        {activeTab === 'mapping' && (
+          <motion.div
+            key="mapping"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            <div className="p-5 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-700 text-xs font-semibold leading-relaxed flex gap-3 items-start">
+              <AlertTriangle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Informasi Kebijakan Accounting Engine</p>
+                <p className="mt-1 opacity-90">Aturan Pemetaan COA otomatis digunakan oleh backend untuk memetakan pencairan transaksi proposal staf lapangan langsung menjadi entitas double-entry jurnal penyeimbang (Debit Penyaluran Program/Belanja vs Kredit Akun Kas Setara) di kasir.</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="relative w-full sm:w-80">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                  <input 
+                    type="text"
+                    placeholder="Cari program/asnaf..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50/50">
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kombinasi Kondisi Aturan</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Kas</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sumber Tag Dana</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">Entri Debit (Penyaluran)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">Entri Kredit (Kas/Bank)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredRules.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Belum ada aturan mapping COA terdaftar</td>
+                      </tr>
+                    ) : filteredRules.map((item) => (
+                      <tr key={item.rule_id} className="hover:bg-slate-50/30 transition-colors group">
+                        <td className="px-6 py-5">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-black text-primary font-mono">{item.program_code}</span>
+                            <span className="text-xs font-bold text-slate-900">
+                              Asnaf: <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold text-slate-600">{item.asnaf_id || 'Global/Non-Asnaf'}</span>
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-700">{item.tipe_kas}</td>
+                        <td className="px-6 py-5 font-bold text-slate-700">{item.sumber_dana_tag}</td>
+                        <td className="px-6 py-5">
+                          <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                            {item.debit_coa_code}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.debitCoa?.nama_akun || 'Akun Penyaluran'}</span>
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
+                            {item.kredit_coa_code}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.kreditCoa?.nama_akun || 'Akun Kas'}</span>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={() => handleOpenRuleModal(item)}
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                            >
+                              <Edit className="size-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteRule(item.rule_id)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ==========================================
+            TAB: CHART OF ACCOUNTS (COA) MASTER
+            ========================================== */}
+        {activeTab === 'coa' && (
+          <motion.div
+            key="coa"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="relative w-full sm:w-80">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                  <input 
+                    type="text"
+                    placeholder="Cari kode COA / nama akun..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50/50">
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Akun COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening / Akun Buku Besar</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Klasifikasi</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredCOAs.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">Bagan akun COA masih kosong</td>
+                      </tr>
+                    ) : filteredCOAs.map((item) => (
+                      <tr key={item.coa_code} className="hover:bg-slate-50/30 transition-colors group">
+                        <td className="px-6 py-5 font-mono text-xs font-black text-slate-900 bg-slate-50 border border-slate-100 rounded-lg w-fit px-2.5 py-1">
+                          {item.coa_code}
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-900">{item.nama_akun}</td>
+                        <td className="px-6 py-5">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-black uppercase border",
+                            item.klasifikasi === 'Aktiva' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                            item.klasifikasi === 'Penyaluran' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            "bg-slate-50 text-slate-600 border-slate-150"
+                          )}>
+                            {item.klasifikasi || 'Umum'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-700">{item.tipe_dana || '-'}</td>
+                        <td className="px-6 py-5">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={() => handleOpenCOAModal(item)}
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                            >
+                              <Edit className="size-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteCOA(item.coa_code)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ==========================================
+            TAB: CASH REPLENISHMENT (TARIK TUNAI SPLIT)
+            ========================================== */}
+        {activeTab === 'replenish' && (
+          <motion.div
+            key="replenish"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+          >
+            {/* Split Replenishment form */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Alokasi Tarik Tunai Rekening ke Laci Kasir</h3>
+                <p className="text-xs text-slate-500 mt-1 font-medium">Wewenang kasir menarik dana dari Bank besar untuk didistribusikan secara pecahan ke laci tunai kasir harian harian (Kas A s.d G - Debit).</p>
+              </div>
+
+              <form onSubmit={handleExecuteReplenish} className="space-y-5">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Rekening Bank Sumber (Kredit)</label>
+                  <select
+                    value={replenishBank}
+                    onChange={(e) => setReplenishBank(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                  >
+                    <option value="">-- Pilih Bank Sumber --</option>
+                    {accounts.filter(a => a.tipe_kas === 'BANK').map(a => (
+                      <option key={a.account_id} value={a.account_id}>
+                        {a.nama_akun} - (Saldo: {formatCurrency(Number(a.saldo))})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Alokasi Laci Kasir Penerima (Debit)</label>
+                    <button
+                      type="button"
+                      onClick={handleAddReplenishAllocation}
+                      className="text-xs text-primary font-black flex items-center gap-1.5 uppercase hover:underline"
+                    >
+                      <Plus className="size-3.5" /> Tambah Alokasi
+                    </button>
+                  </div>
+
+                  {replenishAllocations.map((alloc, idx) => (
+                    <div key={idx} className="flex gap-3 items-center">
+                      <select
+                        value={alloc.targetAccountId}
+                        onChange={(e) => handleReplenishAllocationChange(idx, 'targetAccountId', e.target.value)}
+                        required
+                        className="flex-1 bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                      >
+                        <option value="">-- Pilih Laci Kasir --</option>
+                        {accounts.filter(a => a.tipe_kas === 'TUNAI').map(a => (
+                          <option key={a.account_id} value={a.account_id}>
+                            {a.nama_akun} (Saldo: {formatCurrency(Number(a.saldo))})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Nominal alokasi..."
+                        value={alloc.nominal || ''}
+                        onChange={(e) => handleReplenishAllocationChange(idx, 'nominal', Number(e.target.value))}
+                        required
+                        className="w-40 bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold text-right"
+                      />
+                      {replenishAllocations.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReplenishAllocation(idx)}
+                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Keterangan Penarikan</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Contoh: Penarikan tunai rutin harian mengisi laci kas A-C..."
+                    value={replenishKeterangan}
+                    onChange={(e) => setReplenishKeterangan(e.target.value)}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-medium resize-none"
+                  />
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-500 uppercase">Total Dana Ditarik</span>
+                  <span className="text-lg font-black text-slate-900">
+                    {formatCurrency(replenishAllocations.reduce((sum, item) => sum + Number(item.nominal || 0), 0))}
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3.5 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Memproses...' : 'PROSES REPLENISHMENT LACI KAS'}
+                </button>
+              </form>
+            </div>
+
+            {/* Replenishment Ledger Guide */}
+            <div className="bg-slate-900 text-slate-200 p-8 rounded-3xl flex flex-col justify-between">
+              <div className="space-y-6">
+                <div>
+                  <span className="px-2.5 py-1 bg-primary/20 text-primary border border-primary/30 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                    Ledger Logika Akuntansi
+                  </span>
+                  <h4 className="text-xl font-black text-white mt-3">Skema Double-Entry Replenishment</h4>
+                  <p className="text-slate-400 text-xs mt-1.5 leading-relaxed font-medium">
+                    Sistem akan memotong saldo bank riil (Kredit) sekaligus mendistribusikan saldo fisik ke masing-masing laci kasir (Debit) yang didefinisikan secara transaksional aman.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex gap-4 items-start">
+                    <div className="size-8 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold shrink-0 mt-0.5">D</div>
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase">Entri Debit (Penambahan Aset Kas Fisik)</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Mendebit COA Kas Tunai (misal 111010101) dari masing-masing laci kasir penerima sesuai nominal alokasi split.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 items-start">
+                    <div className="size-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold shrink-0 mt-0.5">K</div>
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase">Entri Kredit (Pengurangan Aset Bank Sumber)</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Mengkredit COA Bank (misal 111010201) milik Rekening Bank sumber sebesar akumulasi penarikan total.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-800 pt-6">
+                  <p className="text-xs font-bold text-slate-350 flex items-center gap-1.5">
+                    <CheckCircle2 className="size-4 text-emerald-500" />
+                    Buku besar otomatis seimbang (Balanced ✅)
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-800/80 mt-6 flex items-center gap-4">
+                <HelpCircle className="size-8 text-primary shrink-0" />
+                <p className="text-[11px] text-slate-400 leading-normal font-medium">Transaksi penarikan ini didaftarkan sebagai mutasi kas internal dan dicatat langsung ke dalam buku besar akuntansi BAZNAS Kota Semarang.</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ==========================================
+            TAB: SIMULATOR & PREVIEW JURNAL KASIR
+            ========================================== */}
+        {activeTab === 'simulator' && (
+          <motion.div
+            key="simulator"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            {/* Header */}
+            <div>
+              <h3 className="text-lg font-black text-slate-900">Simulator Eksekusi Pencairan &amp; Jurnal</h3>
+              <p className="text-xs text-slate-500 mt-1 font-medium">Gunakan halaman ini untuk memverifikasi kecukupan kuota RKAT beserta likuiditas kas, serta melakukan preview pencatatan double-entry otomatis sebelum kasir melakukan pembayaran.</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Form selection */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6 col-span-1">
+                <form onSubmit={handleExecutePayment} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Pilih Agenda Proposal</label>
+                    <select
+                      value={simProposalId}
+                      onChange={(e) => handleProposalSelect(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    >
+                      <option value="">-- Pilih Agenda --</option>
+                      {proposals.map(p => (
+                        <option key={p.id} value={p.id}>
+                          PR-{p.agenda_no} - {p.nama_pemohon} ({formatCurrency(p.nominal || 0)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Pilih Rekening / Laci Pembayar</label>
+                    <select
+                      value={simAccountId}
+                      onChange={(e) => handlePaymentAccountSelect(e.target.value)}
+                      required
+                      disabled={!simProposalId}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold disabled:opacity-50"
+                    >
+                      <option value="">-- Pilih Rekening Bayar --</option>
+                      {accounts.map(a => (
+                        <option key={a.account_id} value={a.account_id}>
+                          {a.nama_akun} - (Saldo: {formatCurrency(Number(a.saldo))})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Keterangan Pencairan</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Contoh: Pencairan bantuan modal usaha mustahik tunai melalui kasir A..."
+                      value={simKeterangan}
+                      onChange={(e) => setSimKeterangan(e.target.value)}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-medium resize-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={simExecuting || !simProposalId || !simAccountId}
+                    className="w-full py-3.5 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {simExecuting ? 'Memproses...' : '🖨️ EKSEKUSI PEMBAYARAN & JURNAL'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Availability Guard & Double Entry Preview */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* 1. Double-Guard checking */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-150 shadow-sm space-y-4">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <CheckCircle2 className="size-4 text-primary" />
+                    Double-Guard Availability (Pagu &amp; Likuiditas Kas)
+                  </h4>
+
+                  {simGuardLoading ? (
+                    <div className="py-6 text-center text-slate-400 text-xs font-bold animate-pulse">Menghitung kuota RKAT &amp; Saldo riil...</div>
+                  ) : simGuardResult ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* RKAT Guard */}
+                      <div className={cn(
+                        "p-4 rounded-2xl border",
+                        simGuardResult.rkat.status === 'CUKUP' ? "bg-emerald-50/50 border-emerald-100 text-emerald-800" : "bg-rose-50/50 border-rose-100 text-rose-800"
+                      )}>
+                        <p className="text-[10px] font-black uppercase tracking-wider">Kuota Plafon RKAT Program</p>
+                        <p className="text-lg font-black mt-1">{formatCurrency(simGuardResult.rkat.sisa_pagu)}</p>
+                        <span className={cn(
+                          "inline-block text-[9px] font-black px-2 py-0.5 rounded-full uppercase mt-2",
+                          simGuardResult.rkat.status === 'CUKUP' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                        )}>
+                          PAGU: {simGuardResult.rkat.status}
+                        </span>
+                      </div>
+
+                      {/* Cash Liquidity Guard */}
+                      <div className={cn(
+                        "p-4 rounded-2xl border",
+                        simGuardResult.kas_riil.status === 'AMAN' ? "bg-emerald-50/50 border-emerald-100 text-emerald-800" : "bg-rose-50/50 border-rose-100 text-rose-800"
+                      )}>
+                        <p className="text-[10px] font-black uppercase tracking-wider">Saldo Likuiditas Kas ({simGuardResult.sumber_dana_yang_dipakai})</p>
+                        <p className="text-lg font-black mt-1">{formatCurrency(simGuardResult.kas_riil.total_tersedia)}</p>
+                        <span className={cn(
+                          "inline-block text-[9px] font-black px-2 py-0.5 rounded-full uppercase mt-2",
+                          simGuardResult.kas_riil.status === 'AMAN' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                        )}>
+                          KAS: {simGuardResult.kas_riil.status}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-slate-400 text-xs font-semibold italic">Silakan pilih agenda proposal terlebih dahulu.</div>
+                  )}
+                </div>
+
+                {/* 2. Journal Entry Preview */}
+                <div className="bg-slate-900 text-white p-6 rounded-3xl space-y-4">
+                  <h4 className="text-xs font-black text-slate-450 uppercase tracking-widest flex items-center gap-2">
+                    <FileText className="size-4 text-primary" />
+                    Preview Entri Jurnal Otomatis (Buku Besar)
+                  </h4>
+
+                  {simPreviewResult ? (
+                    <div className="space-y-4">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs font-semibold border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-800 text-slate-400 uppercase text-[9px] tracking-wider">
+                              <th className="py-2.5">Kode Akun</th>
+                              <th className="py-2.5">Nama Akun Buku Besar</th>
+                              <th className="py-2.5 text-right">Debit (Rp)</th>
+                              <th className="py-2.5 text-right">Kredit (Rp)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800 font-mono">
+                            <tr>
+                              <td className="py-3 text-emerald-450">{simPreviewResult.debit.coa_code}</td>
+                              <td className="py-3 text-slate-200">{simPreviewResult.debit.nama_akun}</td>
+                              <td className="py-3 text-right text-emerald-450">{formatCurrency(simPreviewResult.nominal)}</td>
+                              <td className="py-3 text-right text-slate-500">-</td>
+                            </tr>
+                            <tr>
+                              <td className="py-3 text-blue-400">{simPreviewResult.kredit.coa_code}</td>
+                              <td className="py-3 text-slate-200">{simPreviewResult.kredit.nama_akun}</td>
+                              <td className="py-3 text-right text-slate-500">-</td>
+                              <td className="py-3 text-right text-blue-400">{formatCurrency(simPreviewResult.nominal)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-400">
+                        <span>Status Jurnal:</span>
+                        <span className="text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20 uppercase tracking-widest font-black text-[9px]">
+                          Balanced / Seimbang ✅
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-slate-500 text-xs font-semibold italic">Silakan tentukan agenda proposal dan akun bayar.</div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ==========================================
+            TAB: LEDGER / GENERAL JOURNAL PREVIEW
+            ========================================== */}
+        {activeTab === 'ledger' && (
+          <motion.div
+            key="ledger"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="relative w-full sm:w-80">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                  <input 
+                    type="text"
+                    placeholder="Cari transaksi buku besar..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50/50">
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Jurnal</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan Jurnal (Realisasi)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Akun COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Debet (IDR)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Kredit (IDR)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredLedger.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong</td>
+                      </tr>
+                    ) : filteredLedger.map((item) => (
+                      <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
+                        <td className="px-6 py-5 font-mono text-xs text-slate-600 font-bold">
+                          {new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-800">
+                          {item.realisasi.keterangan}
+                          {item.account && <span className="block text-[10px] text-slate-400 mt-1 font-semibold">Kas Fisik: {item.account.nama_akun}</span>}
+                        </td>
+                        <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold">{item.coa_code}</td>
+                        <td className="px-6 py-5 font-bold text-slate-800">{item.coa.nama_akun}</td>
+                        <td className="px-6 py-5 text-right font-black text-emerald-700">
+                          {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-'}
+                        </td>
+                        <td className="px-6 py-5 text-right font-black text-blue-700">
+                          {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
       </AnimatePresence>
 
-      {/* Add / Edit Modal */}
+      {/* ==========================================
+          MODALS & FORMS OVERLAYS
+          ========================================== */}
+      
+      {/* 1. Account Add/Edit Modal */}
       <AnimatePresence>
-        {isAddEditModalOpen && (
+        {isAccountModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => setIsAddEditModalOpen(false)}
+              onClick={() => setIsAccountModalOpen(false)}
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
-                <h3 className="text-xl font-black text-slate-900">
-                  {editingItem ? 'Ubah Akun' : 'Tambah Akun Baru'}
+                <h3 className="text-lg font-black text-slate-900">
+                  {editingItem ? 'Ubah Akun Fisik' : 'Tambah Akun Fisik Baru'}
                 </h3>
-                <button 
-                  onClick={() => setIsAddEditModalOpen(false)} 
-                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                >
+                <button onClick={() => setIsAccountModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
-              
-              <form onSubmit={handleSaveItem} className="p-6 space-y-4">
+
+              <form onSubmit={handleSaveAccount} className="p-6 space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Akun / COA</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={formKode}
-                    onChange={(e) => setFormKode(e.target.value)}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
-                    placeholder="Contoh: 101.01 atau 110.01" 
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening/Laci Kas</label>
+                  <input
+                    type="text"
+                    required
+                    value={accountForm.nama_akun}
+                    onChange={(e) => setAccountForm({ ...accountForm, nama_akun: e.target.value })}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                    placeholder="Contoh: BSI - Rekening Utama Zakat"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    {activeMainTab === 'Manajemen Kas' ? 'Nama Akun Kas' : 'Nama Akun Rekening Bank'}
-                  </label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={formNama}
-                    onChange={(e) => setFormNama(e.target.value)}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
-                    placeholder={activeMainTab === 'Manajemen Kas' ? 'Contoh: Kas Utama Tunai (A)' : 'Contoh: Bank Jateng - Zakat'} 
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Kas</label>
+                    <select
+                      value={accountForm.tipe_kas}
+                      onChange={(e) => setAccountForm({ ...accountForm, tipe_kas: e.target.value as any })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    >
+                      <option value="TUNAI">TUNAI</option>
+                      <option value="BANK">BANK</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</label>
+                    <select
+                      value={accountForm.kelompok_dana}
+                      onChange={(e) => setAccountForm({ ...accountForm, kelompok_dana: e.target.value as any })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    >
+                      <option value="ZAKAT">ZAKAT</option>
+                      <option value="INFAK_TERIKAT">INFAK_TERIKAT</option>
+                      <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT</option>
+                      <option value="AMIL">AMIL</option>
+                      <option value="APBD">APBD</option>
+                      <option value="NON-HALAL">NON-HALAL</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Awal</label>
-                  <input 
-                    type="number" 
-                    required 
-                    value={formSaldo}
-                    onChange={(e) => setFormSaldo(Number(e.target.value))}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
-                    placeholder="Masukkan saldo..." 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Keaktifan</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</label>
                   <select
-                    value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as any)}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    value={accountForm.coa_code}
+                    onChange={(e) => setAccountForm({ ...accountForm, coa_code: e.target.value })}
+                    required
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
                   >
-                    <option value="Aktif">Aktif</option>
-                    <option value="Non-Aktif">Non-Aktif</option>
+                    <option value="">-- Pilih Kode COA --</option>
+                    {coas.filter(c => c.klasifikasi === 'Aktiva').map(c => (
+                      <option key={c.coa_code} value={c.coa_code}>
+                        {c.coa_code} - {c.nama_akun}
+                      </option>
+                    ))}
                   </select>
+                </div>
+
+                {accountForm.tipe_kas === 'BANK' ? (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Rekening</label>
+                    <input
+                      type="text"
+                      value={accountForm.no_rekening}
+                      onChange={(e) => setAccountForm({ ...accountForm, no_rekening: e.target.value })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono font-bold"
+                      placeholder="Contoh: 05000-800-84"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Laci Kasir (A s.d G)</label>
+                    <input
+                      type="text"
+                      maxLength={1}
+                      value={accountForm.kode_laci}
+                      onChange={(e) => setAccountForm({ ...accountForm, kode_laci: e.target.value.toUpperCase() })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono font-bold"
+                      placeholder="Contoh: A"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Awal (IDR)</label>
+                  <input
+                    type="number"
+                    value={accountForm.saldo || 0}
+                    onChange={(e) => setAccountForm({ ...accountForm, saldo: Number(e.target.value) })}
+                    required
+                    disabled={!!editingItem}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                  />
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setIsAddEditModalOpen(false)}
-                    className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
+                    onClick={() => setIsAccountModalOpen(false)}
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-55 transition-all"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20"
+                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
                   >
-                    Simpan
+                    Simpan Akun
                   </button>
                 </div>
               </form>
@@ -618,6 +1501,251 @@ export default function PengaturanKeuangan() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 2. COA Add/Edit Modal */}
+      <AnimatePresence>
+        {isCOAModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsCOAModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-lg font-black text-slate-900">
+                  {editingItem ? 'Ubah Kode COA Master' : 'Tambah Kode COA Master Baru'}
+                </h3>
+                <button onClick={() => setIsCOAModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCOA} className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Akun COA</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!!editingItem}
+                    value={coaForm.coa_code}
+                    onChange={(e) => setCoaForm({ ...coaForm, coa_code: e.target.value })}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono font-bold"
+                    placeholder="Contoh: 111010101"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Akun</label>
+                  <input
+                    type="text"
+                    required
+                    value={coaForm.nama_akun}
+                    onChange={(e) => setCoaForm({ ...coaForm, nama_akun: e.target.value })}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                    placeholder="Contoh: Kas Dana Zakat"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Klasifikasi</label>
+                    <select
+                      value={coaForm.klasifikasi}
+                      onChange={(e) => setCoaForm({ ...coaForm, klasifikasi: e.target.value })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    >
+                      <option value="Aktiva">Aktiva</option>
+                      <option value="Penyaluran">Penyaluran (Beban)</option>
+                      <option value="Penerimaan">Penerimaan (Pendapatan)</option>
+                      <option value="Kewajiban">Kewajiban</option>
+                      <option value="Saldo">Saldo Dana</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana</label>
+                    <select
+                      value={coaForm.tipe_dana}
+                      onChange={(e) => setCoaForm({ ...coaForm, tipe_dana: e.target.value })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    >
+                      <option value="ZAKAT">ZAKAT</option>
+                      <option value="INFAK_TERIKAT">INFAK_TERIKAT</option>
+                      <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT</option>
+                      <option value="AMIL">AMIL</option>
+                      <option value="APBD">APBD</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsCOAModalOpen(false)}
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-55 transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
+                  >
+                    Simpan COA
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 3. Rule Add/Edit Modal */}
+      <AnimatePresence>
+        {isRuleModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsRuleModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-lg font-black text-slate-900">
+                  {editingItem ? 'Ubah Aturan Pemetaan COA' : 'Tambah Aturan Pemetaan COA Baru'}
+                </h3>
+                <button onClick={() => setIsRuleModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveRule} className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program SIMBA</label>
+                  <select
+                    value={ruleForm.program_code}
+                    onChange={(e) => setRuleForm({ ...ruleForm, program_code: e.target.value })}
+                    required
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                  >
+                    <option value="">-- Pilih Program --</option>
+                    {programs.map(p => (
+                      <option key={p.code} value={p.code}>
+                        {p.code} - {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Asnaf Target (Opsional)</label>
+                    <input
+                      type="text"
+                      value={ruleForm.asnaf_id}
+                      onChange={(e) => setRuleForm({ ...ruleForm, asnaf_id: e.target.value })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                      placeholder="Contoh: Fakir, Miskin, dll"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Kas</label>
+                    <select
+                      value={ruleForm.tipe_kas}
+                      onChange={(e) => setRuleForm({ ...ruleForm, tipe_kas: e.target.value as any })}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    >
+                      <option value="TUNAI">Laci Tunai</option>
+                      <option value="BANK">Transfer Bank</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelompok Dana</label>
+                  <select
+                    value={ruleForm.sumber_dana_tag}
+                    onChange={(e) => setRuleForm({ ...ruleForm, sumber_dana_tag: e.target.value as any })}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                  >
+                    <option value="ZAKAT">ZAKAT</option>
+                    <option value="INFAK_TERIKAT">INFAK_TERIKAT (IST)</option>
+                    <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT (ISTT)</option>
+                    <option value="AMIL">AMIL</option>
+                    <option value="APBD">APBD</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">Akun Penyaluran/Belanja (Debit COA)</label>
+                  <select
+                    value={ruleForm.debit_coa_code}
+                    onChange={(e) => setRuleForm({ ...ruleForm, debit_coa_code: e.target.value })}
+                    required
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                  >
+                    <option value="">-- Pilih COA Debit --</option>
+                    {coas.filter(c => c.klasifikasi === 'Penyaluran').map(c => (
+                      <option key={c.coa_code} value={c.coa_code}>
+                        {c.coa_code} - {c.nama_akun}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">Akun Kas/Bank Default (Kredit COA)</label>
+                  <select
+                    value={ruleForm.kredit_coa_code}
+                    onChange={(e) => setRuleForm({ ...ruleForm, kredit_coa_code: e.target.value })}
+                    required
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                  >
+                    <option value="">-- Pilih COA Kredit --</option>
+                    {coas.filter(c => c.klasifikasi === 'Aktiva').map(c => (
+                      <option key={c.coa_code} value={c.coa_code}>
+                        {c.coa_code} - {c.nama_akun}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsRuleModalOpen(false)}
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-55 transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
+                  >
+                    Simpan Rule
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

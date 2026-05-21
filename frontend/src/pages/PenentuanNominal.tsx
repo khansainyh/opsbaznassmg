@@ -38,18 +38,35 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
       .catch(console.error);
   }, []);
 
-  const getRKATBudget = (jenisPermohonan: string, asnaf?: string): number | undefined => {
+  const getRKATBudget = (jenisPermohonan: string, asnaf?: string, rkatActivityId?: string): number | undefined => {
+    // Resolve child-to-parent code fallback (e.g., '1102.3' -> '1102')
+    const targetCode = jenisPermohonan.includes('.') ? jenisPermohonan.split('.')[0] : jenisPermohonan;
+
     for (const pilar of pilars) {
       for (const prog of pilar.programs) {
-        if (prog.name === jenisPermohonan || prog.code === jenisPermohonan) {
-          if (asnaf && prog.rkat_details) {
-            const match = prog.rkat_details.find(detail => {
-              const dAsnaf = (detail.asnaf || '').toLowerCase();
-              const pAsnaf = asnaf.toLowerCase();
-              return dAsnaf && (dAsnaf.includes(pAsnaf) || pAsnaf.includes(dAsnaf));
-            });
-            if (match) {
-              return match.nominal;
+        if (
+          prog.name === jenisPermohonan ||
+          prog.code === jenisPermohonan ||
+          prog.code === targetCode
+        ) {
+          if (prog.rkat_details) {
+            const details = typeof prog.rkat_details === 'string'
+              ? JSON.parse(prog.rkat_details)
+              : prog.rkat_details;
+
+            if (Array.isArray(details)) {
+              const match = details.find((detail: any) => {
+                if (rkatActivityId && detail.id === rkatActivityId) return true;
+                if (asnaf) {
+                  const dAsnaf = (detail.asnaf || '').toLowerCase();
+                  const pAsnaf = asnaf.toLowerCase();
+                  return dAsnaf && (dAsnaf.includes(pAsnaf) || pAsnaf.includes(dAsnaf));
+                }
+                return false;
+              });
+              if (match) {
+                return Number(match.nominal || 0);
+              }
             }
           }
           if (typeof prog.budget_rkat === 'number') {
@@ -61,10 +78,10 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
     return undefined;
   };
 
-  // Filter only proposals with 'Penentuan Nominal' status and no nominal set
+  // Filter only proposals with 'Penentuan Nominal' status
   const filteredData = useMemo(() => {
     return data.filter(item => {
-      const isPenentuanNominal = item.status === 'Penentuan Nominal' && !item.nominal;
+      const isPenentuanNominal = item.status === 'Penentuan Nominal';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) ||
         item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -73,13 +90,13 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
     });
   }, [data, searchTerm]);
 
-  // Initialize nominal inputs with RKAT defaults
+  // Initialize nominal inputs with Kapel recommendation or RKAT defaults
   useEffect(() => {
     if (pilars.length === 0) return;
     const initialNominals: Record<string, string> = { ...nominalInputs };
     filteredData.forEach(item => {
       if (initialNominals[item.id] === undefined) {
-        const defaultNominal = getRKATBudget(item.jenisPermohonan, item.asnaf);
+        const defaultNominal = item.nominal || getRKATBudget(item.programCode || item.jenisPermohonan, item.asnaf, item.rkatActivityId);
         if (defaultNominal !== undefined) {
           initialNominals[item.id] = defaultNominal.toString();
         }
@@ -110,7 +127,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
 
   const handleResetToRKAT = (id: string, jenis: string) => {
     const item = data.find(d => d.id === id);
-    const defaultValue = getRKATBudget(jenis, item?.asnaf);
+    const defaultValue = getRKATBudget(item?.programCode || jenis, item?.asnaf, item?.rkatActivityId);
     if (defaultValue !== undefined) {
       setNominalInputs(prev => ({ ...prev, [id]: defaultValue.toString() }));
       setAlasanInputs(prev => {
@@ -141,7 +158,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
 
     const nominalStr = nominalInputs[id] || '0';
     const nominal = parseInt(nominalStr);
-    const defaultNominal = getRKATBudget(item.jenisPermohonan, item.asnaf);
+    const defaultNominal = getRKATBudget(item.programCode || item.jenisPermohonan, item.asnaf, item.rkatActivityId);
     const alasan = alasanInputs[id] || '';
 
     if (nominal <= 0) {
@@ -164,14 +181,14 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
       await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
         nominal,
         alasan_perubahan_nominal: (defaultNominal !== undefined && nominal !== defaultNominal) ? alasan : undefined,
-        status: 'Antrean_Bantuan'
+        status: 'Pencairan_Dana'
       });
 
       const updatedData = data.map(p =>
         p.id === id ? {
           ...p,
           nominal,
-          status: 'Antrean Bantuan' as any,
+          status: 'Pencairan Dana' as any,
           alasanPerubahanNominal: (defaultNominal !== undefined && nominal !== defaultNominal) ? alasan : undefined
         } : p
       );
@@ -260,7 +277,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredData.length > 0 ? filteredData.map((item) => {
-                const defaultNominal = getRKATBudget(item.jenisPermohonan, item.asnaf);
+                const defaultNominal = getRKATBudget(item.programCode || item.jenisPermohonan, item.asnaf, item.rkatActivityId);
                 const currentNominal = parseInt(nominalInputs[item.id] || '0');
                 const isDifferentFromRKAT = defaultNominal !== undefined && currentNominal !== defaultNominal;
 

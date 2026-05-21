@@ -9,11 +9,8 @@ import {
   ShieldCheck, 
   PenTool, 
   UserSearch, 
-  AlertCircle, 
   Truck, 
-  Wallet, 
   Target, 
-  CheckCircle2, 
   Settings2, 
   History,
   ChevronRight,
@@ -71,18 +68,15 @@ const menuGroups = [
     title: "PENDISTRIBUSIAN & PENDAYAGUNAAN",
     items: [
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Antrean Bantuan", icon: AlertCircle, roles: ["Super_Admin", "Staf_Distribusi"] },
       { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
       { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev"] },
     ]
   },
   {
-    title: "PENGUMPULAN & KEUANGAN",
+    title: "PELAPORAN & KEUANGAN",
     items: [
-      { name: "Data ZIS", icon: Wallet, roles: ["Super_Admin", "Keuangan"] },
       { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Keuangan", "Kabag_Administrasi", "Staf_Administrasi", "Ketua", "Staf_Distribusi"] },
       { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Keuangan"] },
-      { name: "Validasi Kas", icon: CheckCircle2, roles: ["Super_Admin", "Keuangan"] },
       { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Keuangan"] },
     ]
   }

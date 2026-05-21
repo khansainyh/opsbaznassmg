@@ -30,6 +30,13 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const [users, setUsers] = useState<any[]>([]);
   const [assignedStaff, setAssignedStaff] = useState<string[]>([]);
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [availability, setAvailability] = useState<any>(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+
+  // Kapel interactive budget guard correction states
+  const [selectedRkatId, setSelectedRkatId] = useState<string>('');
+  const [selectedSumberKas, setSelectedSumberKas] = useState<string>('Zakat');
+  const [rekomendasiNominal, setRekomendasiNominal] = useState<number>(0);
 
   useEffect(() => {
     axios.get('http://127.0.0.1:4000/api/users')
@@ -69,7 +76,36 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setSelectedProposal(item);
     setSelectedSurat(null);
     setCatatan(item.catatanKepala || '');
+    setAvailability(null);
+    setSelectedRkatId('');
+    setSelectedSumberKas('Zakat');
+    setRekomendasiNominal(item.nominal || 0);
     setIsModalOpen(true);
+    setLoadingAvailability(true);
+    
+    axios.get(`http://127.0.0.1:4000/api/finance/check-availability/${item.id}`)
+      .then(res => {
+        setAvailability(res.data);
+        const acts = res.data.rkat_activities || [];
+        
+        // Match chosen activity or fallback
+        const currentAsnaf = (item.asnaf || 'Miskin').toLowerCase();
+        const matched = acts.find((a: any) => a.id === item.rkatActivityId) ||
+                        acts.find((a: any) => a.asnaf && a.asnaf.toLowerCase() === currentAsnaf) ||
+                        acts[0];
+                        
+        setSelectedRkatId(matched ? matched.id : '');
+        
+        const initialSumber = item.tipeBantuan || (
+          res.data.sumber_dana_yang_dipakai === 'INFAK_TERIKAT' ? 'Infak Terikat' :
+          res.data.sumber_dana_yang_dipakai === 'INFAK_TIDAK_TERIKAT' ? 'Infak Tidak Terikat' :
+          'Zakat'
+        );
+        setSelectedSumberKas(initialSumber);
+        setRekomendasiNominal(item.nominal || (matched ? matched.nominal : 0));
+      })
+      .catch(err => console.error('Gagal fetch availability:', err))
+      .finally(() => setLoadingAvailability(false));
   };
 
   const openSuratModal = (item: Surat) => {
@@ -87,10 +123,21 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     try {
       if (selectedProposal) {
         await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedProposal.id}`, {
-          status: 'Persetujuan_Pimpinan', catatanKepala: catatan.trim()
+          status: 'Persetujuan_Pimpinan',
+          catatanKepala: catatan.trim(),
+          nominal: Number(rekomendasiNominal),
+          tipe_bantuan: selectedSumberKas,
+          rkat_activity_id: selectedRkatId
         });
         onUpdate(data.map(d => d.id === selectedProposal.id
-          ? { ...d, status: 'Persetujuan Pimpinan' as any, catatanKepala: catatan.trim() } : d));
+          ? { 
+              ...d, 
+              status: 'Persetujuan Pimpinan' as any, 
+              catatanKepala: catatan.trim(),
+              nominal: Number(rekomendasiNominal),
+              tipeBantuan: selectedSumberKas as any, 
+              rkatActivityId: selectedRkatId
+            } : d));
       } else if (selectedSurat) {
         await axios.put(`http://127.0.0.1:4000/api/surats/${selectedSurat.id}`, {
           status: 'Review_Pimpinan',
@@ -321,12 +368,40 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
 
                         {/* Memo Pimpinan */}
                         {selectedProposal.hasMemo && (
-                          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                            <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                          <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 shadow-sm">
+                            <div className="flex items-center gap-2 text-emerald-800 mb-2">
                               <History className="size-4" />
                               <span className="text-xs font-black uppercase tracking-widest">Memo Pimpinan</span>
                             </div>
                             <p className="text-sm font-bold text-slate-900">Sumber: {selectedProposal.memoSource || '-'}</p>
+                          </div>
+                        )}
+
+                        {/* Identifikasi & Rekomendasi Kabag */}
+                        {selectedProposal.rekomendasi_kabag && (
+                          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200/80 space-y-3 shadow-sm">
+                            <div className="flex items-center gap-2 text-emerald-800">
+                              <ClipboardList className="size-4" />
+                              <span className="text-xs font-black uppercase tracking-widest">Identifikasi &amp; Rekomendasi Kabag</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                              <div>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Asnaf Rekomendasi</p>
+                                <p className="font-extrabold text-slate-800">{selectedProposal.asnaf || '-'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Rekomendasi Kas</p>
+                                <p className="font-extrabold text-emerald-700 bg-emerald-100/50 px-2 py-0.5 rounded w-max">{selectedProposal.rekomendasi_kabag}</p>
+                              </div>
+                            </div>
+                            {selectedProposal.hasil_identifikasi && (
+                              <div className="pt-2 border-t border-emerald-200/50 text-xs space-y-1">
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Hasil Identifikasi</p>
+                                <p className="text-slate-700 whitespace-pre-wrap font-medium leading-relaxed bg-white/70 p-2.5 rounded-lg border border-emerald-100/30">
+                                  {selectedProposal.hasil_identifikasi}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -417,6 +492,179 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                         )}
                       </div>
                     </div>
+
+                    {/* Double-Guard RKAT & Kas Availability */}
+                    {loadingAvailability ? (
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3">
+                        <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <p className="text-xs text-slate-500 font-bold">Memeriksa Plafond RKAT &amp; Saldo Kas Riil...</p>
+                      </div>
+                    ) : availability ? (
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-6">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                          <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                            <span className="p-1 bg-primary text-white rounded-lg text-[10px]">DG</span>
+                            Informasi RKAT &amp; Kas
+                          </h4>
+                          <span className="text-[10px] font-medium text-slate-400">
+                            Rekomendasi Awal Kabag: <span className="font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">{selectedProposal.rekomendasi_kabag || 'Zakat'}</span>
+                          </span>
+                        </div>
+
+                        {/* 1. KETERSEDIAAN SALDO KAS PENTASHARUFAN */}
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Ketersediaan Saldo Kas Pentasharufan</p>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className={cn(
+                              "p-3 bg-white border rounded-xl shadow-sm space-y-1 text-center transition-all",
+                              selectedSumberKas === 'Zakat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
+                            )}>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana Zakat</p>
+                              <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.zakat || 0).toLocaleString('id-ID')}</p>
+                            </div>
+                            <div className={cn(
+                              "p-3 bg-white border rounded-xl shadow-sm space-y-1 text-center transition-all",
+                              selectedSumberKas === 'Infak Tidak Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
+                            )}>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana ISTT (Tidak Terikat)</p>
+                              <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.istt || 0).toLocaleString('id-ID')}</p>
+                            </div>
+                            <div className={cn(
+                              "p-3 bg-white border rounded-xl shadow-sm space-y-1 text-center transition-all",
+                              selectedSumberKas === 'Infak Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
+                            )}>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana IST (Terikat)</p>
+                              <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.ist || 0).toLocaleString('id-ID')}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2. BUDGET GUARD (INFORMASI RKAT TERKAIT) */}
+                        <div className="space-y-3 pt-2 border-t border-slate-200/60">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Anggaran RKAT Terkait</p>
+
+                          {availability.rkat_spesifik && (
+                            <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-sm">
+                              <div className="flex items-center justify-between">
+                                <h5 className="text-[11px] font-bold text-slate-800">
+                                  Status RKAT Spesifik: "{availability.rkat_spesifik.nama_kegiatan}"
+                                </h5>
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[9px] font-black border uppercase shrink-0",
+                                  (availability.rkat_spesifik.sisa_pagu >= rekomendasiNominal)
+                                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                    : "bg-rose-50 text-rose-600 border-rose-200"
+                                )}>
+                                  {availability.rkat_spesifik.sisa_pagu >= rekomendasiNominal ? 'Anggaran Cukup' : 'Melebihi Limit'}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Asnaf Target</p>
+                                  <p className="font-extrabold text-slate-700">{availability.rkat_spesifik.asnaf || 'Spesifik'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target RKAT 1 Tahun</p>
+                                  <p className="font-extrabold text-slate-700">Rp {availability.rkat_spesifik.total_pagu.toLocaleString('id-ID')}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Sisa Anggaran</p>
+                                  <p className={cn("font-black", (availability.rkat_spesifik.sisa_pagu >= rekomendasiNominal) ? "text-emerald-600" : "text-rose-600")}>
+                                    Rp {availability.rkat_spesifik.sisa_pagu.toLocaleString('id-ID')}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Estimasi Unit Cost</p>
+                                  <p className="font-bold text-slate-600">Rp {(availability.rkat_spesifik.nominal || rekomendasiNominal).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {availability.rkat_alternatif && availability.rkat_alternatif.total_pagu > 0 && (
+                            <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-sm">
+                              <div className="flex items-center justify-between">
+                                <h5 className="text-[11px] font-bold text-slate-800">
+                                  Status RKAT Alternatif: "{availability.rkat_alternatif.nama_kegiatan}"
+                                </h5>
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[9px] font-black border uppercase shrink-0",
+                                  (availability.rkat_alternatif.sisa_pagu >= rekomendasiNominal)
+                                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                    : "bg-rose-50 text-rose-600 border-rose-200"
+                                )}>
+                                  {availability.rkat_alternatif.sisa_pagu >= rekomendasiNominal ? 'Anggaran Cukup' : 'Melebihi Limit'}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Asnaf Target</p>
+                                  <p className="font-extrabold text-slate-700">Semua Asnaf</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target RKAT 1 Tahun</p>
+                                  <p className="font-extrabold text-slate-700">Rp {availability.rkat_alternatif.total_pagu.toLocaleString('id-ID')}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Sisa Anggaran</p>
+                                  <p className={cn("font-black", (availability.rkat_alternatif.sisa_pagu >= rekomendasiNominal) ? "text-emerald-600" : "text-rose-600")}>
+                                    Rp {availability.rkat_alternatif.sisa_pagu.toLocaleString('id-ID')}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Estimasi Unit Cost</p>
+                                  <p className="font-bold text-slate-600">Rp {(availability.rkat_alternatif.nominal || rekomendasiNominal).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3. KOREKSI & REKOMENDASI KEPALA PELAKSANA */}
+                        <div className="space-y-3 pt-2 border-t border-slate-200/60">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Koreksi Sumber Dana</p>
+                          <p className="text-[11px] text-slate-400 -mt-2">
+                            Kepala Pelaksana berwenang untuk melakukan penyesuaian alokasi sumber dana bantuan.
+                          </p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                Ubah Sumber Kas:
+                              </label>
+                              <select
+                                value={selectedSumberKas}
+                                onChange={e => setSelectedSumberKas(e.target.value)}
+                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
+                              >
+                                <option value="Zakat">Dana Zakat</option>
+                                <option value="Infak Tidak Terikat">Dana ISTT (Infak Tidak Terikat)</option>
+                                <option value="Infak Terikat">Dana IST (Infak Terikat)</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                Nominal Bantuan:
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                                <input
+                                  type="text"
+                                  value={rekomendasiNominal.toLocaleString('id-ID')}
+                                  readOnly
+                                  disabled
+                                  className="w-full text-xs bg-slate-100 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 font-black text-slate-500 cursor-not-allowed outline-none shadow-sm"
+                                />
+                              </div>
+                              <p className="text-[9px] text-slate-400">
+                                *Nominal bantuan bersifat tetap dan hanya dapat diubah oleh Pimpinan pada tahap berikutnya.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
 
                     {/* Catatan Kepala */}
                     <div className="space-y-2 pt-2 border-t border-slate-100">
