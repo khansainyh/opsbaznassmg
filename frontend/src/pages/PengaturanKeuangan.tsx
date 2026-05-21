@@ -10,19 +10,10 @@ import {
   Building2, 
   X, 
   AlertTriangle, 
-  CreditCard, 
   CheckCircle2, 
-  Calculator, 
-  Settings2, 
-  Layers, 
   Activity, 
-  FileText, 
   RefreshCw, 
   SlidersHorizontal,
-  Banknote,
-  TrendingUp,
-  Percent,
-  Check,
   HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -92,7 +83,7 @@ export interface ProposalItem {
 }
 
 export default function PengaturanKeuangan() {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'replenish' | 'simulator' | 'ledger'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'replenish' | 'ledger'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
 
   // DB States
@@ -100,7 +91,6 @@ export default function PengaturanKeuangan() {
   const [accounts, setAccounts] = useState<BankAccountItem[]>([]);
   const [rules, setRules] = useState<CoaMappingRuleItem[]>([]);
   const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
-  const [proposals, setProposals] = useState<ProposalItem[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
 
   // Loading indicator
@@ -148,25 +138,15 @@ export default function PengaturanKeuangan() {
     { targetAccountId: '', nominal: 0 }
   ]);
 
-  // Form states - Simulator & Double-Guard
-  const [simProposalId, setSimProposalId] = useState('');
-  const [simAccountId, setSimAccountId] = useState('');
-  const [simKeterangan, setSimKeterangan] = useState('');
-  const [simGuardResult, setSimGuardResult] = useState<any | null>(null);
-  const [simPreviewResult, setSimPreviewResult] = useState<any | null>(null);
-  const [simGuardLoading, setSimGuardLoading] = useState(false);
-  const [simExecuting, setSimExecuting] = useState(false);
-
   // Fetch Data
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resCoas, resAccounts, resRules, resLedger, resProposals, resPrograms] = await Promise.all([
+      const [resCoas, resAccounts, resRules, resLedger, resPrograms] = await Promise.all([
         axios.get('http://127.0.0.1:4000/api/finance/coa'),
         axios.get('http://127.0.0.1:4000/api/finance/accounts'),
         axios.get('http://127.0.0.1:4000/api/finance/mapping-rules'),
         axios.get('http://127.0.0.1:4000/api/finance/ledger'),
-        axios.get('http://127.0.0.1:4000/api/proposals'),
         axios.get('http://127.0.0.1:4000/api/programs')
       ]);
 
@@ -175,12 +155,6 @@ export default function PengaturanKeuangan() {
       setRules(resRules.data);
       setLedger(resLedger.data);
       setPrograms(resPrograms.data);
-      
-      // Filter proposals that are ready for disbursement (e.g. Antrean Bantuan or Approved by Kabag/Pimpinan)
-      const validProps = resProposals.data.filter(
-        (p: any) => p.status === 'Antrean Bantuan' || p.status === 'Pencairan Dana' || p.status === 'Registrasi'
-      );
-      setProposals(validProps);
     } catch (error) {
       console.error('Gagal mengambil data keuangan:', error);
     } finally {
@@ -440,72 +414,7 @@ export default function PengaturanKeuangan() {
     }
   };
 
-  // ==========================================
-  // Double-Guard & Simulator & Preview
-  // ==========================================
-  const handleProposalSelect = async (proposalId: string) => {
-    setSimProposalId(proposalId);
-    setSimGuardResult(null);
-    setSimPreviewResult(null);
 
-    if (!proposalId) return;
-
-    setSimGuardLoading(true);
-    try {
-      const res = await axios.get(`http://127.0.0.1:4000/api/finance/check-availability/${proposalId}`);
-      setSimGuardResult(res.data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSimGuardLoading(false);
-    }
-  };
-
-  const handlePaymentAccountSelect = async (accountId: string) => {
-    setSimAccountId(accountId);
-    setSimPreviewResult(null);
-
-    if (!simProposalId || !accountId) return;
-
-    try {
-      const res = await axios.post('http://127.0.0.1:4000/api/finance/disburse/preview', {
-        proposalId: simProposalId,
-        selectedAccountId: accountId
-      });
-      setSimPreviewResult(res.data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleExecutePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!simProposalId || !simAccountId) {
-      alert('Mohon pilih agenda proposal dan akun bayar');
-      return;
-    }
-
-    setSimExecuting(true);
-    try {
-      const res = await axios.post('http://127.0.0.1:4000/api/finance/disburse/execute', {
-        proposalId: simProposalId,
-        selectedAccountId: simAccountId,
-        keterangan: simKeterangan
-      });
-      alert(res.data.message);
-      // Reset
-      setSimProposalId('');
-      setSimAccountId('');
-      setSimKeterangan('');
-      setSimGuardResult(null);
-      setSimPreviewResult(null);
-      fetchData();
-    } catch (error: any) {
-      alert('Pencairan Gagal: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setSimExecuting(false);
-    }
-  };
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
@@ -608,17 +517,7 @@ export default function PengaturanKeuangan() {
           >
             Tarik Tunai
           </button>
-          <button
-            onClick={() => { setActiveTab('simulator'); setSearchTerm(''); }}
-            className={cn(
-              "pb-3 text-sm font-black transition-all border-b-2",
-              activeTab === 'simulator'
-                ? "border-primary text-primary"
-                : "border-transparent text-slate-400 hover:text-slate-600"
-            )}
-          >
-            Simulator Pencairan
-          </button>
+
           <button
             onClick={() => { setActiveTab('ledger'); setSearchTerm(''); }}
             className={cn(
@@ -1100,185 +999,6 @@ export default function PengaturanKeuangan() {
               <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-800/80 mt-6 flex items-center gap-4">
                 <HelpCircle className="size-8 text-primary shrink-0" />
                 <p className="text-[11px] text-slate-400 leading-normal font-medium">Transaksi penarikan ini didaftarkan sebagai mutasi kas internal dan dicatat langsung ke dalam buku besar akuntansi BAZNAS Kota Semarang.</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ==========================================
-            TAB: SIMULATOR & PREVIEW JURNAL KASIR
-            ========================================== */}
-        {activeTab === 'simulator' && (
-          <motion.div
-            key="simulator"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="space-y-6"
-          >
-            {/* Header */}
-            <div>
-              <h3 className="text-lg font-black text-slate-900">Simulator Eksekusi Pencairan &amp; Jurnal</h3>
-              <p className="text-xs text-slate-500 mt-1 font-medium">Gunakan halaman ini untuk memverifikasi kecukupan kuota RKAT beserta likuiditas kas, serta melakukan preview pencatatan double-entry otomatis sebelum kasir melakukan pembayaran.</p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Form selection */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6 col-span-1">
-                <form onSubmit={handleExecutePayment} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Pilih Agenda Proposal</label>
-                    <select
-                      value={simProposalId}
-                      onChange={(e) => handleProposalSelect(e.target.value)}
-                      required
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                    >
-                      <option value="">-- Pilih Agenda --</option>
-                      {proposals.map(p => (
-                        <option key={p.id} value={p.id}>
-                          PR-{p.agenda_no} - {p.nama_pemohon} ({formatCurrency(p.nominal || 0)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Pilih Rekening / Laci Pembayar</label>
-                    <select
-                      value={simAccountId}
-                      onChange={(e) => handlePaymentAccountSelect(e.target.value)}
-                      required
-                      disabled={!simProposalId}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold disabled:opacity-50"
-                    >
-                      <option value="">-- Pilih Rekening Bayar --</option>
-                      {accounts.map(a => (
-                        <option key={a.account_id} value={a.account_id}>
-                          {a.nama_akun} - (Saldo: {formatCurrency(Number(a.saldo))})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Keterangan Pencairan</label>
-                    <textarea
-                      rows={3}
-                      placeholder="Contoh: Pencairan bantuan modal usaha mustahik tunai melalui kasir A..."
-                      value={simKeterangan}
-                      onChange={(e) => setSimKeterangan(e.target.value)}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-medium resize-none"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={simExecuting || !simProposalId || !simAccountId}
-                    className="w-full py-3.5 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {simExecuting ? 'Memproses...' : '🖨️ EKSEKUSI PEMBAYARAN & JURNAL'}
-                  </button>
-                </form>
-              </div>
-
-              {/* Availability Guard & Double Entry Preview */}
-              <div className="lg:col-span-2 space-y-6">
-                
-                {/* 1. Double-Guard checking */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-150 shadow-sm space-y-4">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <CheckCircle2 className="size-4 text-primary" />
-                    Double-Guard Availability (Pagu &amp; Likuiditas Kas)
-                  </h4>
-
-                  {simGuardLoading ? (
-                    <div className="py-6 text-center text-slate-400 text-xs font-bold animate-pulse">Menghitung kuota RKAT &amp; Saldo riil...</div>
-                  ) : simGuardResult ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* RKAT Guard */}
-                      <div className={cn(
-                        "p-4 rounded-2xl border",
-                        simGuardResult.rkat.status === 'CUKUP' ? "bg-emerald-50/50 border-emerald-100 text-emerald-800" : "bg-rose-50/50 border-rose-100 text-rose-800"
-                      )}>
-                        <p className="text-[10px] font-black uppercase tracking-wider">Kuota Plafon RKAT Program</p>
-                        <p className="text-lg font-black mt-1">{formatCurrency(simGuardResult.rkat.sisa_pagu)}</p>
-                        <span className={cn(
-                          "inline-block text-[9px] font-black px-2 py-0.5 rounded-full uppercase mt-2",
-                          simGuardResult.rkat.status === 'CUKUP' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                        )}>
-                          PAGU: {simGuardResult.rkat.status}
-                        </span>
-                      </div>
-
-                      {/* Cash Liquidity Guard */}
-                      <div className={cn(
-                        "p-4 rounded-2xl border",
-                        simGuardResult.kas_riil.status === 'AMAN' ? "bg-emerald-50/50 border-emerald-100 text-emerald-800" : "bg-rose-50/50 border-rose-100 text-rose-800"
-                      )}>
-                        <p className="text-[10px] font-black uppercase tracking-wider">Saldo Likuiditas Kas ({simGuardResult.sumber_dana_yang_dipakai})</p>
-                        <p className="text-lg font-black mt-1">{formatCurrency(simGuardResult.kas_riil.total_tersedia)}</p>
-                        <span className={cn(
-                          "inline-block text-[9px] font-black px-2 py-0.5 rounded-full uppercase mt-2",
-                          simGuardResult.kas_riil.status === 'AMAN' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                        )}>
-                          KAS: {simGuardResult.kas_riil.status}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-6 text-center text-slate-400 text-xs font-semibold italic">Silakan pilih agenda proposal terlebih dahulu.</div>
-                  )}
-                </div>
-
-                {/* 2. Journal Entry Preview */}
-                <div className="bg-slate-900 text-white p-6 rounded-3xl space-y-4">
-                  <h4 className="text-xs font-black text-slate-450 uppercase tracking-widest flex items-center gap-2">
-                    <FileText className="size-4 text-primary" />
-                    Preview Entri Jurnal Otomatis (Buku Besar)
-                  </h4>
-
-                  {simPreviewResult ? (
-                    <div className="space-y-4">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs font-semibold border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-800 text-slate-400 uppercase text-[9px] tracking-wider">
-                              <th className="py-2.5">Kode Akun</th>
-                              <th className="py-2.5">Nama Akun Buku Besar</th>
-                              <th className="py-2.5 text-right">Debit (Rp)</th>
-                              <th className="py-2.5 text-right">Kredit (Rp)</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800 font-mono">
-                            <tr>
-                              <td className="py-3 text-emerald-450">{simPreviewResult.debit.coa_code}</td>
-                              <td className="py-3 text-slate-200">{simPreviewResult.debit.nama_akun}</td>
-                              <td className="py-3 text-right text-emerald-450">{formatCurrency(simPreviewResult.nominal)}</td>
-                              <td className="py-3 text-right text-slate-500">-</td>
-                            </tr>
-                            <tr>
-                              <td className="py-3 text-blue-400">{simPreviewResult.kredit.coa_code}</td>
-                              <td className="py-3 text-slate-200">{simPreviewResult.kredit.nama_akun}</td>
-                              <td className="py-3 text-right text-slate-500">-</td>
-                              <td className="py-3 text-right text-blue-400">{formatCurrency(simPreviewResult.nominal)}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-400">
-                        <span>Status Jurnal:</span>
-                        <span className="text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20 uppercase tracking-widest font-black text-[9px]">
-                          Balanced / Seimbang ✅
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-6 text-center text-slate-500 text-xs font-semibold italic">Silakan tentukan agenda proposal dan akun bayar.</div>
-                  )}
-                </div>
-
               </div>
             </div>
           </motion.div>

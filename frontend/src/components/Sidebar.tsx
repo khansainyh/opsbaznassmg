@@ -77,6 +77,7 @@ const menuGroups = [
     items: [
       { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Keuangan", "Kabag_Administrasi", "Staf_Administrasi", "Ketua", "Staf_Distribusi"] },
       { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Keuangan"] },
+      { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Keuangan"] },
       { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Keuangan"] },
     ]
   }

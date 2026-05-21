@@ -31,10 +31,10 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filter only proposals with 'Pencairan Dana' status
+  // Filter only proposals with 'Pencairan Dana' or 'Antrean Bantuan' status
   const filteredData = useMemo(() => {
     return data.filter(item => {
-      const isPencairan = item.status === 'Pencairan Dana';
+      const isPencairan = item.status === 'Pencairan Dana' || item.status === 'Antrean Bantuan';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -44,7 +44,7 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
   }, [data, searchTerm]);
 
   const stats = useMemo(() => {
-    const pencairanData = data.filter(d => d.status === 'Pencairan Dana');
+    const pencairanData = data.filter(d => d.status === 'Pencairan Dana' || d.status === 'Antrean Bantuan');
     const totalNominal = pencairanData.reduce((acc, curr) => acc + (curr.nominal || 0), 0);
     const kasTersedia = 15000000; // Mocked value for cash available for disbursement
     
