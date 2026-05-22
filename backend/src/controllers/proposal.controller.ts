@@ -7,7 +7,7 @@ export const getProposals = async (req: Request, res: Response) => {
   console.log('Fetching proposals...');
   try {
     const proposals = await prisma.proposal.findMany({
-      include: { program: true }
+      include: { program: true, mustahik: true }
     });
     res.status(200).json(proposals);
   } catch (error) {
@@ -20,7 +20,7 @@ export const getProposalById = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const proposal = await prisma.proposal.findUnique({
       where: { id },
-      include: { program: true }
+      include: { program: true, mustahik: true }
     });
     if (!proposal) {
       return res.status(404).json({ error: 'Proposal not found' });

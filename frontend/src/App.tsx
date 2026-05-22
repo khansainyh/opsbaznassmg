@@ -26,6 +26,10 @@ import ParameterSistem from '@/src/pages/ParameterSistem';
 import TargetRKAT from '@/src/pages/TargetRKAT';
 import PengaturanKeuangan from '@/src/pages/PengaturanKeuangan';
 import SimulatorPencairan from '@/src/pages/SimulatorPencairan';
+import PemindahanDana from '@/src/pages/PemindahanDana';
+import BukuBesar from '@/src/pages/BukuBesar';
+import AntreanSimba from '@/src/pages/AntreanSimba';
+import RealisasiBantuan from '@/src/pages/RealisasiBantuan';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -76,6 +80,9 @@ function App() {
           rekomendasi_kabag: item.rekomendasi_kabag || undefined,
           approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
           rkatActivityId: item.rkat_activity_id || undefined,
+          mustahik: item.mustahik || null,
+          mustahik_id: item.mustahik_id || null,
+          updatedAt: item.updated_at || '',
           program: item.program ? (
             item.program.pilar_code === '1100' ? 'Semarang Peduli' :
             item.program.pilar_code === '1200' ? 'Semarang Sehat' :
@@ -226,6 +233,14 @@ function App() {
           />
         ) : activeMenu === 'Pengaturan Keuangan' ? (
           <PengaturanKeuangan />
+        ) : activeMenu === 'Pemindahan Dana' ? (
+          <PemindahanDana />
+        ) : activeMenu === 'Buku Besar' ? (
+          <BukuBesar />
+        ) : activeMenu === 'Antrean SIMBA' ? (
+          <AntreanSimba data={proposals} onUpdate={handleUpdateProposals} />
+        ) : activeMenu === 'Realisasi Bantuan' ? (
+          <RealisasiBantuan data={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Pilar & Program' ? (
           <PilarProgram />
         ) : activeMenu === 'Data Mustahik' ? (

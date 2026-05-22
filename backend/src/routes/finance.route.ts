@@ -13,6 +13,7 @@ import {
   updateMappingRule,
   deleteMappingRule,
   checkAvailability,
+  checkAvailabilityBatch,
   previewDisbursement,
   executeDisbursement,
   executeReplenishment,
@@ -41,6 +42,7 @@ router.delete('/mapping-rules/:id', deleteMappingRule);
 
 // Double Guard & Auto Journaling Routes
 router.get('/check-availability/:proposalId', checkAvailability);
+router.post('/check-availability-batch', checkAvailabilityBatch);
 router.post('/disburse/preview', previewDisbursement);
 router.post('/disburse/execute', executeDisbursement);
 router.post('/replenish', executeReplenishment);

@@ -41,8 +41,9 @@ const STEPS = [
 ];
 
 function getProgressSteps(status: string) {
-  if (status === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
-  const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === status.toLowerCase());
+  const normStatus = status === 'Selesai' ? 'Selesai & Arsip' : status;
+  if (normStatus === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
+  const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === normStatus.toLowerCase());
   return STEPS.map((step, i) => {
     // ADM: idx 0-2, SURV: 3-7, KEPEL: 8, PIMP: 9-10, KEU: 11, DIST: 12, ARSIP: 13, DONE: 13+
     const ranges = [[0,2],[3,7],[8,8],[9,10],[11,11],[12,12],[13,13],[13,13]];
@@ -54,6 +55,7 @@ function getProgressSteps(status: string) {
 }
 
 function getStatusColor(status: string) {
+  const normStatus = status === 'Selesai' ? 'Selesai & Arsip' : status;
   const map: Record<string, string> = {
     'Registrasi': 'bg-slate-100 text-slate-600',
     'Review Kabag Admin': 'bg-indigo-100 text-indigo-700',
@@ -69,7 +71,7 @@ function getStatusColor(status: string) {
     'Selesai & Arsip': 'bg-emerald-100 text-emerald-700',
     'Ditolak': 'bg-rose-100 text-rose-700',
   };
-  return map[status] ?? 'bg-slate-100 text-slate-600';
+  return map[normStatus] ?? 'bg-slate-100 text-slate-600';
 }
 
 function formatCurrency(v: number) {
@@ -105,8 +107,8 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
 
   const stats = useMemo(() => ({
     total: filtered.length,
-    processing: filtered.filter(d => !['Selesai & Arsip','Ditolak'].includes(d.status)).length,
-    approved: filtered.filter(d => d.status === 'Selesai & Arsip').length,
+    processing: filtered.filter(d => !['Selesai & Arsip', 'Selesai', 'Ditolak'].includes(d.status)).length,
+    approved: filtered.filter(d => ['Selesai & Arsip', 'Selesai'].includes(d.status)).length,
     rejected: filtered.filter(d => d.status === 'Ditolak').length,
   }), [filtered]);
 

@@ -10,14 +10,13 @@ import {
   Building2, 
   X, 
   AlertTriangle, 
-  CheckCircle2, 
   Activity, 
   RefreshCw, 
-  SlidersHorizontal,
-  HelpCircle
+  SlidersHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 
 export interface COAItem {
   coa_code: string;
@@ -50,23 +49,7 @@ export interface CoaMappingRuleItem {
   kreditCoa?: COAItem;
 }
 
-export interface LedgerEntryItem {
-  entry_id: string;
-  transaksi_id: string;
-  coa_code: string;
-  debit: number;
-  kredit: number;
-  account_id?: string;
-  coa: COAItem;
-  account?: BankAccountItem;
-  realisasi: {
-    transaksi_id: string;
-    proposal_id?: string;
-    rkat_id?: string;
-    tanggal: string;
-    keterangan: string;
-  };
-}
+
 
 export interface ProposalItem {
   id: string;
@@ -83,14 +66,16 @@ export interface ProposalItem {
 }
 
 export default function PengaturanKeuangan() {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'replenish' | 'ledger'>('accounts');
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super_Admin';
+
+  const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
 
   // DB States
   const [coas, setCoas] = useState<COAItem[]>([]);
   const [accounts, setAccounts] = useState<BankAccountItem[]>([]);
   const [rules, setRules] = useState<CoaMappingRuleItem[]>([]);
-  const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
 
   // Loading indicator
@@ -131,29 +116,22 @@ export default function PengaturanKeuangan() {
     kredit_coa_code: ''
   });
 
-  // Form states - Replenishment
-  const [replenishBank, setReplenishBank] = useState('');
-  const [replenishKeterangan, setReplenishKeterangan] = useState('');
-  const [replenishAllocations, setReplenishAllocations] = useState<Array<{ targetAccountId: string, nominal: number }>>([
-    { targetAccountId: '', nominal: 0 }
-  ]);
+
 
   // Fetch Data
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resCoas, resAccounts, resRules, resLedger, resPrograms] = await Promise.all([
+      const [resCoas, resAccounts, resRules, resPrograms] = await Promise.all([
         axios.get('http://127.0.0.1:4000/api/finance/coa'),
         axios.get('http://127.0.0.1:4000/api/finance/accounts'),
         axios.get('http://127.0.0.1:4000/api/finance/mapping-rules'),
-        axios.get('http://127.0.0.1:4000/api/finance/ledger'),
         axios.get('http://127.0.0.1:4000/api/programs')
       ]);
 
       setCoas(resCoas.data);
       setAccounts(resAccounts.data);
       setRules(resRules.data);
-      setLedger(resLedger.data);
       setPrograms(resPrograms.data);
     } catch (error) {
       console.error('Gagal mengambil data keuangan:', error);
@@ -176,10 +154,22 @@ export default function PengaturanKeuangan() {
   };
 
   // Helper lists
-  const filteredAccounts = useMemo(() => {
+  const filteredKasAccounts = useMemo(() => {
     return accounts.filter(a => 
-      a.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.coa_code.includes(searchTerm)
+      a.tipe_kas === 'TUNAI' && (
+        a.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        a.coa_code.includes(searchTerm)
+      )
+    );
+  }, [accounts, searchTerm]);
+
+  const filteredBankAccounts = useMemo(() => {
+    return accounts.filter(a => 
+      a.tipe_kas === 'BANK' && (
+        a.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        a.no_rekening?.includes(searchTerm) ||
+        a.coa_code.includes(searchTerm)
+      )
     );
   }, [accounts, searchTerm]);
 
@@ -197,12 +187,7 @@ export default function PengaturanKeuangan() {
     );
   }, [rules, searchTerm]);
 
-  const filteredLedger = useMemo(() => {
-    return ledger.filter(l => 
-      l.coa.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.realisasi.keterangan.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [ledger, searchTerm]);
+
 
   // ==========================================
   // Account Actions
@@ -237,10 +222,14 @@ export default function PengaturanKeuangan() {
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...accountForm,
+        kelompok_dana: accountForm.tipe_kas === 'BANK' ? 'PENYIMPANAN' : accountForm.kelompok_dana
+      };
       if (editingItem) {
-        await axios.put(`http://127.0.0.1:4000/api/finance/accounts/${editingItem.account_id}`, accountForm);
+        await axios.put(`http://127.0.0.1:4000/api/finance/accounts/${editingItem.account_id}`, payload);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/finance/accounts', accountForm);
+        await axios.post('http://127.0.0.1:4000/api/finance/accounts', payload);
       }
       setIsAccountModalOpen(false);
       fetchData();
@@ -361,58 +350,7 @@ export default function PengaturanKeuangan() {
     }
   };
 
-  // ==========================================
-  // Cash Replenishment (Tarik Tunai Split)
-  // ==========================================
-  const handleAddReplenishAllocation = () => {
-    setReplenishAllocations([...replenishAllocations, { targetAccountId: '', nominal: 0 }]);
-  };
 
-  const handleRemoveReplenishAllocation = (idx: number) => {
-    setReplenishAllocations(replenishAllocations.filter((_, i) => i !== idx));
-  };
-
-  const handleReplenishAllocationChange = (idx: number, field: string, val: any) => {
-    const updated = replenishAllocations.map((item, i) => {
-      if (i === idx) {
-        return { ...item, [field]: val };
-      }
-      return item;
-    });
-    setReplenishAllocations(updated);
-  };
-
-  const handleExecuteReplenish = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!replenishBank) {
-      alert('Pilih Bank Sumber Terlebih Dahulu');
-      return;
-    }
-    const filteredAlloc = replenishAllocations.filter(a => a.targetAccountId && a.nominal > 0);
-    if (filteredAlloc.length === 0) {
-      alert('Mohon isi alokasi laci tujuan dan nominal dengan benar');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const res = await axios.post('http://127.0.0.1:4000/api/finance/replenish', {
-        sourceBankId: replenishBank,
-        allocations: filteredAlloc,
-        keterangan: replenishKeterangan
-      });
-      alert(res.data.message);
-      // Reset
-      setReplenishBank('');
-      setReplenishKeterangan('');
-      setReplenishAllocations([{ targetAccountId: '', nominal: 0 }]);
-      fetchData();
-    } catch (error: any) {
-      alert('Gagal melakukan replenishment: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
 
@@ -506,29 +444,7 @@ export default function PengaturanKeuangan() {
           >
             Master COA
           </button>
-          <button
-            onClick={() => { setActiveTab('replenish'); setSearchTerm(''); }}
-            className={cn(
-              "pb-3 text-sm font-black transition-all border-b-2",
-              activeTab === 'replenish'
-                ? "border-primary text-primary"
-                : "border-transparent text-slate-400 hover:text-slate-600"
-            )}
-          >
-            Tarik Tunai
-          </button>
 
-          <button
-            onClick={() => { setActiveTab('ledger'); setSearchTerm(''); }}
-            className={cn(
-              "pb-3 text-sm font-black transition-all border-b-2",
-              activeTab === 'ledger'
-                ? "border-primary text-primary"
-                : "border-transparent text-slate-400 hover:text-slate-600"
-            )}
-          >
-            Buku Besar
-          </button>
         </div>
       </div>
 
@@ -581,19 +497,27 @@ export default function PengaturanKeuangan() {
               </div>
             </div>
 
-            {/* List Table */}
+            {/* Search Bar */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <input 
+                  type="text"
+                  placeholder="Cari kode/nama akun kas..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
+                />
+              </div>
+            </div>
+
+            {/* Section A: Laci Kas Tunai */}
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                  <input 
-                    type="text"
-                    placeholder="Cari kode/nama akun kas..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                  />
-                </div>
+              <div className="p-6 border-b border-slate-55 bg-slate-50/40">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-orange-500 animate-pulse" />
+                  Daftar Kas Kecil &amp; Operasional
+                </h3>
               </div>
               
               <div className="overflow-x-auto">
@@ -601,7 +525,7 @@ export default function PengaturanKeuangan() {
                   <thead>
                     <tr className="bg-slate-50/50">
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe &amp; Kode Laci</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening &amp; Kas Fisik</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kas Fisik / Operasional</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Riil (IDR)</th>
@@ -609,26 +533,92 @@ export default function PengaturanKeuangan() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredAccounts.length === 0 ? (
+                    {filteredKasAccounts.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada kas/bank ditemukan</td>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada kas kecil / operasional ditemukan</td>
                       </tr>
-                    ) : filteredAccounts.map((item) => (
+                    ) : filteredKasAccounts.map((item) => (
                       <tr key={item.account_id} className="hover:bg-slate-50/30 transition-colors group">
                         <td className="px-6 py-5">
-                          <span className={cn(
-                            "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border",
-                            item.tipe_kas === 'BANK' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-orange-50 text-orange-600 border-orange-100"
-                          )}>
-                            {item.tipe_kas} {item.kode_laci ? `(LACI ${item.kode_laci})` : ''}
+                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border bg-orange-50 text-orange-600 border-orange-100">
+                            TUNAI {item.kode_laci ? `(LACI ${item.kode_laci})` : ''}
+                          </span>
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-900">
+                          {item.nama_akun}
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase text-[9px] font-black">
+                            {item.kelompok_dana}
+                          </span>
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
+                            {item.coa_code}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.coa?.nama_akun || 'Chart of Account'}</span>
+                        </td>
+                        <td className="px-6 py-5 font-black text-slate-950">
+                          {formatCurrency(Number(item.saldo))}
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={() => handleOpenAccountModal(item)}
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                            >
+                              <Edit className="size-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteAccount(item.account_id)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Section B: Rekening Bank */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-55 bg-slate-50/40">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
+                  Daftar Rekening Bank
+                </h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50/50">
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Akun</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening &amp; Bank</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Riil (IDR)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {filteredBankAccounts.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada rekening bank ditemukan</td>
+                      </tr>
+                    ) : filteredBankAccounts.map((item) => (
+                      <tr key={item.account_id} className="hover:bg-slate-50/30 transition-colors group">
+                        <td className="px-6 py-5">
+                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border bg-blue-50 text-blue-600 border-blue-100">
+                            {item.tipe_kas}
                           </span>
                         </td>
                         <td className="px-6 py-5 font-bold text-slate-900">
                           {item.nama_akun}
                           {item.no_rekening && <span className="block font-mono text-[10px] text-slate-400 mt-1 font-bold">REK: {item.no_rekening}</span>}
-                        </td>
-                        <td className="px-6 py-5 font-bold text-slate-700">
-                          {item.kelompok_dana}
                         </td>
                         <td className="px-6 py-5">
                           <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
@@ -846,231 +836,9 @@ export default function PengaturanKeuangan() {
           </motion.div>
         )}
 
-        {/* ==========================================
-            TAB: CASH REPLENISHMENT (TARIK TUNAI SPLIT)
-            ========================================== */}
-        {activeTab === 'replenish' && (
-          <motion.div
-            key="replenish"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="grid grid-cols-1 lg:grid-cols-2 gap-8"
-          >
-            {/* Split Replenishment form */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-              <div>
-                <h3 className="text-lg font-black text-slate-900">Alokasi Tarik Tunai Rekening ke Laci Kasir</h3>
-                <p className="text-xs text-slate-500 mt-1 font-medium">Wewenang kasir menarik dana dari Bank besar untuk didistribusikan secara pecahan ke laci tunai kasir harian harian (Kas A s.d G - Debit).</p>
-              </div>
 
-              <form onSubmit={handleExecuteReplenish} className="space-y-5">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Rekening Bank Sumber (Kredit)</label>
-                  <select
-                    value={replenishBank}
-                    onChange={(e) => setReplenishBank(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
-                  >
-                    <option value="">-- Pilih Bank Sumber --</option>
-                    {accounts.filter(a => a.tipe_kas === 'BANK').map(a => (
-                      <option key={a.account_id} value={a.account_id}>
-                        {a.nama_akun} - (Saldo: {formatCurrency(Number(a.saldo))})
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Alokasi Laci Kasir Penerima (Debit)</label>
-                    <button
-                      type="button"
-                      onClick={handleAddReplenishAllocation}
-                      className="text-xs text-primary font-black flex items-center gap-1.5 uppercase hover:underline"
-                    >
-                      <Plus className="size-3.5" /> Tambah Alokasi
-                    </button>
-                  </div>
 
-                  {replenishAllocations.map((alloc, idx) => (
-                    <div key={idx} className="flex gap-3 items-center">
-                      <select
-                        value={alloc.targetAccountId}
-                        onChange={(e) => handleReplenishAllocationChange(idx, 'targetAccountId', e.target.value)}
-                        required
-                        className="flex-1 bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                      >
-                        <option value="">-- Pilih Laci Kasir --</option>
-                        {accounts.filter(a => a.tipe_kas === 'TUNAI').map(a => (
-                          <option key={a.account_id} value={a.account_id}>
-                            {a.nama_akun} (Saldo: {formatCurrency(Number(a.saldo))})
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        placeholder="Nominal alokasi..."
-                        value={alloc.nominal || ''}
-                        onChange={(e) => handleReplenishAllocationChange(idx, 'nominal', Number(e.target.value))}
-                        required
-                        className="w-40 bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold text-right"
-                      />
-                      {replenishAllocations.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveReplenishAllocation(idx)}
-                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Keterangan Penarikan</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Contoh: Penarikan tunai rutin harian mengisi laci kas A-C..."
-                    value={replenishKeterangan}
-                    onChange={(e) => setReplenishKeterangan(e.target.value)}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-medium resize-none"
-                  />
-                </div>
-
-                <div className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-500 uppercase">Total Dana Ditarik</span>
-                  <span className="text-lg font-black text-slate-900">
-                    {formatCurrency(replenishAllocations.reduce((sum, item) => sum + Number(item.nominal || 0), 0))}
-                  </span>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
-                >
-                  {loading ? 'Memproses...' : 'PROSES REPLENISHMENT LACI KAS'}
-                </button>
-              </form>
-            </div>
-
-            {/* Replenishment Ledger Guide */}
-            <div className="bg-slate-900 text-slate-200 p-8 rounded-3xl flex flex-col justify-between">
-              <div className="space-y-6">
-                <div>
-                  <span className="px-2.5 py-1 bg-primary/20 text-primary border border-primary/30 rounded-lg text-[9px] font-black uppercase tracking-wider">
-                    Ledger Logika Akuntansi
-                  </span>
-                  <h4 className="text-xl font-black text-white mt-3">Skema Double-Entry Replenishment</h4>
-                  <p className="text-slate-400 text-xs mt-1.5 leading-relaxed font-medium">
-                    Sistem akan memotong saldo bank riil (Kredit) sekaligus mendistribusikan saldo fisik ke masing-masing laci kasir (Debit) yang didefinisikan secara transaksional aman.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex gap-4 items-start">
-                    <div className="size-8 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold shrink-0 mt-0.5">D</div>
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase">Entri Debit (Penambahan Aset Kas Fisik)</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Mendebit COA Kas Tunai (misal 111010101) dari masing-masing laci kasir penerima sesuai nominal alokasi split.</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4 items-start">
-                    <div className="size-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold shrink-0 mt-0.5">K</div>
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase">Entri Kredit (Pengurangan Aset Bank Sumber)</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Mengkredit COA Bank (misal 111010201) milik Rekening Bank sumber sebesar akumulasi penarikan total.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-800 pt-6">
-                  <p className="text-xs font-bold text-slate-350 flex items-center gap-1.5">
-                    <CheckCircle2 className="size-4 text-emerald-500" />
-                    Buku besar otomatis seimbang (Balanced ✅)
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-800/80 mt-6 flex items-center gap-4">
-                <HelpCircle className="size-8 text-primary shrink-0" />
-                <p className="text-[11px] text-slate-400 leading-normal font-medium">Transaksi penarikan ini didaftarkan sebagai mutasi kas internal dan dicatat langsung ke dalam buku besar akuntansi BAZNAS Kota Semarang.</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ==========================================
-            TAB: LEDGER / GENERAL JOURNAL PREVIEW
-            ========================================== */}
-        {activeTab === 'ledger' && (
-          <motion.div
-            key="ledger"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="space-y-6"
-          >
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                  <input 
-                    type="text"
-                    placeholder="Cari transaksi buku besar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Jurnal</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan Jurnal (Realisasi)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode COA</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Akun COA</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Debet (IDR)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Kredit (IDR)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredLedger.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong</td>
-                      </tr>
-                    ) : filteredLedger.map((item) => (
-                      <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-6 py-5 font-mono text-xs text-slate-600 font-bold">
-                          {new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}
-                        </td>
-                        <td className="px-6 py-5 font-bold text-slate-800">
-                          {item.realisasi.keterangan}
-                          {item.account && <span className="block text-[10px] text-slate-400 mt-1 font-semibold">Kas Fisik: {item.account.nama_akun}</span>}
-                        </td>
-                        <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold">{item.coa_code}</td>
-                        <td className="px-6 py-5 font-bold text-slate-800">{item.coa.nama_akun}</td>
-                        <td className="px-6 py-5 text-right font-black text-emerald-700">
-                          {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-'}
-                        </td>
-                        <td className="px-6 py-5 text-right font-black text-blue-700">
-                          {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
       </AnimatePresence>
 
@@ -1118,7 +886,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
+                  <div className={cn(accountForm.tipe_kas === 'BANK' ? "col-span-2" : "col-span-1", "space-y-1")}>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Kas</label>
                     <select
                       value={accountForm.tipe_kas}
@@ -1130,21 +898,23 @@ export default function PengaturanKeuangan() {
                     </select>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</label>
-                    <select
-                      value={accountForm.kelompok_dana}
-                      onChange={(e) => setAccountForm({ ...accountForm, kelompok_dana: e.target.value as any })}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                    >
-                      <option value="ZAKAT">ZAKAT</option>
-                      <option value="INFAK_TERIKAT">INFAK_TERIKAT</option>
-                      <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT</option>
-                      <option value="AMIL">AMIL</option>
-                      <option value="APBD">APBD</option>
-                      <option value="NON-HALAL">NON-HALAL</option>
-                    </select>
-                  </div>
+                  {accountForm.tipe_kas !== 'BANK' && (
+                    <div className="space-y-1 col-span-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</label>
+                      <select
+                        value={accountForm.kelompok_dana}
+                        onChange={(e) => setAccountForm({ ...accountForm, kelompok_dana: e.target.value as any })}
+                        className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                      >
+                        <option value="ZAKAT">ZAKAT</option>
+                        <option value="INFAK_TERIKAT">INFAK_TERIKAT</option>
+                        <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT</option>
+                        <option value="AMIL">AMIL</option>
+                        <option value="APBD">APBD</option>
+                        <option value="NON-HALAL">NON-HALAL</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -1196,7 +966,7 @@ export default function PengaturanKeuangan() {
                     value={accountForm.saldo || 0}
                     onChange={(e) => setAccountForm({ ...accountForm, saldo: Number(e.target.value) })}
                     required
-                    disabled={!!editingItem}
+                    disabled={!!editingItem && !isSuperAdmin}
                     className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
                   />
                 </div>

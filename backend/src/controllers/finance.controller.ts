@@ -440,57 +440,228 @@ export const checkAvailability = async (req: Request, res: Response) => {
   }
 };
 
+export const checkAvailabilityBatch = async (req: Request, res: Response) => {
+  try {
+    const { proposalIds } = req.body;
+    if (!proposalIds || !Array.isArray(proposalIds) || proposalIds.length === 0) {
+      res.status(400).json({ error: 'Proposal IDs array is required' });
+      return;
+    }
+
+    let totalAmount = 0;
+    const rkatStatusMap = new Map<string, { total_pagu: number; terpakai_saat_ini: number; sisa_pagu: number; name: string }>();
+    const proposalDetails = [];
+
+    let detectedTag = 'ZAKAT';
+
+    for (const id of proposalIds) {
+      const proposal = await prisma.proposal.findUnique({
+        where: { id: id } as any,
+        include: { program: true } as any
+      }) as any;
+
+      if (!proposal) continue;
+
+      const amount = Number(proposal.nominal || 0);
+      totalAmount += amount;
+
+      let tag = 'ZAKAT';
+      const rawTag = proposal.tipe_bantuan || proposal.rekomendasi_kabag || 'Zakat';
+      if (rawTag === 'IST' || rawTag === 'Infak Terikat' || rawTag === 'INFAK_TERIKAT') {
+        tag = 'INFAK_TERIKAT';
+      } else if (rawTag === 'ISTT' || rawTag === 'Infak Tidak Terikat' || rawTag === 'INFAK_TIDAK_TERIKAT') {
+        tag = 'INFAK_TIDAK_TERIKAT';
+      } else if (rawTag === 'APBD') {
+        tag = 'APBD';
+      } else if (rawTag === 'AMIL') {
+        tag = 'AMIL';
+      } else {
+        tag = 'ZAKAT';
+      }
+      
+      detectedTag = tag;
+
+      const rawProgramCode = proposal.jenis_permohonan || '';
+      let activeProgramCode = rawProgramCode;
+      if (rawProgramCode.includes('.')) {
+        activeProgramCode = rawProgramCode.split('.')[0];
+      }
+      
+      let targetProgram = proposal.program;
+      if (!targetProgram || targetProgram.code !== activeProgramCode) {
+        targetProgram = await prisma.program.findUnique({
+          where: { code: activeProgramCode }
+        });
+      }
+
+      if (targetProgram) {
+        const rkatDetailsStr = targetProgram.rkat_details;
+        if (rkatDetailsStr) {
+          const details = typeof rkatDetailsStr === 'string'
+            ? JSON.parse(rkatDetailsStr)
+            : rkatDetailsStr;
+
+          if (Array.isArray(details)) {
+            const matchedAct = details.find(
+              d => d.id === proposal.rkat_activity_id || 
+              (d.asnaf && d.asnaf.toLowerCase() === (proposal.asnaf || 'miskin').toLowerCase())
+            );
+
+            if (matchedAct) {
+              const actId = matchedAct.id;
+              const total = Number(matchedAct.mustahik || 0) * Number(matchedAct.frekuensi || 1) * Number(matchedAct.nominal || 0);
+              
+              if (!rkatStatusMap.has(actId)) {
+                const journalSum = await prisma.journalEntry.aggregate({
+                  _sum: { debit: true },
+                  where: {
+                    coa_code: { startsWith: '5' },
+                    realisasi: { rkat_id: actId }
+                  }
+                });
+                const terpakai = Number(journalSum._sum.debit || 0);
+                rkatStatusMap.set(actId, {
+                  total_pagu: total,
+                  terpakai_saat_ini: terpakai,
+                  sisa_pagu: total - terpakai,
+                  name: matchedAct.name || targetProgram.name
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      proposalDetails.push({
+        id: proposal.id,
+        nama: proposal.nama_pemohon,
+        nominal: amount,
+        asnaf: proposal.asnaf || 'Miskin',
+        tag: tag
+      });
+    }
+
+    const rkatActivities = Array.from(rkatStatusMap.entries()).map(([id, val]) => {
+      return {
+        id,
+        name: val.name,
+        total_pagu: val.total_pagu,
+        terpakai_saat_ini: val.terpakai_saat_ini,
+        sisa_pagu: val.sisa_pagu,
+        status: val.sisa_pagu >= totalAmount ? 'CUKUP' : 'OVER_BUDGET'
+      };
+    });
+
+    const accountsSum = await prisma.bankAccount.aggregate({
+      _sum: { saldo: true },
+      where: { kelompok_dana: detectedTag }
+    });
+    const totalSaldoKasRiil = Number(accountsSum._sum.saldo || 0);
+
+    const zakatSum = await prisma.bankAccount.aggregate({
+      _sum: { saldo: true },
+      where: { kelompok_dana: 'ZAKAT' }
+    });
+    const isttSum = await prisma.bankAccount.aggregate({
+      _sum: { saldo: true },
+      where: { kelompok_dana: 'INFAK_TIDAK_TERIKAT' }
+    });
+    const istSum = await prisma.bankAccount.aggregate({
+      _sum: { saldo: true },
+      where: { kelompok_dana: 'INFAK_TERIKAT' }
+    });
+
+    const saldoZakat = Number(zakatSum._sum.saldo || 0);
+    const saldoIstt = Number(isttSum._sum.saldo || 0);
+    const saldoIst = Number(istSum._sum.saldo || 0);
+
+    res.status(200).json({
+      sumber_dana_yang_dipakai: detectedTag,
+      proposal_nominal_total: totalAmount,
+      rkat_activities: rkatActivities,
+      kas_riil: {
+        total_tersedia: totalSaldoKasRiil,
+        status: totalSaldoKasRiil >= totalAmount ? 'AMAN' : 'LIKUIDITAS_KRITIS',
+        detail: {
+          zakat: saldoZakat,
+          istt: saldoIstt,
+          ist: saldoIst
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+};
+
 // ==========================================
 // 5. Double-Entry Auto-Journaling Disbursement
 // ==========================================
 
 export const previewDisbursement = async (req: Request, res: Response) => {
   try {
-    const { proposalId, selectedAccountId } = req.body;
-    if (!proposalId || !selectedAccountId) {
-      res.status(400).json({ error: 'Proposal ID dan Account ID wajib dipilih' });
+    const { proposalId, proposalIds, selectedAccountId } = req.body;
+    if ((!proposalId && (!proposalIds || proposalIds.length === 0)) || !selectedAccountId) {
+      res.status(400).json({ error: 'Proposal ID atau daftar Proposal IDs dan Account ID wajib dipilih' });
       return;
     }
 
-    const proposal = await prisma.proposal.findUnique({
-      where: { id: proposalId } as any,
-      include: { program: true } as any
-    }) as any;
+    const ids = proposalIds && Array.isArray(proposalIds) ? proposalIds : [proposalId];
+    
+    let totalNominal = 0;
+    const debitEntries: any[] = [];
+    
     const account = await prisma.bankAccount.findUnique({
       where: { account_id: selectedAccountId } as any,
       include: { coa: true } as any
     }) as any;
 
-    if (!proposal || !account) {
-      res.status(404).json({ error: 'Proposal atau Rekening tidak ditemukan' });
+    if (!account) {
+      res.status(404).json({ error: 'Rekening tidak ditemukan' });
       return;
     }
 
-    // Default tag mapping
-    let tag = proposal.tipe_bantuan || 'ZAKAT';
-    if (tag === 'IST') tag = 'INFAK_TERIKAT';
-    if (tag === 'ISTT') tag = 'INFAK_TIDAK_TERIKAT';
+    for (const id of ids) {
+      const proposal = await prisma.proposal.findUnique({
+        where: { id: id } as any,
+        include: { program: true } as any
+      }) as any;
+      if (!proposal) continue;
 
-    const mappingRule = await prisma.coaMappingRule.findFirst({
-      where: {
-        program_code: proposal.jenis_permohonan || undefined,
-        asnaf_id: proposal.asnaf || undefined,
-        tipe_kas: account.tipe_kas,
-        sumber_dana_tag: tag
-      }
-    });
+      totalNominal += Number(proposal.nominal || 0);
 
-    const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
+      let tag = proposal.tipe_bantuan || 'ZAKAT';
+      if (tag === 'IST') tag = 'INFAK_TERIKAT';
+      if (tag === 'ISTT') tag = 'INFAK_TIDAK_TERIKAT';
+
+      const mappingRule = await prisma.coaMappingRule.findFirst({
+        where: {
+          program_code: proposal.jenis_permohonan || undefined,
+          asnaf_id: proposal.asnaf || undefined,
+          tipe_kas: account.tipe_kas,
+          sumber_dana_tag: tag
+        }
+      });
+
+      const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
+      const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
+      
+      debitEntries.push({
+        coa_code: debitCoaCode,
+        nama_akun: debitCoa ? debitCoa.nama_akun : 'Penyaluran Lainnya (Kategori Darurat)',
+        nominal: Number(proposal.nominal || 0)
+      });
+    }
+
     const kreditCoaCode = account.coa_code;
-
-    const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
     const kreditCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: kreditCoaCode } as any });
 
     res.status(200).json({
-      nominal: Number(proposal.nominal || 0),
+      nominal: totalNominal,
+      debitEntries,
       debit: {
-        coa_code: debitCoaCode,
-        nama_akun: debitCoa ? debitCoa.nama_akun : 'Penyaluran Lainnya (Kategori Darurat)'
+        coa_code: debitEntries[0]?.coa_code || '519999999',
+        nama_akun: debitEntries.length === 1 ? debitEntries[0].nama_akun : `Penyaluran ${debitEntries.length} Proposal (Batch)`
       },
       kredit: {
         coa_code: kreditCoaCode,
@@ -505,99 +676,105 @@ export const previewDisbursement = async (req: Request, res: Response) => {
 
 export const executeDisbursement = async (req: Request, res: Response) => {
   try {
-    const { proposalId, selectedAccountId, keterangan } = req.body;
-    if (!proposalId || !selectedAccountId) {
-      res.status(400).json({ error: 'Proposal ID dan Account ID wajib dipilih' });
+    const { proposalId, proposalIds, selectedAccountId, keterangan } = req.body;
+    if ((!proposalId && (!proposalIds || proposalIds.length === 0)) || !selectedAccountId) {
+      res.status(400).json({ error: 'Proposal ID atau daftar Proposal IDs dan Account ID wajib dipilih' });
       return;
     }
 
+    const ids = proposalIds && Array.isArray(proposalIds) ? proposalIds : [proposalId];
+
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Get proposal and bank account
-      const proposal = await tx.proposal.findUnique({
-        where: { id: proposalId } as any
-      }) as any;
+      let totalNominal = 0;
+      const proposals = [];
+      
+      for (const id of ids) {
+        const proposal = await tx.proposal.findUnique({
+          where: { id: id } as any
+        }) as any;
+        if (!proposal) {
+          throw new Error(`Proposal dengan ID ${id} tidak ditemukan`);
+        }
+        proposals.push(proposal);
+        totalNominal += Number(proposal.nominal || 0);
+      }
+
       const account = await tx.bankAccount.findUnique({
         where: { account_id: selectedAccountId } as any
       }) as any;
 
-      if (!proposal || !account) {
-        throw new Error('Proposal atau Rekening tidak ditemukan');
+      if (!account) {
+        throw new Error('Rekening tidak ditemukan');
       }
 
-      const nominal = Number(proposal.nominal || 0);
-
-      if (Number(account.saldo) < nominal) {
-        throw new Error(`Saldo di ${account.nama_akun} tidak mencukupi! Tersedia: ${account.saldo}, Dibutuhkan: ${nominal}`);
+      if (Number(account.saldo) < totalNominal) {
+        throw new Error(`Saldo di ${account.nama_akun} tidak mencukupi! Tersedia: ${account.saldo}, Dibutuhkan: ${totalNominal}`);
       }
 
-      // 2. Identify Mapping Rule
-      let tag = proposal.tipe_bantuan || 'ZAKAT';
-      if (tag === 'IST') tag = 'INFAK_TERIKAT';
-      if (tag === 'ISTT') tag = 'INFAK_TIDAK_TERIKAT';
+      for (const proposal of proposals) {
+        const nominal = Number(proposal.nominal || 0);
+        
+        let tag = proposal.tipe_bantuan || 'ZAKAT';
+        if (tag === 'IST') tag = 'INFAK_TERIKAT';
+        if (tag === 'ISTT') tag = 'INFAK_TIDAK_TERIKAT';
 
-      const mappingRule = await tx.coaMappingRule.findFirst({
-        where: {
-          program_code: proposal.jenis_permohonan || undefined,
-          asnaf_id: proposal.asnaf || undefined,
-          tipe_kas: account.tipe_kas,
-          sumber_dana_tag: tag
-        }
-      });
+        const mappingRule = await tx.coaMappingRule.findFirst({
+          where: {
+            program_code: proposal.jenis_permohonan || undefined,
+            asnaf_id: proposal.asnaf || undefined,
+            tipe_kas: account.tipe_kas,
+            sumber_dana_tag: tag
+          }
+        });
 
-      const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
-      const kreditCoaCode = account.coa_code;
+        const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
+        const kreditCoaCode = account.coa_code;
 
-      // 3. Potong Saldo Akun Riil
-      await tx.bankAccount.update({
-        where: { account_id: selectedAccountId } as any,
-        data: {
-          saldo: { decrement: new Prisma.Decimal(nominal) }
-        }
-      });
+        await tx.bankAccount.update({
+          where: { account_id: selectedAccountId } as any,
+          data: {
+            saldo: { decrement: new Prisma.Decimal(nominal) }
+          }
+        });
 
-      // 4. Catat Transaksi Realisasi Utama
-      // Find suitable RKAT ID
-      let matchedRkatId = proposal.rkat_activity_id || proposal.jenis_permohonan || 'GENERAL';
-      
-      const realisasiTrx = await tx.realisasi.create({
-        data: {
-          proposal_id: proposalId,
-          rkat_id: matchedRkatId,
-          tanggal: new Date(),
-          keterangan: keterangan || `Penyaluran Program ${proposal.jenis_permohonan} - Mustahik: ${proposal.nama_pemohon}`
-        }
-      });
+        let matchedRkatId = proposal.rkat_activity_id || proposal.jenis_permohonan || 'GENERAL';
+        
+        const realisasiTrx = await tx.realisasi.create({
+          data: {
+            proposal_id: proposal.id,
+            rkat_id: matchedRkatId,
+            tanggal: new Date(),
+            keterangan: keterangan || `Penyaluran Program ${proposal.jenis_permohonan} - Mustahik: ${proposal.nama_pemohon}`
+          }
+        });
 
-      // 5. Generate Double-Entry Jurnal
-      // Entry DEBIT (Penyaluran / Expenses)
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasiTrx.transaksi_id,
-          coa_code: debitCoaCode,
-          debit: new Prisma.Decimal(nominal),
-          kredit: new Prisma.Decimal(0.00),
-          account_id: null
-        }
-      });
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasiTrx.transaksi_id,
+            coa_code: debitCoaCode,
+            debit: new Prisma.Decimal(nominal),
+            kredit: new Prisma.Decimal(0.00),
+            account_id: null
+          }
+        });
 
-      // Entry KREDIT (Kas / Aset Bank)
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasiTrx.transaksi_id,
-          coa_code: kreditCoaCode,
-          debit: new Prisma.Decimal(0.00),
-          kredit: new Prisma.Decimal(nominal),
-          account_id: selectedAccountId
-        }
-      });
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasiTrx.transaksi_id,
+            coa_code: kreditCoaCode,
+            debit: new Prisma.Decimal(0.00),
+            kredit: new Prisma.Decimal(nominal),
+            account_id: selectedAccountId
+          }
+        });
 
-      // 6. Ubah status proposal ke Selesai & Arsip atau Realisasi Bantuan
-      await tx.proposal.update({
-        where: { id: proposalId } as any,
-        data: { status: 'Selesai & Arsip' }
-      });
+        await tx.proposal.update({
+          where: { id: proposal.id } as any,
+          data: { status: 'Selesai & Arsip' }
+        });
+      }
 
-      return { success: true, message: 'Pencairan Berhasil & Jurnal Akuntansi Otomatis Terbentuk!' };
+      return { success: true, message: `${proposals.length} Pencairan Berhasil & Jurnal Akuntansi Otomatis Terbentuk!` };
     });
 
     res.status(200).json(result);
