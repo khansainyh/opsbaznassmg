@@ -20,7 +20,8 @@ import {
   KeyRound,
   ArrowRightLeft,
   BookOpen,
-  RefreshCw
+  RefreshCw,
+  Archive
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
@@ -73,18 +74,26 @@ const menuGroups = [
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Keuangan", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
+      { name: "Antrean Arsip", icon: Archive, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
       { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev"] },
     ]
   },
   {
-    title: "PENGATURAN KEUANGAN",
+    title: "KEUANGAN",
     items: [
-      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Keuangan", "Kabag_Administrasi", "Staf_Administrasi", "Ketua", "Staf_Distribusi"] },
       { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Keuangan"] },
       { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Keuangan"] },
       { name: "Pemindahan Dana", icon: ArrowRightLeft, roles: ["Super_Admin", "Keuangan"] },
-      { name: "Buku Besar", icon: BookOpen, roles: ["Super_Admin", "Keuangan"] },
       { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Keuangan"] },
+    ]
+  },
+  {
+    title: "PELAPORAN",
+    items: [
+      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Keuangan", "Kabag_Administrasi", "Staf_Administrasi", "Ketua", "Staf_Distribusi"] },
+      { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin", "Keuangan"] },
+      { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Keuangan", "Staf_Pelaporan_Pengumpulan"] },
+      { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin", "Keuangan", "Staf_Pelaporan_Pengumpulan"] },
     ]
   }
 ];
@@ -94,7 +103,6 @@ const settingsGroup = {
   items: [
     { name: "User Management", icon: Settings2, roles: ["Super_Admin"] },
     { name: "Audit Logs", icon: History, roles: ["Super_Admin"] },
-    { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin"] },
   ]
 };
 

@@ -14,6 +14,8 @@ import userRoutes from './routes/user.route';
 import notificationRoutes from './routes/notification.route';
 import parameterRoutes from './routes/parameter.route';
 import financeRoutes from './routes/finance.route';
+import mutationRoutes from './routes/mutation.route';
+import muzakkiRoutes from './routes/muzakki.route';
 
 dotenv.config();
 
@@ -50,6 +52,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/parameters', parameterRoutes);
 app.use('/api/finance', financeRoutes);
+app.use('/api/mutations', mutationRoutes);
+app.use('/api/muzakki', muzakkiRoutes);
 
 
 import { initCronJobs } from './utils/cronJobs';

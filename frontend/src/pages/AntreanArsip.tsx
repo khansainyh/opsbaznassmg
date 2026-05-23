@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { 
   Search, 
@@ -9,99 +9,167 @@ import {
   FileText,
   X,
   ClipboardList,
-  Banknote,
   DownloadCloud,
-  Calendar,
-  MessageCircle,
   CheckSquare,
-  Square
+  Square,
+  Upload,
+  Camera,
+  Trash2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 
-interface RealisasiBantuanProps {
+interface AntreanArsipProps {
   data: ProposalMemo[];
   onUpdate: (data: ProposalMemo[]) => void;
 }
 
-export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanProps) {
+export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [scheduleDate, setScheduleDate] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // Filter only proposals with 'Realisasi Bantuan' status
+  // File states for the active proposal upload
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [kuitansiTtd, setKuitansiTtd] = useState<File | null>(null);
+  const [kuitansiPreview, setKuitansiPreview] = useState<string | null>(null);
+
+  // File input refs
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const kuitansiInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter proposals with 'Antrean Arsip' status
   const filteredData = useMemo(() => {
     return data.filter(item => {
-      const isRealisasi = item.status === 'Realisasi Bantuan';
+      const isAntreanArsip = item.status === 'Antrean Arsip';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                          item.nik.includes(searchTerm);
-      return isRealisasi && searchMatch;
+      return isAntreanArsip && searchMatch;
     });
   }, [data, searchTerm]);
 
+  // Statistics helper
   const stats = useMemo(() => {
-    const realisasiData = data.filter(d => d.status === 'Realisasi Bantuan');
-    const totalNominal = realisasiData.reduce((acc, curr) => acc + (curr.nominal || 0), 0);
-    const scheduledCount = realisasiData.filter(d => d.jadwalRealisasi).length;
+    const archiveQueue = data.filter(d => d.status === 'Antrean Arsip');
+    const fullyArchived = data.filter(d => d.status === 'Selesai').length;
+    
+    // Calculate how many of the queue are missing foto realisasi
+    const missingFoto = archiveQueue.filter(d => {
+      const sData = d.survey_data as any;
+      return !sData || !sData.bukti_foto_realisasi;
+    }).length;
+
+    // Calculate how many of the queue are missing kuitansi
+    const missingKuitansi = archiveQueue.filter(d => {
+      const sData = d.survey_data as any;
+      return !sData || !sData.kuitansi_ditandatangani;
+    }).length;
     
     return {
-      total: realisasiData.length,
-      totalNominal,
-      scheduled: scheduledCount
+      missingFoto,
+      missingKuitansi,
+      archived: fullyArchived
     };
   }, [data]);
 
-  const handleComplete = async (id: string) => {
+  // Open upload modal and initialize current uploads if any
+  const openUploadModal = (proposal: ProposalMemo) => {
+    setSelectedProposal(proposal);
+    setIsUploadModalOpen(true);
+    
+    // Check if there is already uploaded data inside survey_data JSON
+    const surveyData = proposal.survey_data as any;
+    if (surveyData) {
+      setFotoPreview(surveyData.bukti_foto_realisasi || null);
+      setKuitansiPreview(surveyData.kuitansi_ditandatangani || null);
+    } else {
+      setFotoPreview(null);
+      setKuitansiPreview(null);
+    }
+    setKuitansiTtd(null);
+  };
+
+  // Close and reset uploads
+  const closeUploadModal = () => {
+    setIsUploadModalOpen(false);
+    setSelectedProposal(null);
+    setFotoPreview(null);
+    setKuitansiTtd(null);
+    setKuitansiPreview(null);
+  };
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleKuitansiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setKuitansiTtd(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setKuitansiPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Save files & archive completely (sets status to 'Selesai')
+  const handleSaveArchive = async () => {
+    if (!selectedProposal) return;
+    
+    setSaving(true);
     try {
-      // Persist the status in database as 'Antrean_Arsip' to proceed to archiving
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
-        status: 'Antrean_Arsip'
+      // Simulate file upload or save base64 / fake url to survey_data
+      const currentSurveyData = (selectedProposal.survey_data as any) || {};
+      
+      // We will save mock link or base64 preview into DB
+      const updatedSurveyData = {
+        ...currentSurveyData,
+        bukti_foto_realisasi: fotoPreview || '/mock-assets/bukti-foto.jpg',
+        kuitansi_ditandatangani: kuitansiPreview || '/mock-assets/kuitansi.pdf',
+        archived_at: new Date().toISOString()
+      };
+
+      // Call API to update status to 'Selesai' and persist survey_data
+      await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedProposal.id}`, {
+        status: 'Selesai',
+        survey_data: updatedSurveyData
       });
 
+      // Update local context
       const updatedData = data.map(item => 
-        item.id === id ? { ...item, status: 'Antrean Arsip' as any } : item
+        item.id === selectedProposal.id 
+          ? { 
+              ...item, 
+              status: 'Selesai' as any,
+              survey_data: updatedSurveyData
+            } 
+          : item
       );
+      
       onUpdate(updatedData);
-
-      if (selectedProposal?.id === id) {
-        setSelectedProposal(null);
-      }
+      closeUploadModal();
     } catch (e: any) {
       console.error(e);
-      alert('Gagal memindahkan ke antrean arsip: ' + (e.response?.data?.error || e.message));
+      alert('Gagal menyimpan arsip: ' + (e.response?.data?.error || e.message));
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const handleSchedule = () => {
-    if (!selectedProposal || !scheduleDate) return;
-    const updatedData = data.map(item => 
-      item.id === selectedProposal.id ? { ...item, jadwalRealisasi: scheduleDate } : item
-    );
-    onUpdate(updatedData);
-    setIsScheduleModalOpen(false);
-    setScheduleDate('');
-  };
-
-  const handleWhatsApp = (proposal: ProposalMemo) => {
-    if (!proposal.noTelpon) {
-      alert('Nomor telepon tidak tersedia.');
-      return;
-    }
-    // Clean phone number
-    let phone = proposal.noTelpon.replace(/[^0-9]/g, '');
-    if (phone.startsWith('0')) {
-      phone = '62' + phone.slice(1);
-    }
-    
-    const message = `Assalamu'alaikum Bpk/Ibu ${proposal.namaPemohon}, kami dari BAZNAS Kota Semarang ingin menginformasikan terkait realisasi bantuan Anda dengan No. Agenda ${proposal.agendaNo}. Mohon kesediaannya untuk...`;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
   };
 
   const toggleSelect = (id: string) => {
@@ -126,13 +194,9 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
     }).format(value);
   };
 
-  const getStatusStep = (item: ProposalMemo) => {
-    if (!item.jadwalRealisasi) return { label: 'Jadwalkan', color: 'bg-amber-50 text-amber-600' };
-    return { label: 'Siap Realisasi', color: 'bg-blue-50 text-blue-600' };
-  };
-
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-55/30">
+      
       {/* Breadcrumbs & Title */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
@@ -142,15 +206,15 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
           <span className="hover:text-primary transition-colors cursor-pointer">Pendistribusian</span>
           <ChevronRight className="size-3.5 text-slate-300" />
-          <span className="text-primary font-black">Realisasi Bantuan</span>
+          <span className="text-primary font-black">Antrean Arsip</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-              Realisasi Bantuan
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+              Antrean Arsip &amp; Dokumentasi
             </h2>
             <p className="text-slate-500 font-medium">
-              Proses akhir penyerahan bantuan kepada mustahik yang telah disetujui.
+              Upload foto penyerahan bantuan dan kuitansi bertanda tangan sebagai pertanggungjawaban penyaluran dana.
             </p>
           </div>
         </div>
@@ -164,22 +228,22 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         className="grid grid-cols-1 md:grid-cols-3 gap-6"
       >
         <StatCard 
-          title="Total Siap Realisasi" 
-          value={stats.total.toString()} 
-          icon={<FileText className="size-5" />}
+          title="Menunggu Dokumentasi" 
+          value={stats.missingFoto.toString()} 
+          icon={<Camera className="size-5" />}
           color="primary"
         />
         <StatCard 
-          title="Total Nilai Bantuan" 
-          value={formatCurrency(stats.totalNominal)} 
-          icon={<Banknote className="size-5" />}
-          color="emerald"
+          title="Menunggu Kuitansi" 
+          value={stats.missingKuitansi.toString()} 
+          icon={<FileText className="size-5" />}
+          color="red"
         />
         <StatCard 
-          title="Sudah Terjadwal" 
-          value={stats.scheduled.toString()} 
-          icon={<Calendar className="size-5" />}
-          color="amber"
+          title="Selesai Diarsipkan" 
+          value={stats.archived.toString()} 
+          icon={<CheckCircle2 className="size-5" />}
+          color="emerald"
         />
       </motion.div>
 
@@ -195,7 +259,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
           <div className="flex items-center gap-4">
             <button 
               onClick={toggleSelectAll}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200"
+              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-55 rounded-lg transition-all border border-slate-200"
             >
               {selectedIds.length === filteredData.length && filteredData.length > 0 ? (
                 <CheckSquare className="size-4 text-primary" />
@@ -209,7 +273,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
               <input 
                 type="text"
                 placeholder="Cari No. Agenda / Nama / NIK..."
-                className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                className="w-full text-xs bg-slate-50 border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -226,7 +290,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                 EXPORT LAPORAN ({selectedIds.length})
               </motion.button>
             )}
-            <button className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-slate-200">
+            <button className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-slate-200">
               <Filter className="size-4" />
             </button>
           </div>
@@ -243,13 +307,14 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                 <th className="px-6 py-4">Program &amp; Jenis</th>
                 <th className="px-6 py-4">Nominal</th>
                 <th className="px-6 py-4">Tipe Bantuan</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Status Arsip</th>
                 <th className="px-6 py-4 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredData.length > 0 ? filteredData.map((item) => {
-                const statusStep = getStatusStep(item);
+                const isUploaded = !!item.survey_data && (item.survey_data as any).bukti_foto_realisasi;
+                
                 return (
                   <tr 
                     key={item.id} 
@@ -269,7 +334,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                       </button>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">
+                      <span className="text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-1.5 rounded-md">
                         {item.agendaNo}
                       </span>
                     </td>
@@ -301,7 +366,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                     </td>
                     <td className="px-6 py-4">
                       <span className={cn(
-                        "px-2 py-1 rounded text-[10px] font-bold border",
+                        "px-2.5 py-1 rounded text-[10px] font-bold border",
                         item.tipeBantuan === 'Tunai' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
                         item.tipeBantuan === 'Barang' ? "bg-blue-50 text-blue-600 border-blue-100" :
                         "bg-slate-50 text-slate-400 border-slate-200"
@@ -310,52 +375,30 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-black uppercase w-fit",
-                          statusStep.color
-                        )}>
-                          {statusStep.label}
-                        </span>
-                        {item.jadwalRealisasi && (
-                          <p className="text-[10px] text-slate-400 font-medium italic">
-                            Jadwal: {new Date(item.jadwalRealisasi).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                          </p>
-                        )}
-                      </div>
+                      <span className={cn(
+                        "px-2.5 py-1 rounded text-[10px] font-black uppercase w-fit border",
+                        isUploaded 
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
+                          : "bg-rose-50 text-rose-600 border-rose-100 animate-pulse"
+                      )}>
+                        {isUploaded ? 'DOKUMEN LENGKAP' : 'BELUM UPLOAD'}
+                      </span>
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1.5">
                         <button 
-                          onClick={() => {
-                            setSelectedProposal(item);
-                            setIsScheduleModalOpen(true);
-                          }}
-                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
-                          title="Jadwalkan"
+                          onClick={() => openUploadModal(item)}
+                          className="p-2 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                          title="Upload Dokumen Arsip"
                         >
-                          <Calendar className="size-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleWhatsApp(item)}
-                          className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
-                          title="Hubungi WhatsApp"
-                        >
-                          <MessageCircle className="size-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleComplete(item.id)}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                          title="Kirim ke Antrean Arsip"
-                        >
-                          <CheckCircle2 className="size-4" />
+                          <Upload className="size-4" />
                         </button>
                         <button 
                           onClick={() => {
                             setSelectedProposal(item);
                             setIsDetailModalOpen(true);
                           }}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                          className="p-2 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                           title="Lihat Detail"
                         >
                           <Eye className="size-4" />
@@ -369,7 +412,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                   <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <ClipboardList className="size-12 opacity-10" />
-                      <p className="text-sm font-medium">Tidak ada bantuan yang siap direalisasikan.</p>
+                      <p className="text-sm font-medium">Tidak ada bantuan yang mengantre arsip.</p>
                     </div>
                   </td>
                 </tr>
@@ -379,64 +422,169 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         </div>
       </motion.div>
 
-      {/* Schedule Modal */}
+      {/* Upload Modal */}
       <AnimatePresence>
-        {isScheduleModalOpen && selectedProposal && (
+        {isUploadModalOpen && selectedProposal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => setIsScheduleModalOpen(false)}
+              onClick={closeUploadModal}
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
-                <h3 className="text-xl font-black text-slate-900">Jadwalkan Bantuan</h3>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Upload Dokumen Penyerahan</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Mustahik: {selectedProposal.namaPemohon} | Agenda: {selectedProposal.agendaNo}</p>
+                </div>
                 <button 
-                  onClick={() => setIsScheduleModalOpen(false)} 
+                  onClick={closeUploadModal} 
                   className="p-2 hover:bg-slate-200 rounded-full transition-colors"
                 >
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
               
-              <div className="p-8 space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Pilih Tanggal Realisasi</label>
-                  <input 
-                    type="date"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-primary focus:border-primary outline-none font-bold text-slate-900"
-                  />
-                </div>
-                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    Menjadwalkan bantuan untuk <span className="font-bold text-primary">{selectedProposal.namaPemohon}</span>. 
-                    Pastikan logistik atau dana sudah siap pada tanggal tersebut.
-                  </p>
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* Photo Proof Box */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">
+                      Bukti Foto Realisasi Bantuan
+                    </label>
+                    <div 
+                      onClick={() => fotoInputRef.current?.click()}
+                      className={cn(
+                        "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-all aspect-video",
+                        fotoPreview ? "border-emerald-250 bg-emerald-50/10" : "border-slate-200"
+                      )}
+                    >
+                      <input 
+                        type="file" 
+                        ref={fotoInputRef} 
+                        onChange={handleFotoChange} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+                      {fotoPreview ? (
+                        <div className="relative w-full h-full flex items-center justify-center">
+                          <img 
+                            src={fotoPreview} 
+                            alt="Bukti Foto" 
+                            className="max-h-full rounded-lg object-contain shadow-sm"
+                          />
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFotoPreview(null);
+                            }}
+                            className="absolute -top-2 -right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-md"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <Camera className="size-8 text-slate-400 animate-pulse" />
+                          <div className="text-center">
+                            <p className="text-xs font-bold text-slate-700">Ambil/Pilih Foto Dokumentasi</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Format JPG, PNG (Maks. 5MB)</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Signed Receipt Box */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">
+                      Kuitansi Bertanda Tangan (Kasir &amp; Penerima)
+                    </label>
+                    <div 
+                      onClick={() => kuitansiInputRef.current?.click()}
+                      className={cn(
+                        "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-all aspect-video",
+                        kuitansiPreview ? "border-emerald-250 bg-emerald-50/10" : "border-slate-200"
+                      )}
+                    >
+                      <input 
+                        type="file" 
+                        ref={kuitansiInputRef} 
+                        onChange={handleKuitansiChange} 
+                        accept="image/*,application/pdf" 
+                        className="hidden" 
+                      />
+                      {kuitansiPreview ? (
+                        <div className="relative w-full h-full flex flex-col items-center justify-center text-center">
+                          {kuitansiTtd?.type === 'application/pdf' ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <FileText className="size-10 text-rose-500" />
+                              <span className="text-xs font-bold text-slate-700 max-w-[150px] truncate">{kuitansiTtd.name}</span>
+                            </div>
+                          ) : (
+                            <img 
+                              src={kuitansiPreview} 
+                              alt="Kuitansi Ttd" 
+                              className="max-h-full rounded-lg object-contain shadow-sm"
+                            />
+                          )}
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setKuitansiTtd(null);
+                              setKuitansiPreview(null);
+                            }}
+                            className="absolute -top-2 -right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-md"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <ImageIcon className="size-8 text-slate-400 animate-pulse" />
+                          <div className="text-center">
+                            <p className="text-xs font-bold text-slate-700">Upload Kuitansi Hasil Scan</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Format PDF, JPG, PNG (Maks. 5MB)</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                 <button 
-                  onClick={() => setIsScheduleModalOpen(false)}
-                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  onClick={closeUploadModal}
+                  disabled={saving}
+                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-55 transition-all"
                 >
                   Batal
                 </button>
                 <button 
-                  onClick={handleSchedule}
-                  disabled={!scheduleDate}
-                  className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleSaveArchive}
+                  disabled={saving || (!fotoPreview && !kuitansiPreview)}
+                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-250 transition-all flex items-center justify-center gap-2"
                 >
-                  Simpan Jadwal
+                  {saving ? (
+                    <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="size-4" />
+                      Simpan &amp; Arsipkan
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
@@ -463,7 +611,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">Detail Realisasi Bantuan</h3>
+                  <h3 className="text-xl font-black text-slate-900">Detail Pertanggungjawaban</h3>
                   <p className="text-xs text-slate-500 font-medium mt-1">No. Agenda: {selectedProposal.agendaNo}</p>
                 </div>
                 <button 
@@ -478,14 +626,13 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
+                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Mustahik</h4>
                       <div className="space-y-4">
                         <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
                         <DetailItem label="NIK" value={selectedProposal.nik} />
-                        <DetailItem label="No. Telepon" value={selectedProposal.noTelpon || '-'} />
-                        <DetailItem label="Alamat" value={selectedProposal.alamat} />
-                        <DetailItem label="Kelurahan" value={selectedProposal.kelurahan} />
-                        <DetailItem label="Kecamatan" value={selectedProposal.kecamatan} />
+                        <DetailItem label="Alamat" value={selectedProposal.alamat || '-'} />
+                        <DetailItem label="Kelurahan" value={selectedProposal.kelurahan || '-'} />
+                        <DetailItem label="Kecamatan" value={selectedProposal.kecamatan || '-'} />
                       </div>
                     </div>
                   </div>
@@ -495,11 +642,10 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                       <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Bantuan</h4>
                       <div className="space-y-4">
                         <DetailItem label="Program" value={selectedProposal.program || 'Umum'} />
-                        <DetailItem label="Jenis Permohonan" value={selectedProposal.jenisPermohonan} />
+                        <DetailItem label="Jenis Permohonan" value={selectedProposal.jenisPermohonan || '-'} />
                         <DetailItem label="Tipe Bantuan" value={selectedProposal.tipeBantuan || 'Belum Ditentukan'} />
-                        <DetailItem label="Jadwal Realisasi" value={selectedProposal.jadwalRealisasi ? new Date(selectedProposal.jadwalRealisasi).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Belum Dijadwalkan'} />
                         <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Nominal Bantuan</p>
+                          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Nominal Disalurkan</p>
                           <p className="text-xl font-black text-slate-900">{formatCurrency(selectedProposal.nominal || 0)}</p>
                         </div>
                       </div>
@@ -511,18 +657,9 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                 <button 
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-55 transition-all text-center"
                 >
                   Tutup
-                </button>
-                <button 
-                  onClick={() => {
-                    handleComplete(selectedProposal.id);
-                    setIsDetailModalOpen(false);
-                  }}
-                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all"
-                >
-                  Lanjut ke Pengarsipan
                 </button>
               </div>
             </motion.div>

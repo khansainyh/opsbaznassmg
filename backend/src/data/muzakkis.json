@@ -1,0 +1,36 @@
+[
+  {
+    "id": "muz-1",
+    "nrm": "MZ-001",
+    "nama": "Budi Santoso",
+    "nik": "3374012345670001",
+    "tempat_lahir": "Semarang",
+    "tanggal_lahir": "1980-05-12",
+    "jenis_kelamin": "Pria",
+    "pekerjaan": "Swasta",
+    "alamat": "Jl. Pemuda No. 1, Semarang Tengah",
+    "handphone": "081234567890",
+    "email": "budi.santoso@email.com",
+    "catatan": "Donatur Rutin Zakat Maal",
+    "kategori": "Perorangan",
+    "status": "Aktif",
+    "created_at": "2026-05-11T03:34:59.790Z"
+  },
+  {
+    "id": "muz-2",
+    "nrm": "MZ-002",
+    "nama": "Dewi Kusuma",
+    "nik": "3374021111110002",
+    "tempat_lahir": "Demak",
+    "tanggal_lahir": "1990-07-25",
+    "jenis_kelamin": "Wanita",
+    "pekerjaan": "Wiraswasta",
+    "alamat": "Jl. Imam Bonjol No. 3",
+    "handphone": "081311110002",
+    "email": "dewi.kusuma@email.com",
+    "catatan": "Donatur Sedekah",
+    "kategori": "Perorangan",
+    "status": "Aktif",
+    "created_at": "2026-05-13T07:18:15.398Z"
+  }
+]

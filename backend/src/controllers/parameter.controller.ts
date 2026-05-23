@@ -1,9 +1,23 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 
+const defaultParams = [
+  { key: 'hak_amil_zakat_maal', value: '12.5', description: 'Hak Amil Zakat Maal (%)' },
+  { key: 'hak_amil_infak_sedekah', value: '20.0', description: 'Hak Amil Infak/Sedekah (%)' },
+  { key: 'hak_amil_zakat_fitrah', value: '0', description: 'Hak Amil Zakat Fitrah (UPZ) (%)' },
+  { key: 'bps_garis_kemiskinan', value: '709000', description: 'Garis Kemiskinan BPS (Rupiah per Kapita)' },
+  { key: 'upz_hak_salur_persentase', value: '30', description: 'Persentase Hak Salur UPZ (%)' }
+];
+
 export const getParameters = async (req: Request, res: Response) => {
   try {
-    const params = await prisma.systemParameter.findMany();
+    let params = await prisma.systemParameter.findMany();
+    if (params.length === 0) {
+      await prisma.systemParameter.createMany({
+        data: defaultParams
+      });
+      params = await prisma.systemParameter.findMany();
+    }
     res.status(200).json(params);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch parameters' });

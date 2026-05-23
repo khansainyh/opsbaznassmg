@@ -1,0 +1,29 @@
+[
+  {
+    "id": "mut-1",
+    "tanggal": "2026-05-23",
+    "bankAccountId": "ba-3",
+    "bankName": "BSI - Rekening Utama Zakat",
+    "keteranganBank": "TRSF BPK HAMBA ALLAH BSI NET",
+    "nominal": 2500000,
+    "status": "PENDING"
+  },
+  {
+    "id": "mut-2",
+    "tanggal": "2026-05-23",
+    "bankAccountId": "ba-3",
+    "bankName": "BSI - Rekening Utama Zakat",
+    "keteranganBank": "TRANSFER ANGGOTA POLRESTABES SMG",
+    "nominal": 10000000,
+    "status": "PENDING"
+  },
+  {
+    "id": "mut-3",
+    "tanggal": "2026-05-22",
+    "bankAccountId": "ba-3",
+    "bankName": "BSI - Rekening Utama Zakat",
+    "keteranganBank": "SEDEKAH JUMAT BERKAH MASJID",
+    "nominal": 750000,
+    "status": "PENDING"
+  }
+]

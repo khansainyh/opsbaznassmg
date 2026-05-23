@@ -648,7 +648,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Pelaporan Keuangan</span>
+            <span className="hover:text-primary transition-colors cursor-pointer">Pelaporan</span>
             <ChevronRight className="size-3.5 text-slate-300" />
             <span className="text-primary font-black">Target RKAT</span>
           </nav>

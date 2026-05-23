@@ -3,14 +3,10 @@ import axios from 'axios';
 import { 
   RefreshCw, 
   HelpCircle, 
-  CheckCircle, 
-  AlertCircle, 
   Search,
   Database,
   Save,
-  Check,
-  ExternalLink,
-  ChevronRight
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProposalMemo } from '../data/proposalMemoData';

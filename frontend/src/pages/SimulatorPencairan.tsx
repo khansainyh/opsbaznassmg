@@ -3,23 +3,18 @@ import axios from 'axios';
 import { 
   CheckCircle2, 
   FileText, 
-  Banknote,
-  Wallet,
   ArrowUpRight,
   ChevronRight,
-  Play,
   RotateCcw,
   Sparkles,
   ShieldCheck,
   Coins,
   CheckSquare,
   Square,
-  Info,
   AlertTriangle,
   Building2,
   Printer,
-  HelpCircle,
-  PiggyBank
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -200,38 +195,6 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
   const estimasiSaldoAkhir = saldoAwal - totalSelectedNominal;
   const isSaldoSufficient = estimasiSaldoAkhir >= 0;
   const shortfall = totalSelectedNominal - saldoAwal;
-
-  // Shortfall / Deficit recommendation logic
-  const recommendations = useMemo(() => {
-    if (isSaldoSufficient || !selectedAccountId) return [];
-    
-    const list: any[] = [];
-    let remainingShortfall = shortfall;
-
-    // Find other available accounts of allowed category that have funds
-    const otherAccounts = allowedAccounts
-      .filter(a => a.account_id !== selectedAccountId && Number(a.saldo) > 0)
-      .sort((a, b) => Number(b.saldo) - Number(a.saldo)); // higher balance first
-
-    for (const acc of otherAccounts) {
-      if (remainingShortfall <= 0) break;
-      const balance = Number(acc.saldo);
-      const takeAmount = Math.min(balance, remainingShortfall);
-      list.push({
-        account_id: acc.account_id,
-        nama_akun: acc.nama_akun,
-        kelompok_dana: acc.kelompok_dana,
-        saldo: balance,
-        take_amount: takeAmount
-      });
-      remainingShortfall -= takeAmount;
-    }
-
-    return {
-      items: list,
-      remainingUnallocated: remainingShortfall
-    };
-  }, [isSaldoSufficient, selectedAccountId, shortfall, allowedAccounts]);
 
   // Execute disbursement
   const handleExecutePayment = async (e: React.FormEvent) => {
@@ -516,7 +479,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredProposals.length > 0 ? (
-                  filteredProposals.map((item, index) => {
+                  filteredProposals.map((item) => {
                     const isChecked = checkedProposalIds.includes(item.id);
                     const tag = getProposalTag(item);
                     return (

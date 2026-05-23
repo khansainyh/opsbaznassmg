@@ -30,6 +30,8 @@ import PemindahanDana from '@/src/pages/PemindahanDana';
 import BukuBesar from '@/src/pages/BukuBesar';
 import AntreanSimba from '@/src/pages/AntreanSimba';
 import RealisasiBantuan from '@/src/pages/RealisasiBantuan';
+import AntreanArsip from '@/src/pages/AntreanArsip';
+import RekonsiliasiMutasi from '@/src/pages/RekonsiliasiMutasi';
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -235,12 +237,16 @@ function App() {
           <PengaturanKeuangan />
         ) : activeMenu === 'Pemindahan Dana' ? (
           <PemindahanDana />
-        ) : activeMenu === 'Buku Besar' ? (
+        ) : activeMenu === 'Jurnal Buku Besar' ? (
           <BukuBesar />
+        ) : activeMenu === 'Rekonsiliasi Mutasi' ? (
+          <RekonsiliasiMutasi />
         ) : activeMenu === 'Antrean SIMBA' ? (
           <AntreanSimba data={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Realisasi Bantuan' ? (
           <RealisasiBantuan data={proposals} onUpdate={handleUpdateProposals} />
+        ) : activeMenu === 'Antrean Arsip' ? (
+          <AntreanArsip data={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Pilar & Program' ? (
           <PilarProgram />
         ) : activeMenu === 'Data Mustahik' ? (
