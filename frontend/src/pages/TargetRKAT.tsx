@@ -41,6 +41,7 @@ export interface RKATActivity {
   programCode: string; // Associated master program code
   asnafTargetId: string; // Associated asnaf target id
   asnaf?: string;      // Specific Asnaf criteria for the activity
+  noUrut?: number;     // Sequence number
 }
 
 
@@ -93,13 +94,14 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               unitCost: target.nominal || 0,
               programCode: prog.code,
               asnafTargetId: fallbackId,
-              asnaf: target.asnaf
+              asnaf: target.asnaf,
+              noUrut: target.noUrut || 9999
             });
           });
         }
       });
     });
-    return list;
+    return list.sort((a, b) => (a.noUrut || 9999) - (b.noUrut || 9999));
   }, [data]);
 
 
@@ -379,7 +381,8 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       frekuensi: formFrekuensi,
       nominal: formUnitCost,
       mustahik: formMustahik,
-      keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`)
+      keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
+      noUrut: activities.length + 1
     };
 
     let currentTargets: AsnafTarget[] = [];
@@ -483,7 +486,8 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       frekuensi: formFrekuensi,
       nominal: formUnitCost,
       mustahik: formMustahik,
-      keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`)
+      keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
+      noUrut: editingActivity.noUrut
     };
 
     // If Program changed
@@ -1279,6 +1283,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                     onClick={() => {
                       const ws = XLSX.utils.json_to_sheet([
                         { 
+                          "No Urut": 1,
                           "Kode Pilar": "1100",
                           "Kode Program": "1102",
                           "Nama Kegiatan": "Bantuan Biaya Hidup Sembako",
@@ -1331,7 +1336,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                             const dataExcel = XLSX.utils.sheet_to_json(ws) as any[];
                             
                             if (dataExcel.length === 0) {
-                              alert('File Excel kosong atau tidak terbaca.');
+                              alert('File Excel kosong or tidak terbaca.');
                               return;
                             }
 
@@ -1344,12 +1349,14 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                 groupedByProgram[progCode] = [];
                               }
                               
+                              const noUrut = Number(row["No Urut"] || row["No_Urut"] || row["no_urut"] || 9999);
                               const mustahik = Number(row["Target Jiwa"] || row["Target_Jiwa"] || row["target_jiwa"] || 0);
                               const frekuensi = Number(row["Frekuensi"] || row["Frekuensi_Tahun"] || row["frekuensi_tahun"] || 1);
                               const nominal = Number(row["Unit Cost"] || row["Unit_Cost_Rp"] || row["unit_cost"] || 0);
 
                               groupedByProgram[progCode].push({
                                 id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                                noUrut,
                                 name: String(row["Nama Kegiatan"] || row["Nama_Kegiatan"] || row["nama_kegiatan"] || "").trim(),
                                 asnaf: String(row["Asnaf"] || row["asnaf"] || "").trim(),
                                 frekuensi,

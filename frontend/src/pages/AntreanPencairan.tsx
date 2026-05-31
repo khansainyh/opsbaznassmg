@@ -1,16 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
   Search, 
   ChevronRight, 
   Eye, 
-  CheckCircle2, 
   X, 
   ClipboardList, 
   Banknote,
-  CheckSquare,
-  Square,
-  Wallet,
   ArrowUpRight,
   Coins,
   Info
@@ -24,12 +20,23 @@ interface AntreanPencairanProps {
   onUpdate: (data: ProposalMemo[]) => void;
 }
 
-export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanProps) {
+export default function AntreanPencairan({ data }: AntreanPencairanProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [accounts, setAccounts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      try {
+        const res = await axios.get('http://127.0.0.1:4000/api/finance/accounts');
+        setAccounts(res.data);
+      } catch (e) {
+        console.error('Gagal mengambil data rekening: ', e);
+      }
+    };
+    fetchAccounts();
+  }, []);
 
   // Filter only proposals with 'Pencairan Dana' or 'Antrean Bantuan' status
   const filteredData = useMemo(() => {
@@ -46,78 +53,25 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
   const stats = useMemo(() => {
     const pencairanData = data.filter(d => d.status === 'Pencairan Dana' || d.status === 'Antrean Bantuan');
     const totalNominal = pencairanData.reduce((acc, curr) => acc + (curr.nominal || 0), 0);
-    const kasTersedia = 15000000; // Mocked value for cash available for disbursement
+    
+    // Accumulate cash balance for Zakat, ISTT, IST
+    const kasTersedia = accounts
+      .filter(a => 
+        a.tipe_kas === 'TUNAI' && (
+          a.kelompok_dana === 'ZAKAT' || 
+          a.kelompok_dana === 'INFAK_TIDAK_TERIKAT' || 
+          a.kelompok_dana === 'INFAK_TERIKAT'
+        )
+      )
+      .reduce((sum, item) => sum + Number(item.saldo), 0);
     
     return {
       total: pencairanData.length,
       totalNominal,
-      totalPengumpulan: 2545750000, // Mocked value for Total Pengumpulan
       kasTersedia,
       rekomendasiKas: Math.max(0, totalNominal - kasTersedia)
     };
-  }, [data]);
-
-  const handleApprove = async (id: string) => {
-    setIsSubmitting(true);
-    try {
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
-        status: 'Realisasi_Bantuan'
-      });
-      const updatedData = data.map(item => 
-        item.id === id ? { ...item, status: 'Realisasi Bantuan' as any } : item
-      );
-      onUpdate(updatedData);
-      setSelectedIds(prev => prev.filter(i => i !== id));
-    } catch (e) {
-      console.error(e);
-      alert('Gagal mencairkan dana.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleBulkApprove = async () => {
-    if (selectedIds.length === 0) return;
-    
-    setIsSubmitting(true);
-    try {
-      const updates = selectedIds.map(async (id) => {
-        await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
-          status: 'Realisasi_Bantuan'
-        });
-      });
-      await Promise.all(updates);
-
-      const updatedData = data.map(item => {
-        if (selectedIds.includes(item.id)) {
-          return { ...item, status: 'Realisasi Bantuan' as any };
-        }
-        return item;
-      });
-
-      onUpdate(updatedData);
-      setSelectedIds([]);
-    } catch (e) {
-      console.error(e);
-      alert('Gagal memproses pencairan dana massal.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.length === filteredData.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredData.map(item => item.id));
-    }
-  };
+  }, [data, accounts]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -149,14 +103,7 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
       </motion.div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Total Pengumpulan" 
-          value={formatCurrency(stats.totalPengumpulan)} 
-          icon={<Wallet className="size-5" />}
-          color="primary"
-          subtitle="Saldo tersedia saat ini"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
           title="Antrean Pencairan" 
           value={formatCurrency(stats.totalNominal)} 
@@ -169,14 +116,14 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
           value={formatCurrency(stats.kasTersedia)} 
           icon={<ArrowUpRight className="size-5" />}
           color="blue"
-          subtitle="Kas tunai siap cair"
+          subtitle="Akumulasi Kas Zakat, ISTT, & IST"
         />
         <StatCard 
           title="Rekomendasi Penarikan Kas" 
           value={formatCurrency(stats.rekomendasiKas)} 
           icon={<Coins className="size-5" />}
           color="emerald"
-          subtitle="Kekurangan dana tunai"
+          subtitle={stats.rekomendasiKas > 0 ? "Kekurangan dana tunai" : "Kas tunai mencukupi"}
         />
       </div>
 
@@ -185,33 +132,6 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
         {/* Filter Bar */}
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
-            <button 
-              onClick={toggleSelectAll}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200"
-            >
-              {selectedIds.length === filteredData.length && filteredData.length > 0 ? (
-                <CheckSquare className="size-4 text-primary" />
-              ) : (
-                <Square className="size-4" />
-              )}
-              Pilih Semua
-            </button>
-            {selectedIds.length > 0 && (
-              <motion.button 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                disabled={isSubmitting}
-                onClick={handleBulkApprove}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <CheckCircle2 className="size-4" />
-                )}
-                CAIRKAN DANA ({selectedIds.length})
-              </motion.button>
-            )}
             <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input 
@@ -229,7 +149,6 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
-                <th className="px-6 py-4 w-10"></th>
                 <th className="px-6 py-4">No. Agenda</th>
                 <th className="px-6 py-4">Mustahik</th>
                 <th className="px-6 py-4">Program & Jenis</th>
@@ -242,21 +161,8 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
               {filteredData.length > 0 ? filteredData.map((item) => (
                 <tr 
                   key={item.id} 
-                  className={cn(
-                    "hover:bg-slate-50/50 transition-colors group cursor-pointer",
-                    selectedIds.includes(item.id) && "bg-primary/5"
-                  )}
-                  onClick={() => toggleSelect(item.id)}
+                  className="hover:bg-slate-50/50 transition-colors group"
                 >
-                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => toggleSelect(item.id)}>
-                      {selectedIds.includes(item.id) ? (
-                        <CheckSquare className="size-5 text-primary" />
-                      ) : (
-                        <Square className="size-5 text-slate-300 group-hover:text-slate-400" />
-                      )}
-                    </button>
-                  </td>
                   <td className="px-6 py-4">
                     <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">
                       {item.agendaNo}
@@ -291,8 +197,8 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
                       {item.tipeBantuan || '-'}
                     </span>
                   </td>
-                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-2">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center">
                       <button 
                         onClick={() => {
                           setSelectedProposal(item);
@@ -303,24 +209,12 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
                       >
                         <Eye className="size-4" />
                       </button>
-                      <button 
-                        disabled={isSubmitting}
-                        onClick={() => handleApprove(item.id)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black rounded-lg shadow-sm shadow-emerald-200 hover:bg-emerald-700 transition-all disabled:opacity-50"
-                      >
-                        {isSubmitting ? (
-                          <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <Banknote className="size-3" />
-                        )}
-                        CAIRKAN
-                      </button>
                     </div>
                   </td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <ClipboardList className="size-12 opacity-10" />
                       <p className="text-sm font-medium">Tidak ada antrean pencairan saat ini.</p>
@@ -380,6 +274,13 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
                         <DetailItem label="Program" value={selectedProposal.program || 'Umum'} />
                         <DetailItem label="Jenis" value={selectedProposal.jenisPermohonan} />
                         <DetailItem label="Tipe" value={selectedProposal.tipeBantuan || '-'} />
+                        <DetailItem label="Asnaf (Golongan Penerima)" value={selectedProposal.asnaf || '—'} />
+                        
+                        <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Rekomendasi Kas (Kabag Pendistribusian)</p>
+                          <p className="text-sm font-bold text-slate-900">{selectedProposal.rekomendasi_kabag || 'Zakat'}</p>
+                        </div>
+
                         <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Nominal Pencairan</p>
                           <p className="text-xl font-black text-slate-900">{formatCurrency(selectedProposal.nominal || 0)}</p>
@@ -393,20 +294,9 @@ export default function AntreanPencairan({ data, onUpdate }: AntreanPencairanPro
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                 <button 
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all text-center"
                 >
                   Tutup
-                </button>
-                <button 
-                  disabled={isSubmitting}
-                  onClick={async () => {
-                    await handleApprove(selectedProposal.id);
-                    setIsDetailModalOpen(false);
-                  }}
-                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2"
-                >
-                  {isSubmitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                  Cairkan Dana
                 </button>
               </div>
             </motion.div>

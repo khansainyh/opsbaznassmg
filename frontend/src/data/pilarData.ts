@@ -6,6 +6,7 @@ export interface AsnafTarget {
   nominal: number;
   mustahik: number;
   keterangan?: string;
+  noUrut?: number;
 }
 
 export interface Program {
