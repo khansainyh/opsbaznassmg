@@ -21,6 +21,7 @@ import PenentuanNominal from '@/src/pages/PenentuanNominal';
 import AntreanPencairan from '@/src/pages/AntreanPencairan';
 import ExecutiveDashboard from '@/src/pages/ExecutiveDashboard';
 import TrackingProposal from '@/src/pages/TrackingProposal';
+import TrackingSurat from '@/src/pages/TrackingSurat';
 import NotificationBell from '@/src/components/NotificationBell';
 import ParameterSistem from '@/src/pages/ParameterSistem';
 import TargetRKAT from '@/src/pages/TargetRKAT';
@@ -226,6 +227,8 @@ function App() {
           />
         ) : activeMenu === 'Tracking Proposal' ? (
           <TrackingProposal data={proposals} />
+        ) : activeMenu === 'Tracking Surat' ? (
+          <TrackingSurat data={surats} />
         ) : activeMenu === 'Target RKAT' ? (
           <TargetRKAT proposals={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Simulator Pencairan' ? (

@@ -1,70 +1,54 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search, Filter, Calendar, FileText, Clock, CheckCircle2,
-  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, Banknote, History
+  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, FileSearch
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { ProposalMemo } from '../data/proposalMemoData';
+import { Surat } from './InputSurat';
 
-interface TrackingProposalProps {
-  data: ProposalMemo[];
+interface TrackingSuratProps {
+  data: Surat[];
 }
-
-const MEMO_SOURCES = ['Semua', 'Ketua BAZNAS', 'Wakil Ketua I', 'Wakil Ketua II', 'Wakil Ketua III', 'Wakil Ketua IV', 'Kepala Pelaksana'];
 
 const MONTHS = ['Semua','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const MONTH_MAP: Record<string, string> = { Januari:'01',Februari:'02',Maret:'03',April:'04',Mei:'05',Juni:'06',Juli:'07',Agustus:'08',September:'09',Oktober:'10',November:'11',Desember:'12' };
 
 const STATUS_ORDER = [
   'Registrasi',
-  'Review Kabag Admin', 'Review Kabag', 'Review Kabag Administrasi',
-  'Survei Assessment', 'Proses Disposisi', 'Monitoring Tugas', 'Tim Survei',
-  'Survei Selesai',
+  'Review Kabag Admin',
   'Review Kepala Pelaksana',
   'Review Pimpinan',
-  'Persetujuan Pimpinan',
-  'Penentuan Nominal',
-  'Pencairan Dana',
-  'Realisasi Bantuan',
-  'Antrean Arsip',
-  'Selesai & Arsip',
+  'Arsip',
+  'Selesai'
 ];
 
 const FILTER_STATUSES = [
   'Semua Status',
   'Registrasi',
-  'Review Kabag',
-  'Survei Assessment',
-  'Survei Selesai',
+  'Review Kabag Admin',
   'Review Kepala Pelaksana',
   'Review Pimpinan',
-  'Penentuan Nominal',
-  'Pencairan Dana',
-  'Realisasi Bantuan',
-  'Antrean Arsip',
-  'Selesai & Arsip',
+  'Arsip',
+  'Selesai',
   'Ditolak'
 ];
 
 const STEPS = [
-  { id: 'ADM',   label: 'ADM',   full: 'Bagian Administrasi' },
-  { id: 'SURV',  label: 'SURV',  full: 'Bagian Survei' },
+  { id: 'ADM',   label: 'ADM',   full: 'Registrasi & Scan' },
+  { id: 'KABAG', label: 'KABAG', full: 'Review Kabag Admin' },
   { id: 'KEPEL', label: 'KEPEL', full: 'Kepala Pelaksana' },
   { id: 'PIMP',  label: 'PIMP',  full: 'Pimpinan BAZNAS' },
-  { id: 'KEU',   label: 'KEU',   full: 'Bagian Keuangan' },
-  { id: 'DIST',  label: 'DIST',  full: 'Pendistribusian' },
   { id: 'ARSIP', label: 'ARSIP', full: 'Pengarsipan' },
   { id: 'DONE',  label: 'DONE',  full: 'Selesai' },
 ];
 
 function getProgressSteps(status: string) {
-  const normStatus = status === 'Selesai' ? 'Selesai & Arsip' : status;
-  if (normStatus === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
-  const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === normStatus.toLowerCase());
+  if (status === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
+  const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === status.toLowerCase());
   return STEPS.map((step, i) => {
-    // ADM: idx 0-3, SURV: 4-8, KEPEL: 9, PIMP: 10-11, KEU: 12-13, DIST: 14, ARSIP: 15, DONE: 16
-    const ranges = [[0,3],[4,8],[9,9],[10,11],[12,13],[14,14],[15,15],[16,16]];
+    // ADM: 0, KABAG: 1, KEPEL: 2, PIMP: 3, ARSIP: 4, DONE: 5
+    const ranges = [[0,0],[1,1],[2,2],[3,3],[4,4],[5,5]];
     const [lo, hi] = ranges[i];
     const active = idx >= lo && idx <= hi;
     const completed = idx > hi;
@@ -73,62 +57,33 @@ function getProgressSteps(status: string) {
 }
 
 function getStatusColor(status: string) {
-  const normStatus = status === 'Selesai' ? 'Selesai & Arsip' : status;
-  const map: Record<string, string> = {
-    'Registrasi': 'bg-slate-100 text-slate-600',
-    'Review Kabag Admin': 'bg-indigo-100 text-indigo-700',
-    'Review Kabag': 'bg-indigo-100 text-indigo-700',
-    'Review Kabag Administrasi': 'bg-indigo-100 text-indigo-700',
-    'Survei Assessment': 'bg-amber-100 text-amber-700',
-    'Proses Disposisi': 'bg-amber-100 text-amber-700',
-    'Monitoring Tugas': 'bg-amber-100 text-amber-700',
-    'Tim Survei': 'bg-amber-100 text-amber-700',
-    'Survei Selesai': 'bg-orange-100 text-orange-700',
-    'Review Kepala Pelaksana': 'bg-blue-100 text-blue-700',
-    'Review Pimpinan': 'bg-purple-100 text-purple-700',
-    'Persetujuan Pimpinan': 'bg-purple-100 text-purple-700',
-    'Penentuan Nominal': 'bg-pink-100 text-pink-700',
-    'Pencairan Dana': 'bg-teal-100 text-teal-700',
-    'Realisasi Bantuan': 'bg-blue-100 text-blue-700',
-    'Antrean Arsip': 'bg-amber-100 text-amber-700',
-    'Selesai & Arsip': 'bg-emerald-100 text-emerald-700',
-    'Ditolak': 'bg-rose-100 text-rose-700',
-  };
-  return map[normStatus] ?? 'bg-slate-100 text-slate-600';
+  switch (status) {
+    case 'Registrasi': return 'bg-slate-100 text-slate-600';
+    case 'Review Kabag Admin': return 'bg-indigo-100 text-indigo-700';
+    case 'Review Kepala Pelaksana': return 'bg-blue-100 text-blue-700';
+    case 'Review Pimpinan': return 'bg-purple-100 text-purple-700';
+    case 'Arsip': return 'bg-amber-100 text-amber-700';
+    case 'Selesai': return 'bg-emerald-100 text-emerald-700';
+    case 'Ditolak': return 'bg-rose-100 text-rose-700';
+    default: return 'bg-slate-100 text-slate-600';
+  }
 }
 
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v);
+function toGDriveEmbedUrl(link: string): string | null {
+  if (!link || !link.trim()) return null;
+  const fileMatch = link.match(/\/file\/d\/([^/?#]+)/);
+  if (fileMatch) return `https://drive.google.com/file/d/${fileMatch[1]}/preview`;
+  const openMatch = link.match(/[?&]id=([^&]+)/);
+  if (openMatch) return `https://drive.google.com/file/d/${openMatch[1]}/preview`;
+  return null;
 }
 
-function matchesStatus(itemStatus: string, filterStatus: string) {
-  if (filterStatus === 'Semua Status') return true;
-  
-  const normItem = itemStatus.toLowerCase().trim();
-  const normFilter = filterStatus.toLowerCase().trim();
-  
-  if (normFilter === 'review kabag') {
-    return normItem === 'review kabag' || normItem === 'review kabag admin' || normItem === 'review kabag administrasi';
-  }
-  if (normFilter === 'survei assessment') {
-    return normItem === 'survei assessment' || normItem === 'proses disposisi' || normItem === 'monitoring tugas' || normItem === 'tim survei';
-  }
-  if (normFilter === 'review pimpinan') {
-    return normItem === 'review pimpinan' || normItem === 'persetujuan pimpinan';
-  }
-  if (normFilter === 'selesai & arsip') {
-    return normItem === 'selesai & arsip' || normItem === 'selesai';
-  }
-  return normItem === normFilter;
-}
-
-export default function TrackingProposal({ data }: TrackingProposalProps) {
+export default function TrackingSurat({ data }: TrackingSuratProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState('Semua');
-  const [selectedMemo, setSelectedMemo] = useState('Semua');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
-  const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
+  const [selectedSurat, setSelectedSurat] = useState<Surat | null>(null);
 
   const years = Array.from(new Set(data.map(d => new Date(d.tanggalMasuk).getFullYear().toString()))).sort().reverse();
   if (!years.includes(selectedYear)) years.push(selectedYear);
@@ -139,23 +94,26 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
         const date = new Date(item.tanggalMasuk);
         const yearOk = date.getFullYear().toString() === selectedYear;
         const monthOk = selectedMonth === 'Semua' || (date.getMonth()+1).toString().padStart(2,'0') === MONTH_MAP[selectedMonth];
-        const memoOk = selectedMemo === 'Semua' || (selectedMemo === 'Tanpa Memo' ? !item.hasMemo : item.memoSource === selectedMemo);
-        const statusOk = matchesStatus(item.status, selectedStatus);
+        
+        let statusOk = true;
+        if (selectedStatus !== 'Semua Status') {
+          statusOk = item.status.toLowerCase().trim() === selectedStatus.toLowerCase().trim();
+        }
+
         const searchOk = !searchTerm ||
           item.agendaNo.toString().includes(searchTerm) ||
-          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-          item.nik.includes(searchTerm);
-        return yearOk && monthOk && memoOk && statusOk && searchOk;
+          (item.namaInstansi || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (item.pimpinanOrganisasi || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (item.keperluan || '').toLowerCase().includes(searchTerm.toLowerCase());
+        return yearOk && monthOk && statusOk && searchOk;
       })
       .sort((a, b) => Number(b.agendaNo) - Number(a.agendaNo));
-  }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus]);
+  }, [data, searchTerm, selectedYear, selectedMonth, selectedStatus]);
 
   const stats = useMemo(() => ({
     total: filtered.length,
-    processing: filtered.filter(d => !['Selesai & Arsip', 'Selesai', 'Ditolak'].includes(d.status)).length,
-    approved: filtered.filter(d => ['Selesai & Arsip', 'Selesai'].includes(d.status)).length,
-    rejected: filtered.filter(d => d.status === 'Ditolak').length,
+    processing: filtered.filter(d => !['Selesai', 'Arsip', 'Ditolak'].includes(d.status)).length,
+    approved: filtered.filter(d => ['Selesai', 'Arsip'].includes(d.status)).length,
   }), [filtered]);
 
   return (
@@ -165,17 +123,17 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
         <nav className="flex text-sm gap-2 items-center">
           <span className="text-slate-400">Operasional</span>
           <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Tracking Proposal</span>
+          <span className="text-primary font-bold">Tracking Surat</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Tracking Proposal</h2>
-        <p className="text-slate-500 font-medium">Pantau alur dan status pengajuan proposal secara real-time.</p>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Tracking Surat</h2>
+        <p className="text-slate-500 font-medium">Pantau alur disposisi dan status surat dinas secara real-time.</p>
       </motion.div>
 
       {/* Stats */}
       <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.1 }}
         className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { title:'Total Proposal', value: stats.total, icon:<FileText className="size-5"/>, color:'primary' as const },
+          { title:'Total Surat', value: stats.total, icon:<FileText className="size-5"/>, color:'primary' as const },
           { title:'Sedang Diproses', value: stats.processing, icon:<Clock className="size-5"/>, color:'amber' as const },
           { title:'Selesai', value: stats.approved, icon:<CheckCircle2 className="size-5"/>, color:'emerald' as const },
         ].map(s => <StatCard key={s.title} {...s} />)}
@@ -190,7 +148,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           <div className="relative w-56">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
             <input
-              type="text" placeholder="Cari Agenda / Nama / NIK..."
+              type="text" placeholder="Cari Agenda / Instansi / Keperluan..."
               className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2 focus:ring-2 focus:ring-primary/30 outline-none"
               value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
             />
@@ -204,14 +162,6 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           <select className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 outline-none cursor-pointer" value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)}>
             {FILTER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          {/* Filter Memo */}
-          <div className="flex items-center gap-2">
-            <History className="size-4 text-emerald-500" />
-            <select className="text-sm bg-emerald-50 border border-emerald-200 rounded-lg py-2 px-3 outline-none cursor-pointer text-emerald-800 font-semibold"
-              value={selectedMemo} onChange={e => setSelectedMemo(e.target.value)}>
-              {MEMO_SOURCES.map(m => <option key={m} value={m}>{m === 'Semua' ? 'Semua Memo' : m}</option>)}
-            </select>
-          </div>
         </div>
 
         {/* Table */}
@@ -220,19 +170,18 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
             <thead>
               <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
                 <th className="px-5 py-4">No. Agenda</th>
-                <th className="px-5 py-4">Pemohon</th>
+                <th className="px-5 py-4">Pengirim / Tanggal</th>
                 <th className="px-5 py-4">Progress</th>
                 <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4">Memo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={4} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <Filter className="size-8 opacity-20" />
-                      <p className="text-sm font-medium">Tidak ada data untuk filter ini.</p>
+                      <p className="text-sm font-medium">Tidak ada data surat untuk filter ini.</p>
                     </div>
                   </td>
                 </tr>
@@ -242,8 +191,11 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo}</span>
                   </td>
                   <td className="px-5 py-3">
-                    <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                    <p className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</p>
+                    <p className="text-sm font-bold text-slate-900">{item.namaInstansi || 'Perorangan'}</p>
+                    {item.pimpinanOrganisasi && (
+                      <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">{item.pimpinanOrganisasi}</p>
+                    )}
+                    <p className="text-[9px] text-slate-400 font-semibold">{item.tanggalMasuk} {item.jamPengajuan ? '· ' + item.jamPengajuan : ''}</p>
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-0.5">
@@ -273,20 +225,11 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                       <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
                         {item.status}
                       </span>
-                      <button onClick={() => setSelectedProposal(item)}
+                      <button onClick={() => setSelectedSurat(item)}
                         className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                         <Eye className="size-4" />
                       </button>
                     </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    {item.hasMemo ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-100">
-                        <History className="size-3" />{item.memoSource || 'Ada Memo'}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-300 font-medium">—</span>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -306,10 +249,10 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
 
       {/* Detail Modal */}
       <AnimatePresence>
-        {selectedProposal && (
+        {selectedSurat && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-              onClick={() => setSelectedProposal(null)}
+              onClick={() => setSelectedSurat(null)}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
             <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95, y:20 }}
               className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -321,55 +264,74 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     <FileText className="size-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900">Detail Proposal</h3>
-                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Agenda #{selectedProposal.agendaNo}</p>
+                    <h3 className="text-lg font-black text-slate-900">Detail Surat</h3>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Agenda #{selectedSurat.agendaNo}</p>
                   </div>
                 </div>
-                <button onClick={() => setSelectedProposal(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                <button onClick={() => setSelectedSurat(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                 {/* Status Banner */}
-                <div className={cn("p-4 rounded-xl flex items-center justify-between", getStatusColor(selectedProposal.status))}>
+                <div className={cn("p-4 rounded-xl flex items-center justify-between", getStatusColor(selectedSurat.status))}>
                   <div className="flex items-center gap-3">
                     <Clock className="size-5" />
-                    <span className="text-sm font-black uppercase tracking-wider">Status: {selectedProposal.status}</span>
+                    <span className="text-sm font-black uppercase tracking-wider">Status: {selectedSurat.status}</span>
                   </div>
-                  {selectedProposal.hasMemo && (
-                    <span className="text-[10px] font-bold bg-white/60 px-2 py-1 rounded-full">
-                      Memo: {selectedProposal.memoSource}
-                    </span>
-                  )}
                 </div>
+
+                {/* PDF/GDrive Viewer if exists */}
+                {selectedSurat.fileGdriveLink && toGDriveEmbedUrl(selectedSurat.fileGdriveLink) && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <FileSearch className="size-4 text-blue-500" />
+                      <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Dokumen Lampiran</h4>
+                    </div>
+                    <div className="rounded-xl overflow-hidden border border-blue-200 shadow-sm" style={{ height: '320px' }}>
+                      <iframe
+                        src={toGDriveEmbedUrl(selectedSurat.fileGdriveLink)!}
+                        className="w-full h-full bg-slate-100"
+                        title="Dokumen surat"
+                        allow="autoplay"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Info Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Informasi Pemohon</h4>
-                    <InfoRow icon={<User className="size-4 text-slate-400"/>} label="Nama Lengkap" value={selectedProposal.namaPemohon} />
-                    <InfoRow icon={<Tag className="size-4 text-slate-400"/>} label="NIK" value={selectedProposal.nik || '—'} />
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Informasi Pengirim</h4>
+                    <InfoRow icon={<User className="size-4 text-slate-400"/>} label="Nama Instansi" value={selectedSurat.namaInstansi || 'Perorangan'} />
+                    <InfoRow icon={<User className="size-4 text-slate-400"/>} label="Pimpinan Organisasi" value={selectedSurat.pimpinanOrganisasi || '—'} />
                     <InfoRow icon={<MapPin className="size-4 text-slate-400"/>} label="Alamat"
-                      value={[selectedProposal.alamat, selectedProposal.kelurahan, selectedProposal.kecamatan].filter(Boolean).join(', ')} />
+                      value={[selectedSurat.alamat, selectedSurat.kelurahan, selectedSurat.kecamatan].filter(Boolean).join(', ')} />
                   </div>
                   <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Detail Pengajuan</h4>
-                    <InfoRow icon={<FileText className="size-4 text-slate-400"/>} label="Jenis Permohonan" value={selectedProposal.jenisPermohonan} />
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Detail Surat</h4>
+                    <InfoRow icon={<Tag className="size-4 text-slate-400"/>} label="Kategori" value={selectedSurat.kategori || 'Permohonan/Umum'} />
                     <InfoRow icon={<Calendar className="size-4 text-slate-400"/>} label="Tanggal Masuk"
-                      value={`${selectedProposal.tanggalMasuk}${selectedProposal.jamPengajuan ? ' · ' + selectedProposal.jamPengajuan : ''}`} />
-                    {selectedProposal.nominal && (
-                      <InfoRow icon={<Banknote className="size-4 text-slate-400"/>} label="Nominal Bantuan"
-                        value={`${formatCurrency(selectedProposal.nominal)} (${selectedProposal.tipeBantuan || '-'})`} />
+                      value={`${selectedSurat.tanggalMasuk}${selectedSurat.jamPengajuan ? ' · ' + selectedSurat.jamPengajuan : ''}`} />
+                    {selectedSurat.tanggalAcara && (
+                      <InfoRow icon={<Calendar className="size-4 text-slate-400"/>} label="Tanggal Acara (Undangan)"
+                        value={`${selectedSurat.tanggalAcara}${selectedSurat.jamAcara ? ' · ' + selectedSurat.jamAcara : ''}`} />
                     )}
                   </div>
+                </div>
+
+                {/* Keperluan */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Perihal / Keperluan</h4>
+                  <p className="text-sm font-bold text-slate-800 bg-slate-50 p-3 rounded-lg border border-slate-100">{selectedSurat.keperluan}</p>
                 </div>
 
                 {/* Progress Steps */}
                 <div className="space-y-3">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Riwayat Alur Dokumen</h4>
                   <div className="space-y-3">
-                    {getProgressSteps(selectedProposal.status).map((step, idx) => (
+                    {getProgressSteps(selectedSurat.status).map((step, idx) => (
                       <div key={step.id} className="flex gap-4">
                         <div className="flex flex-col items-center">
                           <div className={cn("size-7 rounded-full flex items-center justify-center text-xs font-bold z-10 shrink-0",
@@ -396,19 +358,19 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                 </div>
 
                 {/* Catatan */}
-                {(selectedProposal.catatanKepala || selectedProposal.catatanPimpinan) && (
+                {(selectedSurat.catatanKepala || selectedSurat.catatanPimpinan) && (
                   <div className="space-y-3">
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Catatan Pejabat</h4>
-                    {selectedProposal.catatanKepala && (
+                    {selectedSurat.catatanKepala && (
                       <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
                         <p className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">Catatan Kepala Pelaksana</p>
-                        <p className="text-sm text-slate-700 italic">"{selectedProposal.catatanKepala}"</p>
+                        <p className="text-sm text-slate-700 italic">"{selectedSurat.catatanKepala}"</p>
                       </div>
                     )}
-                    {selectedProposal.catatanPimpinan && (
+                    {selectedSurat.catatanPimpinan && (
                       <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl">
                         <p className="text-[10px] font-black text-purple-600 uppercase tracking-wider mb-1">Catatan Pimpinan</p>
-                        <p className="text-sm text-slate-700 italic">"{selectedProposal.catatanPimpinan}"</p>
+                        <p className="text-sm text-slate-700 italic">"{selectedSurat.catatanPimpinan}"</p>
                       </div>
                     )}
                   </div>
@@ -416,7 +378,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
               </div>
 
               <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-end">
-                <button onClick={() => setSelectedProposal(null)}
+                <button onClick={() => setSelectedSurat(null)}
                   className="px-6 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
                   Tutup
                 </button>

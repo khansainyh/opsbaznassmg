@@ -35,4 +35,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./"),
     },
   },
+  server: {
+    allowedHosts: [
+      'choking-wrangle-kinswoman.ngrok-free.dev',
+      '.ngrok-free.dev',
+      '.ngrok-free.app'
+    ],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  }
 })
