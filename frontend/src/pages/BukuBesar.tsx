@@ -19,7 +19,7 @@ export interface COAItem {
   coa_code: string;
   nama_akun: string;
   klasifikasi: string;
-  tipe_dana: string;
+  tipe_dana?: string;
 }
 
 export interface BankAccountItem {

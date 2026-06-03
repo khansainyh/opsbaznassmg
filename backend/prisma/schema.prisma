@@ -60,6 +60,7 @@ model Program {
   name       String
   budget_rkat Int?      @default(0)
   rkat_details Json?
+  tipe       String     @default("Konsumtif")
   pilar      Pilar      @relation(fields: [pilar_code], references: [code])
   proposals  Proposal[]
 
@@ -170,13 +171,16 @@ enum Role {
   Wakil_Ketua_III
   Wakil_Ketua_IV
   Kabag_Administrasi
+  Kabag_Pelaporan
+  Kabag_Pengumpulan
   Kabag_Pendistribusian
   Kabag_Pendayagunaan
   Kepala_Pelaksana
   Staf_Administrasi
   Staf_Distribusi
-  Staf_Pelaporan_Pengumpulan
-  Keuangan
+  Staf_Keuangan
+  Staf_Pengumpulan
+  Staf_Pelaporan
   Relawan
   Relawan_Sementara
   Tim_Monev

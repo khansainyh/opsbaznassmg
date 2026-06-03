@@ -33,6 +33,8 @@ import AntreanSimba from '@/src/pages/AntreanSimba';
 import RealisasiBantuan from '@/src/pages/RealisasiBantuan';
 import AntreanArsip from '@/src/pages/AntreanArsip';
 import RekonsiliasiMutasi from '@/src/pages/RekonsiliasiMutasi';
+import PengeluaranManual from '@/src/pages/PengeluaranManual';
+
 
 function App() {
   const { isAuthenticated } = useAuth();
@@ -42,62 +44,130 @@ function App() {
   const [surats, setSurats] = useState<Surat[]>([]);
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:4000/api/proposals')
-      .then(res => {
-        const mappedData = res.data.map((item: any) => ({
-          id: item.id,
-          agendaNo: item.agenda_no,
-          tanggalMasuk: new Date(item.tanggal_masuk).toISOString().split('T')[0],
-          namaInstansi: item.nama_instansi || '',
-          pimpinanOrganisasi: item.pimpinan_organisasi || '',
-          namaPemohon: item.nama_pemohon,
-          namaAnak: item.nama_anak || '',
-          nik: item.nik || '',
-          ttl: item.ttl || '',
-          alamat: item.alamat || '',
-          kelurahan: item.kelurahan || '',
-          kecamatan: item.kecamatan || '',
-          pekerjaan: item.pekerjaan || '',
-          jenisPermohonan: item.program ? item.program.name : item.jenis_permohonan,
-          programCode: item.jenis_permohonan || '',
-          noTelpon: item.no_telpon || '',
-          jamPengajuan: item.jam_pengajuan || '',
-          yangMengajukan: item.yang_mengajukan || '',
-          hasMemo: item.has_memo,
-          memoSource: item.memo_source || '',
-          jenisPengajuan: item.jenis_pengajuan || '',
-          status: item.status.replace(/_/g, ' '),
-          fileGdriveLink: item.file_gdrive_link || '',
-          surveyorName: item.surveyorName || undefined,
-          isBeingSurveyed: item.isBeingSurveyed || false,
-          urgencyLevel: item.urgencyLevel || undefined,
-          score: item.score || 0,
-          surveySubmittedAt: item.surveySubmittedAt || undefined,
-          survey_data: item.survey_data || undefined,
-          catatanKepala: item.catatanKepala || undefined,
-          nominal: item.nominal,
-          tipeBantuan: item.tipe_bantuan,
-          alasanPerubahanNominal: item.alasan_perubahan_nominal,
-          asnaf: item.asnaf || undefined,
-          hasil_identifikasi: item.hasil_identifikasi || undefined,
-          rekomendasi_kabag: item.rekomendasi_kabag || undefined,
-          approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
-          rkatActivityId: item.rkat_activity_id || undefined,
-          mustahik: item.mustahik || null,
-          mustahik_id: item.mustahik_id || null,
-          updatedAt: item.updated_at || '',
-          program: item.program ? (
-            item.program.pilar_code === '1100' ? 'Semarang Peduli' :
-            item.program.pilar_code === '1200' ? 'Semarang Sehat' :
-            item.program.pilar_code === '1300' ? 'Semarang Cerdas' :
-            item.program.pilar_code === '1400' ? 'Semarang Taqwa' :
-            item.program.pilar_code === '2100' ? 'Semarang Makmur' :
-            undefined
-          ) : undefined
-        }));
-        setProposals(mappedData);
+    axios.get('http://127.0.0.1:4000/api/pilars')
+      .then(pilarRes => {
+        const pilarList = pilarRes.data || [];
+        axios.get('http://127.0.0.1:4000/api/proposals')
+          .then(res => {
+            const mappedData = res.data.map((item: any) => {
+              const matchedPilar = pilarList.find((p: any) => p.code === item.program?.pilar_code);
+              return {
+                id: item.id,
+                agendaNo: item.agenda_no,
+                tanggalMasuk: new Date(item.tanggal_masuk).toISOString().split('T')[0],
+                namaInstansi: item.nama_instansi || '',
+                pimpinanOrganisasi: item.pimpinan_organisasi || '',
+                namaPemohon: item.nama_pemohon,
+                namaAnak: item.nama_anak || '',
+                nik: item.nik || '',
+                ttl: item.ttl || '',
+                alamat: item.alamat || '',
+                kelurahan: item.kelurahan || '',
+                kecamatan: item.kecamatan || '',
+                pekerjaan: item.pekerjaan || '',
+                jenisPermohonan: item.program ? item.program.name : item.jenis_permohonan,
+                programCode: item.jenis_permohonan || '',
+                noTelpon: item.no_telpon || '',
+                jamPengajuan: item.jam_pengajuan || '',
+                yangMengajukan: item.yang_mengajukan || '',
+                hasMemo: item.has_memo,
+                memoSource: item.memo_source || '',
+                jenisPengajuan: item.jenis_ajuan || item.jenis_pengajuan || '',
+                status: item.status.replace(/_/g, ' '),
+                fileGdriveLink: item.file_gdrive_link || '',
+                surveyorName: item.surveyorName || undefined,
+                isBeingSurveyed: item.isBeingSurveyed || false,
+                urgencyLevel: item.urgencyLevel || undefined,
+                score: item.score || 0,
+                surveySubmittedAt: item.surveySubmittedAt || undefined,
+                survey_data: item.survey_data || undefined,
+                catatanKepala: item.catatanKepala || undefined,
+                nominal: item.nominal,
+                tipeBantuan: item.tipe_bantuan,
+                alasanPerubahanNominal: item.alasan_perubahan_nominal,
+                asnaf: item.asnaf || undefined,
+                hasil_identifikasi: item.hasil_identifikasi || undefined,
+                rekomendasi_kabag: item.rekomendasi_kabag || undefined,
+                approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
+                rkatActivityId: item.rkat_activity_id || undefined,
+                mustahik: item.mustahik || null,
+                mustahik_id: item.mustahik_id || null,
+                updatedAt: item.updated_at || '',
+                program: item.program ? (
+                  matchedPilar ? matchedPilar.name : (
+                    item.program.pilar_code === '1100' || item.program.pilar_code === '2101' ? 'Semarang Peduli' :
+                    item.program.pilar_code === '1200' || item.program.pilar_code === '2201' ? 'Semarang Sehat' :
+                    item.program.pilar_code === '1300' || item.program.pilar_code === '2301' ? 'Semarang Cerdas' :
+                    item.program.pilar_code === '1400' || item.program.pilar_code === '2501' ? 'Semarang Taqwa' :
+                    item.program.pilar_code === '2100' || item.program.pilar_code === '2401' ? 'Semarang Makmur' :
+                    undefined
+                  )
+                ) : undefined
+              };
+            });
+            setProposals(mappedData);
+          })
+          .catch(console.error);
       })
-      .catch(console.error);
+      .catch(err => {
+        console.error('Gagal mengambil data pilar:', err);
+        axios.get('http://127.0.0.1:4000/api/proposals')
+          .then(res => {
+            const mappedData = res.data.map((item: any) => ({
+              id: item.id,
+              agendaNo: item.agenda_no,
+              tanggalMasuk: new Date(item.tanggal_masuk).toISOString().split('T')[0],
+              namaInstansi: item.nama_instansi || '',
+              pimpinanOrganisasi: item.pimpinan_organisasi || '',
+              namaPemohon: item.nama_pemohon,
+              namaAnak: item.nama_anak || '',
+              nik: item.nik || '',
+              ttl: item.ttl || '',
+              alamat: item.alamat || '',
+              kelurahan: item.kelurahan || '',
+              kecamatan: item.kecamatan || '',
+              pekerjaan: item.pekerjaan || '',
+              jenisPermohonan: item.program ? item.program.name : item.jenis_permohonan,
+              programCode: item.jenis_permohonan || '',
+              noTelpon: item.no_telpon || '',
+              jamPengajuan: item.jam_pengajuan || '',
+              yangMengajukan: item.yang_mengajukan || '',
+              hasMemo: item.has_memo,
+              memoSource: item.memo_source || '',
+              jenisPengajuan: item.jenis_ajuan || item.jenis_pengajuan || '',
+              status: item.status.replace(/_/g, ' '),
+              fileGdriveLink: item.file_gdrive_link || '',
+              surveyorName: item.surveyorName || undefined,
+              isBeingSurveyed: item.isBeingSurveyed || false,
+              urgencyLevel: item.urgencyLevel || undefined,
+              score: item.score || 0,
+              surveySubmittedAt: item.surveySubmittedAt || undefined,
+              survey_data: item.survey_data || undefined,
+              catatanKepala: item.catatanKepala || undefined,
+              nominal: item.nominal,
+              tipeBantuan: item.tipe_bantuan,
+              alasanPerubahanNominal: item.alasan_perubahan_nominal,
+              asnaf: item.asnaf || undefined,
+              hasil_identifikasi: item.hasil_identifikasi || undefined,
+              rekomendasi_kabag: item.rekomendasi_kabag || undefined,
+              approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
+              rkatActivityId: item.rkat_activity_id || undefined,
+              mustahik: item.mustahik || null,
+              mustahik_id: item.mustahik_id || null,
+              updatedAt: item.updated_at || '',
+              program: item.program ? (
+                item.program.pilar_code === '1100' || item.program.pilar_code === '2101' ? 'Semarang Peduli' :
+                item.program.pilar_code === '1200' || item.program.pilar_code === '2201' ? 'Semarang Sehat' :
+                item.program.pilar_code === '1300' || item.program.pilar_code === '2301' ? 'Semarang Cerdas' :
+                item.program.pilar_code === '1400' || item.program.pilar_code === '2501' ? 'Semarang Taqwa' :
+                item.program.pilar_code === '2100' || item.program.pilar_code === '2401' ? 'Semarang Makmur' :
+                undefined
+              ) : undefined
+            }));
+            setProposals(mappedData);
+          })
+          .catch(console.error);
+      })
 
     axios.get('http://127.0.0.1:4000/api/surats')
       .then(res => {
@@ -240,6 +310,9 @@ function App() {
           <PengaturanKeuangan />
         ) : activeMenu === 'Pemindahan Dana' ? (
           <PemindahanDana />
+        ) : activeMenu === 'Pengeluaran Manual' ? (
+          <PengeluaranManual />
+
         ) : activeMenu === 'Jurnal Buku Besar' ? (
           <BukuBesar />
         ) : activeMenu === 'Rekonsiliasi Mutasi' ? (

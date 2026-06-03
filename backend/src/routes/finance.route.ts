@@ -17,7 +17,8 @@ import {
   previewDisbursement,
   executeDisbursement,
   executeReplenishment,
-  getJournalEntries
+  getJournalEntries,
+  createManualExpense
 } from '../controllers/finance.controller';
 
 const router = Router();
@@ -46,6 +47,7 @@ router.post('/check-availability-batch', checkAvailabilityBatch);
 router.post('/disburse/preview', previewDisbursement);
 router.post('/disburse/execute', executeDisbursement);
 router.post('/replenish', executeReplenishment);
+router.post('/manual-expense', createManualExpense);
 
 // Journal Entries Ledger Route
 router.get('/ledger', getJournalEntries);

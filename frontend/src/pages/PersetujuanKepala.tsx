@@ -543,81 +543,81 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                         <div className="space-y-3 pt-2 border-t border-slate-200/60">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Anggaran RKAT Terkait</p>
 
-                          {availability.rkat_spesifik && (
-                            <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-sm">
-                              <div className="flex items-center justify-between">
-                                <h5 className="text-[11px] font-bold text-slate-800">
-                                  Status RKAT Spesifik: "{availability.rkat_spesifik.nama_kegiatan}"
-                                </h5>
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded-full text-[9px] font-black border uppercase shrink-0",
-                                  (availability.rkat_spesifik.sisa_pagu >= rekomendasiNominal)
-                                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                                    : "bg-rose-50 text-rose-600 border-rose-200"
-                                )}>
-                                  {availability.rkat_spesifik.sisa_pagu >= rekomendasiNominal ? 'Anggaran Cukup' : 'Melebihi Limit'}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Asnaf Target</p>
-                                  <p className="font-extrabold text-slate-700">{availability.rkat_spesifik.asnaf || 'Spesifik'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target RKAT 1 Tahun</p>
-                                  <p className="font-extrabold text-slate-700">Rp {availability.rkat_spesifik.total_pagu.toLocaleString('id-ID')}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Sisa Anggaran</p>
-                                  <p className={cn("font-black", (availability.rkat_spesifik.sisa_pagu >= rekomendasiNominal) ? "text-emerald-600" : "text-rose-600")}>
-                                    Rp {availability.rkat_spesifik.sisa_pagu.toLocaleString('id-ID')}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Estimasi Unit Cost</p>
-                                  <p className="font-bold text-slate-600">Rp {(availability.rkat_spesifik.nominal || rekomendasiNominal).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                              Pilih Kegiatan RKAT Yang Akan Dipotong:
+                            </label>
+                            <select
+                              value={selectedRkatId}
+                              onChange={e => {
+                                setSelectedRkatId(e.target.value);
+                                const act = (availability.rkat_activities || []).find((a: any) => a.id === e.target.value);
+                                if (act && act.nominal) {
+                                  setRekomendasiNominal(act.nominal);
+                                }
+                              }}
+                              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
+                            >
+                              <option value="">-- Pilih Kegiatan RKAT --</option>
+                              {(availability.rkat_activities || []).map((act: any) => (
+                                <option key={act.id} value={act.id}>
+                                  {act.name} (Asnaf: {act.asnaf || 'Semua'}, Sisa: Rp {act.sisa_pagu.toLocaleString('id-ID')})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
-                          {availability.rkat_alternatif && availability.rkat_alternatif.total_pagu > 0 && (
-                            <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-sm">
-                              <div className="flex items-center justify-between">
-                                <h5 className="text-[11px] font-bold text-slate-800">
-                                  Status RKAT Alternatif: "{availability.rkat_alternatif.nama_kegiatan}"
-                                </h5>
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded-full text-[9px] font-black border uppercase shrink-0",
-                                  (availability.rkat_alternatif.sisa_pagu >= rekomendasiNominal)
-                                    ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                                    : "bg-rose-50 text-rose-600 border-rose-200"
-                                )}>
-                                  {availability.rkat_alternatif.sisa_pagu >= rekomendasiNominal ? 'Anggaran Cukup' : 'Melebihi Limit'}
-                                </span>
+                          {(() => {
+                            const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedRkatId);
+                            if (!act) return (
+                              <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-xl text-xs text-amber-700 font-semibold text-center">
+                                Silakan pilih kegiatan RKAT di atas untuk melihat detail sisa pagu.
                               </div>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Asnaf Target</p>
-                                  <p className="font-extrabold text-slate-700">Semua Asnaf</p>
+                            );
+
+                            const isEnough = act.sisa_pagu >= rekomendasiNominal;
+
+                            return (
+                              <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <h5 className="text-[11px] font-bold text-slate-800">
+                                    Detail Pagu Kegiatan: "{act.name}"
+                                  </h5>
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded-full text-[9px] font-black border uppercase shrink-0",
+                                    isEnough ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-rose-50 text-rose-600 border-rose-200"
+                                  )}>
+                                    {isEnough ? 'Anggaran Cukup' : 'Melebihi Limit'}
+                                  </span>
                                 </div>
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target RKAT 1 Tahun</p>
-                                  <p className="font-extrabold text-slate-700">Rp {availability.rkat_alternatif.total_pagu.toLocaleString('id-ID')}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Sisa Anggaran</p>
-                                  <p className={cn("font-black", (availability.rkat_alternatif.sisa_pagu >= rekomendasiNominal) ? "text-emerald-600" : "text-rose-600")}>
-                                    Rp {availability.rkat_alternatif.sisa_pagu.toLocaleString('id-ID')}
+                                {act.keterangan && (
+                                  <p className="text-[11px] text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 leading-relaxed font-semibold">
+                                    Keterangan: <span className="font-normal text-slate-500">{act.keterangan}</span>
                                   </p>
-                                </div>
-                                <div>
-                                  <p className="text-[9px] text-slate-400 font-bold uppercase">Estimasi Unit Cost</p>
-                                  <p className="font-bold text-slate-600">Rp {(availability.rkat_alternatif.nominal || rekomendasiNominal).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
+                                )}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs">
+                                  <div>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase">Asnaf Target</p>
+                                    <p className="font-extrabold text-slate-700">{act.asnaf || 'Semua'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase">Target RKAT 1 Tahun</p>
+                                    <p className="font-extrabold text-slate-700">Rp {act.total_pagu.toLocaleString('id-ID')}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase">Sisa Anggaran</p>
+                                    <p className={cn("font-black", isEnough ? "text-emerald-600" : "text-rose-600")}>
+                                      Rp {act.sisa_pagu.toLocaleString('id-ID')}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase">Estimasi Unit Cost</p>
+                                    <p className="font-bold text-slate-600">Rp {(act.nominal || rekomendasiNominal).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
 
                         {/* 3. KOREKSI & REKOMENDASI KEPALA PELAKSANA */}

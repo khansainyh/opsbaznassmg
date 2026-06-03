@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import { 
   ChevronRight, 
   Plus, 
@@ -12,7 +13,12 @@ import {
   AlertTriangle, 
   Activity, 
   RefreshCw, 
-  SlidersHorizontal
+  SlidersHorizontal,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -22,7 +28,7 @@ export interface COAItem {
   coa_code: string;
   nama_akun: string;
   klasifikasi: string;
-  tipe_dana: string;
+  tipe_dana?: string;
 }
 
 export interface BankAccountItem {
@@ -85,7 +91,11 @@ export default function PengaturanKeuangan() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isCOAModalOpen, setIsCOAModalOpen] = useState(false);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [isMigrationCOAModalOpen, setIsMigrationCOAModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
+
+  // Toast notifications state
+  const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
 
   // Form states - Accounts
   const [accountForm, setAccountForm] = useState({
@@ -103,7 +113,7 @@ export default function PengaturanKeuangan() {
     coa_code: '',
     nama_akun: '',
     klasifikasi: 'Aktiva',
-    tipe_dana: 'ZAKAT'
+    tipe_dana: ''
   });
 
   // Form states - Rules
@@ -116,7 +126,85 @@ export default function PengaturanKeuangan() {
     kredit_coa_code: ''
   });
 
+  useEffect(() => {
+    if (messages.length > 0) {
+      const timer = setTimeout(() => setMessages([]), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [messages]);
 
+
+
+  // Migrasi COA Methods
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        coa_code: '110101003',
+        nama_akun: 'Bank Mandiri Zakat',
+        klasifikasi: 'Aktiva',
+        tipe_dana: 'ZAKAT'
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_COA");
+    XLSX.writeFile(wb, "Template_Migrasi_COA.xlsx");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setMessages([]);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of data as any[]) {
+          if (!row.coa_code || !row.nama_akun) continue;
+          try {
+            await axios.post('http://127.0.0.1:4000/api/finance/coa', {
+              coa_code: String(row.coa_code),
+              nama_akun: String(row.nama_akun),
+              klasifikasi: row.klasifikasi ? String(row.klasifikasi) : 'Aktiva',
+              tipe_dana: row.tipe_dana ? String(row.tipe_dana) : null
+            });
+            successCount++;
+          } catch (err) {
+            failCount++;
+          }
+        }
+        
+        const newMessages = [];
+        if (successCount > 0) {
+          newMessages.push({ type: 'success' as const, text: `Berhasil migrasi ${successCount} data COA baru.` });
+        }
+        if (failCount > 0) {
+          newMessages.push({ type: 'warning' as const, text: `Gagal/Duplikat ${failCount} data COA.` });
+        }
+        if (successCount === 0 && failCount === 0) {
+          newMessages.push({ type: 'warning' as const, text: 'Tidak ada data COA yang diproses.' });
+        }
+        setMessages(newMessages);
+        setIsMigrationCOAModalOpen(false);
+        fetchData();
+      } catch (err) {
+        setMessages([{ type: 'error', text: 'Gagal memproses file Excel.' }]);
+        setLoading(false);
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   // Fetch Data
   const fetchData = async () => {
@@ -192,7 +280,7 @@ export default function PengaturanKeuangan() {
   // ==========================================
   // Account Actions
   // ==========================================
-  const handleOpenAccountModal = (item: any = null) => {
+  const handleOpenAccountModal = (item: any = null, defaultTipe: 'TUNAI' | 'BANK' = 'TUNAI') => {
     if (item) {
       setEditingItem(item);
       setAccountForm({
@@ -208,12 +296,12 @@ export default function PengaturanKeuangan() {
       setEditingItem(null);
       setAccountForm({
         nama_akun: '',
-        tipe_kas: 'TUNAI',
+        tipe_kas: defaultTipe,
         kelompok_dana: 'ZAKAT',
         saldo: 0,
         no_rekening: '',
         kode_laci: '',
-        coa_code: coas[0]?.coa_code || ''
+        coa_code: coas.find(c => c.klasifikasi === 'Aktiva')?.coa_code || ''
       });
     }
     setIsAccountModalOpen(true);
@@ -258,7 +346,7 @@ export default function PengaturanKeuangan() {
         coa_code: item.coa_code,
         nama_akun: item.nama_akun,
         klasifikasi: item.klasifikasi || 'Aktiva',
-        tipe_dana: item.tipe_dana || 'ZAKAT'
+        tipe_dana: item.tipe_dana || ''
       });
     } else {
       setEditingItem(null);
@@ -266,7 +354,7 @@ export default function PengaturanKeuangan() {
         coa_code: '',
         nama_akun: '',
         klasifikasi: 'Aktiva',
-        tipe_dana: 'ZAKAT'
+        tipe_dana: ''
       });
     }
     setIsCOAModalOpen(true);
@@ -275,10 +363,14 @@ export default function PengaturanKeuangan() {
   const handleSaveCOA = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...coaForm,
+        tipe_dana: coaForm.tipe_dana || null
+      };
       if (editingItem) {
-        await axios.put(`http://127.0.0.1:4000/api/finance/coa/${editingItem.coa_code}`, coaForm);
+        await axios.put(`http://127.0.0.1:4000/api/finance/coa/${editingItem.coa_code}`, payload);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/finance/coa', coaForm);
+        await axios.post('http://127.0.0.1:4000/api/finance/coa', payload);
       }
       setIsCOAModalOpen(false);
       fetchData();
@@ -356,6 +448,35 @@ export default function PengaturanKeuangan() {
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
+      {/* Toast Notifications */}
+      <AnimatePresence>
+        {messages.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, x: 100 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed top-8 right-8 z-[100] flex flex-col gap-2 shrink-0 w-80 shadow-2xl"
+          >
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`p-4 rounded-xl flex items-start gap-3 border shadow-sm ${
+                msg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                msg.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                {msg.type === 'success' ? <CheckCircle2 className="size-5 shrink-0" /> : <AlertCircle className="size-5 shrink-0" />}
+                <div className="flex-1">
+                  <p className="text-sm font-bold mb-1">{msg.type === 'success' ? 'Berhasil' : msg.type === 'warning' ? 'Peringatan' : 'Gagal'}</p>
+                  <p className="text-xs font-medium leading-relaxed">{msg.text}</p>
+                </div>
+                <button onClick={() => setMessages(messages.filter((_, i) => i !== idx))} className="shrink-0 p-1 hover:bg-black/5 rounded-md">
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Title Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
@@ -381,30 +502,6 @@ export default function PengaturanKeuangan() {
           >
             <RefreshCw className={cn("size-5 text-slate-500", loading && "animate-spin")} />
           </button>
-          {activeTab === 'accounts' && (
-            <button 
-              onClick={() => handleOpenAccountModal()}
-              className="px-5 py-3 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider"
-            >
-              <Plus className="size-4" /> Tambah Akun
-            </button>
-          )}
-          {activeTab === 'coa' && (
-            <button 
-              onClick={() => handleOpenCOAModal()}
-              className="px-5 py-3 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider"
-            >
-              <Plus className="size-4" /> Tambah COA
-            </button>
-          )}
-          {activeTab === 'mapping' && (
-            <button 
-              onClick={() => handleOpenRuleModal()}
-              className="px-5 py-3 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider"
-            >
-              <Plus className="size-4" /> Tambah Rule
-            </button>
-          )}
         </div>
       </div>
 
@@ -513,18 +610,25 @@ export default function PengaturanKeuangan() {
 
             {/* Section A: Laci Kas Tunai */}
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-55 bg-slate-50/40">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/40 flex items-center justify-between">
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <span className="size-2 rounded-full bg-orange-500 animate-pulse" />
                   Daftar Kas Kecil &amp; Operasional
                 </h3>
+                {isSuperAdmin && (
+                  <button 
+                    onClick={() => handleOpenAccountModal(null, 'TUNAI')}
+                    className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                  >
+                    <Plus className="size-3.5" /> Tambah Kas
+                  </button>
+                )}
               </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe &amp; Kode Laci</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kas Fisik / Operasional</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</th>
@@ -535,17 +639,13 @@ export default function PengaturanKeuangan() {
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {filteredKasAccounts.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada kas kecil / operasional ditemukan</td>
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada kas kecil / operasional ditemukan</td>
                       </tr>
                     ) : filteredKasAccounts.map((item) => (
                       <tr key={item.account_id} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-6 py-5">
-                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border bg-orange-50 text-orange-600 border-orange-100">
-                            TUNAI {item.kode_laci ? `(LACI ${item.kode_laci})` : ''}
-                          </span>
-                        </td>
                         <td className="px-6 py-5 font-bold text-slate-900">
                           {item.nama_akun}
+                          {item.kode_laci && <span className="block font-mono text-[10px] text-slate-400 mt-1 font-bold">LACI: {item.kode_laci}</span>}
                         </td>
                         <td className="px-6 py-5">
                           <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase text-[9px] font-black">
@@ -586,18 +686,25 @@ export default function PengaturanKeuangan() {
 
             {/* Section B: Rekening Bank */}
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-55 bg-slate-50/40">
+              <div className="p-6 border-b border-slate-100 bg-slate-50/40 flex items-center justify-between">
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
                   Daftar Rekening Bank
                 </h3>
+                {isSuperAdmin && (
+                  <button 
+                    onClick={() => handleOpenAccountModal(null, 'BANK')}
+                    className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                  >
+                    <Plus className="size-3.5" /> Tambah Bank
+                  </button>
+                )}
               </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Akun</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening &amp; Bank</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Riil (IDR)</th>
@@ -607,15 +714,10 @@ export default function PengaturanKeuangan() {
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {filteredBankAccounts.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada rekening bank ditemukan</td>
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada rekening bank ditemukan</td>
                       </tr>
                     ) : filteredBankAccounts.map((item) => (
                       <tr key={item.account_id} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-6 py-5">
-                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border bg-blue-50 text-blue-600 border-blue-100">
-                            {item.tipe_kas}
-                          </span>
-                        </td>
                         <td className="px-6 py-5 font-bold text-slate-900">
                           {item.nama_akun}
                           {item.no_rekening && <span className="block font-mono text-[10px] text-slate-400 mt-1 font-bold">REK: {item.no_rekening}</span>}
@@ -674,7 +776,7 @@ export default function PengaturanKeuangan() {
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/40">
                 <div className="relative w-full sm:w-80">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
                   <input 
@@ -682,9 +784,17 @@ export default function PengaturanKeuangan() {
                     placeholder="Cari program/asnaf..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
                   />
                 </div>
+                {isSuperAdmin && (
+                  <button 
+                    onClick={() => handleOpenRuleModal()}
+                    className="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                  >
+                    <Plus className="size-3.5" /> Tambah Rule
+                  </button>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -708,7 +818,9 @@ export default function PengaturanKeuangan() {
                       <tr key={item.rule_id} className="hover:bg-slate-50/30 transition-colors group">
                         <td className="px-6 py-5">
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs font-black text-primary font-mono">{item.program_code}</span>
+                            <span className="text-xs font-black text-primary font-mono">
+                              {item.program_code} - {programs.find(p => p.code === item.program_code)?.name || 'Program'}
+                            </span>
                             <span className="text-xs font-bold text-slate-900">
                               Asnaf: <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold text-slate-600">{item.asnaf_id || 'Global/Non-Asnaf'}</span>
                             </span>
@@ -765,7 +877,7 @@ export default function PengaturanKeuangan() {
             className="space-y-6"
           >
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/40">
                 <div className="relative w-full sm:w-80">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
                   <input 
@@ -773,9 +885,25 @@ export default function PengaturanKeuangan() {
                     placeholder="Cari kode COA / nama akun..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm bg-slate-50 border-none rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
+                    className="w-full text-sm bg-white border border-slate-200 rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
                   />
                 </div>
+                {isSuperAdmin && (
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setIsMigrationCOAModalOpen(true)}
+                      className="px-4 py-2.5 bg-white border border-primary text-primary rounded-xl text-xs font-black hover:bg-primary/5 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                    >
+                      <Upload className="size-3.5" /> Migrasi COA
+                    </button>
+                    <button 
+                      onClick={() => handleOpenCOAModal()}
+                      className="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                    >
+                      <Plus className="size-3.5" /> Tambah COA
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -805,6 +933,10 @@ export default function PengaturanKeuangan() {
                             "px-2 py-0.5 rounded text-[10px] font-black uppercase border",
                             item.klasifikasi === 'Aktiva' ? "bg-blue-50 text-blue-600 border-blue-100" :
                             item.klasifikasi === 'Penyaluran' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            item.klasifikasi === 'Penerimaan' ? "bg-purple-50 text-purple-600 border-purple-100" :
+                            item.klasifikasi === 'Penggunaan' ? "bg-amber-50 text-amber-600 border-amber-100" :
+                            item.klasifikasi === 'Saldo' ? "bg-indigo-50 text-indigo-600 border-indigo-100" :
+                            item.klasifikasi === 'Kewajiban' ? "bg-rose-50 text-rose-600 border-rose-100" :
                             "bg-slate-50 text-slate-600 border-slate-150"
                           )}>
                             {item.klasifikasi || 'Umum'}
@@ -891,7 +1023,8 @@ export default function PengaturanKeuangan() {
                     <select
                       value={accountForm.tipe_kas}
                       onChange={(e) => setAccountForm({ ...accountForm, tipe_kas: e.target.value as any })}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                      disabled
+                      className="w-full bg-slate-100 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold cursor-not-allowed text-slate-500"
                     >
                       <option value="TUNAI">TUNAI</option>
                       <option value="BANK">BANK</option>
@@ -1053,20 +1186,22 @@ export default function PengaturanKeuangan() {
                       className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
                     >
                       <option value="Aktiva">Aktiva</option>
-                      <option value="Penyaluran">Penyaluran (Beban)</option>
-                      <option value="Penerimaan">Penerimaan (Pendapatan)</option>
+                      <option value="Penyaluran">Penyaluran</option>
+                      <option value="Penerimaan">Penerimaan</option>
+                      <option value="Penggunaan">Penggunaan</option>
+                      <option value="Saldo">Saldo</option>
                       <option value="Kewajiban">Kewajiban</option>
-                      <option value="Saldo">Saldo Dana</option>
                     </select>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana (Opsional)</label>
                     <select
-                      value={coaForm.tipe_dana}
+                      value={coaForm.tipe_dana || ''}
                       onChange={(e) => setCoaForm({ ...coaForm, tipe_dana: e.target.value })}
                       className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
                     >
+                      <option value="">-- Tanpa Tipe Dana --</option>
                       <option value="ZAKAT">ZAKAT</option>
                       <option value="INFAK_TERIKAT">INFAK_TERIKAT</option>
                       <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT</option>
@@ -1144,13 +1279,21 @@ export default function PengaturanKeuangan() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Asnaf Target (Opsional)</label>
-                    <input
-                      type="text"
+                    <select
                       value={ruleForm.asnaf_id}
                       onChange={(e) => setRuleForm({ ...ruleForm, asnaf_id: e.target.value })}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
-                      placeholder="Contoh: Fakir, Miskin, dll"
-                    />
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    >
+                      <option value="">-- Kosong (Umum / Non-Asnaf) --</option>
+                      <option value="Fakir">Fakir</option>
+                      <option value="Miskin">Miskin</option>
+                      <option value="Amil">Amil</option>
+                      <option value="Mualaf">Mualaf</option>
+                      <option value="Riqab">Riqab (Hamba Sahaya)</option>
+                      <option value="Gharimin">Gharimin (Orang Berhutang)</option>
+                      <option value="Fisabilillah">Fisabilillah</option>
+                      <option value="Ibnu Sabil">Ibnu Sabil</option>
+                    </select>
                   </div>
 
                   <div className="space-y-1">
@@ -1190,7 +1333,7 @@ export default function PengaturanKeuangan() {
                     className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
                   >
                     <option value="">-- Pilih COA Debit --</option>
-                    {coas.filter(c => c.klasifikasi === 'Penyaluran').map(c => (
+                    {coas.filter(c => c.klasifikasi === 'Penyaluran' || c.klasifikasi === 'Penggunaan').map(c => (
                       <option key={c.coa_code} value={c.coa_code}>
                         {c.coa_code} - {c.nama_akun}
                       </option>
@@ -1231,6 +1374,84 @@ export default function PengaturanKeuangan() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Migration Modal */}
+      <AnimatePresence>
+        {isMigrationCOAModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => setIsMigrationCOAModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900">Migrasi Data Master COA</h3>
+                <button onClick={() => setIsMigrationCOAModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <FileSpreadsheet className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
+                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom coa_code, nama_akun, klasifikasi, tipe_dana.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <button onClick={downloadTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-primary">Download Format Template</p>
+                        <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-primary opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handleFileUpload} 
+                      disabled={loading}
+                    />
+                  </label>
+                </div>
+
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="flex gap-3">
+                    <div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="text-amber-600 font-bold text-[10px]">!</span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+                      Pastikan kode COA unik. Jika kode COA sudah ada di sistem, maka akan dilewati (skip).
+                    </p>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

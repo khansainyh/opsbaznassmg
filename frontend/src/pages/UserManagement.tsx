@@ -17,9 +17,9 @@ interface User {
 
 const ALL_ROLES = [
   'Super_Admin', 'Ketua', 'Wakil_Ketua_I', 'Wakil_Ketua_II', 'Wakil_Ketua_III', 'Wakil_Ketua_IV', 
-  'Kabag_Administrasi', 'Kepala_Pelaksana', 'Staf_Administrasi', 
-  'Staf_Distribusi', 'Staf_Pelaporan_Pengumpulan', 'Keuangan', 
-  'Relawan', 'Relawan_Sementara', 'Tim_Monev'
+  'Kepala_Pelaksana', 'Kabag_Administrasi', 'Kabag_Pelaporan', 'Kabag_Pengumpulan', 
+  'Kabag_Pendistribusian', 'Kabag_Pendayagunaan', 'Staf_Distribusi', 'Staf_Keuangan', 
+  'Staf_Administrasi', 'Staf_Pengumpulan', 'Staf_Pelaporan', 'Relawan', 'Relawan_Sementara', 'Tim_Monev'
 ];
 
 export default function UserManagement() {
@@ -188,7 +188,9 @@ export default function UserManagement() {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Staf BAZNAS Aktif</p>
-              <h3 className="text-3xl font-black text-slate-800">{users.filter(u => !u.role.includes('Relawan')).length}</h3>
+              <h3 className="text-3xl font-black text-slate-800">
+                {users.filter(u => u.role !== 'Super_Admin' && u.role !== 'Relawan' && u.role !== 'Relawan_Sementara' && u.role !== 'Tim_Monev').length}
+              </h3>
             </div>
           </div>
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex items-center gap-5">
@@ -197,7 +199,9 @@ export default function UserManagement() {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Relawan Lapangan</p>
-              <h3 className="text-3xl font-black text-slate-800">{users.filter(u => u.role.includes('Relawan')).length}</h3>
+              <h3 className="text-3xl font-black text-slate-800">
+                {users.filter(u => u.role === 'Relawan' || u.role === 'Relawan_Sementara' || u.role === 'Tim_Monev').length}
+              </h3>
             </div>
           </div>
         </div>

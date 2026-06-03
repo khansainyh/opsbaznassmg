@@ -184,7 +184,7 @@ export const updateMappingRule = async (req: Request, res: Response) => {
       where: { rule_id: id } as any,
       data: {
         program_code,
-        asnaf_id: asnaf_id !== undefined ? asnaf_id : undefined,
+        asnaf_id: asnaf_id !== undefined ? (asnaf_id || null) : undefined,
         tipe_kas,
         sumber_dana_tag,
         debit_coa_code,
@@ -308,6 +308,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
             activitiesStatus.push({
               id: act.id,
               name: act.name,
+              keterangan: act.keterangan || '',
               asnaf: act.asnaf,
               nominal: Number(act.nominal || 0),
               mustahik: Number(act.mustahik || 0),
@@ -630,18 +631,55 @@ export const previewDisbursement = async (req: Request, res: Response) => {
 
       totalNominal += Number(proposal.nominal || 0);
 
-      let tag = proposal.tipe_bantuan || 'ZAKAT';
-      if (tag === 'IST') tag = 'INFAK_TERIKAT';
-      if (tag === 'ISTT') tag = 'INFAK_TIDAK_TERIKAT';
+      let fundSource = 'ZAKAT';
+      const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan];
+      for (const src of possibleSources) {
+        if (!src) continue;
+        const normalized = src.toUpperCase().trim();
+        if (normalized.includes('ZAKAT')) {
+          fundSource = 'ZAKAT';
+          break;
+        } else if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
+          fundSource = 'INFAK_TERIKAT';
+          break;
+        } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
+          fundSource = 'INFAK_TIDAK_TERIKAT';
+          break;
+        } else if (normalized.includes('AMIL')) {
+          fundSource = 'AMIL';
+          break;
+        } else if (normalized.includes('APBD')) {
+          fundSource = 'APBD';
+          break;
+        }
+      }
 
-      const mappingRule = await prisma.coaMappingRule.findFirst({
+      const rules = await prisma.coaMappingRule.findMany({
         where: {
-          program_code: proposal.jenis_permohonan || undefined,
-          asnaf_id: proposal.asnaf || undefined,
+          program_code: proposal.jenis_permohonan || '',
           tipe_kas: account.tipe_kas,
-          sumber_dana_tag: tag
+          sumber_dana_tag: fundSource
         }
       });
+
+      let mappingRule = null;
+      if (proposal.asnaf) {
+        const normAsnaf = proposal.asnaf.toLowerCase().trim();
+        mappingRule = rules.find(r => r.asnaf_id && r.asnaf_id.toLowerCase().trim() === normAsnaf);
+      }
+
+      if (!mappingRule) {
+        await prisma.chartOfAccounts.upsert({
+          where: { coa_code: '519999999' } as any,
+          update: {},
+          create: {
+            coa_code: '519999999',
+            nama_akun: 'Penyaluran Lain-lain (Emergency Fallback)',
+            klasifikasi: 'Beban',
+            tipe_dana: 'ZAKAT'
+          } as any
+        });
+      }
 
       const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
       const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
@@ -711,42 +749,83 @@ export const executeDisbursement = async (req: Request, res: Response) => {
         throw new Error(`Saldo di ${account.nama_akun} tidak mencukupi! Tersedia: ${account.saldo}, Dibutuhkan: ${totalNominal}`);
       }
 
+      // 1. Decrement account balance by total nominal
+      await tx.bankAccount.update({
+        where: { account_id: selectedAccountId } as any,
+        data: {
+          saldo: { decrement: new Prisma.Decimal(totalNominal) }
+        }
+      });
+
+      // 2. Create a single Realisasi record for the batch
+      const isBatch = proposals.length > 1;
+      const firstProposal = proposals[0];
+      const realisasiTrx = await tx.realisasi.create({
+        data: {
+          proposal_id: isBatch ? null : firstProposal.id,
+          rkat_id: isBatch ? 'BATCH' : (firstProposal.rkat_activity_id || firstProposal.jenis_permohonan || 'GENERAL'),
+          tanggal: new Date(),
+          keterangan: keterangan || (isBatch
+            ? `Penyaluran Batch ${proposals.length} Proposal`
+            : `Penyaluran Program ${firstProposal.jenis_permohonan} - Mustahik: ${firstProposal.nama_pemohon}`)
+        }
+      });
+
+      // 3. Process each proposal individually for its debit entry
       for (const proposal of proposals) {
         const nominal = Number(proposal.nominal || 0);
         
-        let tag = proposal.tipe_bantuan || 'ZAKAT';
-        if (tag === 'IST') tag = 'INFAK_TERIKAT';
-        if (tag === 'ISTT') tag = 'INFAK_TIDAK_TERIKAT';
+        let fundSource = 'ZAKAT';
+        const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan];
+        for (const src of possibleSources) {
+          if (!src) continue;
+          const normalized = src.toUpperCase().trim();
+          if (normalized.includes('ZAKAT')) {
+            fundSource = 'ZAKAT';
+            break;
+          } else if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
+            fundSource = 'INFAK_TERIKAT';
+            break;
+          } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
+            fundSource = 'INFAK_TIDAK_TERIKAT';
+            break;
+          } else if (normalized.includes('AMIL')) {
+            fundSource = 'AMIL';
+            break;
+          } else if (normalized.includes('APBD')) {
+            fundSource = 'APBD';
+            break;
+          }
+        }
 
-        const mappingRule = await tx.coaMappingRule.findFirst({
+        const rules = await tx.coaMappingRule.findMany({
           where: {
-            program_code: proposal.jenis_permohonan || undefined,
-            asnaf_id: proposal.asnaf || undefined,
+            program_code: proposal.jenis_permohonan || '',
             tipe_kas: account.tipe_kas,
-            sumber_dana_tag: tag
+            sumber_dana_tag: fundSource
           }
         });
+
+        let mappingRule = null;
+        if (proposal.asnaf) {
+          const normAsnaf = proposal.asnaf.toLowerCase().trim();
+          mappingRule = rules.find(r => r.asnaf_id && r.asnaf_id.toLowerCase().trim() === normAsnaf);
+        }
+
+        if (!mappingRule) {
+          await tx.chartOfAccounts.upsert({
+            where: { coa_code: '519999999' } as any,
+            update: {},
+            create: {
+              coa_code: '519999999',
+              nama_akun: 'Penyaluran Lain-lain (Emergency Fallback)',
+              klasifikasi: 'Beban',
+              tipe_dana: 'ZAKAT'
+            } as any
+          });
+        }
 
         const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
-        const kreditCoaCode = account.coa_code;
-
-        await tx.bankAccount.update({
-          where: { account_id: selectedAccountId } as any,
-          data: {
-            saldo: { decrement: new Prisma.Decimal(nominal) }
-          }
-        });
-
-        let matchedRkatId = proposal.rkat_activity_id || proposal.jenis_permohonan || 'GENERAL';
-        
-        const realisasiTrx = await tx.realisasi.create({
-          data: {
-            proposal_id: proposal.id,
-            rkat_id: matchedRkatId,
-            tanggal: new Date(),
-            keterangan: keterangan || `Penyaluran Program ${proposal.jenis_permohonan} - Mustahik: ${proposal.nama_pemohon}`
-          }
-        });
 
         await tx.journalEntry.create({
           data: {
@@ -758,21 +837,23 @@ export const executeDisbursement = async (req: Request, res: Response) => {
           }
         });
 
-        await tx.journalEntry.create({
-          data: {
-            transaksi_id: realisasiTrx.transaksi_id,
-            coa_code: kreditCoaCode,
-            debit: new Prisma.Decimal(0.00),
-            kredit: new Prisma.Decimal(nominal),
-            account_id: selectedAccountId
-          }
-        });
-
         await tx.proposal.update({
           where: { id: proposal.id } as any,
           data: { status: 'Selesai & Arsip' }
         });
       }
+
+      // 4. Create a single Kredit entry for the entire totalNominal
+      const kreditCoaCode = account.coa_code;
+      await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasiTrx.transaksi_id,
+          coa_code: kreditCoaCode,
+          debit: new Prisma.Decimal(0.00),
+          kredit: new Prisma.Decimal(totalNominal),
+          account_id: selectedAccountId
+        }
+      });
 
       return { success: true, message: `${proposals.length} Pencairan Berhasil & Jurnal Akuntansi Otomatis Terbentuk!` };
     });
@@ -919,3 +1000,91 @@ export const getJournalEntries = async (req: Request, res: Response) => {
     res.status(500).json({ error: String(error) });
   }
 };
+
+// ==========================================
+// 8. Create Manual Expense (Non-Proposal)
+// ==========================================
+
+export const createManualExpense = async (req: Request, res: Response) => {
+  try {
+    const { sourceAccountId, debitCoaCode, nominal, keterangan, tanggal } = req.body;
+
+    if (!sourceAccountId || !debitCoaCode || !nominal || Number(nominal) <= 0) {
+      res.status(400).json({ error: 'Akun sumber, COA pengeluaran, dan nominal wajib diisi serta lebih besar dari 0' });
+      return;
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Dapatkan akun kas/bank sumber
+      const sourceAccount = await tx.bankAccount.findUnique({
+        where: { account_id: sourceAccountId } as any
+      }) as any;
+
+      if (!sourceAccount) {
+        throw new Error('Akun sumber dana tidak ditemukan');
+      }
+
+      if (Number(sourceAccount.saldo) < Number(nominal)) {
+        throw new Error(`Saldo di ${sourceAccount.nama_akun} tidak mencukupi! Tersedia: Rp ${Number(sourceAccount.saldo).toLocaleString('id-ID')}, Dibutuhkan: Rp ${Number(nominal).toLocaleString('id-ID')}`);
+      }
+
+      // 2. Verifikasi COA debit (beban)
+      const debitCoa = await tx.chartOfAccounts.findUnique({
+        where: { coa_code: debitCoaCode }
+      });
+
+      if (!debitCoa) {
+        throw new Error('Kode COA beban tidak ditemukan');
+      }
+
+      // 3. Potong Saldo Akun Sumber
+      await tx.bankAccount.update({
+        where: { account_id: sourceAccountId } as any,
+        data: {
+          saldo: { decrement: new Prisma.Decimal(nominal) }
+        }
+      });
+
+      // 4. Catat Transaksi Realisasi (tanpa proposal_id)
+      const realisasiTrx = await tx.realisasi.create({
+        data: {
+          tanggal: tanggal ? new Date(tanggal) : new Date(),
+          keterangan: keterangan || `[Pengeluaran Manual] - ${debitCoa.nama_akun}`
+        }
+      });
+
+      // 5. Jurnal Entry - DEBIT (Akun Beban)
+      await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasiTrx.transaksi_id,
+          coa_code: debitCoaCode,
+          debit: new Prisma.Decimal(nominal),
+          kredit: new Prisma.Decimal(0.00),
+          account_id: null
+        }
+      });
+
+      // 6. Jurnal Entry - KREDIT (Akun Kas/Bank)
+      await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasiTrx.transaksi_id,
+          coa_code: sourceAccount.coa_code,
+          debit: new Prisma.Decimal(0.00),
+          kredit: new Prisma.Decimal(nominal),
+          account_id: sourceAccountId
+        }
+      });
+
+      return {
+        success: true,
+        message: 'Pengeluaran manual berhasil dicatat & Jurnal akuntansi berhasil dibukukan!',
+        transaksiId: realisasiTrx.transaksi_id
+      };
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+};
+

@@ -8,16 +8,19 @@ export type Role =
   | 'Wakil_Ketua_III'
   | 'Wakil_Ketua_IV'
   | 'Kabag_Administrasi' 
+  | 'Kabag_Pelaporan'
+  | 'Kabag_Pengumpulan'
+  | 'Kabag_Pendistribusian'
+  | 'Kabag_Pendayagunaan'
   | 'Kepala_Pelaksana' 
   | 'Staf_Administrasi' 
   | 'Staf_Distribusi' 
-  | 'Staf_Pelaporan_Pengumpulan'
-  | 'Keuangan' 
-  | 'Relawan' 
+  | 'Staf_Keuangan'
+  | 'Staf_Pengumpulan'
+  | 'Staf_Pelaporan'
+  | 'Relawan'
   | 'Relawan_Sementara'
-  | 'Tim_Monev'
-  | 'Kabag_Pendistribusian'
-  | 'Kabag_Pendayagunaan';
+  | 'Tim_Monev';
 
 export interface User {
   id: string;

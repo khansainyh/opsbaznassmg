@@ -46,6 +46,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
   const [pilars, setPilars] = useState<any[]>([]);
 
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
   const fetchPilars = useCallback(() => {
     axios.get('http://127.0.0.1:4000/api/pilars')
       .then(res => {
@@ -191,6 +201,13 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
             Status RKAT: <span className="text-primary">{act.programCode} - {act.name}</span>
           </span>
         </div>
+
+        {act.keterangan && (
+          <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-xs text-slate-600 font-semibold leading-relaxed">
+            <span className="font-bold text-slate-700 block mb-0.5 text-[10px] uppercase tracking-wider">Keterangan RKAT / Spesifikasi Bantuan:</span>
+            {act.keterangan}
+          </div>
+        )}
         
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-3 rounded-xl border border-slate-100">
@@ -263,6 +280,11 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   <tr key={act.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-4 px-4 first:pl-0 pr-6">
                       <p className="font-bold text-slate-800 text-xs sm:text-sm">{act.name}</p>
+                      {act.keterangan && (
+                        <p className="text-[10px] text-slate-400 font-medium mt-0.5 line-clamp-2" title={act.keterangan}>
+                          {act.keterangan}
+                        </p>
+                      )}
                       <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-black uppercase rounded">
                         Asnaf: {act.asnaf || 'Semua'}
                       </span>
@@ -395,9 +417,22 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     return tasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
   }, [tasks, statusFilter, getSurveyStatus]);
 
-  const konsumtifTasks = filteredTasks.filter(t => t.programCode?.startsWith('1'));
-  const produktifTasks = filteredTasks.filter(t => t.programCode?.startsWith('2'));
-  const otherTasks = filteredTasks.filter(t => !t.programCode?.startsWith('1') && !t.programCode?.startsWith('2'));
+  const konsumtifTasks = filteredTasks.filter(t => {
+    const code = getParentProgramCode(t.programCode);
+    if (!code) return false;
+    const tipe = programTipeMap[code] || 'Konsumtif';
+    return tipe === 'Konsumtif';
+  });
+  const produktifTasks = filteredTasks.filter(t => {
+    const code = getParentProgramCode(t.programCode);
+    if (!code) return false;
+    const tipe = programTipeMap[code];
+    return tipe === 'Produktif';
+  });
+  const otherTasks = filteredTasks.filter(t => {
+    const code = getParentProgramCode(t.programCode);
+    return !code;
+  });
 
   const renderTaskTable = (title: string, tableTasks: typeof filteredTasks) => {
     if (tableTasks.length === 0) return null;
@@ -862,8 +897,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   ) : (
                     getSurveyStatus(selectedTask) === 'Selesai' && 
                     (isSuperAdmin || 
-                     (isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
-                     (isKabagPendayagunaan && selectedTask.programCode?.startsWith('2'))) && (
+                     (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 
+                     (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif')) && (
                       <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
                         <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                           <ClipboardList className="size-4 text-primary" />
@@ -913,8 +948,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 {getSurveyStatus(selectedTask) === 'Selesai' && (
                   <>
                     {(isSuperAdmin || 
-                      (isKabagPendistribusian && selectedTask.programCode?.startsWith('1')) || 
-                      (isKabagPendayagunaan && selectedTask.programCode?.startsWith('2'))) ? (
+                      (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 
+                      (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif')) ? (
                       <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Simpan & Approve → Kep. Pelaksana</button>
                     ) : (!isKabagPendistribusian && !isKabagPendayagunaan) ? (
                       <button onClick={() => { handleUpdateStatus(selectedTask.id, 'Review Kepala Pelaksana'); setIsDetailModalOpen(false); }} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Approve → Kep. Pelaksana</button>

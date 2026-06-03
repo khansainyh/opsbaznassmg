@@ -808,7 +808,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
             ) : (
               <Printer className="size-4" />
             )}
-            FINALISASI: POTONG SALDO BANK &amp; GENERATE BUKTI KAS KELUAR (BKO)
+            FINALISASI: POTONG SALDO {selectedAccount?.tipe_kas === 'BANK' ? 'BANK' : 'KAS'} &amp; GENERATE BUKTI KAS KELUAR (BKO)
           </button>
         </div>
 

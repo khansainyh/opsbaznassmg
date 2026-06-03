@@ -42,6 +42,9 @@ export interface RKATActivity {
   asnafTargetId: string; // Associated asnaf target id
   asnaf?: string;      // Specific Asnaf criteria for the activity
   noUrut?: number;     // Sequence number
+  coaCode?: string;    // Associated COA Code
+  coaName?: string;    // Associated COA Name
+  tipe?: string;       // Bantuan Konsumtif vs Produktif classification
 }
 
 
@@ -52,6 +55,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const [activeTab, setActiveTab] = useState<'Pengumpulan' | 'Penyaluran' | 'Operasional'>('Penyaluran');
   // 1. Dynamic Pilar Data synced with backend API
   const [data, setData] = useState<Pilar[]>([]);
+  const [coas, setCoas] = useState<any[]>([]);
 
   const fetchPilars = useCallback(() => {
     axios.get('http://127.0.0.1:4000/api/pilars')
@@ -70,9 +74,16 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       .catch(err => console.error('Failed to fetch pilars in RKAT', err));
   }, []);
 
+  const fetchCoas = useCallback(() => {
+    axios.get('http://127.0.0.1:4000/api/finance/coa')
+      .then(res => setCoas(res.data))
+      .catch(err => console.error('Failed to fetch COAs in RKAT', err));
+  }, []);
+
   useEffect(() => {
     fetchPilars();
-  }, [fetchPilars]);
+    fetchCoas();
+  }, [fetchPilars, fetchCoas]);
 
   // Flatten programs with their respective Asnaf targets into dynamic individual RKAT list activities
   const activities = useMemo<RKATActivity[]>(() => {
@@ -83,6 +94,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         if (targets.length > 0) {
           targets.forEach((target, tIdx) => {
             const fallbackId = target.id || `act-auto-${prog.code}-${target.asnaf || 'General'}-${tIdx}`;
+            const matchingCoa = coas.find(c => c.coa_code === target.coaCode);
             list.push({
               id: fallbackId,
               pilarCode: pilar.code,
@@ -95,14 +107,16 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               programCode: prog.code,
               asnafTargetId: fallbackId,
               asnaf: target.asnaf,
-              noUrut: target.noUrut || 9999
+              coaCode: target.coaCode,
+              coaName: matchingCoa ? matchingCoa.nama_akun : undefined,
+              tipe: prog.tipe
             });
           });
         }
       });
     });
-    return list.sort((a, b) => (a.noUrut || 9999) - (b.noUrut || 9999));
-  }, [data]);
+    return list;
+  }, [data, coas]);
 
 
 
@@ -114,12 +128,20 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   
   // Form fields for adding program activities per Asnaf
-  const [formPilar, setFormPilar] = useState<string>('1100');
+  const [formPilar, setFormPilar] = useState<string>('');
+  
+  useEffect(() => {
+    if (data.length > 0 && !formPilar) {
+      setFormPilar(data[0].code);
+    }
+  }, [data, formPilar]);
+
   const [formProgramCode, setFormProgramCode] = useState<string>('');
   const [formNamaKegiatan, setFormNamaKegiatan] = useState<string>('');
   const [formAsnaf, setFormAsnaf] = useState<string>('');
   const [formKeterangan, setFormKeterangan] = useState<string>('');
   const [formMustahik, setFormMustahik] = useState<number>(10);
+  const [formCoaCode, setFormCoaCode] = useState<string>('');
   const [formFrekuensi, setFormFrekuensi] = useState<number>(1);
   const [formUnitCost, setFormUnitCost] = useState<number>(250000);
 
@@ -225,33 +247,20 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     });
   };
 
-  // Helper to categorize Semarang Sehat/Cerdas into Konsumtif (Pendistribusian) vs Produktif (Pendayagunaan)
-  const getPilarCategory = useCallback((pilarName: string, programCode?: string, jenisPermohonan?: string): string => {
-    if (pilarName === 'Semarang Sehat') {
-      const isProduktif = programCode?.startsWith('22') || 
-        (jenisPermohonan && [
-          'sanitasi', 'sumur', 'stunting', 'air bersih', 'lingkungan', 'promosi'
-        ].some(word => jenisPermohonan.toLowerCase().includes(word)));
-      return isProduktif ? 'Semarang Sehat (Produktif)' : 'Semarang Sehat (Konsumtif)';
-    }
-    if (pilarName === 'Semarang Cerdas') {
-      const isProduktif = programCode?.startsWith('23') || 
-        (jenisPermohonan && [
-          'tinggi', 'infrastruktur', 'pembinaan', 'karakter', 'kompetensi'
-        ].some(word => jenisPermohonan.toLowerCase().includes(word)));
-      return isProduktif ? 'Semarang Cerdas (Produktif)' : 'Semarang Cerdas (Konsumtif)';
-    }
-    return pilarName;
+  // Helper to categorize Semarang Sehat/Cerdas into base Pilar names
+  const getPilarCategory = useCallback((pilarName: string): string => {
+    let cat = pilarName;
+    if (pilarName.includes('Semarang Sehat')) cat = 'Semarang Sehat';
+    if (pilarName.includes('Semarang Cerdas')) cat = 'Semarang Cerdas';
+    return cat;
   }, []);
 
   // Aggregate static total budget & dynamic realized budgets
   const pilarBudgets = useMemo(() => {
     const sums: { [pilarName: string]: { target: number, realisasi: number } } = {
       'Semarang Peduli': { target: 0, realisasi: 0 },
-      'Semarang Sehat (Konsumtif)': { target: 0, realisasi: 0 },
-      'Semarang Sehat (Produktif)': { target: 0, realisasi: 0 },
-      'Semarang Cerdas (Konsumtif)': { target: 0, realisasi: 0 },
-      'Semarang Cerdas (Produktif)': { target: 0, realisasi: 0 },
+      'Semarang Sehat': { target: 0, realisasi: 0 },
+      'Semarang Cerdas': { target: 0, realisasi: 0 },
       'Semarang Taqwa': { target: 0, realisasi: 0 },
       'Semarang Makmur': { target: 0, realisasi: 0 }
     };
@@ -259,7 +268,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     // Sum Target Budgets from Flattened Activities State
     activities.forEach(act => {
       const budget = act.mustahik * act.frekuensi * act.unitCost;
-      const cat = getPilarCategory(act.pilarName, act.programCode, act.name);
+      const cat = getPilarCategory(act.pilarName);
       if (sums[cat]) {
         sums[cat].target += budget;
       }
@@ -270,13 +279,13 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       const amt = p.nominal || 0;
       const matchedAct = getMatchedActivityForProposal(p, activities);
       if (matchedAct) {
-        const cat = getPilarCategory(matchedAct.pilarName, matchedAct.programCode, matchedAct.name);
+        const cat = getPilarCategory(matchedAct.pilarName);
         if (sums[cat]) {
           sums[cat].realisasi += amt;
         }
       } else {
         const prog = p.program || 'Semarang Peduli';
-        const cat = getPilarCategory(prog, p.programCode, p.jenisPermohonan);
+        const cat = getPilarCategory(prog);
         if (sums[cat]) {
           sums[cat].realisasi += amt;
         }
@@ -290,10 +299,8 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const monthlyRealizationsByPilar = useMemo(() => {
     const matrix: { [pilarName: string]: { [month: number]: number } } = {
       'Semarang Peduli': {},
-      'Semarang Sehat (Konsumtif)': {},
-      'Semarang Sehat (Produktif)': {},
-      'Semarang Cerdas (Konsumtif)': {},
-      'Semarang Cerdas (Produktif)': {},
+      'Semarang Sehat': {},
+      'Semarang Cerdas': {},
       'Semarang Taqwa': {},
       'Semarang Makmur': {}
     };
@@ -309,17 +316,13 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     realizedProposals.forEach(p => {
       const amt = p.nominal || 0;
       let pName = p.program || 'Semarang Peduli';
-      let prCode = p.programCode;
-      let jPerm = p.jenisPermohonan;
       
       const matchedAct = getMatchedActivityForProposal(p, activities);
       if (matchedAct) {
         pName = matchedAct.pilarName;
-        prCode = matchedAct.programCode;
-        jPerm = matchedAct.name;
       }
 
-      const cat = getPilarCategory(pName, prCode, jPerm);
+      const cat = getPilarCategory(pName);
 
       const dateStr = p.tglCairBank || p.tanggalMasuk;
       if (dateStr) {
@@ -343,13 +346,23 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     return matrix;
   }, [realizedProposals, activities, getPilarCategory]);
 
-  const listPilarKeys = ['Semarang Peduli', 'Semarang Sehat', 'Semarang Cerdas', 'Semarang Taqwa', 'Semarang Makmur'];
+  const listPilarKeys = useMemo(() => {
+    return data.map(p => p.name);
+  }, [data]);
 
   // Filtered target program activities for Table 2
   const filteredActivities = useMemo(() => {
     if (selectedPilarFilter === 'Semua') return activities;
     return activities.filter(act => act.pilarName === selectedPilarFilter);
   }, [activities, selectedPilarFilter]);
+
+  const konsumtifActivities = useMemo(() => {
+    return filteredActivities.filter(act => act.tipe !== 'Produktif');
+  }, [filteredActivities]);
+
+  const produktifActivities = useMemo(() => {
+    return filteredActivities.filter(act => act.tipe === 'Produktif');
+  }, [filteredActivities]);
 
   // Overall statistics
   const grandTotalTarget = useMemo(() => {
@@ -382,7 +395,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       nominal: formUnitCost,
       mustahik: formMustahik,
       keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
-      noUrut: activities.length + 1
+      coaCode: formCoaCode || undefined
     };
 
     let currentTargets: AsnafTarget[] = [];
@@ -409,6 +422,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       setFormFrekuensi(1);
       setFormUnitCost(250000);
       setFormAsnaf('');
+      setFormCoaCode('');
       setIsAddModalOpen(false);
     }).catch(err => {
       console.error('Gagal menambah activity', err);
@@ -470,6 +484,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     setFormMustahik(act.mustahik);
     setFormFrekuensi(act.frekuensi);
     setFormUnitCost(act.unitCost);
+    setFormCoaCode(act.coaCode || '');
   };
 
   const saveEditActivity = async () => {
@@ -487,7 +502,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       nominal: formUnitCost,
       mustahik: formMustahik,
       keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
-      noUrut: editingActivity.noUrut
+      coaCode: formCoaCode || undefined
     };
 
     // If Program changed
@@ -642,6 +657,137 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       </tr>
     );
   };
+  const renderActivityRow = (act: RKATActivity, index: number) => {
+    const itemBudgetTotal = act.mustahik * act.frekuensi * act.unitCost;
+    const linkedMemos = getLinkedMemosForActivity(act, proposals);
+    const actRealisasi = linkedMemos.reduce((sum, p) => sum + (p.nominal || 0), 0);
+    const sisaDana = itemBudgetTotal - actRealisasi;
+    const realPercent = itemBudgetTotal > 0 ? (actRealisasi / itemBudgetTotal) * 100 : 0;
+
+    return (
+      <tr key={act.id} className="hover:bg-slate-50/50 transition-colors">
+        <td className="px-4 py-4 text-xs font-bold text-slate-400 text-center">
+          {index + 1}
+        </td>
+        <td className="px-4 py-4">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black text-primary uppercase tracking-wide">
+              {act.pilarName} ({act.pilarCode})
+            </span>
+            <span className="text-xs font-black text-slate-900 leading-tight mt-0.5">
+              {act.name}
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-[9.5px] font-bold text-slate-400 font-mono">
+                ID/A: {act.id}
+              </span>
+              <span className={cn(
+                "text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
+                act.tipe === 'Produktif'
+                  ? "bg-emerald-50 text-emerald-600 border border-emerald-200/20"
+                  : "bg-amber-50 text-amber-600 border border-amber-200/20"
+              )}>
+                {act.tipe || 'Konsumtif'}
+              </span>
+            </div>
+          </div>
+        </td>
+        <td className="px-4 py-4 text-center">
+          {act.asnaf ? (
+            <span className="px-2.5 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200/50 font-black text-[10px] uppercase">
+              {act.asnaf}
+            </span>
+          ) : (
+            <span className="text-slate-400 italic font-medium text-[11px]">-</span>
+          )}
+        </td>
+        <td className="px-4 py-4">
+          {act.coaCode ? (
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-slate-700 font-mono bg-slate-100 px-1.5 py-0.5 rounded w-max">
+                {act.coaCode}
+              </span>
+              <span className="text-[9.5px] text-slate-500 font-bold mt-0.5 truncate max-w-[130px]" title={act.coaName}>
+                {act.coaName}
+              </span>
+            </div>
+          ) : (
+            <span className="text-slate-400 italic font-medium text-[11px]">Tidak dihubungkan</span>
+          )}
+        </td>
+        <td className="px-4 py-4 text-xs text-slate-500 max-w-[200px] font-medium leading-relaxed">
+          {act.keterangan || '-'}
+        </td>
+        <td className="px-4 py-4 text-right">
+          <div className="flex flex-col">
+            <span className="text-xs font-black text-slate-900">{formatCurrency(itemBudgetTotal)}</span>
+            <span className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5">
+              {(act.mustahik || 0).toLocaleString('id-ID')} jiwa × {act.frekuensi}x / th
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+              @ {formatCurrency(act.unitCost)}
+            </span>
+          </div>
+        </td>
+        <td className="px-4 py-4 text-right">
+          <div className="flex flex-col items-end">
+            <span className={cn(
+              "text-xs font-black",
+              actRealisasi > 0 ? "text-emerald-700 font-mono" : "text-slate-450"
+            )}>
+              {formatCurrency(actRealisasi)}
+            </span>
+            
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-[10px] font-bold text-slate-500">Sisa:</span>
+              <span className={cn(
+                "text-[10px] font-extrabold font-mono",
+                sisaDana < 0 ? "text-rose-600 bg-rose-50 px-1 rounded" : "text-slate-700"
+              )}>
+                {formatCurrency(sisaDana)}
+              </span>
+            </div>
+
+            {/* Progress Bar of actual match */}
+            <div className="w-28 bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1 flex">
+              <div 
+                className={cn(
+                  "h-full rounded-full transition-all duration-300",
+                  realPercent > 100 ? "bg-rose-500" : realPercent >= 80 ? "bg-emerald-500" : realPercent >= 40 ? "bg-amber-400" : "bg-primary"
+                )}
+                style={{ width: `${Math.min(realPercent, 100)}%` }}
+              />
+            </div>
+            <span className="text-[8px] font-black text-slate-400 tracking-wider uppercase mt-0.5">
+              Penyerapan: {realPercent.toFixed(1)}%
+            </span>
+          </div>
+        </td>
+        <td className="px-4 py-4 text-center">
+          <div className="flex items-center justify-center gap-1.5">
+            {isSuperAdmin && (
+              <>
+                <button 
+                  onClick={() => startEditModal(act)}
+                  className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-all"
+                  title="Ubah Anggaran"
+                >
+                  <Edit2 className="size-3.5" />
+                </button>
+                <button 
+                  onClick={() => deleteActivity(act.id)}
+                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                  title="Hapus Kegiatan"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
 
 
@@ -787,40 +933,10 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {/* Row 1: Semarang Peduli */}
-              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Peduli') && (
-                renderPilarRow("1100", "Semarang Peduli", "Semarang Peduli", 1)
-              )}
-              
-              {/* Row 2: Semarang Sehat (Konsumtif) */}
-              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Sehat') && (
-                renderPilarRow("1200", "Semarang Sehat (Konsumtif)", "Semarang Sehat (Konsumtif)", 2)
-              )}
-              
-              {/* Row 3: Semarang Sehat (Produktif) */}
-              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Sehat') && (
-                renderPilarRow("2200", "Semarang Sehat (Produktif)", "Semarang Sehat (Produktif)", 3)
-              )}
-              
-              {/* Row 4: Semarang Cerdas (Konsumtif) */}
-              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Cerdas') && (
-                renderPilarRow("1300", "Semarang Cerdas (Konsumtif)", "Semarang Cerdas (Konsumtif)", 4)
-              )}
-              
-              {/* Row 5: Semarang Cerdas (Produktif) */}
-              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Cerdas') && (
-                renderPilarRow("2300", "Semarang Cerdas (Produktif)", "Semarang Cerdas (Produktif)", 5)
-              )}
-              
-              {/* Row 6: Semarang Taqwa */}
-              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Taqwa') && (
-                renderPilarRow("1400", "Semarang Taqwa", "Semarang Taqwa", 6)
-              )}
-              
-              {/* Row 7: Semarang Makmur */}
-              {(selectedPilarFilter === 'Semua' || selectedPilarFilter === 'Semarang Makmur') && (
-                renderPilarRow("2100", "Semarang Makmur", "Semarang Makmur", 7)
-              )}
+              {data
+                .filter(pilar => selectedPilarFilter === 'Semua' || pilar.name === selectedPilarFilter)
+                .map((pilar, index) => renderPilarRow(pilar.code, pilar.name, pilar.name, index + 1))
+              }
               
               {/* Grand Total Row */}
               {selectedPilarFilter === 'Semua' && (
@@ -890,10 +1006,14 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                 </button>
                 <button
                   onClick={() => {
+                    setEditingActivity(null);
                     const activePilarObj = data.find(p => p.name === selectedPilarFilter);
-                    const defaultPilarCode = activePilarObj ? activePilarObj.code : (data[0]?.code || '1100');
+                    const defaultPilarCode = activePilarObj ? activePilarObj.code : (data[0]?.code || '');
                     setFormPilar(defaultPilarCode);
                     setFormNamaKegiatan('');
+                    setFormAsnaf('');
+                    setFormKeterangan('');
+                    setFormCoaCode('');
                     setIsAddModalOpen(true);
                   }}
                   className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-md shadow-primary/15 transition-all active:scale-95 shrink-0"
@@ -913,6 +1033,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-12 text-center">No</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-60">Program / Kegiatan Kerja</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-24 text-center">Asnaf</th>
+                <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-36">Hubungan COA</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Keterangan Spesifikasi</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right w-48">Target RKAT &amp; Rincian</th>
                 <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right w-48">Realisasi Aktual &amp; Sisa</th>
@@ -927,115 +1048,31 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                   </td>
                 </tr>
               ) : (
-                filteredActivities.map((act, index) => {
-                  const itemBudgetTotal = act.mustahik * act.frekuensi * act.unitCost;
-                  
-                  // Query proposals linked to this specific activity (automatically matched)
-                  const linkedMemos = getLinkedMemosForActivity(act, proposals);
-                  const actRealisasi = linkedMemos.reduce((sum, p) => sum + (p.nominal || 0), 0);
-                  const sisaDana = itemBudgetTotal - actRealisasi;
-                  const realPercent = itemBudgetTotal > 0 ? (actRealisasi / itemBudgetTotal) * 100 : 0;
-                  
-                  return (
-                    <tr key={act.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-4 text-xs font-bold text-slate-400 text-center">
-                        {index + 1}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-primary uppercase tracking-wide">
-                            {act.pilarName} ({act.pilarCode})
-                          </span>
-                          <span className="text-xs font-black text-slate-900 leading-tight mt-0.5">
-                            {act.name}
-                          </span>
-                          <span className="text-[9.5px] font-bold text-slate-400 font-mono mt-0.5">
-                            ID/A: {act.id}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        {act.asnaf ? (
-                          <span className="px-2.5 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200/50 font-black text-[10px] uppercase">
-                            {act.asnaf}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 italic font-medium text-[11px]">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-xs text-slate-500 max-w-[200px] font-medium leading-relaxed">
-                        {act.keterangan || '-'}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-black text-slate-900">{formatCurrency(itemBudgetTotal)}</span>
-                          <span className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5">
-                            {(act.mustahik || 0).toLocaleString('id-ID')} jiwa × {act.frekuensi}x / th
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            @ {formatCurrency(act.unitCost)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex flex-col items-end">
-                          <span className={cn(
-                            "text-xs font-black",
-                            actRealisasi > 0 ? "text-emerald-700 font-mono" : "text-slate-450"
-                          )}>
-                            {formatCurrency(actRealisasi)}
-                          </span>
-                          
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <span className="text-[10px] font-bold text-slate-500">Sisa:</span>
-                            <span className={cn(
-                              "text-[10px] font-extrabold font-mono",
-                              sisaDana < 0 ? "text-rose-600 bg-rose-50 px-1 rounded" : "text-slate-700"
-                            )}>
-                              {formatCurrency(sisaDana)}
-                            </span>
-                          </div>
- 
-                          {/* Progress Bar of actual match */}
-                          <div className="w-28 bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1 flex">
-                            <div 
-                              className={cn(
-                                "h-full rounded-full transition-all duration-300",
-                                realPercent > 100 ? "bg-rose-500" : realPercent >= 80 ? "bg-emerald-500" : realPercent >= 40 ? "bg-amber-400" : "bg-primary"
-                              )}
-                              style={{ width: `${Math.min(realPercent, 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-[8px] font-black text-slate-400 tracking-wider uppercase mt-0.5">
-                            Penyerapan: {realPercent.toFixed(1)}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {isSuperAdmin && (
-                            <>
-                              <button 
-                                onClick={() => startEditModal(act)}
-                                className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-all"
-                                title="Ubah Anggaran"
-                              >
-                                <Edit2 className="size-3.5" />
-                              </button>
-                              <button 
-                                onClick={() => deleteActivity(act.id)}
-                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                                title="Hapus Kegiatan"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                <>
+                  {/* Bantuan Konsumtif */}
+                  {konsumtifActivities.length > 0 && (
+                    <>
+                      <tr>
+                        <td colSpan={8} className="px-4 py-2.5 text-xs font-black text-slate-700 uppercase tracking-widest bg-slate-100/60 border-y border-slate-200">
+                          Bantuan Konsumtif ({konsumtifActivities.length})
+                        </td>
+                      </tr>
+                      {konsumtifActivities.map((act, index) => renderActivityRow(act, index))}
+                    </>
+                  )}
+
+                  {/* Bantuan Produktif */}
+                  {produktifActivities.length > 0 && (
+                    <>
+                      <tr>
+                        <td colSpan={8} className="px-4 py-2.5 text-xs font-black text-slate-700 uppercase tracking-widest bg-slate-100/60 border-y border-slate-200">
+                          Bantuan Produktif ({produktifActivities.length})
+                        </td>
+                      </tr>
+                      {produktifActivities.map((act, index) => renderActivityRow(act, index + konsumtifActivities.length))}
+                    </>
+                  )}
+                </>
               )}
             </tbody>
           </table>
@@ -1159,6 +1196,24 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                 </div>
 
                 <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Hubungkan Ke COA (Chart of Accounts) - Opsional</label>
+                  <select
+                    value={formCoaCode}
+                    onChange={(e) => setFormCoaCode(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer font-mono"
+                  >
+                    <option value="" className="font-sans">-- Tidak dihubungkan (Opsional) --</option>
+                    {coas
+                      .filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan')
+                      .map(coa => (
+                        <option key={coa.coa_code} value={coa.coa_code}>
+                          {coa.coa_code} - {coa.nama_akun}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">Keterangan / Spesifikasi Bantuan</label>
                   <input
                     type="text"
@@ -1275,7 +1330,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                     <FileSpreadsheet className="size-8" />
                   </div>
                   <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
-                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom: Kode Pilar, Kode Program, Nama Kegiatan, Asnaf, Keterangan, Target Jiwa, Frekuensi, Unit Cost.</p>
+                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom: Kode Pilar, Kode Program, Nama Kegiatan, Asnaf, Keterangan, Target Jiwa, Frekuensi, Unit Cost, Kode COA.</p>
                 </div>
 
                 <div className="space-y-3">
@@ -1283,19 +1338,31 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                     onClick={() => {
                       const ws = XLSX.utils.json_to_sheet([
                         { 
-                          "No Urut": 1,
-                          "Kode Pilar": "1100",
-                          "Kode Program": "1102",
+                          "Kode Pilar": "2101",
+                          "Kode Program": "210102",
                           "Nama Kegiatan": "Bantuan Biaya Hidup Sembako",
                           "Asnaf": "Miskin",
                           "Keterangan": "Pemberian paket sembako dhuafa Semarang Utara",
                           "Target Jiwa": 100,
                           "Frekuensi": 1,
-                          "Unit Cost": 250000
+                          "Unit Cost": 250000,
+                          "Kode COA": "5.1.01.01.001"
                         }
                       ]);
+                      
+                      // Filter coas to only Penyaluran and Penggunaan for reference sheet
+                      const refCoas = coas
+                        .filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan')
+                        .map(coa => ({
+                          "Kode COA": coa.coa_code,
+                          "Nama Akun": coa.nama_akun,
+                          "Klasifikasi": coa.klasifikasi
+                        }));
+                      const wsRef = XLSX.utils.json_to_sheet(refCoas);
+
                       const wb = XLSX.utils.book_new();
                       XLSX.utils.book_append_sheet(wb, ws, "Template_RKAT");
+                      XLSX.utils.book_append_sheet(wb, wsRef, "Referensi_COA");
                       XLSX.writeFile(wb, "Template_Migrasi_RKAT.xlsx");
                     }} 
                     className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all"
@@ -1348,22 +1415,20 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                               if (!groupedByProgram[progCode]) {
                                 groupedByProgram[progCode] = [];
                               }
-                              
-                              const noUrut = Number(row["No Urut"] || row["No_Urut"] || row["no_urut"] || 9999);
                               const mustahik = Number(row["Target Jiwa"] || row["Target_Jiwa"] || row["target_jiwa"] || 0);
                               const frekuensi = Number(row["Frekuensi"] || row["Frekuensi_Tahun"] || row["frekuensi_tahun"] || 1);
                               const nominal = Number(row["Unit Cost"] || row["Unit_Cost_Rp"] || row["unit_cost"] || 0);
 
-                              groupedByProgram[progCode].push({
-                                id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-                                noUrut,
-                                name: String(row["Nama Kegiatan"] || row["Nama_Kegiatan"] || row["nama_kegiatan"] || "").trim(),
-                                asnaf: String(row["Asnaf"] || row["asnaf"] || "").trim(),
-                                frekuensi,
-                                nominal,
-                                mustahik,
-                                keterangan: String(row["Keterangan"] || row["keterangan"] || "").trim()
-                              });
+                               groupedByProgram[progCode].push({
+                                 id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                                 name: String(row["Nama Kegiatan"] || row["Nama_Kegiatan"] || row["nama_kegiatan"] || "").trim(),
+                                 asnaf: String(row["Asnaf"] || row["asnaf"] || "").trim(),
+                                 frekuensi,
+                                 nominal,
+                                 mustahik,
+                                 keterangan: String(row["Keterangan"] || row["keterangan"] || "").trim(),
+                                 coaCode: String(row["Kode COA"] || row["Kode_COA"] || row["kode_coa"] || "").trim() || undefined
+                               });
                             });
 
                             const programCodes = Object.keys(groupedByProgram);

@@ -7,11 +7,13 @@ export interface AsnafTarget {
   mustahik: number;
   keterangan?: string;
   noUrut?: number;
+  coaCode?: string;
 }
 
 export interface Program {
   code: string;
   name: string;
+  tipe?: 'Konsumtif' | 'Produktif';
   asnafTargets?: AsnafTarget[];
   nominalUmum?: number;
   rkat_details?: AsnafTarget[];

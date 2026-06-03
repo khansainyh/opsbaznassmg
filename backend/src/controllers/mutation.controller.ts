@@ -14,36 +14,7 @@ const readMutations = (): any[] => {
       fs.mkdirSync(dir, { recursive: true });
     }
     if (!fs.existsSync(filePath)) {
-      // Seed default data
-      const defaultMutations = [
-        {
-          id: 'mut-1',
-          tanggal: new Date().toISOString().split('T')[0],
-          bankAccountId: '', // Will be dynamically matched or assigned to first BSI/Bank in controller
-          bankName: 'BSI - Rekening Utama Zakat',
-          keteranganBank: 'TRSF BPK HAMBA ALLAH BSI NET',
-          nominal: 2500000,
-          status: 'PENDING'
-        },
-        {
-          id: 'mut-2',
-          tanggal: new Date().toISOString().split('T')[0],
-          bankAccountId: '',
-          bankName: 'BNI - Rekening Infak',
-          keteranganBank: 'TRANSFER ANGGOTA POLRESTABES SMG',
-          nominal: 10000000,
-          status: 'PENDING'
-        },
-        {
-          id: 'mut-3',
-          tanggal: new Date(Date.now() - 86400000).toISOString().split('T')[0], // yesterday
-          bankAccountId: '',
-          bankName: 'Mandiri - Kas Utama',
-          keteranganBank: 'SEDEKAH JUMAT BERKAH MASJID',
-          nominal: 750000,
-          status: 'PENDING'
-        }
-      ];
+      const defaultMutations: any[] = [];
       fs.writeFileSync(filePath, JSON.stringify(defaultMutations, null, 2), 'utf-8');
       return defaultMutations;
     }

@@ -29,7 +29,7 @@ export interface COAItem {
   coa_code: string;
   nama_akun: string;
   klasifikasi: string;
-  tipe_dana: string;
+  tipe_dana?: string;
 }
 
 export interface BankMutation {
@@ -319,8 +319,8 @@ export default function RekonsiliasiMutasi() {
           </p>
         </div>
         
-        {/* Record action - available to Keuangan or Super Admin */}
-        {(user?.role === 'Super_Admin' || user?.role === 'Keuangan') && (
+        {/* Record action - available to Staf_Keuangan or Super Admin */}
+        {(user?.role === 'Super_Admin' || user?.role === 'Staf_Keuangan') && (
           <button 
             onClick={() => setIsAddModalOpen(true)}
             className="px-5 py-3 bg-primary text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider self-start md:self-auto shrink-0"
