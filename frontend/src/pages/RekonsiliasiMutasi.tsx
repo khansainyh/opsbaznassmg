@@ -11,7 +11,10 @@ import {
   Check,
   X,
   ChevronRight,
-  TrendingUp
+  TrendingUp,
+  ArrowDownLeft,
+  ArrowUpRight,
+  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -35,10 +38,12 @@ export interface COAItem {
 export interface BankMutation {
   id: string;
   tanggal: string;
+  tanggalCatatan?: string;
   bankAccountId: string;
   bankName: string;
   keteranganBank: string;
   nominal: number;
+  type?: 'DEBIT' | 'KREDIT';
   status: 'PENDING' | 'RECONCILED';
   reconciledAt?: string;
   reconciledBy?: string;
@@ -73,7 +78,14 @@ export default function RekonsiliasiMutasi() {
   const [coas, setCoas] = useState<COAItem[]>([]);
   const [muzakkis, setMuzakkis] = useState<Muzakki[]>([]);
   
+  const [activeTab, setActiveTab] = useState<'PENERIMAAN' | 'PENYALURAN'>('PENERIMAAN');
   const [searchTerm, setSearchTerm] = useState('');
+  const [monthlyFilter, setMonthlyFilter] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  });
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -95,8 +107,10 @@ export default function RekonsiliasiMutasi() {
   const [formSumberDana, setFormSumberDana] = useState('ZAKAT');
   const [formKeteranganRealisasi, setFormKeteranganRealisasi] = useState('');
 
-  // Search inside Muzakki
+  // Search inside Muzakki and COA
   const [muzakkiSearch, setMuzakkiSearch] = useState('');
+  const [coaSearch, setCoaSearch] = useState('');
+  const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
 
   // Trigger toast helper
   const showToast = (message: string, type: 'success' | 'error') => {
@@ -109,19 +123,18 @@ export default function RekonsiliasiMutasi() {
     setLoading(true);
     try {
       const [resMutations, resAccounts, resCoas, resMuzakkis, resMustahiks] = await Promise.all([
-        axios.get('http://127.0.0.1:4000/api/mutations'),
-        axios.get('http://127.0.0.1:4000/api/finance/accounts'),
-        axios.get('http://127.0.0.1:4000/api/finance/coa'),
-        axios.get('http://127.0.0.1:4000/api/muzakki'),
-        axios.get('http://127.0.0.1:4000/api/mustahik')
+        axios.get('/api/mutations'),
+        axios.get('/api/finance/accounts'),
+        axios.get('/api/finance/coa'),
+        axios.get('/api/muzakki'),
+        axios.get('/api/mustahik')
       ]);
 
       setMutations(resMutations.data);
-      const bankAccountsList = resAccounts.data.filter((a: any) => a.tipe_kas === 'BANK');
-      setBankAccounts(bankAccountsList);
+      setBankAccounts(resAccounts.data);
       
-      // Filter COAs to only Zakat/Infak Penerimaan accounts (COA starts with 4)
-      setCoas(resCoas.data.filter((c: any) => c.klasifikasi === 'Penerimaan' || c.coa_code.startsWith('4')));
+      // Store all COAs
+      setCoas(resCoas.data);
       
       // Map both muzakki and mustahik
       const muzakkiList = (resMuzakkis.data.data || []).map((m: any) => ({
@@ -140,8 +153,9 @@ export default function RekonsiliasiMutasi() {
 
       setMuzakkis([...muzakkiList, ...mustahikList]);
 
-      if (bankAccountsList.length > 0) {
-        setFormBankId(bankAccountsList[0]?.account_id || '');
+      const bankOnly = resAccounts.data.filter((a: any) => a.tipe_kas === 'BANK');
+      if (bankOnly.length > 0) {
+        setFormBankId(bankOnly[0]?.account_id || '');
       }
     } catch (error) {
       console.error('Failed to fetch bank mutations data:', error);
@@ -156,27 +170,53 @@ export default function RekonsiliasiMutasi() {
     fetchData();
   }, []);
 
-  // Filtered Penerimaan COAs based on Sumber Dana tag
+  // Filtered COAs based on selectedMutation type and formSumberDana tag
   const filteredCoas = useMemo(() => {
-    if (formSumberDana === 'ZAKAT') {
-      return coas.filter(c => c.tipe_dana === 'ZAKAT' || c.coa_code.startsWith('41'));
+    if (!selectedMutation) return [];
+    const isDebit = selectedMutation.type !== 'KREDIT';
+    
+    if (isDebit) {
+      // Penerimaan (Debit to cash/bank account, credit to Penerimaan COA)
+      const basePenerimaan = coas.filter(c => c.klasifikasi === 'Penerimaan' || c.coa_code.startsWith('4'));
+      if (formSumberDana === 'ZAKAT') {
+        return basePenerimaan.filter(c => c.tipe_dana === 'ZAKAT' || c.coa_code.startsWith('41'));
+      } else {
+        return basePenerimaan.filter(c => c.tipe_dana !== 'ZAKAT' || c.coa_code.startsWith('42'));
+      }
     } else {
-      return coas.filter(c => c.tipe_dana !== 'ZAKAT' || c.coa_code.startsWith('42'));
+      // Penyaluran/Penggunaan (Kredit to cash/bank account, debit to Penyaluran/Beban COA)
+      return coas.filter(c => c.klasifikasi === 'Penyaluran' || c.klasifikasi === 'Penggunaan' || c.coa_code.startsWith('5'));
     }
-  }, [coas, formSumberDana]);
+  }, [coas, formSumberDana, selectedMutation]);
 
-  // Set default COA on source change
+  const filteredCoasForSearch = useMemo(() => {
+    if (!coaSearch) return filteredCoas;
+    const term = coaSearch.toLowerCase();
+    return filteredCoas.filter(coa => 
+      coa.coa_code.toLowerCase().includes(term) || 
+      coa.nama_akun.toLowerCase().includes(term)
+    );
+  }, [filteredCoas, coaSearch]);
+
+  // Reset COA code to empty on source change to let user search manually
   useEffect(() => {
-    if (filteredCoas.length > 0) {
-      setFormCoaCode(filteredCoas[0].coa_code);
-    } else {
-      setFormCoaCode('');
-    }
+    setFormCoaCode('');
   }, [filteredCoas]);
 
-  // Filtered mutations
+  // Filtered mutations based on activeTab, search term, and monthlyFilter
   const filteredMutations = useMemo(() => {
-    return mutations.filter(m => {
+    const filtered = mutations.filter(m => {
+      // Filter by tab type (Debit vs Kredit)
+      const isDebit = m.type !== 'KREDIT';
+      if (activeTab === 'PENERIMAAN' && !isDebit) return false;
+      if (activeTab === 'PENYALURAN' && isDebit) return false;
+
+      // Filter by monthly input if on PENYALURAN tab and filter is active
+      if (activeTab === 'PENYALURAN' && monthlyFilter) {
+        const mutationMonth = m.tanggal.substring(0, 7); // Gets "YYYY-MM"
+        if (mutationMonth !== monthlyFilter) return false;
+      }
+
       const search = searchTerm.toLowerCase();
       if (!search) return true;
       return (
@@ -186,21 +226,35 @@ export default function RekonsiliasiMutasi() {
         (m.coaCode || '').includes(search)
       );
     });
-  }, [mutations, searchTerm]);
 
-  // Summary Metrics
+    // Sort: status === 'PENDING' (belum teridentifikasi) first, then 'RECONCILED'
+    // Within the same status, sort by date descending (newest first)
+    return filtered.sort((a, b) => {
+      if (a.status !== b.status) {
+        return a.status === 'PENDING' ? -1 : 1;
+      }
+      return new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime();
+    });
+  }, [mutations, searchTerm, activeTab, monthlyFilter]);
+
+  // Summary Metrics based on activeTab
   const metrics = useMemo(() => {
-    const pending = mutations.filter(m => m.status === 'PENDING');
-    const reconciled = mutations.filter(m => m.status === 'RECONCILED');
+    const tabMutations = mutations.filter(m => {
+      const isDebit = m.type !== 'KREDIT';
+      return activeTab === 'PENERIMAAN' ? isDebit : !isDebit;
+    });
+
+    const pending = tabMutations.filter(m => m.status === 'PENDING');
+    const reconciled = tabMutations.filter(m => m.status === 'RECONCILED');
 
     return {
       pendingCount: pending.length,
       pendingTotal: pending.reduce((sum, m) => sum + m.nominal, 0),
       reconciledCount: reconciled.length,
       reconciledTotal: reconciled.reduce((sum, m) => sum + m.nominal, 0),
-      grandTotal: mutations.reduce((sum, m) => sum + m.nominal, 0)
+      grandTotal: tabMutations.reduce((sum, m) => sum + m.nominal, 0)
     };
-  }, [mutations]);
+  }, [mutations, activeTab]);
 
   // Filtered Muzakki inside modal
   const filteredMuzakkis = useMemo(() => {
@@ -227,7 +281,7 @@ export default function RekonsiliasiMutasi() {
         nominal: Number(formNominal)
       };
 
-      const res = await axios.post('http://127.0.0.1:4000/api/mutations', payload);
+      const res = await axios.post('/api/mutations', payload);
       setMutations(prev => [...prev, res.data]);
       
       // Reset form
@@ -248,7 +302,16 @@ export default function RekonsiliasiMutasi() {
     setFormCustomMuzakki('');
     setMuzakkiSearch('');
     setFormSumberDana('ZAKAT');
-    setFormKeteranganRealisasi(`Penerimaan mutasi ${mutation.keteranganBank}`);
+    setCoaSearch('');
+    setIsCoaDropdownOpen(false);
+    
+    const isDebit = mutation.type !== 'KREDIT';
+    setFormKeteranganRealisasi(
+      isDebit 
+        ? `Penerimaan mutasi ${mutation.keteranganBank}`
+        : `Penyaluran/Penggunaan mutasi ${mutation.keteranganBank}`
+    );
+    
     setIsReconcileModalOpen(true);
   };
 
@@ -257,20 +320,23 @@ export default function RekonsiliasiMutasi() {
     e.preventDefault();
     if (!selectedMutation) return;
 
+    const isDebit = selectedMutation.type !== 'KREDIT';
     const selectedMuzakki = muzakkis.find(m => m.id === formMuzakkiId);
-    const donorName = selectedMuzakki?.nama || formCustomMuzakki.trim() || 'Hamba Allah';
+    const donorName = isDebit 
+      ? (selectedMuzakki?.nama || formCustomMuzakki.trim() || 'Hamba Allah')
+      : '-';
 
     try {
       const payload = {
-        muzakkiId: formMuzakkiId || null,
+        muzakkiId: isDebit ? (formMuzakkiId || null) : null,
         muzakkiName: donorName,
         coaCode: formCoaCode,
-        sumberDana: formSumberDana,
+        sumberDana: isDebit ? formSumberDana : '-',
         keteranganRealisasi: formKeteranganRealisasi.trim(),
         userName: user?.name || user?.role || 'Staff'
       };
 
-      await axios.post(`http://127.0.0.1:4000/api/mutations/${selectedMutation.id}/reconcile`, payload);
+      await axios.post(`/api/mutations/${selectedMutation.id}/reconcile`, payload);
       
       showToast('Rekonsiliasi Mutasi sukses & Jurnal Buku Besar otomatis terbentuk!', 'success');
       setIsReconcileModalOpen(false);
@@ -312,22 +378,12 @@ export default function RekonsiliasiMutasi() {
           </nav>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <ArrowRightLeft className="size-8 text-primary shrink-0" />
-            Rekonsiliasi Mutasi Bank
+            Rekonsiliasi Mutasi
           </h2>
           <p className="text-slate-500 font-medium text-xs md:text-sm">
             Bridging akurasi data bank antara tim Pelaporan (monitoring mutasi) dan tim Pengumpulan (identifikasi Muzakki &amp; alokasi dana).
           </p>
         </div>
-        
-        {/* Record action - available to Staf_Keuangan or Super Admin */}
-        {(user?.role === 'Super_Admin' || user?.role === 'Staf_Keuangan') && (
-          <button 
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-5 py-3 bg-primary text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider self-start md:self-auto shrink-0"
-          >
-            <Plus className="size-4" /> Catat Mutasi Kredit
-          </button>
-        )}
       </div>
 
       {/* Metrics Summary Grid */}
@@ -337,12 +393,14 @@ export default function RekonsiliasiMutasi() {
             <AlertTriangle className="size-6 animate-pulse" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Mutasi Menggantung</p>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+              {activeTab === 'PENERIMAAN' ? 'Mutasi Gantung Penerimaan' : 'Draf Pengeluaran Gantung'}
+            </p>
             <p className="text-lg font-black text-slate-950 mt-1">
               {formatCurrency(metrics.pendingTotal)}
             </p>
             <span className="block text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded w-fit mt-1">
-              {metrics.pendingCount} Transaksi Unidentified
+              {metrics.pendingCount} Transaksi Menggantung
             </span>
           </div>
         </div>
@@ -352,12 +410,14 @@ export default function RekonsiliasiMutasi() {
             <Check className="size-6" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Terekonsiliasi (Bulan Ini)</p>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+              {activeTab === 'PENERIMAAN' ? 'Penerimaan Terekonsiliasi' : 'Penyaluran Terverifikasi'}
+            </p>
             <p className="text-lg font-black text-slate-950 mt-1">
               {formatCurrency(metrics.reconciledTotal)}
             </p>
             <span className="block text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded w-fit mt-1">
-              {metrics.reconciledCount} Mutasi Sukses Diposting
+              {metrics.reconciledCount} Transaksi Sukses Diposting
             </span>
           </div>
         </div>
@@ -367,12 +427,17 @@ export default function RekonsiliasiMutasi() {
             <TrendingUp className="size-6" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Aliran Mutasi Masuk</p>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+              {activeTab === 'PENERIMAAN' ? 'Total Aliran Penerimaan Masuk' : 'Total Aliran Penyaluran Keluar'}
+            </p>
             <p className="text-lg font-black text-slate-950 mt-1">
               {formatCurrency(metrics.grandTotal)}
             </p>
             <span className="block text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded w-fit mt-1">
-              {mutations.length} Transaksi Terdaftar
+              {mutations.filter(m => {
+                const isDebit = m.type !== 'KREDIT';
+                return activeTab === 'PENERIMAAN' ? isDebit : !isDebit;
+              }).length} Transaksi Terdaftar
             </span>
           </div>
         </div>
@@ -381,23 +446,81 @@ export default function RekonsiliasiMutasi() {
       {/* Main Content Card */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-slate-100 bg-slate-50/50">
+          <button
+            onClick={() => setActiveTab('PENERIMAAN')}
+            className={`flex-1 sm:flex-initial px-6 py-4 text-xs font-black uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-2 ${
+              activeTab === 'PENERIMAAN'
+                ? 'border-primary text-primary bg-white'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/30'
+            }`}
+          >
+            <ArrowDownLeft className="size-4 text-emerald-600" />
+            Penerimaan (Uang Masuk / Debit)
+          </button>
+          <button
+            onClick={() => setActiveTab('PENYALURAN')}
+            className={`flex-1 sm:flex-initial px-6 py-4 text-xs font-black uppercase tracking-wider transition-all border-b-2 flex items-center justify-center gap-2 ${
+              activeTab === 'PENYALURAN'
+                ? 'border-primary text-primary bg-white'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/30'
+            }`}
+          >
+            <ArrowUpRight className="size-4 text-rose-600" />
+            Penyaluran &amp; Penggunaan (Uang Keluar / Kredit)
+          </button>
+        </div>
+
         {/* Search Header */}
         <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-            <input 
-              type="text"
-              placeholder="Cari keterangan mutasi bank, bank..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full text-xs font-bold bg-slate-50 border-none rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none"
-            />
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+              <input 
+                type="text"
+                placeholder="Cari keterangan mutasi bank, bank..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full text-xs font-bold bg-slate-50 border-none rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none"
+              />
+            </div>
+
+            {/* Monthly Filter - ONLY FOR PENYALURAN TAB */}
+            {activeTab === 'PENYALURAN' && (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0 hidden sm:inline">Filter Bulan:</span>
+                <input 
+                  type="month"
+                  value={monthlyFilter}
+                  onChange={(e) => setMonthlyFilter(e.target.value)}
+                  className="w-full sm:w-auto text-xs font-bold bg-slate-50 border-none rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none text-slate-700"
+                />
+                {monthlyFilter && (
+                  <button 
+                    onClick={() => setMonthlyFilter('')}
+                    className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                    title="Clear filter bulan"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="flex gap-2 self-start sm:self-auto">
-            <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-3 py-1 rounded-md border border-slate-200">
+          <div className="flex gap-3 items-center self-start sm:self-auto w-full sm:w-auto justify-between sm:justify-end">
+            <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-3 py-1.5 rounded-md border border-slate-200">
               Peran: <span className="text-primary font-black">{user?.role?.replace('_', ' ')}</span>
             </span>
+            {activeTab === 'PENERIMAAN' && (user?.role === 'Super_Admin' || user?.role === 'Staf_Keuangan') && (
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider shrink-0"
+              >
+                <Plus className="size-4" /> Catat Mutasi
+              </button>
+            )}
           </div>
         </div>
 
@@ -407,9 +530,11 @@ export default function RekonsiliasiMutasi() {
             <thead>
               <tr className="bg-slate-50/50">
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Akun Bank</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan Mutasi Bank (Koran)</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Nominal Masuk</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Akun Kas / Bank</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan Koran / Deskripsi</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
+                  {activeTab === 'PENERIMAAN' ? 'Nominal Masuk' : 'Nominal Keluar'}
+                </th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status / Alokasi</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
               </tr>
@@ -421,10 +546,10 @@ export default function RekonsiliasiMutasi() {
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">
                         <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></span>
-                        Memuat data mutasi bank...
+                        Memuat data mutasi...
                       </span>
                     ) : (
-                      'Tidak ada mutasi bank ditemukan'
+                      'Tidak ada transaksi ditemukan'
                     )}
                   </td>
                 </tr>
@@ -442,7 +567,9 @@ export default function RekonsiliasiMutasi() {
                   <td className="px-6 py-5 font-bold text-slate-800">
                     {item.keteranganBank}
                   </td>
-                  <td className="px-6 py-5 text-right font-black text-emerald-700 font-mono">
+                  <td className={`px-6 py-5 text-right font-black font-mono ${
+                    activeTab === 'PENERIMAAN' ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>
                     {formatCurrency(item.nominal)}
                   </td>
                   <td className="px-6 py-5">
@@ -455,9 +582,11 @@ export default function RekonsiliasiMutasi() {
                         <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
                           <Check className="size-3" /> Terekonsiliasi
                         </span>
-                        <span className="block text-[10px] text-slate-500 font-semibold">
-                          Muzakki: <strong>{item.muzakkiName}</strong>
-                        </span>
+                        {item.muzakkiName && item.muzakkiName !== '-' && (
+                          <span className="block text-[10px] text-slate-500 font-semibold">
+                            Muzakki: <strong>{item.muzakkiName}</strong>
+                          </span>
+                        )}
                         <span className="block text-[10px] text-primary font-mono font-bold">
                           COA: {item.coaCode}
                         </span>
@@ -596,7 +725,7 @@ export default function RekonsiliasiMutasi() {
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <ArrowRightLeft className="size-4 text-primary" />
-                  Identifikasi &amp; Rekonsiliasi Dana
+                  Identifikasi &amp; Rekonsiliasi Dana ({selectedMutation.type === 'KREDIT' ? 'Penyaluran' : 'Penerimaan'})
                 </h3>
                 <button onClick={() => setIsReconcileModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                   <X className="size-5" />
@@ -604,116 +733,178 @@ export default function RekonsiliasiMutasi() {
               </div>
 
               <div className="bg-amber-50 p-4 border-b border-amber-100 text-amber-800 text-[11px] font-bold space-y-1">
-                <p>📌 Mutasi Bank Asal: {selectedMutation.bankName}</p>
-                <p>💬 Keterangan Koran: "{selectedMutation.keteranganBank}"</p>
-                <p>💰 Jumlah Dana: {formatCurrency(selectedMutation.nominal)}</p>
+                <p>📌 Sumber Akun: {selectedMutation.bankName}</p>
+                <p>💬 Keterangan: "{selectedMutation.keteranganBank}"</p>
+                <p>💰 Jumlah Dana: {formatCurrency(selectedMutation.nominal)} ({selectedMutation.type === 'KREDIT' ? 'Pengeluaran' : 'Penerimaan'})</p>
               </div>
 
               <form onSubmit={handleReconcile} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 
-                {/* 1. Muzakki Linkage */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">1. Hubungkan ke Database Muzakki (Opsional)</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 size-3.5" />
-                    <input 
-                      type="text"
-                      placeholder="Cari nama Muzakki (Contoh: Budi)..."
-                      value={muzakkiSearch}
-                      onChange={(e) => setMuzakkiSearch(e.target.value)}
-                      className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none"
-                    />
-                  </div>
-
-                  {/* Muzakki Search Results */}
-                  {muzakkiSearch && (
-                    <div className="bg-white border border-slate-200 rounded-lg max-h-28 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner">
-                      {filteredMuzakkis.length === 0 ? (
-                        <p className="p-2 text-[10px] text-slate-400 italic">Muzakki tidak ditemukan</p>
-                      ) : (
-                        filteredMuzakkis.map(m => (
-                          <div 
-                            key={m.id}
-                            onClick={() => {
-                              setFormMuzakkiId(m.id);
-                              setFormCustomMuzakki(m.nama);
-                              setMuzakkiSearch('');
-                            }}
-                            className="p-2 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-slate-700"
-                          >
-                            <span>{m.nama}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">NIK: {m.nik || '-'}</span>
-                          </div>
-                        ))
-                      )}
+                {/* 1. Muzakki Linkage - ONLY FOR DEBIT/PENERIMAAN */}
+                {selectedMutation.type !== 'KREDIT' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">1. Hubungkan ke Database Muzakki (Opsional)</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 size-3.5" />
+                      <input 
+                        type="text"
+                        placeholder="Cari nama Muzakki (Contoh: Budi)..."
+                        value={muzakkiSearch}
+                        onChange={(e) => setMuzakkiSearch(e.target.value)}
+                        className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none"
+                      />
                     </div>
-                  )}
 
-                  {/* Manual input or chosen badge */}
-                  {formMuzakkiId ? (
+                    {/* Muzakki Search Results */}
+                    {muzakkiSearch && (
+                      <div className="bg-white border border-slate-200 rounded-lg max-h-28 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner">
+                        {filteredMuzakkis.length === 0 ? (
+                          <p className="p-2 text-[10px] text-slate-400 italic">Muzakki tidak ditemukan</p>
+                        ) : (
+                          filteredMuzakkis.map(m => (
+                            <div 
+                              key={m.id}
+                              onClick={() => {
+                                setFormMuzakkiId(m.id);
+                                setFormCustomMuzakki(m.nama);
+                                setMuzakkiSearch('');
+                              }}
+                              className="p-2 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-slate-700"
+                            >
+                              <span>{m.nama}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">NIK: {m.nik || '-'}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {/* Manual input or chosen badge */}
+                    {formMuzakkiId ? (
+                      <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3 py-2 rounded-xl text-xs font-black">
+                        <span className="flex items-center gap-1.5"><User className="size-4 shrink-0" /> Terhubung: {formCustomMuzakki}</span>
+                        <button type="button" onClick={() => { setFormMuzakkiId(''); setFormCustomMuzakki(''); }} className="hover:text-rose-600">
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <input 
+                          type="text"
+                          placeholder="Ketik Nama Donatur/Muzakki secara manual..."
+                          value={formCustomMuzakki}
+                          onChange={(e) => setFormCustomMuzakki(e.target.value)}
+                          required
+                          className="w-full text-xs font-bold border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none"
+                        />
+                        <p className="text-[9px] text-slate-400 font-medium">Jika nama muzakki tidak ada di database, ketik manual di atas.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Sumber Dana Tag - HIDE IF KREDIT */}
+                {selectedMutation.type !== 'KREDIT' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                      2. Klasifikasi Rumpun Dana
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {['ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT'].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setFormSumberDana(tag)}
+                          className={cn(
+                            "py-2 text-[10px] font-black rounded-lg border text-center transition-all uppercase tracking-wider",
+                            formSumberDana === tag 
+                              ? "bg-primary text-white border-primary shadow-sm" 
+                              : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
+                          )}
+                        >
+                          {tag.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Account COA Code */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {selectedMutation.type === 'KREDIT' ? '1. Akun Buku Besar (Penyaluran/Penggunaan COA)' : '3. Akun Buku Besar (Penerimaan COA)'}
+                  </label>
+                  {formCoaCode ? (
                     <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3 py-2 rounded-xl text-xs font-black">
-                      <span className="flex items-center gap-1.5"><User className="size-4 shrink-0" /> Terhubung: {formCustomMuzakki}</span>
-                      <button type="button" onClick={() => { setFormMuzakkiId(''); setFormCustomMuzakki(''); }} className="hover:text-rose-600">
+                      <span className="flex items-center gap-1.5">
+                        <BookOpen className="size-4 shrink-0" />
+                        Terpilih: {formCoaCode} - {coas.find(c => c.coa_code === formCoaCode)?.nama_akun || 'Memuat...'}
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setFormCoaCode('');
+                          setCoaSearch('');
+                        }} 
+                        className="hover:text-rose-600"
+                      >
                         <X className="size-4" />
                       </button>
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      <input 
-                        type="text"
-                        placeholder="Ketik Nama Donatur/Muzakki secara manual..."
-                        value={formCustomMuzakki}
-                        onChange={(e) => setFormCustomMuzakki(e.target.value)}
-                        required
-                        className="w-full text-xs font-bold border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none"
-                      />
-                      <p className="text-[9px] text-slate-400 font-medium">Jika nama muzakki tidak ada di database, ketik manual di atas.</p>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 size-3.5" />
+                        <input 
+                          type="text"
+                          placeholder="Cari kode COA atau nama akun (Contoh: Penyaluran)..."
+                          value={coaSearch}
+                          onChange={(e) => setCoaSearch(e.target.value)}
+                          onFocus={() => setIsCoaDropdownOpen(true)}
+                          onBlur={() => setTimeout(() => setIsCoaDropdownOpen(false), 200)}
+                          className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+
+                      {(isCoaDropdownOpen || coaSearch) && (
+                        <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner">
+                          {filteredCoasForSearch.length === 0 ? (
+                            <p className="p-2 text-[10px] text-slate-400 italic">COA tidak ditemukan</p>
+                          ) : (
+                            filteredCoasForSearch.map(coa => (
+                              <div 
+                                key={coa.coa_code}
+                                onClick={() => {
+                                  setFormCoaCode(coa.coa_code);
+                                  setCoaSearch('');
+                                  setIsCoaDropdownOpen(false);
+                                }}
+                                className="p-2 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5 text-slate-700"
+                              >
+                                <span className="font-mono text-primary text-[11px]">{coa.coa_code}</span>
+                                <span className="text-slate-650 text-[10px]">{coa.nama_akun}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-
-                {/* 2. Sumber Dana Tag */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">2. Klasifikasi Rumpun Dana</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {['ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT'].map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => setFormSumberDana(tag)}
-                        className={cn(
-                          "py-2 text-[10px] font-black rounded-lg border text-center transition-all uppercase tracking-wider",
-                          formSumberDana === tag 
-                            ? "bg-primary text-white border-primary shadow-sm" 
-                            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
-                        )}
-                      >
-                        {tag.replace('_', ' ')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 3. Account COA Code */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">3. Akun Buku Besar (Penerimaan COA)</label>
-                  <select
-                    value={formCoaCode}
-                    onChange={(e) => setFormCoaCode(e.target.value)}
-                    required
-                    className="w-full text-xs font-bold border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none"
-                  >
-                    {filteredCoas.map(coa => (
-                      <option key={coa.coa_code} value={coa.coa_code}>
-                        {coa.coa_code} - {coa.nama_akun}
-                      </option>
-                    ))}
-                  </select>
+                  {/* Hidden input to enforce html5 validation for formCoaCode */}
+                  <input 
+                    type="text" 
+                    value={formCoaCode} 
+                    required 
+                    onChange={() => {}} 
+                    className="sr-only h-0 w-0" 
+                  />
                 </div>
 
                 {/* 4. Realisasi Explanation */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">4. Penjelasan Penerimaan (Keterangan Realisasi)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {selectedMutation.type === 'KREDIT' ? '2. Keterangan Penyaluran / Penggunaan Dana' : '4. Penjelasan Penerimaan (Keterangan Realisasi)'}
+                  </label>
                   <textarea 
                     rows={2}
                     value={formKeteranganRealisasi}

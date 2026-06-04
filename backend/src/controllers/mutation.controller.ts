@@ -59,6 +59,10 @@ export const getMutations = async (req: Request, res: Response) => {
           updated = true;
         }
       }
+      if (!m.type) {
+        m.type = 'DEBIT'; // Default legacy bank statement mutations to DEBIT (money in)
+        updated = true;
+      }
       return m;
     });
 
@@ -97,6 +101,7 @@ export const createMutation = async (req: Request, res: Response) => {
       bankName: account.nama_akun,
       keteranganBank,
       nominal: Number(nominal),
+      type: 'DEBIT', // Default for bank mutations created manually on the bank side (credited statement = money in)
       status: 'PENDING'
     };
 
@@ -114,22 +119,24 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { muzakkiId, muzakkiName, coaCode, sumberDana, keteranganRealisasi, userName } = req.body;
 
-    if (!coaCode || !sumberDana || !keteranganRealisasi) {
-      res.status(400).json({ error: 'Kode COA, Sumber Dana, dan Keterangan wajib diisi' });
-      return;
-    }
-
     const mutations = readMutations();
     const mutationIndex = mutations.findIndex(m => m.id === id);
 
     if (mutationIndex === -1) {
-      res.status(404).json({ error: 'Mutasi bank tidak ditemukan' });
+      res.status(404).json({ error: 'Mutasi bank/transaksi tidak ditemukan' });
       return;
     }
 
     const mutation = mutations[mutationIndex];
     if (mutation.status === 'RECONCILED') {
-      res.status(400).json({ error: 'Mutasi bank sudah terekonsiliasi' });
+      res.status(400).json({ error: 'Mutasi/transaksi sudah terekonsiliasi' });
+      return;
+    }
+
+    const isDebit = mutation.type !== 'KREDIT';
+
+    if (!coaCode || (isDebit && !sumberDana) || !keteranganRealisasi) {
+      res.status(400).json({ error: 'Kode COA, Sumber Dana (untuk Penerimaan), dan Keterangan wajib diisi' });
       return;
     }
 
@@ -138,7 +145,15 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     }) as any;
 
     if (!bankAccount) {
-      res.status(404).json({ error: 'Akun bank tidak ditemukan' });
+      res.status(404).json({ error: 'Akun bank/kas tidak ditemukan' });
+      return;
+    }
+
+    // If Kredit, verify that there is enough balance
+    if (!isDebit && Number(bankAccount.saldo) < Number(mutation.nominal)) {
+      res.status(400).json({ 
+        error: `Saldo di ${bankAccount.nama_akun} tidak mencukupi untuk memposting transaksi ini! Tersedia: Rp ${Number(bankAccount.saldo).toLocaleString('id-ID')}, Dibutuhkan: Rp ${Number(mutation.nominal).toLocaleString('id-ID')}` 
+      });
       return;
     }
 
@@ -150,39 +165,75 @@ export const reconcileMutation = async (req: Request, res: Response) => {
       const realisasi = await tx.realisasi.create({
         data: {
           tanggal: new Date(mutation.tanggal),
-          keterangan: `Rekonsiliasi Mutasi Bank - Penerimaan dari ${muzakkiName || 'Hamba Allah'} (${keteranganRealisasi})`
+          keterangan: isDebit
+            ? `Rekonsiliasi Mutasi - Penerimaan dari ${muzakkiName || 'Hamba Allah'} (${keteranganRealisasi})`
+            : `Rekonsiliasi Mutasi - Penyaluran/Penggunaan (${keteranganRealisasi})`
         }
       });
 
-      // 2. Increment Bank account balance
-      await tx.bankAccount.update({
-        where: { account_id: mutation.bankAccountId } as any,
-        data: {
-          saldo: { increment: new Prisma.Decimal(nominal) }
-        }
-      });
+      // 2. Update Bank account balance
+      if (isDebit) {
+        await tx.bankAccount.update({
+          where: { account_id: mutation.bankAccountId } as any,
+          data: {
+            saldo: { increment: new Prisma.Decimal(nominal) }
+          }
+        });
+      } else {
+        await tx.bankAccount.update({
+          where: { account_id: mutation.bankAccountId } as any,
+          data: {
+            saldo: { decrement: new Prisma.Decimal(nominal) }
+          }
+        });
+      }
 
-      // 3. JournalEntry (Debit) -> Bank Account COA Code
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasi.transaksi_id,
-          coa_code: bankAccount.coa_code,
-          debit: new Prisma.Decimal(nominal),
-          kredit: new Prisma.Decimal(0),
-          account_id: mutation.bankAccountId
-        }
-      });
+      // 3. JournalEntries mapping depending on Debit vs Kredit
+      if (isDebit) {
+        // JournalEntry (Debit) -> Bank Account COA Code
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasi.transaksi_id,
+            coa_code: bankAccount.coa_code,
+            debit: new Prisma.Decimal(nominal),
+            kredit: new Prisma.Decimal(0),
+            account_id: mutation.bankAccountId
+          }
+        });
 
-      // 4. JournalEntry (Credit) -> Chosen Penerimaan COA Code
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasi.transaksi_id,
-          coa_code: coaCode,
-          debit: new Prisma.Decimal(0),
-          kredit: new Prisma.Decimal(nominal),
-          account_id: null
-        }
-      });
+        // JournalEntry (Credit) -> Chosen Penerimaan COA Code
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasi.transaksi_id,
+            coa_code: coaCode,
+            debit: new Prisma.Decimal(0),
+            kredit: new Prisma.Decimal(nominal),
+            account_id: null
+          }
+        });
+      } else {
+        // JournalEntry (Debit) -> Chosen Penyaluran/Beban COA Code (from Pelaporan)
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasi.transaksi_id,
+            coa_code: coaCode,
+            debit: new Prisma.Decimal(nominal),
+            kredit: new Prisma.Decimal(0),
+            account_id: null
+          }
+        });
+
+        // JournalEntry (Credit) -> Bank Account COA Code
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasi.transaksi_id,
+            coa_code: bankAccount.coa_code,
+            debit: new Prisma.Decimal(0),
+            kredit: new Prisma.Decimal(nominal),
+            account_id: mutation.bankAccountId
+          }
+        });
+      }
     });
 
     // Update JSON mutation state
@@ -192,13 +243,13 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     mutation.muzakkiId = muzakkiId || null;
     mutation.muzakkiName = muzakkiName || 'Hamba Allah';
     mutation.coaCode = coaCode;
-    mutation.sumberDana = sumberDana;
+    mutation.sumberDana = isDebit ? sumberDana : '-';
     mutation.keteranganRealisasi = keteranganRealisasi;
 
     mutations[mutationIndex] = mutation;
     writeMutations(mutations);
 
-    res.status(200).json({ success: true, message: 'Mutasi Bank berhasil direkonsiliasi dan diposting ke Buku Besar!' });
+    res.status(200).json({ success: true, message: 'Transaksi berhasil direkonsiliasi dan diposting ke Buku Besar!' });
   } catch (error) {
     console.error('Error during bank mutation reconciliation:', error);
     res.status(500).json({ error: String(error) });

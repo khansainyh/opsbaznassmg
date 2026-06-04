@@ -248,6 +248,7 @@ model Realisasi {
   tanggal      DateTime  @default(now())
   keterangan   String?   @db.Text
   nrm          String?   @db.VarChar(100)
+  createdAt    DateTime  @default(now())
 
   journalEntries JournalEntry[]
 }

@@ -171,7 +171,7 @@ export default function PengaturanKeuangan() {
         for (const row of data as any[]) {
           if (!row.coa_code || !row.nama_akun) continue;
           try {
-            await axios.post('http://127.0.0.1:4000/api/finance/coa', {
+            await axios.post('/api/finance/coa', {
               coa_code: String(row.coa_code),
               nama_akun: String(row.nama_akun),
               klasifikasi: row.klasifikasi ? String(row.klasifikasi) : 'Aktiva',
@@ -185,10 +185,10 @@ export default function PengaturanKeuangan() {
         
         const newMessages = [];
         if (successCount > 0) {
-          newMessages.push({ type: 'success' as const, text: `Berhasil migrasi ${successCount} data COA baru.` });
+          newMessages.push({ type: 'success' as const, text: `Berhasil migrasi/memperbarui ${successCount} data COA.` });
         }
         if (failCount > 0) {
-          newMessages.push({ type: 'warning' as const, text: `Gagal/Duplikat ${failCount} data COA.` });
+          newMessages.push({ type: 'warning' as const, text: `Gagal migrasi ${failCount} data COA.` });
         }
         if (successCount === 0 && failCount === 0) {
           newMessages.push({ type: 'warning' as const, text: 'Tidak ada data COA yang diproses.' });
@@ -211,10 +211,10 @@ export default function PengaturanKeuangan() {
     setLoading(true);
     try {
       const [resCoas, resAccounts, resRules, resPrograms] = await Promise.all([
-        axios.get('http://127.0.0.1:4000/api/finance/coa'),
-        axios.get('http://127.0.0.1:4000/api/finance/accounts'),
-        axios.get('http://127.0.0.1:4000/api/finance/mapping-rules'),
-        axios.get('http://127.0.0.1:4000/api/programs')
+        axios.get('/api/finance/coa'),
+        axios.get('/api/finance/accounts'),
+        axios.get('/api/finance/mapping-rules'),
+        axios.get('/api/programs')
       ]);
 
       setCoas(resCoas.data);
@@ -315,9 +315,9 @@ export default function PengaturanKeuangan() {
         kelompok_dana: accountForm.tipe_kas === 'BANK' ? 'PENYIMPANAN' : accountForm.kelompok_dana
       };
       if (editingItem) {
-        await axios.put(`http://127.0.0.1:4000/api/finance/accounts/${editingItem.account_id}`, payload);
+        await axios.put(`/api/finance/accounts/${editingItem.account_id}`, payload);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/finance/accounts', payload);
+        await axios.post('/api/finance/accounts', payload);
       }
       setIsAccountModalOpen(false);
       fetchData();
@@ -329,7 +329,7 @@ export default function PengaturanKeuangan() {
   const handleDeleteAccount = async (id: string) => {
     if (!window.confirm('Yakin ingin menghapus akun fisik ini?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:4000/api/finance/accounts/${id}`);
+      await axios.delete(`/api/finance/accounts/${id}`);
       fetchData();
     } catch (e: any) {
       alert('Gagal menghapus: ' + e.message);
@@ -368,9 +368,9 @@ export default function PengaturanKeuangan() {
         tipe_dana: coaForm.tipe_dana || null
       };
       if (editingItem) {
-        await axios.put(`http://127.0.0.1:4000/api/finance/coa/${editingItem.coa_code}`, payload);
+        await axios.put(`/api/finance/coa/${editingItem.coa_code}`, payload);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/finance/coa', payload);
+        await axios.post('/api/finance/coa', payload);
       }
       setIsCOAModalOpen(false);
       fetchData();
@@ -382,7 +382,7 @@ export default function PengaturanKeuangan() {
   const handleDeleteCOA = async (code: string) => {
     if (!window.confirm('Yakin ingin menghapus kode COA master ini?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:4000/api/finance/coa/${code}`);
+      await axios.delete(`/api/finance/coa/${code}`);
       fetchData();
     } catch (e: any) {
       alert('Gagal menghapus: ' + e.message);
@@ -421,9 +421,9 @@ export default function PengaturanKeuangan() {
     e.preventDefault();
     try {
       if (editingItem) {
-        await axios.put(`http://127.0.0.1:4000/api/finance/mapping-rules/${editingItem.rule_id}`, ruleForm);
+        await axios.put(`/api/finance/mapping-rules/${editingItem.rule_id}`, ruleForm);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/finance/mapping-rules', ruleForm);
+        await axios.post('/api/finance/mapping-rules', ruleForm);
       }
       setIsRuleModalOpen(false);
       fetchData();
@@ -435,7 +435,7 @@ export default function PengaturanKeuangan() {
   const handleDeleteRule = async (id: string) => {
     if (!window.confirm('Yakin ingin menghapus aturan mapping ini?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:4000/api/finance/mapping-rules/${id}`);
+      await axios.delete(`/api/finance/mapping-rules/${id}`);
       fetchData();
     } catch (e: any) {
       alert('Gagal menghapus: ' + e.message);

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
 
 // ==========================================
 // 1. Chart of Accounts (COA) Controllers
@@ -24,8 +26,10 @@ export const createCOA = async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Kode COA dan Nama Akun wajib diisi' });
       return;
     }
-    const coa = await prisma.chartOfAccounts.create({
-      data: { coa_code, nama_akun, klasifikasi, tipe_dana }
+    const coa = await prisma.chartOfAccounts.upsert({
+      where: { coa_code },
+      update: { nama_akun, klasifikasi, tipe_dana },
+      create: { coa_code, nama_akun, klasifikasi, tipe_dana }
     });
     res.status(201).json(coa);
   } catch (error) {
@@ -611,6 +615,7 @@ export const previewDisbursement = async (req: Request, res: Response) => {
     
     let totalNominal = 0;
     const debitEntries: any[] = [];
+    const kreditEntries: any[] = [];
     
     const account = await prisma.bankAccount.findUnique({
       where: { account_id: selectedAccountId } as any,
@@ -629,7 +634,8 @@ export const previewDisbursement = async (req: Request, res: Response) => {
       }) as any;
       if (!proposal) continue;
 
-      totalNominal += Number(proposal.nominal || 0);
+      const nominal = Number(proposal.nominal || 0);
+      totalNominal += nominal;
 
       let fundSource = 'ZAKAT';
       const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan];
@@ -684,10 +690,22 @@ export const previewDisbursement = async (req: Request, res: Response) => {
       const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
       const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
       
+      const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
+      const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${proposal.nama_pemohon}`;
+
       debitEntries.push({
         coa_code: debitCoaCode,
-        nama_akun: debitCoa ? debitCoa.nama_akun : 'Penyaluran Lainnya (Kategori Darurat)',
-        nominal: Number(proposal.nominal || 0)
+        nama_akun: `${debitCoa ? debitCoa.nama_akun : 'Penyaluran Lainnya (Kategori Darurat)'} (${formattedKeterangan})`,
+        nominal
+      });
+
+      const kreditCoaCode = account.coa_code;
+      const kreditCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: kreditCoaCode } as any });
+
+      kreditEntries.push({
+        coa_code: kreditCoaCode,
+        nama_akun: `${kreditCoa ? kreditCoa.nama_akun : account.nama_akun} (${formattedKeterangan})`,
+        nominal
       });
     }
 
@@ -697,6 +715,7 @@ export const previewDisbursement = async (req: Request, res: Response) => {
     res.status(200).json({
       nominal: totalNominal,
       debitEntries,
+      kreditEntries,
       debit: {
         coa_code: debitEntries[0]?.coa_code || '519999999',
         nama_akun: debitEntries.length === 1 ? debitEntries[0].nama_akun : `Penyaluran ${debitEntries.length} Proposal (Batch)`
@@ -728,7 +747,8 @@ export const executeDisbursement = async (req: Request, res: Response) => {
       
       for (const id of ids) {
         const proposal = await tx.proposal.findUnique({
-          where: { id: id } as any
+          where: { id: id } as any,
+          include: { program: true }
         }) as any;
         if (!proposal) {
           throw new Error(`Proposal dengan ID ${id} tidak ditemukan`);
@@ -757,21 +777,7 @@ export const executeDisbursement = async (req: Request, res: Response) => {
         }
       });
 
-      // 2. Create a single Realisasi record for the batch
-      const isBatch = proposals.length > 1;
-      const firstProposal = proposals[0];
-      const realisasiTrx = await tx.realisasi.create({
-        data: {
-          proposal_id: isBatch ? null : firstProposal.id,
-          rkat_id: isBatch ? 'BATCH' : (firstProposal.rkat_activity_id || firstProposal.jenis_permohonan || 'GENERAL'),
-          tanggal: new Date(),
-          keterangan: keterangan || (isBatch
-            ? `Penyaluran Batch ${proposals.length} Proposal`
-            : `Penyaluran Program ${firstProposal.jenis_permohonan} - Mustahik: ${firstProposal.nama_pemohon}`)
-        }
-      });
-
-      // 3. Process each proposal individually for its debit entry
+      // 2. Loop through each proposal to create separate Realisasi and journal entries (1 debit + 1 credit per proposal)
       for (const proposal of proposals) {
         const nominal = Number(proposal.nominal || 0);
         
@@ -827,6 +833,20 @@ export const executeDisbursement = async (req: Request, res: Response) => {
 
         const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
 
+        const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
+        const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${proposal.nama_pemohon}`;
+
+        // Create Realisasi record for this individual proposal
+        const realisasiTrx = await tx.realisasi.create({
+          data: {
+            proposal_id: proposal.id,
+            rkat_id: proposal.rkat_activity_id || proposal.jenis_permohonan || 'GENERAL',
+            tanggal: new Date(),
+            keterangan: formattedKeterangan
+          }
+        });
+
+        // 3. Create Debit entry for this specific proposal
         await tx.journalEntry.create({
           data: {
             transaksi_id: realisasiTrx.transaksi_id,
@@ -837,23 +857,24 @@ export const executeDisbursement = async (req: Request, res: Response) => {
           }
         });
 
+        // 4. Create Kredit entry for this specific proposal
+        const kreditCoaCode = account.coa_code;
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasiTrx.transaksi_id,
+            coa_code: kreditCoaCode,
+            debit: new Prisma.Decimal(0.00),
+            kredit: new Prisma.Decimal(nominal),
+            account_id: selectedAccountId
+          }
+        });
+
+        // Update proposal status
         await tx.proposal.update({
           where: { id: proposal.id } as any,
           data: { status: 'Selesai & Arsip' }
         });
       }
-
-      // 4. Create a single Kredit entry for the entire totalNominal
-      const kreditCoaCode = account.coa_code;
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasiTrx.transaksi_id,
-          coa_code: kreditCoaCode,
-          debit: new Prisma.Decimal(0.00),
-          kredit: new Prisma.Decimal(totalNominal),
-          account_id: selectedAccountId
-        }
-      });
 
       return { success: true, message: `${proposals.length} Pencairan Berhasil & Jurnal Akuntansi Otomatis Terbentuk!` };
     });
@@ -989,11 +1010,18 @@ export const getJournalEntries = async (req: Request, res: Response) => {
         coa: true,
         account: true
       },
-      orderBy: {
-        realisasi: {
-          tanggal: 'desc'
+      orderBy: [
+        {
+          realisasi: {
+            tanggal: 'desc'
+          }
+        },
+        {
+          realisasi: {
+            createdAt: 'desc'
+          }
         }
-      }
+      ]
     });
     res.status(200).json(entries);
   } catch (error) {
@@ -1004,87 +1032,80 @@ export const getJournalEntries = async (req: Request, res: Response) => {
 // ==========================================
 // 8. Create Manual Expense (Non-Proposal)
 // ==========================================
-
 export const createManualExpense = async (req: Request, res: Response) => {
   try {
-    const { sourceAccountId, debitCoaCode, nominal, keterangan, tanggal } = req.body;
+    const { sourceAccountId, type, nominal, keterangan, tanggalTransaksi, tanggalCatatan } = req.body;
 
-    if (!sourceAccountId || !debitCoaCode || !nominal || Number(nominal) <= 0) {
-      res.status(400).json({ error: 'Akun sumber, COA pengeluaran, dan nominal wajib diisi serta lebih besar dari 0' });
+    if (!sourceAccountId || !type || !nominal || Number(nominal) <= 0 || !keterangan) {
+      res.status(400).json({ error: 'Sumber dana, jenis transaksi (Kredit/Pengeluaran), nominal, dan keterangan wajib diisi' });
       return;
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Dapatkan akun kas/bank sumber
-      const sourceAccount = await tx.bankAccount.findUnique({
-        where: { account_id: sourceAccountId } as any
-      }) as any;
+    if (type !== 'KREDIT') {
+      res.status(400).json({ error: 'Pencatatan manual hanya mendukung transaksi Pengeluaran (KREDIT)' });
+      return;
+    }
 
-      if (!sourceAccount) {
-        throw new Error('Akun sumber dana tidak ditemukan');
+    // Dapatkan akun kas sumber untuk memastikan eksistensinya dan harus bertipe TUNAI
+    const sourceAccount = await prisma.bankAccount.findUnique({
+      where: { account_id: sourceAccountId } as any
+    }) as any;
+
+    if (!sourceAccount) {
+      res.status(404).json({ error: 'Akun sumber dana tidak ditemukan' });
+      return;
+    }
+
+    if (sourceAccount.tipe_kas !== 'TUNAI') {
+      res.status(400).json({ error: 'Pencatatan manual hanya diperbolehkan menggunakan Kas (Tunai), bukan Bank' });
+      return;
+    }
+
+    // Path ke file mutations.json
+    const mutationsFilePath = path.join(__dirname, '../data/mutations.json');
+    
+    // Baca data yang sudah ada
+    let mutations: any[] = [];
+    try {
+      const dir = path.dirname(mutationsFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
       }
-
-      if (Number(sourceAccount.saldo) < Number(nominal)) {
-        throw new Error(`Saldo di ${sourceAccount.nama_akun} tidak mencukupi! Tersedia: Rp ${Number(sourceAccount.saldo).toLocaleString('id-ID')}, Dibutuhkan: Rp ${Number(nominal).toLocaleString('id-ID')}`);
+      if (fs.existsSync(mutationsFilePath)) {
+        const content = fs.readFileSync(mutationsFilePath, 'utf-8');
+        mutations = JSON.parse(content || '[]');
       }
+    } catch (readErr) {
+      console.error('Error reading mutations file in createManualExpense:', readErr);
+    }
 
-      // 2. Verifikasi COA debit (beban)
-      const debitCoa = await tx.chartOfAccounts.findUnique({
-        where: { coa_code: debitCoaCode }
-      });
+    const tglTx = tanggalTransaksi || new Date().toISOString().split('T')[0];
+    const tglCatat = tanggalCatatan || new Date().toISOString().split('T')[0];
 
-      if (!debitCoa) {
-        throw new Error('Kode COA beban tidak ditemukan');
-      }
+    const newDraft = {
+      id: `mut-${Date.now()}`,
+      tanggalCatatan: tglCatat,
+      tanggal: tglTx,
+      bankAccountId: sourceAccountId,
+      bankName: sourceAccount.nama_akun,
+      keteranganBank: keterangan.trim(),
+      nominal: Number(nominal),
+      type: 'KREDIT', // Selalu KREDIT (Pengeluaran)
+      status: 'PENDING'
+    };
 
-      // 3. Potong Saldo Akun Sumber
-      await tx.bankAccount.update({
-        where: { account_id: sourceAccountId } as any,
-        data: {
-          saldo: { decrement: new Prisma.Decimal(nominal) }
-        }
-      });
+    mutations.push(newDraft);
 
-      // 4. Catat Transaksi Realisasi (tanpa proposal_id)
-      const realisasiTrx = await tx.realisasi.create({
-        data: {
-          tanggal: tanggal ? new Date(tanggal) : new Date(),
-          keterangan: keterangan || `[Pengeluaran Manual] - ${debitCoa.nama_akun}`
-        }
-      });
+    // Tulis kembali ke file
+    fs.writeFileSync(mutationsFilePath, JSON.stringify(mutations, null, 2), 'utf-8');
 
-      // 5. Jurnal Entry - DEBIT (Akun Beban)
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasiTrx.transaksi_id,
-          coa_code: debitCoaCode,
-          debit: new Prisma.Decimal(nominal),
-          kredit: new Prisma.Decimal(0.00),
-          account_id: null
-        }
-      });
-
-      // 6. Jurnal Entry - KREDIT (Akun Kas/Bank)
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasiTrx.transaksi_id,
-          coa_code: sourceAccount.coa_code,
-          debit: new Prisma.Decimal(0.00),
-          kredit: new Prisma.Decimal(nominal),
-          account_id: sourceAccountId
-        }
-      });
-
-      return {
-        success: true,
-        message: 'Pengeluaran manual berhasil dicatat & Jurnal akuntansi berhasil dibukukan!',
-        transaksiId: realisasiTrx.transaksi_id
-      };
+    res.status(200).json({
+      success: true,
+      message: `Pengeluaran manual kas berhasil dicatat sebagai draft gantung untuk diverifikasi tim Pelaporan!`,
+      draftId: newDraft.id
     });
-
-    res.status(200).json(result);
   } catch (error) {
+    console.error('Error in createManualExpense:', error);
     res.status(500).json({ error: String(error) });
   }
 };
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { 
   Search, 
@@ -45,6 +45,7 @@ export interface LedgerEntryItem {
     rkat_id?: string;
     tanggal: string;
     keterangan: string;
+    createdAt?: string;
   };
 }
 
@@ -65,13 +66,17 @@ export default function BukuBesar() {
   // Filter parameters
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
-    // Default to the first day of the current month
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    return firstDay.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
   });
   
   const [endDate, setEndDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
 
   // Selected COA Codes for filtering
@@ -97,8 +102,8 @@ export default function BukuBesar() {
     setLoading(true);
     try {
       const [resLedger, resCoas] = await Promise.all([
-        axios.get('http://127.0.0.1:4000/api/finance/ledger'),
-        axios.get('http://127.0.0.1:4000/api/finance/coa')
+        axios.get('/api/finance/ledger'),
+        axios.get('/api/finance/coa')
       ]);
       setLedger(resLedger.data);
       setCoas(resCoas.data);
@@ -165,6 +170,36 @@ export default function BukuBesar() {
       return true;
     });
   }, [ledger, startDate, endDate, selectedCoas, searchTerm]);
+
+  // Sorted ledger: Newest transaction date first.
+  // Within the same transaction, show KREDIT entries before DEBIT entries.
+  const sortedLedger = useMemo(() => {
+    return [...filteredLedger].sort((a, b) => {
+      // 1. Sort by date descending
+      const dateA = new Date(a.realisasi?.tanggal || 0).getTime();
+      const dateB = new Date(b.realisasi?.tanggal || 0).getTime();
+      if (dateB !== dateA) {
+        return dateB - dateA;
+      }
+      
+      // 2. If same date, sort by input time (createdAt) descending
+      const createA = new Date(a.realisasi?.createdAt || a.realisasi?.tanggal || 0).getTime();
+      const createB = new Date(b.realisasi?.createdAt || b.realisasi?.tanggal || 0).getTime();
+      if (createB !== createA) {
+        return createB - createA;
+      }
+
+      // 3. Group by transaction_id to keep entries of the same transaction together
+      if (a.transaksi_id !== b.transaksi_id) {
+        return b.transaksi_id.localeCompare(a.transaksi_id);
+      }
+      
+      // 4. Within the same transaction, sort Kredit entries first (Number(kredit) > 0 before Number(debit) > 0)
+      const isKreditA = Number(a.kredit) > 0 ? 1 : 0;
+      const isKreditB = Number(b.kredit) > 0 ? 1 : 0;
+      return isKreditB - isKreditA;
+    });
+  }, [filteredLedger]);
 
   // Compute total debit/kredit of filtered list
   const totalDebit = useMemo(() => {
@@ -244,7 +279,7 @@ export default function BukuBesar() {
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5 no-print"
+        className="border-b border-slate-100 pb-5 no-print"
       >
         <div className="space-y-1">
           <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
@@ -259,15 +294,6 @@ export default function BukuBesar() {
           <p className="text-slate-500 font-medium text-xs md:text-sm">
             Tinjau seluruh pencatatan transaksi kas masuk, keluar, dan mutasi internal BAZNAS Kota Semarang secara real-time.
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-5 py-3 bg-primary text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all active:scale-95 uppercase tracking-wider shrink-0"
-          >
-            <Printer className="size-4" />
-            Cetak PDF
-          </button>
         </div>
       </motion.div>
 
@@ -375,7 +401,7 @@ export default function BukuBesar() {
 
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
             
             {/* Multi-Select COA Dropdown */}
             <div className="space-y-1.5 md:col-span-3" ref={dropdownRef}>
@@ -405,7 +431,7 @@ export default function BukuBesar() {
                     >
                       <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
                         <input
-                          type="text"
+                           type="text"
                           placeholder="Cari COA..."
                           value={coaSearchTerm}
                           onChange={(e) => setCoaSearchTerm(e.target.value)}
@@ -459,6 +485,18 @@ export default function BukuBesar() {
                   )}
                 </AnimatePresence>
               </div>
+            </div>
+
+            {/* Cetak PDF Button */}
+            <div className="space-y-1.5 self-end">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 uppercase tracking-wider shadow-lg shadow-primary/10"
+              >
+                <Printer className="size-4" />
+                Cetak PDF
+              </button>
             </div>
 
             {/* Refresh Button */}
@@ -516,11 +554,11 @@ export default function BukuBesar() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredLedger.length === 0 ? (
+              {sortedLedger.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
                 </tr>
-              ) : filteredLedger.map((item) => (
+              ) : sortedLedger.map((item) => (
                 <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
                   <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">
                     {new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}

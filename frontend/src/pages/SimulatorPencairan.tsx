@@ -660,12 +660,23 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                               <td className="py-2.5 text-right text-slate-600">-</td>
                             </tr>
                           )}
-                          <tr>
-                            <td className="py-2.5 text-blue-400 font-bold">{simPreviewResult.kredit.coa_code}</td>
-                            <td className="py-2.5 text-slate-300 font-semibold">{simPreviewResult.kredit.nama_akun}</td>
-                            <td className="py-2.5 text-right text-slate-600">-</td>
-                            <td className="py-2.5 text-right text-blue-400 font-bold">{formatCurrency(simPreviewResult.nominal)}</td>
-                          </tr>
+                          {simPreviewResult.kreditEntries ? (
+                            simPreviewResult.kreditEntries.map((e: any, idx: number) => (
+                              <tr key={idx}>
+                                <td className="py-2.5 text-blue-400 font-bold">{e.coa_code}</td>
+                                <td className="py-2.5 text-slate-300 font-semibold">{e.nama_akun}</td>
+                                <td className="py-2.5 text-right text-slate-600">-</td>
+                                <td className="py-2.5 text-right text-blue-400 font-bold">{formatCurrency(e.nominal)}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td className="py-2.5 text-blue-400 font-bold">{simPreviewResult.kredit.coa_code}</td>
+                              <td className="py-2.5 text-slate-300 font-semibold">{simPreviewResult.kredit.nama_akun}</td>
+                              <td className="py-2.5 text-right text-slate-600">-</td>
+                              <td className="py-2.5 text-right text-blue-400 font-bold">{formatCurrency(simPreviewResult.nominal)}</td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>

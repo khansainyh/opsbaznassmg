@@ -181,10 +181,29 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
   // Robust automatic helper matching a proposal dynamically to an RKAT activity based on Pilar + Program + Asnaf
   const getMatchedActivityForProposal = (p: ProposalMemo, currentActivities: typeof activities) => {
-    // 1. Match by parent program code if programCode is present
+    // 1. Prioritize matching by explicit rkatActivityId (which maps from backend's rkat_activity_id)
+    if (p.rkatActivityId) {
+      const matchById = currentActivities.find(act => act.id === p.rkatActivityId || act.asnafTargetId === p.rkatActivityId);
+      if (matchById) return matchById;
+    }
+
+    // 2. Match by exact program code and asnaf
     if (p.programCode) {
-      const parentP = getParentProgramCode(p.programCode);
       const matchByCode = currentActivities.find(act => {
+        const matchesCode = p.programCode === act.programCode;
+        if (!matchesCode) return false;
+
+        if (act.asnaf) {
+          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          return act.asnaf.toLowerCase() === pAsnaf;
+        }
+        return true;
+      });
+      if (matchByCode) return matchByCode;
+      
+      // Fallback to parent program code match if exact code is not found
+      const parentP = getParentProgramCode(p.programCode);
+      const matchByParentCode = currentActivities.find(act => {
         const parentAct = getParentProgramCode(act.programCode);
         const matchesCode = parentP === parentAct;
         if (!matchesCode) return false;
@@ -195,10 +214,10 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         }
         return true;
       });
-      if (matchByCode) return matchByCode;
+      if (matchByParentCode) return matchByParentCode;
     }
 
-    // 2. Fallback to name-based matching
+    // 3. Fallback to name-based matching
     return currentActivities.find(act => {
       const matchesPilar = p.program === act.pilarName;
       if (!matchesPilar) return false;
@@ -217,12 +236,27 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   // Queries all proposals assigned/auto-assigned to a specific activity
   const getLinkedMemosForActivity = (act: any, proposalsList: ProposalMemo[]) => {
     return proposalsList.filter(p => {
-      // 1. Match by parent program code if programCode is present
+      // 1. Prioritize matching by explicit rkatActivityId
+      if (p.rkatActivityId) {
+        return act.id === p.rkatActivityId || act.asnafTargetId === p.rkatActivityId;
+      }
+
+      // 2. Match by exact program code and asnaf
       if (p.programCode) {
+        const matchesCode = p.programCode === act.programCode;
+        if (matchesCode) {
+          if (act.asnaf) {
+            const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+            return act.asnaf.toLowerCase() === pAsnaf;
+          }
+          return true;
+        }
+        
+        // Fallback to parent program code match
         const parentP = getParentProgramCode(p.programCode);
         const parentAct = getParentProgramCode(act.programCode);
-        const matchesCode = parentP === parentAct;
-        if (matchesCode) {
+        const matchesParentCode = parentP === parentAct;
+        if (matchesParentCode) {
           if (act.asnaf) {
             const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
             return act.asnaf.toLowerCase() === pAsnaf;
@@ -232,7 +266,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         return false;
       }
 
-      // 2. Fallback to name-based matching
+      // 3. Fallback to name-based matching
       const matchesPilar = p.program === act.pilarName;
       if (!matchesPilar) return false;
       
