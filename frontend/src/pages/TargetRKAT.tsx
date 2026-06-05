@@ -14,6 +14,8 @@ import {
   X, 
   Info, 
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   BarChart4,
   Upload,
   FileSpreadsheet
@@ -53,6 +55,120 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const isSuperAdmin = user?.role === 'Super_Admin';
   
   const [activeTab, setActiveTab] = useState<'Pengumpulan' | 'Penyaluran' | 'Operasional'>('Penyaluran');
+
+  // RKAT Pengumpulan States
+  const [rkatPengumpulanList, setRkatPengumpulanList] = useState<any[]>([]);
+  const [pengumpulanCategoryFilter, setPengumpulanCategoryFilter] = useState<'Semua' | 'Zakat' | 'Infak' | 'DSKL' | 'CSR'>('Semua');
+  const [isAddPengumpulanOpen, setIsAddPengumpulanOpen] = useState(false);
+  const [editingPengumpulanItem, setEditingPengumpulanItem] = useState<any | null>(null);
+  const [formPengCoas, setFormPengCoas] = useState<string[]>([]);
+  const [expandedProgramId, setExpandedProgramId] = useState<string | null>(null);
+
+  // Form states for RKAT Pengumpulan (Add/Edit)
+  const [formPengNo, setFormPengNo] = useState('');
+  const [formPengKategori, setFormPengKategori] = useState<'Zakat' | 'Infak' | 'DSKL' | 'CSR'>('Zakat');
+  const [formPengNama, setFormPengNama] = useState('');
+  const [formPengPerorangan, setFormPengPerorangan] = useState<number | ''>('');
+  const [formPengLembaga, setFormPengLembaga] = useState<number | ''>('');
+  const [formPengAnggaran, setFormPengAnggaran] = useState<number>(0);
+  const [formPengMonths, setFormPengMonths] = useState<Record<string, number>>({
+    jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
+  });
+
+  const fetchRkatPengumpulan = useCallback(async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:4000/api/rkat-pengumpulan');
+      if (res.data.status === 'success') {
+        setRkatPengumpulanList(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch RKAT Pengumpulan:', err);
+    }
+  }, []);
+
+  const saveNewPengumpulan = async () => {
+    try {
+      const body = {
+        no: formPengNo,
+        kategori: formPengKategori,
+        nama_program: formPengNama,
+        coa_codes: formPengCoas.join(','),
+        target_perorangan: formPengPerorangan || null,
+        target_lembaga: formPengLembaga || null,
+        nilai_anggaran: formPengAnggaran,
+        target_jan: formPengMonths.jan,
+        target_feb: formPengMonths.feb,
+        target_mar: formPengMonths.mar,
+        target_apr: formPengMonths.apr,
+        target_mei: formPengMonths.mei,
+        target_jun: formPengMonths.jun,
+        target_jul: formPengMonths.jul,
+        target_agt: formPengMonths.agt,
+        target_sep: formPengMonths.sep,
+        target_okt: formPengMonths.okt,
+        target_nov: formPengMonths.nov,
+        target_des: formPengMonths.des
+      };
+      await axios.post('http://127.0.0.1:4000/api/rkat-pengumpulan', body);
+      setIsAddPengumpulanOpen(false);
+      fetchRkatPengumpulan();
+      alert('Berhasil menyimpan target RKAT Pengumpulan baru.');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menyimpan data.');
+    }
+  };
+
+  const saveEditPengumpulan = async () => {
+    if (!editingPengumpulanItem) return;
+    try {
+      const body = {
+        no: formPengNo,
+        kategori: formPengKategori,
+        nama_program: formPengNama,
+        coa_codes: formPengCoas.join(','),
+        target_perorangan: formPengPerorangan || null,
+        target_lembaga: formPengLembaga || null,
+        nilai_anggaran: formPengAnggaran,
+        target_jan: formPengMonths.jan,
+        target_feb: formPengMonths.feb,
+        target_mar: formPengMonths.mar,
+        target_apr: formPengMonths.apr,
+        target_mei: formPengMonths.mei,
+        target_jun: formPengMonths.jun,
+        target_jul: formPengMonths.jul,
+        target_agt: formPengMonths.agt,
+        target_sep: formPengMonths.sep,
+        target_okt: formPengMonths.okt,
+        target_nov: formPengMonths.nov,
+        target_des: formPengMonths.des
+      };
+      await axios.put(`http://127.0.0.1:4000/api/rkat-pengumpulan/${editingPengumpulanItem.id}`, body);
+      setEditingPengumpulanItem(null);
+      fetchRkatPengumpulan();
+      alert('Berhasil memperbarui target RKAT Pengumpulan.');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal memperbarui data.');
+    }
+  };
+
+  const deletePengumpulan = async (id: string) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus program pengumpulan ini?')) return;
+    try {
+      await axios.delete(`http://127.0.0.1:4000/api/rkat-pengumpulan/${id}`);
+      fetchRkatPengumpulan();
+      alert('Program berhasil dihapus.');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menghapus program.');
+    }
+  };
+
+  useEffect(() => {
+    fetchRkatPengumpulan();
+  }, [fetchRkatPengumpulan]);
+
   // 1. Dynamic Pilar Data synced with backend API
   const [data, setData] = useState<Pilar[]>([]);
   const [coas, setCoas] = useState<any[]>([]);
@@ -823,7 +939,26 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     );
   };
 
+  const filteredPengumpulanList = useMemo(() => {
+    return rkatPengumpulanList.filter(item => {
+      if (pengumpulanCategoryFilter === 'Semua') return true;
+      return item.kategori.toLowerCase() === pengumpulanCategoryFilter.toLowerCase();
+    });
+  }, [rkatPengumpulanList, pengumpulanCategoryFilter]);
 
+  const statsPengumpulan = useMemo(() => {
+    let anggaran = 0;
+    let perorangan = 0;
+    let lembaga = 0;
+    let realisasi = 0;
+    filteredPengumpulanList.forEach(item => {
+      anggaran += Number(item.nilai_anggaran) || 0;
+      perorangan += Number(item.target_perorangan) || 0;
+      lembaga += Number(item.target_lembaga) || 0;
+      realisasi += Number(item.realisasi_total) || 0;
+    });
+    return { anggaran, perorangan, lembaga, realisasi };
+  }, [filteredPengumpulanList]);
 
   return (
     <div className="p-4 md:p-8 space-y-8 bg-slate-50/50 h-full overflow-y-auto">
@@ -864,11 +999,354 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         ))}
       </div>
 
-      {activeTab !== 'Penyaluran' ? (
-        <div className="py-24 text-center bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center">
+      {activeTab === 'Operasional' ? (
+        <div className="py-24 text-center bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center animate-fade-in">
           <Target className="size-16 text-slate-200 mb-4" />
           <h3 className="text-lg font-bold text-slate-600">Modul RKAT {activeTab} Belum Tersedia</h3>
           <p className="text-slate-400 text-sm mt-1">Data dan tampilan untuk RKAT {activeTab} saat ini sedang dalam pengembangan.</p>
+        </div>      ) : activeTab === 'Pengumpulan' ? (
+        <div className="space-y-8 animate-fade-in">
+          {/* Stats Cards for Pengumpulan */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
+              <div className="p-4 bg-emerald-100 text-emerald-700 rounded-xl">
+                <TrendingUp className="size-8" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Anggaran Pengumpulan</p>
+                <p className="text-2xl font-black text-slate-900 leading-tight mt-1">{formatCurrency(statsPengumpulan.anggaran)}</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
+              <div className="p-4 bg-primary/10 text-primary rounded-xl">
+                <Percent className="size-8" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Capai Realisasi Pengumpulan</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-2xl font-black text-slate-900">{formatCurrency(statsPengumpulan.realisasi)}</span>
+                  <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                    {(statsPengumpulan.anggaran > 0 ? (statsPengumpulan.realisasi / statsPengumpulan.anggaran) * 100 : 0).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table for Pengumpulan */}
+          <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-primary/5 bg-slate-50/40 flex justify-between items-center flex-wrap gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <BarChart4 className="size-4 text-primary" />
+                    Rincian RKAT Pengumpulan
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">Realisasi terintegrasi secara real-time dengan Chart of Accounts (COA) Penerimaan.</p>
+                </div>
+                
+                {/* Minimalist Tab Filter */}
+                <div className="flex items-center gap-1.5">
+                  {(['Semua', 'Zakat', 'Infak', 'DSKL', 'CSR'] as const).map(catName => {
+                    const isActive = pengumpulanCategoryFilter === catName;
+                    return (
+                      <button
+                        key={catName}
+                        onClick={() => setPengumpulanCategoryFilter(catName)}
+                        className={cn(
+                          "py-1 px-3 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all focus:outline-none border cursor-pointer",
+                          !isActive && "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-700",
+                          isActive && catName === 'Semua' && "bg-slate-900 text-white border-slate-900 shadow-sm",
+                          isActive && catName === 'Zakat' && "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-sm shadow-emerald-100",
+                          isActive && catName === 'Infak' && "bg-amber-50 text-amber-700 border-amber-300 shadow-sm shadow-amber-100",
+                          isActive && catName === 'DSKL' && "bg-indigo-50 text-indigo-700 border-indigo-300 shadow-sm shadow-indigo-100",
+                          isActive && catName === 'CSR' && "bg-slate-100 text-slate-800 border-slate-350 shadow-sm shadow-slate-100"
+                        )}
+                      >
+                        {catName}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {isSuperAdmin && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsMigrationModalOpen(true)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all active:scale-95 shrink-0 border border-slate-200"
+                  >
+                    <Upload className="size-3.5 stroke-[3]" />
+                    Migrasi
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingPengumpulanItem(null);
+                      setFormPengNo(`P-${Date.now().toString().slice(-4)}`);
+                      setFormPengKategori('Zakat');
+                      setFormPengNama('');
+                      setFormPengCoas([]);
+                      setFormPengPerorangan('');
+                      setFormPengLembaga('');
+                      setFormPengAnggaran(0);
+                      setFormPengMonths({
+                        jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
+                      });
+                      setIsAddPengumpulanOpen(true);
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-md shadow-primary/15 transition-all active:scale-95 shrink-0"
+                  >
+                    <Plus className="size-3.5 stroke-[3]" />
+                    Tambah Program
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-x-auto font-sans">
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-12 text-center">No</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-24 text-center">Kategori</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Nama Program / Kegiatan</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-56">COA Terkait</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-40 text-right">Target Anggaran</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-40 text-right">Realisasi</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-28 text-center">% Pencapaian</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-28 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {filteredPengumpulanList.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-12 text-center text-slate-400 italic">
+                        Belum ada program pengumpulan yang terdaftar.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPengumpulanList.map((item) => {
+                      const itemCoas = item.coa_codes ? item.coa_codes.split(',').map((c: any) => c.trim()).filter(Boolean) : [];
+                      const targetVal = Number(item.nilai_anggaran || 0);
+                      const realisasiVal = Number(item.realisasi_total || 0);
+                      const pct = targetVal > 0 ? (realisasiVal / targetVal) * 100 : 0;
+                      const isExpanded = expandedProgramId === item.id;
+                      
+                      return (
+                        <>
+                          <tr 
+                            key={item.id} 
+                            onClick={() => setExpandedProgramId(isExpanded ? null : item.id)}
+                            className={cn(
+                              "hover:bg-slate-50/80 transition-colors cursor-pointer select-none",
+                              isExpanded && "bg-slate-50/40"
+                            )}
+                          >
+                            <td className="px-4 py-4 text-center text-slate-400 font-bold font-mono">{item.no}</td>
+                            <td className="px-4 py-4 text-center">
+                              <span className={cn(
+                                "px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                item.kategori === 'Zakat' ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
+                                item.kategori === 'Infak' ? "bg-amber-50 text-amber-700 border border-amber-100" :
+                                item.kategori === 'DSKL' ? "bg-indigo-50 text-indigo-700 border border-indigo-100" :
+                                "bg-slate-100 text-slate-700 border border-slate-200"
+                              )}>
+                                {item.kategori}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-800 hover:text-primary transition-colors">
+                                  {item.nama_program}
+                                </span>
+                                {isExpanded ? (
+                                  <ChevronUp className="size-3.5 text-slate-400" />
+                                ) : (
+                                  <ChevronDown className="size-3.5 text-slate-400" />
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                              {itemCoas.length === 0 ? (
+                                <span className="text-slate-400 italic text-[11px]">Belum dihubungkan</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {itemCoas.map((coa: string) => {
+                                    const coaDetail = coas.find((c: any) => c.coa_code === coa);
+                                    return (
+                                      <span 
+                                        key={coa} 
+                                        title={coaDetail ? `${coaDetail.coa_code} - ${coaDetail.nama_akun}` : coa}
+                                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 transition-colors cursor-help"
+                                      >
+                                        {coa}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-900 font-mono">
+                              {formatCurrency(targetVal)}
+                            </td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-900 font-mono">
+                              {formatCurrency(realisasiVal)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase font-sans",
+                                  pct >= 100 ? "bg-emerald-100 text-emerald-800" :
+                                  pct >= 50 ? "bg-blue-100 text-blue-800" :
+                                  pct > 0 ? "bg-amber-100 text-amber-800" :
+                                  "bg-slate-100 text-slate-400"
+                                )}>
+                                  {pct.toFixed(1)}%
+                                </span>
+                                <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                  <div 
+                                    className={cn(
+                                      "h-full rounded-full transition-all duration-500",
+                                      pct >= 100 ? "bg-emerald-500" :
+                                      pct >= 50 ? "bg-blue-500" :
+                                      "bg-amber-500"
+                                    )} 
+                                    style={{ width: `${Math.min(pct, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-center font-sans" onClick={(e) => e.stopPropagation()}>
+                              {isSuperAdmin ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setEditingPengumpulanItem(item);
+                                      setFormPengNo(item.no);
+                                      setFormPengKategori(item.kategori);
+                                      setFormPengNama(item.nama_program);
+                                      setFormPengCoas(item.coa_codes ? item.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : []);
+                                      setFormPengPerorangan(item.target_perorangan !== null ? item.target_perorangan : '');
+                                      setFormPengLembaga(item.target_lembaga !== null ? item.target_lembaga : '');
+                                      setFormPengAnggaran(Number(item.nilai_anggaran));
+                                      setFormPengMonths({
+                                        jan: Number(item.target_jan || 0),
+                                        feb: Number(item.target_feb || 0),
+                                        mar: Number(item.target_mar || 0),
+                                        apr: Number(item.target_apr || 0),
+                                        mei: Number(item.target_mei || 0),
+                                        jun: Number(item.target_jun || 0),
+                                        jul: Number(item.target_jul || 0),
+                                        agt: Number(item.target_agt || 0),
+                                        sep: Number(item.target_sep || 0),
+                                        okt: Number(item.target_okt || 0),
+                                        nov: Number(item.target_nov || 0),
+                                        des: Number(item.target_des || 0)
+                                      });
+                                    }}
+                                    className="p-1 text-slate-550 hover:text-primary hover:bg-slate-100 rounded transition-colors"
+                                  >
+                                    <Edit2 className="size-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => deletePengumpulan(item.id)}
+                                    className="p-1 text-slate-555 hover:text-red-650 hover:bg-red-50 rounded transition-colors"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">No Access</span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Expanded Row for monthly breakdown */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/40">
+                              <td colSpan={8} className="p-4 border-t border-b border-slate-200/50">
+                                <div className="space-y-4">
+                                  <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Calendar className="size-3.5 text-primary" />
+                                      Detail Target vs Realisasi Bulanan: {item.nama_program}
+                                    </h4>
+                                    <span className="text-[10px] text-slate-400 italic">
+                                      Angka realisasi terhitung real-time berdasarkan COA
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                                    {['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'].map((m, idx) => {
+                                      const monthTarget = Number(item[`target_${m}`] || 0);
+                                      const monthReal = Number(item[m] || 0);
+                                      const mPct = monthTarget > 0 ? (monthReal / monthTarget) * 100 : 0;
+                                      
+                                      return (
+                                        <div key={m} className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm flex flex-col justify-between space-y-2">
+                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block border-b border-slate-100 pb-1">{getMonthName(idx + 1)}</span>
+                                          
+                                          <div className="space-y-1">
+                                            <div className="flex justify-between text-[10px]">
+                                              <span className="text-slate-400">Target:</span>
+                                              <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatCurrency(monthTarget)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px]">
+                                              <span className="text-slate-400">Realisasi:</span>
+                                              <span className="font-bold text-slate-900 font-mono text-[11px]">{formatCurrency(monthReal)}</span>
+                                            </div>
+                                          </div>
+
+                                          <div className="pt-1.5 flex items-center justify-between border-t border-slate-100 text-[10px]">
+                                            <span className="text-slate-400">Pencapaian:</span>
+                                            <span className={cn(
+                                              "font-extrabold font-mono",
+                                              mPct >= 100 ? "text-emerald-600" :
+                                              mPct >= 50 ? "text-blue-600" :
+                                              mPct > 0 ? "text-amber-600" :
+                                              "text-slate-400"
+                                            )}>
+                                              {mPct.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      );
+                    })
+                  )}
+
+                  {/* Summary / Total Row */}
+                  {filteredPengumpulanList.length > 0 && (
+                    <tr className="bg-slate-100/90 font-black text-slate-900 border-t-2 border-slate-350">
+                      <td colSpan={4} className="px-4 py-4 text-xs font-black uppercase tracking-wider text-slate-800 text-right">
+                        TOTAL KESELURUHAN (PENGUMPULAN)
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-slate-950 font-mono">
+                        {formatCurrency(statsPengumpulan.anggaran)}
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-slate-950 font-mono">
+                        {formatCurrency(statsPengumpulan.realisasi)}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-black text-[10px] font-mono">
+                          {(statsPengumpulan.anggaran > 0 ? (statsPengumpulan.realisasi / statsPengumpulan.anggaran) * 100 : 0).toFixed(1)}%
+                        </span>
+                      </td>
+                      <td></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="space-y-8 animate-fade-in">
@@ -1335,6 +1813,212 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         )}
       </AnimatePresence>
 
+        </div>
+      )}
+
+      {/* ADD / EDIT RKAT PENGUMPULAN DIALOG MODAL */}
+      <AnimatePresence>
+        {(isAddPengumpulanOpen || editingPengumpulanItem !== null) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-100 overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  {editingPengumpulanItem ? <Edit2 className="size-5 text-primary" /> : <Plus className="size-5 text-primary" />}
+                  {editingPengumpulanItem ? 'Ubah Target RKAT Pengumpulan' : 'Tambah Target RKAT Pengumpulan'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsAddPengumpulanOpen(false);
+                    setEditingPengumpulanItem(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-all"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Urut</label>
+                    <input
+                      type="text"
+                      value={formPengNo}
+                      onChange={(e) => setFormPengNo(e.target.value)}
+                      placeholder="e.g. 1"
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori</label>
+                    <select
+                      value={formPengKategori}
+                      onChange={(e) => setFormPengKategori(e.target.value as any)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
+                    >
+                      <option value="Zakat">Zakat</option>
+                      <option value="Infak">Infak</option>
+                      <option value="DSKL">DSKL</option>
+                      <option value="CSR">CSR</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Program / Kegiatan</label>
+                  <input
+                    type="text"
+                    value={formPengNama}
+                    onChange={(e) => setFormPengNama(e.target.value)}
+                    placeholder="e.g. Zakat Maal Perorangan"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Target Perorangan</label>
+                    <input
+                      type="number"
+                      value={formPengPerorangan}
+                      onChange={(e) => setFormPengPerorangan(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                      placeholder="n/a"
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Target Lembaga</label>
+                    <input
+                      type="number"
+                      value={formPengLembaga}
+                      onChange={(e) => setFormPengLembaga(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                      placeholder="n/a"
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Nilai Anggaran (Rp)</label>
+                    <input
+                      type="number"
+                      value={formPengAnggaran}
+                      onChange={(e) => setFormPengAnggaran(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
+                    />
+                  </div>
+                </div>
+
+                {/* COA mapping selection */}
+                <div className="border-t border-slate-100 pt-4 space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Hubungkan ke Akun COA Penerimaan</label>
+                  <div className="border border-slate-200/60 rounded-xl p-3 max-h-48 overflow-y-auto bg-slate-50/50 space-y-2">
+                    {coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.')).length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Tidak ada COA kategori Penerimaan yang tersedia.</p>
+                    ) : (
+                      coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.')).map((coa: any) => {
+                        const isChecked = formPengCoas.includes(coa.coa_code);
+                        return (
+                          <label key={coa.coa_code} className="flex items-center gap-2.5 p-2 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors text-xs text-slate-700 font-medium">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setFormPengCoas(formPengCoas.filter(c => c !== coa.coa_code));
+                                } else {
+                                  setFormPengCoas([...formPengCoas, coa.coa_code]);
+                                }
+                              }}
+                              className="rounded text-primary focus:ring-primary size-4"
+                            />
+                            <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">{coa.coa_code}</span>
+                            <span>{coa.nama_akun}</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400">Pilih satu atau lebih akun COA Penerimaan. Nilai transaksi Uang Masuk pada COA terpilih akan otomatis terakumulasi sebagai Realisasi program.</p>
+                </div>
+
+                {/* Month-by-month grid */}
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-xs font-bold text-slate-700">Rincian Anggaran Target per Bulan</h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const monthlyVal = Number((formPengAnggaran / 12).toFixed(2));
+                        setFormPengMonths({
+                          jan: monthlyVal, feb: monthlyVal, mar: monthlyVal, apr: monthlyVal,
+                          mei: monthlyVal, jun: monthlyVal, jul: monthlyVal, agt: monthlyVal,
+                          sep: monthlyVal, okt: monthlyVal, nov: monthlyVal, des: monthlyVal
+                        });
+                      }}
+                      className="text-[10px] font-black uppercase text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      Bagi Rata 12 Bulan
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-3">
+                    {['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'].map((m) => (
+                      <div key={m} className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{m}</label>
+                        <input
+                          type="number"
+                          value={formPengMonths[m]}
+                          onChange={(e) => setFormPengMonths({ ...formPengMonths, [m]: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right font-mono focus:ring-2 focus:ring-primary/15 focus:border-primary outline-none transition-all"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 text-right">
+                    <span className="text-[10px] font-bold text-slate-400">Total Terdistribusi per Bulan: </span>
+                    <span className={cn(
+                      "text-xs font-black font-mono",
+                      Math.abs(Object.values(formPengMonths).reduce((a, b) => a + b, 0) - formPengAnggaran) < 5
+                        ? "text-emerald-600"
+                        : "text-amber-600"
+                    )}>
+                      {formatCurrency(Object.values(formPengMonths).reduce((a, b) => a + b, 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 font-semibold">
+                <button
+                  onClick={() => {
+                    setIsAddPengumpulanOpen(false);
+                    setEditingPengumpulanItem(null);
+                  }}
+                  className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={editingPengumpulanItem ? saveEditPengumpulan : saveNewPengumpulan}
+                  className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <Check className="size-4" />
+                  {editingPengumpulanItem ? 'Simpan Perubahan' : 'Simpan Target RKAT'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Migration Modal RKAT */}
       <AnimatePresence>
         {isMigrationModalOpen && (
@@ -1353,7 +2037,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
               className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-xl font-black text-slate-900">Migrasi Data RKAT</h3>
+                <h3 className="text-xl font-black text-slate-900">Migrasi Data RKAT {activeTab}</h3>
                 <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
@@ -1364,40 +2048,81 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                     <FileSpreadsheet className="size-8" />
                   </div>
                   <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
-                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom: Kode Pilar, Kode Program, Nama Kegiatan, Asnaf, Keterangan, Target Jiwa, Frekuensi, Unit Cost, Kode COA.</p>
+                  <p className="text-xs text-slate-500">
+                    {activeTab === 'Pengumpulan' 
+                      ? 'Gunakan file Excel (.xlsx) dengan kolom: No, Kategori, Nama Program, Kode COA, Target Perorangan, Target Lembaga, Nilai Anggaran, serta target bulanan (Target Jan - Target Des).'
+                      : 'Gunakan file Excel (.xlsx) dengan kolom: Kode Pilar, Kode Program, Nama Kegiatan, Asnaf, Keterangan, Target Jiwa, Frekuensi, Unit Cost, Kode COA.'}
+                  </p>
                 </div>
 
                 <div className="space-y-3">
                   <button 
                     onClick={() => {
-                      const ws = XLSX.utils.json_to_sheet([
-                        { 
-                          "Kode Pilar": "2101",
-                          "Kode Program": "210102",
-                          "Nama Kegiatan": "Bantuan Biaya Hidup Sembako",
-                          "Asnaf": "Miskin",
-                          "Keterangan": "Pemberian paket sembako dhuafa Semarang Utara",
-                          "Target Jiwa": 100,
-                          "Frekuensi": 1,
-                          "Unit Cost": 250000,
-                          "Kode COA": "5.1.01.01.001"
-                        }
-                      ]);
-                      
-                      // Filter coas to only Penyaluran and Penggunaan for reference sheet
-                      const refCoas = coas
-                        .filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan')
-                        .map(coa => ({
-                          "Kode COA": coa.coa_code,
-                          "Nama Akun": coa.nama_akun,
-                          "Klasifikasi": coa.klasifikasi
-                        }));
-                      const wsRef = XLSX.utils.json_to_sheet(refCoas);
+                      if (activeTab === 'Pengumpulan') {
+                        const ws = XLSX.utils.json_to_sheet([
+                          { 
+                            "No": "1",
+                            "Kategori": "Zakat",
+                            "Nama Program": "Zakat Maal Badan",
+                            "Kode COA": "4.1.01.01.001, 4.1.01.01.002",
+                            "Target Perorangan": "",
+                            "Target Lembaga": "10",
+                            "Nilai Anggaran": 50000000,
+                            "Target Jan": 4166666,
+                            "Target Feb": 4166666,
+                            "Target Mar": 4166666,
+                            "Target Apr": 4166666,
+                            "Target Mei": 4166666,
+                            "Target Jun": 4166666,
+                            "Target Jul": 4166666,
+                            "Target Agt": 4166666,
+                            "Target Sep": 4166666,
+                            "Target Okt": 4166666,
+                            "Target Nov": 4166666,
+                            "Target Des": 4166666
+                          }
+                        ]);
+                        const refCoas = coas
+                          .filter(coa => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.'))
+                          .map(coa => ({
+                            "Kode COA": coa.coa_code,
+                            "Nama Akun": coa.nama_akun,
+                            "Klasifikasi": coa.klasifikasi
+                          }));
+                        const wsRef = XLSX.utils.json_to_sheet(refCoas);
 
-                      const wb = XLSX.utils.book_new();
-                      XLSX.utils.book_append_sheet(wb, ws, "Template_RKAT");
-                      XLSX.utils.book_append_sheet(wb, wsRef, "Referensi_COA");
-                      XLSX.writeFile(wb, "Template_Migrasi_RKAT.xlsx");
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Template_Pengumpulan");
+                        XLSX.utils.book_append_sheet(wb, wsRef, "Referensi_COA_Penerimaan");
+                        XLSX.writeFile(wb, "Template_Migrasi_RKAT_Pengumpulan.xlsx");
+                      } else {
+                        const ws = XLSX.utils.json_to_sheet([
+                          { 
+                            "Kode Pilar": "2101",
+                            "Kode Program": "210102",
+                            "Nama Kegiatan": "Bantuan Biaya Hidup Sembako",
+                            "Asnaf": "Miskin",
+                            "Keterangan": "Pemberian paket sembako dhuafa Semarang Utara",
+                            "Target Jiwa": 100,
+                            "Frekuensi": 1,
+                            "Unit Cost": 250000,
+                            "Kode COA": "5.1.01.01.001"
+                          }
+                        ]);
+                        const refCoas = coas
+                          .filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan')
+                          .map(coa => ({
+                            "Kode COA": coa.coa_code,
+                            "Nama Akun": coa.nama_akun,
+                            "Klasifikasi": coa.klasifikasi
+                          }));
+                        const wsRef = XLSX.utils.json_to_sheet(refCoas);
+
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Template_RKAT");
+                        XLSX.utils.book_append_sheet(wb, wsRef, "Referensi_COA");
+                        XLSX.writeFile(wb, "Template_Migrasi_RKAT.xlsx");
+                      }
                     }} 
                     className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all"
                   >
@@ -1441,54 +2166,82 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                               return;
                             }
 
-                            // Group activities by Kode Program
-                            const groupedByProgram: { [code: string]: any[] } = {};
-                            dataExcel.forEach((row) => {
-                              const progCode = String(row["Kode Program"] || row["Kode_Program"] || row["kode_program"] || "").trim();
-                              if (!progCode) return;
-                              if (!groupedByProgram[progCode]) {
-                                groupedByProgram[progCode] = [];
+                            if (activeTab === 'Pengumpulan') {
+                              const payload = dataExcel.map(row => ({
+                                no: String(row.No || row.no || row.NO || '').trim(),
+                                kategori: String(row.Kategori || row.kategori || 'Zakat').trim(),
+                                nama_program: String(row["Nama Program"] || row["nama_program"] || row.Nama_Program || row.NamaProgram || '').trim(),
+                                target_perorangan: row["Target Perorangan"] || row.target_perorangan || null,
+                                target_lembaga: row["Target Lembaga"] || row.target_lembaga || null,
+                                nilai_anggaran: row["Nilai Anggaran"] || row.nilai_anggaran || 0,
+                                target_jan: row["Target Jan"] || row.target_jan || row["Target_Jan"] || null,
+                                target_feb: row["Target Feb"] || row.target_feb || row["Target_Feb"] || null,
+                                target_mar: row["Target Mar"] || row.target_mar || row["Target_Mar"] || null,
+                                target_apr: row["Target Apr"] || row.target_apr || row["Target_Apr"] || null,
+                                target_mei: row["Target Mei"] || row.target_mei || row["Target_Mei"] || null,
+                                target_jun: row["Target Jun"] || row.target_jun || row["Target_Jun"] || null,
+                                target_jul: row["Target Jul"] || row.target_jul || row["Target_Jul"] || null,
+                                target_agt: row["Target Agt"] || row.target_agt || row["Target_Agt"] || row["Target_Aug"] || null,
+                                target_sep: row["Target Sep"] || row.target_sep || row["Target_Sep"] || null,
+                                target_okt: row["Target Okt"] || row.target_okt || row["Target_Okt"] || row["Target_Oct"] || null,
+                                target_nov: row["Target Nov"] || row.target_nov || row["Target_Nov"] || null,
+                                target_des: row["Target Des"] || row.target_des || row["Target_Des"] || row["Target_Dec"] || null
+                              }));
+
+                              await axios.post('http://127.0.0.1:4000/api/rkat-pengumpulan/import', payload);
+                              alert(`Migrasi Berhasil! Berhasil menyimpan/memperbarui data RKAT Pengumpulan.`);
+                              fetchRkatPengumpulan();
+                              setIsMigrationModalOpen(false);
+                            } else {
+                              // Group activities by Kode Program
+                              const groupedByProgram: { [code: string]: any[] } = {};
+                              dataExcel.forEach((row) => {
+                                const progCode = String(row["Kode Program"] || row["Kode_Program"] || row["kode_program"] || "").trim();
+                                if (!progCode) return;
+                                if (!groupedByProgram[progCode]) {
+                                  groupedByProgram[progCode] = [];
+                                }
+                                const mustahik = Number(row["Target Jiwa"] || row["Target_Jiwa"] || row["target_jiwa"] || 0);
+                                const frekuensi = Number(row["Frekuensi"] || row["Frekuensi_Tahun"] || row["frekuensi_tahun"] || 1);
+                                const nominal = Number(row["Unit Cost"] || row["Unit_Cost_Rp"] || row["unit_cost"] || 0);
+
+                                 groupedByProgram[progCode].push({
+                                   id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                                   name: String(row["Nama Kegiatan"] || row["Nama_Kegiatan"] || row["nama_kegiatan"] || "").trim(),
+                                   asnaf: String(row["Asnaf"] || row["asnaf"] || "").trim(),
+                                   frekuensi,
+                                   nominal,
+                                   mustahik,
+                                   keterangan: String(row["Keterangan"] || row["keterangan"] || "").trim(),
+                                   coaCode: String(row["Kode COA"] || row["Kode_COA"] || row["kode_coa"] || "").trim() || undefined
+                                 });
+                              });
+
+                              const programCodes = Object.keys(groupedByProgram);
+                              if (programCodes.length === 0) {
+                                alert('Tidak ditemukan kolom Kode Program yang valid.');
+                                return;
                               }
-                              const mustahik = Number(row["Target Jiwa"] || row["Target_Jiwa"] || row["target_jiwa"] || 0);
-                              const frekuensi = Number(row["Frekuensi"] || row["Frekuensi_Tahun"] || row["frekuensi_tahun"] || 1);
-                              const nominal = Number(row["Unit Cost"] || row["Unit_Cost_Rp"] || row["unit_cost"] || 0);
 
-                               groupedByProgram[progCode].push({
-                                 id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-                                 name: String(row["Nama Kegiatan"] || row["Nama_Kegiatan"] || row["nama_kegiatan"] || "").trim(),
-                                 asnaf: String(row["Asnaf"] || row["asnaf"] || "").trim(),
-                                 frekuensi,
-                                 nominal,
-                                 mustahik,
-                                 keterangan: String(row["Keterangan"] || row["keterangan"] || "").trim(),
-                                 coaCode: String(row["Kode COA"] || row["Kode_COA"] || row["kode_coa"] || "").trim() || undefined
-                               });
-                            });
-
-                            const programCodes = Object.keys(groupedByProgram);
-                            if (programCodes.length === 0) {
-                              alert('Tidak ditemukan kolom Kode Program yang valid.');
-                              return;
-                            }
-
-                            let successCount = 0;
-                            for (const code of programCodes) {
-                              try {
-                                const rkatDetails = groupedByProgram[code];
-                                const budgetRkat = rkatDetails.reduce((sum, t) => sum + (t.mustahik * t.frekuensi * t.nominal), 0);
-                                await axios.put(`http://127.0.0.1:4000/api/programs/${code}`, {
-                                  rkat_details: rkatDetails,
-                                  budget_rkat: budgetRkat
-                                });
-                                successCount++;
-                              } catch (err) {
-                                console.error(`Gagal migrasi program ${code}:`, err);
+                              let successCount = 0;
+                              for (const code of programCodes) {
+                                try {
+                                  const rkatDetails = groupedByProgram[code];
+                                  const budgetRkat = rkatDetails.reduce((sum, t) => sum + (t.mustahik * t.frekuensi * t.nominal), 0);
+                                  await axios.put(`http://127.0.0.1:4000/api/programs/${code}`, {
+                                    rkat_details: rkatDetails,
+                                    budget_rkat: budgetRkat
+                                  });
+                                  successCount++;
+                                } catch (err) {
+                                  console.error(`Gagal migrasi program ${code}:`, err);
+                                }
                               }
-                            }
 
-                            alert(`Migrasi Berhasil! Data Excel terbaca sebanyak ${dataExcel.length} baris. Berhasil memperbarui ${successCount} program di database.`);
-                            fetchPilars();
-                            setIsMigrationModalOpen(false);
+                              alert(`Migrasi Berhasil! Data Excel terbaca sebanyak ${dataExcel.length} baris. Berhasil memperbarui ${successCount} program di database.`);
+                              fetchPilars();
+                              setIsMigrationModalOpen(false);
+                            }
                           } catch (err) {
                             console.error(err);
                             alert('Gagal memproses file Excel');
@@ -1506,7 +2259,9 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                       <span className="text-amber-600 font-bold text-[10px]">!</span>
                     </div>
                     <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
-                      Pastikan Kode Program sesuai dengan referensi master data SIMBA BAZNAS untuk menghindari kegagalan sinkronisasi.
+                      {activeTab === 'Pengumpulan' 
+                        ? 'Pastikan format kolom Excel sesuai dengan template RKAT Pengumpulan agar sinkronisasi data berhasil.'
+                        : 'Pastikan Kode Program sesuai dengan referensi master data SIMBA BAZNAS untuk menghindari kegagalan sinkronisasi.'}
                     </p>
                   </div>
                 </div>
@@ -1515,8 +2270,6 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
           </div>
         )}
       </AnimatePresence>
-        </div>
-      )}
     </div>
   );
 }

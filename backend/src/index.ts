@@ -16,6 +16,7 @@ import parameterRoutes from './routes/parameter.route';
 import financeRoutes from './routes/finance.route';
 import mutationRoutes from './routes/mutation.route';
 import muzakkiRoutes from './routes/muzakki.route';
+import rkatPengumpulanRoutes from './routes/rkat-pengumpulan.route';
 
 dotenv.config();
 
@@ -54,6 +55,8 @@ app.use('/api/parameters', parameterRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/mutations', mutationRoutes);
 app.use('/api/muzakki', muzakkiRoutes);
+app.use('/api/rkat-pengumpulan', rkatPengumpulanRoutes);
+
 
 
 import { initCronJobs } from './utils/cronJobs';

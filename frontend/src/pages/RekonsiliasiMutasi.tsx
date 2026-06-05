@@ -457,7 +457,7 @@ export default function RekonsiliasiMutasi() {
             }`}
           >
             <ArrowDownLeft className="size-4 text-emerald-600" />
-            Penerimaan (Uang Masuk / Debit)
+            Penerimaan
           </button>
           <button
             onClick={() => setActiveTab('PENYALURAN')}
@@ -468,7 +468,7 @@ export default function RekonsiliasiMutasi() {
             }`}
           >
             <ArrowUpRight className="size-4 text-rose-600" />
-            Penyaluran &amp; Penggunaan (Uang Keluar / Kredit)
+            Penyaluran
           </button>
         </div>
 

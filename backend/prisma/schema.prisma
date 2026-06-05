@@ -37,6 +37,42 @@ model Mustahik {
   proposals       Proposal[]
 }
 
+model Muzakki {
+  id                 String    @id @default(uuid())
+  npwz               String?   @unique
+  kategori           String    @default("Perorangan") // "Perorangan" | "Lembaga"
+  nama               String    // Nama Muzakki (Perorangan) atau Nama Lembaga (Lembaga)
+  npwp               String?
+  zakat_per_bulan    Decimal?  @db.Decimal(15, 2)
+  keterangan         String?   @db.Text
+  alamat             String    @db.Text // Alamat Rumah (Perorangan) atau Alamat Kantor (Lembaga)
+  telepon            String?   // Telepon Rumah (Perorangan) atau Telepon Kantor (Lembaga)
+  email              String?
+  status             String    @default("Aktif")
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  // Fields khusus Perorangan
+  nik                String?   @unique
+  tempat_lahir       String?
+  tanggal_lahir      String?
+  jenis_kelamin      String?
+  pekerjaan          String?
+  upz                String?
+  alamat_kantor      String?   @db.Text
+  handphone          String?
+
+  // Fields khusus Lembaga
+  no_pengukuhan      String?
+  tanggal_pengukuhan String?
+  website            String?
+  jenis_lembaga      String?
+  fax                String?
+  cp_nama            String?   // Contact Person: Nama
+  cp_telepon         String?   // Contact Person: Telepon
+  cp_email           String?   // Contact Person: Email
+}
+
 model Upz {
   id         String      @id @default(uuid())
   kategori   KategoriUPZ
@@ -286,4 +322,30 @@ model CashMutationDetail {
   mutation          CashMutation @relation(fields: [mutation_id], references: [mutation_id], onDelete: Cascade)
   targetAccount     BankAccount  @relation(fields: [target_account_id], references: [account_id])
 }
+
+model RkatPengumpulan {
+  id                   String    @id @default(uuid())
+  no                   String    // e.g. "1", "2", "11", etc.
+  kategori             String    // "Zakat" | "Infak" | "DSKL" | "CSR"
+  nama_program         String
+  coa_codes            String?   @db.Text
+  target_perorangan    Int?
+  target_lembaga       Int?
+  nilai_anggaran       Decimal   @db.Decimal(15, 2)
+  target_jan           Decimal?  @db.Decimal(15, 2)
+  target_feb           Decimal?  @db.Decimal(15, 2)
+  target_mar           Decimal?  @db.Decimal(15, 2)
+  target_apr           Decimal?  @db.Decimal(15, 2)
+  target_mei           Decimal?  @db.Decimal(15, 2)
+  target_jun           Decimal?  @db.Decimal(15, 2)
+  target_jul           Decimal?  @db.Decimal(15, 2)
+  target_agt           Decimal?  @db.Decimal(15, 2)
+  target_sep           Decimal?  @db.Decimal(15, 2)
+  target_okt           Decimal?  @db.Decimal(15, 2)
+  target_nov           Decimal?  @db.Decimal(15, 2)
+  target_des           Decimal?  @db.Decimal(15, 2)
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+}
+
 
