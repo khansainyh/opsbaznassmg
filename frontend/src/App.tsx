@@ -34,6 +34,8 @@ import RealisasiBantuan from '@/src/pages/RealisasiBantuan';
 import AntreanArsip from '@/src/pages/AntreanArsip';
 import RekonsiliasiMutasi from '@/src/pages/RekonsiliasiMutasi';
 import PengeluaranManual from '@/src/pages/PengeluaranManual';
+import PenerimaanZis from '@/src/pages/PenerimaanZis';
+import IdentifikasiMutasi from '@/src/pages/IdentifikasiMutasi';
 
 
 function App() {
@@ -328,7 +330,11 @@ function App() {
         ) : activeMenu === 'Data Mustahik' ? (
           <DataMustahik />
         ) : activeMenu === 'Data Muzakki' ? (
-          <DataMuzakki />
+          <DataMuzakki onNavigate={setActiveMenu} />
+        ) : activeMenu === 'Penerimaan ZIS' ? (
+          <PenerimaanZis />
+        ) : activeMenu === 'Identifikasi Mutasi' ? (
+          <IdentifikasiMutasi />
         ) : activeMenu === 'Database UPZ' ? (
           <DatabaseUPZ />
         ) : activeMenu === 'User Management' ? (

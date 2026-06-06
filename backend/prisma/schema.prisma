@@ -71,6 +71,7 @@ model Muzakki {
   cp_nama            String?   // Contact Person: Nama
   cp_telepon         String?   // Contact Person: Telepon
   cp_email           String?   // Contact Person: Email
+  penerimaans        PenerimaanZis[]
 }
 
 model Upz {
@@ -262,6 +263,7 @@ model BankAccount {
   journalEntries JournalEntry[]
   sourceMutations CashMutation[]
   targetMutationDetails CashMutationDetail[]
+  penerimaans        PenerimaanZis[]
 }
 
 model CoaMappingRule {
@@ -346,6 +348,27 @@ model RkatPengumpulan {
   target_des           Decimal?  @db.Decimal(15, 2)
   created_at           DateTime  @default(now())
   updated_at           DateTime  @updatedAt
+  penerimaans        PenerimaanZis[]
+}
+
+model PenerimaanZis {
+  id                 String    @id @default(uuid())
+  no_kuitansi        String    @unique
+  muzakki_id         String    @db.VarChar(191)
+  rkat_id            String    @db.VarChar(191) // References RkatPengumpulan.id
+  bank_account_id    String    @db.VarChar(191) // References BankAccount.account_id
+  nominal            Decimal   @db.Decimal(15, 2)
+  metode_pembayaran  String    // "TUNAI" | "TRANSFER"
+  tanggal_pembayaran DateTime  @default(now())
+  keterangan         String?   @db.Text
+  status_simba       String    @default("PENDING") // "PENDING" | "SYNCED"
+  transaksi_id       String?   @db.VarChar(191) // associated Realisasi/JournalEntry ID
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  muzakki            Muzakki         @relation(fields: [muzakki_id], references: [id])
+  rkat               RkatPengumpulan @relation(fields: [rkat_id], references: [id])
+  bankAccount        BankAccount     @relation(fields: [bank_account_id], references: [account_id])
 }
 
 

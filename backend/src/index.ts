@@ -17,6 +17,7 @@ import financeRoutes from './routes/finance.route';
 import mutationRoutes from './routes/mutation.route';
 import muzakkiRoutes from './routes/muzakki.route';
 import rkatPengumpulanRoutes from './routes/rkat-pengumpulan.route';
+import penerimaanZisRoutes from './routes/penerimaan-zis.route';
 
 dotenv.config();
 
@@ -56,6 +57,7 @@ app.use('/api/finance', financeRoutes);
 app.use('/api/mutations', mutationRoutes);
 app.use('/api/muzakki', muzakkiRoutes);
 app.use('/api/rkat-pengumpulan', rkatPengumpulanRoutes);
+app.use('/api/penerimaan-zis', penerimaanZisRoutes);
 
 
 

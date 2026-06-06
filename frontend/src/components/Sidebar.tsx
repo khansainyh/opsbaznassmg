@@ -89,6 +89,13 @@ const menuGroups = [
     ]
   },
   {
+    title: "PENGUMPULAN",
+    items: [
+      { name: "Penerimaan ZIS", icon: Banknote, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Keuangan", "Staf_Pelaporan"] },
+      { name: "Identifikasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Keuangan", "Staf_Pelaporan"] },
+    ]
+  },
+  {
     title: "PENDISTRIBUSIAN & PENDAYAGUNAAN",
     items: [
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },

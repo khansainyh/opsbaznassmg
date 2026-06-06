@@ -75,12 +75,12 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    const finalNpwz = req.body.npwz || `WZ-${Date.now().toString().slice(-4)}`;
+    const finalNpwz = req.body.npwz ? String(req.body.npwz) : null;
     
     // Check if NPWZ already exists if custom one is provided
-    if (req.body.npwz) {
+    if (finalNpwz) {
       const existingNpwz = await prisma.muzakki.findUnique({
-        where: { npwz: String(req.body.npwz) }
+        where: { npwz: finalNpwz }
       });
       if (existingNpwz) {
         res.status(400).json({ status: 'error', message: 'Nomor Pokok Wajib Zakat (NPWZ) sudah terdaftar.' });
@@ -176,7 +176,13 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
     const currentKategori = kategori || existing.kategori;
 
     if (currentKategori === 'Perorangan') {
-      if (!nama || !nik || !jenis_kelamin || !alamat || !handphone) {
+      const checkNama = nama !== undefined ? nama : existing.nama;
+      const checkNik = nik !== undefined ? nik : existing.nik;
+      const checkJenisKelamin = jenis_kelamin !== undefined ? jenis_kelamin : existing.jenis_kelamin;
+      const checkAlamat = alamat !== undefined ? alamat : existing.alamat;
+      const checkHandphone = handphone !== undefined ? handphone : existing.handphone;
+
+      if (!checkNama || !checkNik || !checkJenisKelamin || !checkAlamat || !checkHandphone) {
         res.status(400).json({ 
           status: 'error', 
           message: 'Nama, NIK, Jenis Kelamin, Alamat Rumah (Alamat), dan Handphone wajib diisi untuk kategori Perorangan.' 
@@ -194,7 +200,13 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
         }
       }
     } else if (currentKategori === 'Lembaga') {
-      if (!nama || !alamat || !telepon || !cp_nama || !cp_telepon) {
+      const checkNama = nama !== undefined ? nama : existing.nama;
+      const checkAlamat = alamat !== undefined ? alamat : existing.alamat;
+      const checkTelepon = telepon !== undefined ? telepon : existing.telepon;
+      const checkCpNama = cp_nama !== undefined ? cp_nama : existing.cp_nama;
+      const checkCpTelepon = cp_telepon !== undefined ? cp_telepon : existing.cp_telepon;
+
+      if (!checkNama || !checkAlamat || !checkTelepon || !checkCpNama || !checkCpTelepon) {
         res.status(400).json({ 
           status: 'error', 
           message: 'Nama Lembaga (Nama), Alamat, Telepon, Nama Contact Person, dan Telepon Contact Person wajib diisi untuk kategori Lembaga.' 

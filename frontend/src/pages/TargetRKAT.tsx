@@ -75,6 +75,16 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
   });
 
+  const distributePengAnggaran = () => {
+    const base = Math.floor(formPengAnggaran / 12);
+    const remainder = formPengAnggaran - (base * 12);
+    setFormPengMonths({
+      jan: base, feb: base, mar: base, apr: base,
+      mei: base, jun: base, jul: base, agt: base,
+      sep: base, okt: base, nov: base, des: base + remainder
+    });
+  };
+
   const fetchRkatPengumpulan = useCallback(async () => {
     try {
       const res = await axios.get('http://127.0.0.1:4000/api/rkat-pengumpulan');
@@ -940,9 +950,12 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   };
 
   const filteredPengumpulanList = useMemo(() => {
-    return rkatPengumpulanList.filter(item => {
+    const filtered = rkatPengumpulanList.filter(item => {
       if (pengumpulanCategoryFilter === 'Semua') return true;
       return item.kategori.toLowerCase() === pengumpulanCategoryFilter.toLowerCase();
+    });
+    return [...filtered].sort((a, b) => {
+      return String(a.no || '').localeCompare(String(b.no || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [rkatPengumpulanList, pengumpulanCategoryFilter]);
 
@@ -1111,7 +1124,6 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                     <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-12 text-center">No</th>
                     <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-24 text-center">Kategori</th>
                     <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Nama Program / Kegiatan</th>
-                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-56">COA Terkait</th>
                     <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-40 text-right">Target Anggaran</th>
                     <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-40 text-right">Realisasi</th>
                     <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-28 text-center">% Pencapaian</th>
@@ -1121,7 +1133,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredPengumpulanList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-12 text-center text-slate-400 italic">
+                      <td colSpan={7} className="p-12 text-center text-slate-400 italic">
                         Belum ada program pengumpulan yang terdaftar.
                       </td>
                     </tr>
@@ -1167,26 +1179,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
-                              {itemCoas.length === 0 ? (
-                                <span className="text-slate-400 italic text-[11px]">Belum dihubungkan</span>
-                              ) : (
-                                <div className="flex flex-wrap gap-1">
-                                  {itemCoas.map((coa: string) => {
-                                    const coaDetail = coas.find((c: any) => c.coa_code === coa);
-                                    return (
-                                      <span 
-                                        key={coa} 
-                                        title={coaDetail ? `${coaDetail.coa_code} - ${coaDetail.nama_akun}` : coa}
-                                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 transition-colors cursor-help"
-                                      >
-                                        {coa}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </td>
+
                             <td className="px-4 py-4 text-right font-bold text-slate-900 font-mono">
                               {formatCurrency(targetVal)}
                             </td>
@@ -1265,7 +1258,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                           {/* Expanded Row for monthly breakdown */}
                           {isExpanded && (
                             <tr className="bg-slate-50/40">
-                              <td colSpan={8} className="p-4 border-t border-b border-slate-200/50">
+                              <td colSpan={7} className="p-4 border-t border-b border-slate-200/50">
                                 <div className="space-y-4">
                                   <div className="flex justify-between items-center">
                                     <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -1275,6 +1268,29 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                     <span className="text-[10px] text-slate-400 italic">
                                       Angka realisasi terhitung real-time berdasarkan COA
                                     </span>
+                                  </div>
+
+                                  {/* Related COA Details */}
+                                  <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm flex items-center gap-3">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">COA Terkait:</span>
+                                    {itemCoas.length === 0 ? (
+                                      <span className="text-slate-400 italic text-[11px]">Belum dihubungkan ke COA Penerimaan</span>
+                                    ) : (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {itemCoas.map((coa: string) => {
+                                          const coaDetail = coas.find((c: any) => c.coa_code === coa);
+                                          return (
+                                            <span 
+                                              key={coa} 
+                                              title={coaDetail ? `${coaDetail.coa_code} - ${coaDetail.nama_akun}` : coa}
+                                              className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100"
+                                            >
+                                              {coa} {coaDetail ? `- ${coaDetail.nama_akun}` : ''}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
 
                                   <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
@@ -1326,7 +1342,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                   {/* Summary / Total Row */}
                   {filteredPengumpulanList.length > 0 && (
                     <tr className="bg-slate-100/90 font-black text-slate-900 border-t-2 border-slate-350">
-                      <td colSpan={4} className="px-4 py-4 text-xs font-black uppercase tracking-wider text-slate-800 text-right">
+                      <td colSpan={3} className="px-4 py-4 text-xs font-black uppercase tracking-wider text-slate-800 text-right">
                         TOTAL KESELURUHAN (PENGUMPULAN)
                       </td>
                       <td className="px-4 py-4 text-right font-black text-slate-950 font-mono">
@@ -1953,14 +1969,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                     <h4 className="text-xs font-bold text-slate-700">Rincian Anggaran Target per Bulan</h4>
                     <button
                       type="button"
-                      onClick={() => {
-                        const monthlyVal = Number((formPengAnggaran / 12).toFixed(2));
-                        setFormPengMonths({
-                          jan: monthlyVal, feb: monthlyVal, mar: monthlyVal, apr: monthlyVal,
-                          mei: monthlyVal, jun: monthlyVal, jul: monthlyVal, agt: monthlyVal,
-                          sep: monthlyVal, okt: monthlyVal, nov: monthlyVal, des: monthlyVal
-                        });
-                      }}
+                      onClick={distributePengAnggaran}
                       className="text-[10px] font-black uppercase text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-all"
                     >
                       Bagi Rata 12 Bulan

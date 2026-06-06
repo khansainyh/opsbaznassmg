@@ -1,15 +1,5 @@
 [
   {
-    "id": "mut-1780386865208",
-    "tanggal": "2026-06-02",
-    "bankAccountId": "account-bsi-zakat",
-    "bankName": "BSI - Rekening Utama Zakat",
-    "keteranganBank": "TES DULU",
-    "nominal": 200000,
-    "status": "PENDING",
-    "type": "DEBIT"
-  },
-  {
     "id": "mut-1780544150109",
     "tanggalCatatan": "2026-06-04",
     "tanggal": "2026-06-03",
@@ -98,5 +88,22 @@
     "coaCode": "56050101",
     "sumberDana": "-",
     "keteranganRealisasi": "Penyaluran/Penggunaan mutasi TV CCTV Ruang Pimpinan"
+  },
+  {
+    "id": "mut-1780636538813",
+    "tanggal": "2026-06-05",
+    "bankAccountId": "d8836407-2ea2-4102-bd85-c158760b0693",
+    "bankName": "Bank Syariah Indonesia",
+    "keteranganBank": "Transfer an Khansa Inayah",
+    "nominal": 200000,
+    "type": "DEBIT",
+    "status": "RECONCILED",
+    "reconciledAt": "2026-06-05T05:18:10.399Z",
+    "reconciledBy": "Super Admin",
+    "muzakkiId": "f9ee993c-97f2-4285-894f-5564e05e4112",
+    "muzakkiName": "Khansa Inayah Arrazaqu",
+    "coaCode": "41020101",
+    "sumberDana": "Zakat",
+    "keteranganRealisasi": "Zakat Fitrah an Khansa Inayah Arrazaqu"
   }
 ]

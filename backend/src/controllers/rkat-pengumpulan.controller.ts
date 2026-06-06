@@ -4,89 +4,69 @@ import { Prisma } from '@prisma/client';
 
 export const getRkatPengumpulan = async (req: Request, res: Response) => {
   try {
-    const list = await prisma.rkatPengumpulan.findMany({
-      orderBy: [
-        { kategori: 'asc' },
-        { no: 'asc' }
-      ]
-    });
+    const list = await prisma.rkatPengumpulan.findMany();
 
-    // Gather all distinct coa_codes to query journal entries efficiently.
-    const allCoaCodes = new Set<string>();
-    list.forEach((item: any) => {
-      if (item.coa_codes) {
-        item.coa_codes.split(',').forEach((c: string) => {
-          const trimmed = c.trim();
-          if (trimmed) allCoaCodes.add(trimmed);
-        });
-      }
-    });
-
-    const coaList = Array.from(allCoaCodes);
     const realizationMap: Record<string, { total: number; monthly: Record<string, number> }> = {};
     
-    // Initialize map
-    coaList.forEach(coa => {
-      realizationMap[coa] = {
+    // Initialize map for each RKAT program
+    list.forEach((item: any) => {
+      realizationMap[item.id] = {
         total: 0,
         monthly: { jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0 }
       };
     });
 
-    if (coaList.length > 0) {
-      // Query JournalEntries joined with Realisasi
-      const journalEntries = await prisma.journalEntry.findMany({
-        where: {
-          coa_code: { in: coaList },
-          kredit: { gt: 0 }
-        },
-        include: {
-          realisasi: {
-            select: { tanggal: true }
-          }
+    // Query JournalEntries joined with Realisasi, matching by rkat_id in the Realisasi record
+    const journalEntries = await prisma.journalEntry.findMany({
+      where: {
+        kredit: { gt: 0 },
+        realisasi: {
+          rkat_id: { in: list.map((item: any) => item.id) }
         }
-      });
+      },
+      include: {
+        realisasi: {
+          select: { rkat_id: true, tanggal: true }
+        }
+      }
+    });
 
-      const monthKeys = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
+    const monthKeys = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
 
-      journalEntries.forEach(entry => {
-        const coa = entry.coa_code;
+    journalEntries.forEach(entry => {
+      if (entry.realisasi && entry.realisasi.rkat_id) {
+        const rkatId = entry.realisasi.rkat_id;
         const amount = Number(entry.kredit || 0);
-        if (realizationMap[coa]) {
-          realizationMap[coa].total += amount;
-          if (entry.realisasi?.tanggal) {
+        if (realizationMap[rkatId]) {
+          realizationMap[rkatId].total += amount;
+          if (entry.realisasi.tanggal) {
             const mIdx = new Date(entry.realisasi.tanggal).getMonth();
             const mKey = monthKeys[mIdx];
             if (mKey) {
-              realizationMap[coa].monthly[mKey] += amount;
+              realizationMap[rkatId].monthly[mKey] += amount;
             }
           }
         }
-      });
-    }
+      }
+    });
 
     // Now construct the response list with calculated values
     const data = list.map((item: any) => {
-      const itemCoas = item.coa_codes ? item.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
-      let realisasi_total = 0;
-      const realisasi_monthly = {
-        jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
+      const realization = realizationMap[item.id] || {
+        total: 0,
+        monthly: { jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0 }
       };
-
-      itemCoas.forEach((coa: string) => {
-        if (realizationMap[coa]) {
-          realisasi_total += realizationMap[coa].total;
-          Object.keys(realisasi_monthly).forEach(mKey => {
-            (realisasi_monthly as any)[mKey] += realizationMap[coa].monthly[mKey];
-          });
-        }
-      });
 
       return {
         ...item,
-        realisasi_total,
-        ...realisasi_monthly
+        realisasi_total: realization.total,
+        ...realization.monthly
       };
+    });
+
+    // Sort strictly by no numerically/naturally
+    data.sort((a: any, b: any) => {
+      return String(a.no || '').localeCompare(String(b.no || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
 
     res.status(200).json({ status: 'success', data });
@@ -248,6 +228,62 @@ export const importRkatPengumpulan = async (req: Request, res: Response): Promis
         }
       });
 
+      const hasAnyImportedTarget = 
+        targetJan !== null || targetFeb !== null || targetMar !== null || targetApr !== null || 
+        targetMei !== null || targetJun !== null || targetJul !== null || targetAgt !== null || 
+        targetSep !== null || targetOkt !== null || targetNov !== null || targetDes !== null;
+
+      let finalJan = targetJan;
+      let finalFeb = targetFeb;
+      let finalMar = targetMar;
+      let finalApr = targetApr;
+      let finalMei = targetMei;
+      let finalJun = targetJun;
+      let finalJul = targetJul;
+      let finalAgt = targetAgt;
+      let finalSep = targetSep;
+      let finalOkt = targetOkt;
+      let finalNov = targetNov;
+      let finalDes = targetDes;
+
+      if (existing) {
+        if (finalJan === null) finalJan = existing.target_jan !== null ? Number(existing.target_jan) : 0;
+        if (finalFeb === null) finalFeb = existing.target_feb !== null ? Number(existing.target_feb) : 0;
+        if (finalMar === null) finalMar = existing.target_mar !== null ? Number(existing.target_mar) : 0;
+        if (finalApr === null) finalApr = existing.target_apr !== null ? Number(existing.target_apr) : 0;
+        if (finalMei === null) finalMei = existing.target_mei !== null ? Number(existing.target_mei) : 0;
+        if (finalJun === null) finalJun = existing.target_jun !== null ? Number(existing.target_jun) : 0;
+        if (finalJul === null) finalJul = existing.target_jul !== null ? Number(existing.target_jul) : 0;
+        if (finalAgt === null) finalAgt = existing.target_agt !== null ? Number(existing.target_agt) : 0;
+        if (finalSep === null) finalSep = existing.target_sep !== null ? Number(existing.target_sep) : 0;
+        if (finalOkt === null) finalOkt = existing.target_okt !== null ? Number(existing.target_okt) : 0;
+        if (finalNov === null) finalNov = existing.target_nov !== null ? Number(existing.target_nov) : 0;
+        if (finalDes === null) finalDes = existing.target_des !== null ? Number(existing.target_des) : 0;
+
+        if (!hasAnyImportedTarget && nilaiAnggaran > 0) {
+          const base = Math.floor(nilaiAnggaran / 12);
+          const remainder = nilaiAnggaran - (base * 12);
+          finalJan = base; finalFeb = base; finalMar = base; finalApr = base;
+          finalMei = base; finalJun = base; finalJul = base; finalAgt = base;
+          finalSep = base; finalOkt = base; finalNov = base; finalDes = base + remainder;
+        }
+      } else {
+        const base = Math.floor(nilaiAnggaran / 12);
+        const remainder = nilaiAnggaran - (base * 12);
+        if (finalJan === null) finalJan = base;
+        if (finalFeb === null) finalFeb = base;
+        if (finalMar === null) finalMar = base;
+        if (finalApr === null) finalApr = base;
+        if (finalMei === null) finalMei = base;
+        if (finalJun === null) finalJun = base;
+        if (finalJul === null) finalJul = base;
+        if (finalAgt === null) finalAgt = base;
+        if (finalSep === null) finalSep = base;
+        if (finalOkt === null) finalOkt = base;
+        if (finalNov === null) finalNov = base;
+        if (finalDes === null) finalDes = base + remainder;
+      }
+
       if (existing) {
         await prisma.rkatPengumpulan.update({
           where: { id: existing.id },
@@ -259,18 +295,18 @@ export const importRkatPengumpulan = async (req: Request, res: Response): Promis
             target_perorangan: targetPerorangan !== null ? parseInt(String(targetPerorangan)) : null,
             target_lembaga: targetLembaga !== null ? parseInt(String(targetLembaga)) : null,
             nilai_anggaran: nilaiAnggaran,
-            target_jan: targetJan,
-            target_feb: targetFeb,
-            target_mar: targetMar,
-            target_apr: targetApr,
-            target_mei: targetMei,
-            target_jun: targetJun,
-            target_jul: targetJul,
-            target_agt: targetAgt,
-            target_sep: targetSep,
-            target_okt: targetOkt,
-            target_nov: targetNov,
-            target_des: targetDes
+            target_jan: finalJan,
+            target_feb: finalFeb,
+            target_mar: finalMar,
+            target_apr: finalApr,
+            target_mei: finalMei,
+            target_jun: finalJun,
+            target_jul: finalJul,
+            target_agt: finalAgt,
+            target_sep: finalSep,
+            target_okt: finalOkt,
+            target_nov: finalNov,
+            target_des: finalDes
           }
         });
         updatedCount++;
@@ -284,18 +320,18 @@ export const importRkatPengumpulan = async (req: Request, res: Response): Promis
             target_perorangan: targetPerorangan !== null ? parseInt(String(targetPerorangan)) : null,
             target_lembaga: targetLembaga !== null ? parseInt(String(targetLembaga)) : null,
             nilai_anggaran: nilaiAnggaran,
-            target_jan: targetJan !== null ? targetJan : (nilaiAnggaran / 12),
-            target_feb: targetFeb !== null ? targetFeb : (nilaiAnggaran / 12),
-            target_mar: targetMar !== null ? targetMar : (nilaiAnggaran / 12),
-            target_apr: targetApr !== null ? targetApr : (nilaiAnggaran / 12),
-            target_mei: targetMei !== null ? targetMei : (nilaiAnggaran / 12),
-            target_jun: targetJun !== null ? targetJun : (nilaiAnggaran / 12),
-            target_jul: targetJul !== null ? targetJul : (nilaiAnggaran / 12),
-            target_agt: targetAgt !== null ? targetAgt : (nilaiAnggaran / 12),
-            target_sep: targetSep !== null ? targetSep : (nilaiAnggaran / 12),
-            target_okt: targetOkt !== null ? targetOkt : (nilaiAnggaran / 12),
-            target_nov: targetNov !== null ? targetNov : (nilaiAnggaran / 12),
-            target_des: targetDes !== null ? targetDes : (nilaiAnggaran / 12)
+            target_jan: finalJan,
+            target_feb: finalFeb,
+            target_mar: finalMar,
+            target_apr: finalApr,
+            target_mei: finalMei,
+            target_jun: finalJun,
+            target_jul: finalJul,
+            target_agt: finalAgt,
+            target_sep: finalSep,
+            target_okt: finalOkt,
+            target_nov: finalNov,
+            target_des: finalDes
           }
         });
         insertedCount++;

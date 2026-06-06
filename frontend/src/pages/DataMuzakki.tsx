@@ -37,9 +37,19 @@ const maskNIK = (nik: string) => {
   return '*'.repeat(nik.length - 3) + nik.slice(-3);
 };
 
-export default function DataMuzakki() {
+export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string) => void }) {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
+
+  const handleTerimaZis = (muzakki: any) => {
+    localStorage.setItem('selected_muzakki_penerimaan', JSON.stringify({
+      id: muzakki.id,
+      nama: muzakki.nama
+    }));
+    if (onNavigate) {
+      onNavigate('Penerimaan ZIS');
+    }
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
@@ -540,6 +550,11 @@ export default function DataMuzakki() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => handleTerimaZis(muzakki)}
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-emerald-600 rounded-xl transition-colors" title="Terima ZIS">
+                        <DollarSign className="size-4" />
+                      </button>
                       <button 
                         onClick={() => { setSelectedData(muzakki); setDetailNIKRevealed(false); setIsDetailModalOpen(true); }}
                         className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-primary rounded-xl transition-colors" title="Detail">
