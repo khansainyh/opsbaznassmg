@@ -61,6 +61,7 @@ model Muzakki {
   upz                String?
   alamat_kantor      String?   @db.Text
   handphone          String?
+  no_rekening        String?   @unique
 
   // Fields khusus Lembaga
   no_pengukuhan      String?

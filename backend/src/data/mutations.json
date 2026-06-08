@@ -105,5 +105,22 @@
     "coaCode": "41020101",
     "sumberDana": "Zakat",
     "keteranganRealisasi": "Zakat Fitrah an Khansa Inayah Arrazaqu"
+  },
+  {
+    "id": "mut-1780887725197",
+    "tanggal": "2026-06-08",
+    "bankAccountId": "bsi-istt",
+    "bankName": "BSI - Rekening Utama Infak Tidak Terikat",
+    "keteranganBank": "twa",
+    "nominal": 200000,
+    "type": "DEBIT",
+    "status": "RECONCILED",
+    "reconciledAt": "2026-06-08T03:15:04.134Z",
+    "reconciledBy": "Super Admin",
+    "muzakkiId": "46827c42-7562-46fa-9473-9536652346ad",
+    "muzakkiName": "Siti Rahma",
+    "coaCode": "41010101",
+    "sumberDana": "Zakat",
+    "keteranganRealisasi": "Zakat Fitrah an Siti Rahma"
   }
 ]

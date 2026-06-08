@@ -383,20 +383,75 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
     const nominal = Number(mutation.nominal);
     const formattedKeterangan = keterangan || `Identifikasi Mutasi: Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama} (Keterangan Bank: ${mutation.keteranganBank})`;
 
-    // Create PenerimaanZis record in PENDING state (since SIMBA sync will trigger journal/balance entries later)
-    await prisma.penerimaanZis.create({
-      data: {
-        no_kuitansi: noKuitansi,
-        muzakki_id: muzakkiId,
-        rkat_id: rkatId,
-        bank_account_id: mutation.bankAccountId,
-        nominal: new Prisma.Decimal(nominal),
-        metode_pembayaran: 'TRANSFER',
-        tanggal_pembayaran: new Date(mutation.tanggal),
-        keterangan: formattedKeterangan,
-        status_simba: 'PENDING',
-        transaksi_id: null
+    await prisma.$transaction(async (tx) => {
+      // 1. Update Bank account balance
+      await tx.bankAccount.update({
+        where: { account_id: mutation.bankAccountId },
+        data: {
+          saldo: { increment: new Prisma.Decimal(nominal) }
+        }
+      });
+
+      // 2. Fetch or create credit COA code
+      const creditCoaCode = rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101';
+      const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
+      if (!coaExists) {
+        await tx.chartOfAccounts.create({
+          data: {
+            coa_code: creditCoaCode,
+            nama_akun: `Penerimaan ${rkat.nama_program}`,
+            klasifikasi: 'Penerimaan',
+            tipe_dana: rkat.kategori.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
+          }
+        });
       }
+
+      // 3. Create Realisasi entry
+      const realisasi = await tx.realisasi.create({
+        data: {
+          rkat_id: rkatId,
+          tanggal: new Date(mutation.tanggal),
+          keterangan: formattedKeterangan
+        }
+      });
+
+      // 4. Create Debit JournalEntry (Bank Account)
+      await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasi.transaksi_id,
+          coa_code: bankAccount.coa_code,
+          debit: new Prisma.Decimal(nominal),
+          kredit: new Prisma.Decimal(0),
+          account_id: mutation.bankAccountId
+        }
+      });
+
+      // 5. Create Credit JournalEntry (Revenue COA)
+      await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasi.transaksi_id,
+          coa_code: creditCoaCode,
+          debit: new Prisma.Decimal(0),
+          kredit: new Prisma.Decimal(nominal),
+          account_id: null
+        }
+      });
+
+      // 6. Create PenerimaanZis record in PENDING state (but with transaksi_id set)
+      await tx.penerimaanZis.create({
+        data: {
+          no_kuitansi: noKuitansi,
+          muzakki_id: muzakkiId,
+          rkat_id: rkatId,
+          bank_account_id: mutation.bankAccountId,
+          nominal: new Prisma.Decimal(nominal),
+          metode_pembayaran: 'TRANSFER',
+          tanggal_pembayaran: new Date(mutation.tanggal),
+          keterangan: formattedKeterangan,
+          status_simba: 'PENDING',
+          transaksi_id: realisasi.transaksi_id
+        }
+      });
     });
 
     // Update JSON mutation state

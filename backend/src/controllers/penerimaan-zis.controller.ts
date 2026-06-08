@@ -77,7 +77,60 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
 
       const formattedKeterangan = keterangan || `Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama}`;
 
-      // 3. Create PenerimaanZis record in PENDING state (no financial entries created yet)
+      // Update BankAccount balance (increment)
+      await tx.bankAccount.update({
+        where: { account_id: bank_account_id },
+        data: {
+          saldo: { increment: new Prisma.Decimal(tNominal) }
+        }
+      });
+
+      // Fetch or create credit ChartOfAccounts
+      const creditCoaCode = rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101';
+      const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
+      if (!coaExists) {
+        await tx.chartOfAccounts.create({
+          data: {
+            coa_code: creditCoaCode,
+            nama_akun: `Penerimaan ${rkat.nama_program}`,
+            klasifikasi: 'Penerimaan',
+            tipe_dana: rkat.kategori.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
+          }
+        });
+      }
+
+      // Create Realisasi record
+      const realisasiTrx = await tx.realisasi.create({
+        data: {
+          rkat_id: rkat_id,
+          tanggal: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
+          keterangan: formattedKeterangan
+        }
+      });
+
+      // Create Debit entry (Cash/Bank account)
+      await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasiTrx.transaksi_id,
+          coa_code: bankAccount.coa_code,
+          debit: new Prisma.Decimal(tNominal),
+          kredit: new Prisma.Decimal(0.00),
+          account_id: bank_account_id
+        }
+      });
+
+      // Create Credit entry (Revenue COA)
+      await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasiTrx.transaksi_id,
+          coa_code: creditCoaCode,
+          debit: new Prisma.Decimal(0.00),
+          kredit: new Prisma.Decimal(tNominal),
+          account_id: null
+        }
+      });
+
+      // 3. Create PenerimaanZis record in PENDING state (but with transaksi_id set)
       const penerimaan = await tx.penerimaanZis.create({
         data: {
           no_kuitansi: generatedKuitansi,
@@ -89,7 +142,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
           tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
           keterangan: formattedKeterangan,
           status_simba: 'PENDING',
-          transaksi_id: null
+          transaksi_id: realisasiTrx.transaksi_id
         },
         include: {
           muzakki: true,
@@ -119,12 +172,7 @@ export const updateSimbaStatus = async (req: Request, res: Response) => {
     }
 
     const existing = await prisma.penerimaanZis.findUnique({
-      where: { id },
-      include: {
-        muzakki: true,
-        rkat: true,
-        bankAccount: true
-      }
+      where: { id }
     });
 
     if (!existing) {
@@ -132,104 +180,14 @@ export const updateSimbaStatus = async (req: Request, res: Response) => {
       return;
     }
 
-    if (existing.status_simba === status_simba) {
-      res.status(200).json({ status: 'success', data: existing });
-      return;
-    }
-
-    const updated = await prisma.$transaction(async (tx) => {
-      let transaksiId = existing.transaksi_id;
-
-      if (status_simba === 'SYNCED') {
-        const nominalVal = Number(existing.nominal);
-
-        // 1. Update BankAccount balance (increment)
-        await tx.bankAccount.update({
-          where: { account_id: existing.bank_account_id },
-          data: {
-            saldo: { increment: new Prisma.Decimal(nominalVal) }
-          }
-        });
-
-        // 2. Fetch or create credit ChartOfAccounts
-        const creditCoaCode = existing.rkat.coa_codes ? existing.rkat.coa_codes.split(',')[0].trim() : '41010101';
-        const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
-        if (!coaExists) {
-          await tx.chartOfAccounts.create({
-            data: {
-              coa_code: creditCoaCode,
-              nama_akun: `Penerimaan ${existing.rkat.nama_program}`,
-              klasifikasi: 'Penerimaan',
-              tipe_dana: existing.rkat.kategori.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
-            }
-          });
-        }
-
-        // 3. Create Realisasi record
-        const formattedKeterangan = existing.keterangan || `Penerimaan ZIS program ${existing.rkat.nama_program} via ${existing.bankAccount.nama_akun} dari ${existing.muzakki.nama}`;
-        const realisasiTrx = await tx.realisasi.create({
-          data: {
-            rkat_id: existing.rkat_id,
-            tanggal: existing.tanggal_pembayaran,
-            keterangan: formattedKeterangan
-          }
-        });
-        transaksiId = realisasiTrx.transaksi_id;
-
-        // 4. Create Debit entry (Cash/Bank account)
-        await tx.journalEntry.create({
-          data: {
-            transaksi_id: realisasiTrx.transaksi_id,
-            coa_code: existing.bankAccount.coa_code,
-            debit: new Prisma.Decimal(nominalVal),
-            kredit: new Prisma.Decimal(0.00),
-            account_id: existing.bank_account_id
-          }
-        });
-
-        // 5. Create Credit entry (Revenue COA)
-        await tx.journalEntry.create({
-          data: {
-            transaksi_id: realisasiTrx.transaksi_id,
-            coa_code: creditCoaCode,
-            debit: new Prisma.Decimal(0.00),
-            kredit: new Prisma.Decimal(nominalVal),
-            account_id: null
-          }
-        });
-      } else if (status_simba === 'PENDING') {
-        const nominalVal = Number(existing.nominal);
-
-        // 1. Decrement BankAccount balance
-        await tx.bankAccount.update({
-          where: { account_id: existing.bank_account_id },
-          data: {
-            saldo: { decrement: new Prisma.Decimal(nominalVal) }
-          }
-        });
-
-        // 2. Delete Realisasi record (which cascades to delete journalEntries)
-        if (existing.transaksi_id) {
-          await tx.realisasi.delete({
-            where: { transaksi_id: existing.transaksi_id }
-          });
-        }
-        transaksiId = null;
+    const updated = await prisma.penerimaanZis.update({
+      where: { id },
+      data: { status_simba },
+      include: {
+        muzakki: true,
+        rkat: true,
+        bankAccount: true
       }
-
-      // Update PenerimaanZis record status and transaksi_id
-      return await tx.penerimaanZis.update({
-        where: { id },
-        data: {
-          status_simba,
-          transaksi_id: transaksiId
-        },
-        include: {
-          muzakki: true,
-          rkat: true,
-          bankAccount: true
-        }
-      });
     });
 
     res.status(200).json({ status: 'success', data: updated });

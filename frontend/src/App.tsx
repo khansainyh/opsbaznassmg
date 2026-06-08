@@ -36,6 +36,7 @@ import RekonsiliasiMutasi from '@/src/pages/RekonsiliasiMutasi';
 import PengeluaranManual from '@/src/pages/PengeluaranManual';
 import PenerimaanZis from '@/src/pages/PenerimaanZis';
 import IdentifikasiMutasi from '@/src/pages/IdentifikasiMutasi';
+import PenerimaanBankJateng from '@/src/pages/PenerimaanBankJateng';
 
 
 function App() {
@@ -333,6 +334,8 @@ function App() {
           <DataMuzakki onNavigate={setActiveMenu} />
         ) : activeMenu === 'Penerimaan ZIS' ? (
           <PenerimaanZis />
+        ) : activeMenu === 'Penerimaan Bulk' ? (
+          <PenerimaanBankJateng />
         ) : activeMenu === 'Identifikasi Mutasi' ? (
           <IdentifikasiMutasi />
         ) : activeMenu === 'Database UPZ' ? (

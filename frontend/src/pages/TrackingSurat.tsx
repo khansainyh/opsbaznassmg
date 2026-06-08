@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search, Filter, Calendar, FileText, Clock, CheckCircle2,
-  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, FileSearch
+  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -283,22 +283,35 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                 </div>
 
                 {/* PDF/GDrive Viewer if exists */}
-                {selectedSurat.fileGdriveLink && toGDriveEmbedUrl(selectedSurat.fileGdriveLink) && (
-                  <div className="space-y-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <FileSearch className="size-4 text-blue-500" />
-                      <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Dokumen Lampiran</h4>
+                      <FileText className="size-4 text-primary" />
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dokumen Surat</h4>
                     </div>
-                    <div className="rounded-xl overflow-hidden border border-blue-200 shadow-sm" style={{ height: '320px' }}>
+                    {selectedSurat.fileGdriveLink && (
+                      <a href={selectedSurat.fileGdriveLink} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
+                        <ExternalLink className="size-3" /> Buka di Drive
+                      </a>
+                    )}
+                  </div>
+                  {selectedSurat.fileGdriveLink && toGDriveEmbedUrl(selectedSurat.fileGdriveLink) ? (
+                    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: '320px' }}>
                       <iframe
                         src={toGDriveEmbedUrl(selectedSurat.fileGdriveLink)!}
                         className="w-full h-full bg-slate-100"
-                        title="Dokumen surat"
+                        title="Dokumen Surat"
                         allow="autoplay"
                       />
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
+                      <FileText className="size-8 mb-2 opacity-30" />
+                      <p className="text-xs font-medium">Tidak ada dokumen terlampir</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Info Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search, Filter, Calendar, FileText, Clock, CheckCircle2,
-  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, Banknote, History
+  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, Banknote, History, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -363,6 +363,37 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                         value={`${formatCurrency(selectedProposal.nominal)} (${selectedProposal.tipeBantuan || '-'})`} />
                     )}
                   </div>
+                </div>
+
+                {/* Preview Dokumen */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-4 text-primary" />
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dokumen Proposal</h4>
+                    </div>
+                    {selectedProposal.fileGdriveLink && (
+                      <a href={selectedProposal.fileGdriveLink} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
+                        <ExternalLink className="size-3" /> Buka di Drive
+                      </a>
+                    )}
+                  </div>
+                  {selectedProposal.fileGdriveLink ? (
+                    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: '320px' }}>
+                      <iframe
+                        src={selectedProposal.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')}
+                        className="w-full h-full bg-slate-100"
+                        title="Dokumen Proposal"
+                        allow="autoplay"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
+                      <FileText className="size-8 mb-2 opacity-30" />
+                      <p className="text-xs font-medium">Tidak ada dokumen terlampir</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Progress Steps */}

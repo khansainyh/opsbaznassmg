@@ -92,6 +92,7 @@ const menuGroups = [
     title: "PENGUMPULAN",
     items: [
       { name: "Penerimaan ZIS", icon: Banknote, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Keuangan", "Staf_Pelaporan"] },
+      { name: "Penerimaan Bulk", icon: Building2, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
       { name: "Identifikasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Keuangan", "Staf_Pelaporan"] },
     ]
   },

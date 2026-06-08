@@ -222,6 +222,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       npwz: formData.get('npwz'),
       nama: formData.get('name'),
       npwp: formData.get('npwp') || '',
+      no_rekening: formData.get('no_rekening') || '',
       zakat_per_bulan: formData.get('zakat_per_bulan') ? Number(formData.get('zakat_per_bulan')) : null,
       keterangan: formData.get('catatan') || '',
       alamat: formData.get('address'),
@@ -278,6 +279,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       npwz: formData.get('npwz'),
       nama: formData.get('name'),
       npwp: formData.get('npwp') || '',
+      no_rekening: formData.get('no_rekening') || '',
       zakat_per_bulan: formData.get('zakat_per_bulan') ? Number(formData.get('zakat_per_bulan')) : null,
       keterangan: formData.get('catatan') || '',
       alamat: formData.get('address'),
@@ -636,14 +638,18 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                 </button>
               </div>
               <form onSubmit={handleAddMuzakki} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWZ (Nomor Pokok Wajib Zakat)</label>
-                    <input name="npwz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kosongkan untuk otomatis..." />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWZ</label>
+                    <input name="npwz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Otomatis..." />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWP (Opsional)</label>
                     <input name="npwp" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="NPWP..." />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Rekening</label>
+                    <input name="no_rekening" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Rekening..." />
                   </div>
                 </div>
 
@@ -845,14 +851,18 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                 </button>
               </div>
               <form onSubmit={handleUpdateMuzakki} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWZ (Nomor Pokok Wajib Zakat)</label>
-                    <input defaultValue={selectedData.npwz} required name="npwz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWZ</label>
+                    <input defaultValue={selectedData.npwz} name="npwz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWP</label>
                     <input defaultValue={selectedData.npwp || ''} name="npwp" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Rekening</label>
+                    <input defaultValue={selectedData.no_rekening || ''} name="no_rekening" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Rekening..." />
                   </div>
                 </div>
 
@@ -1087,6 +1097,12 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       <FileText className="size-3.5" /> NPWP
                     </p>
                     <p className="text-sm font-semibold text-slate-800 mt-1 font-mono">{selectedData.npwp || '-'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                      <FileText className="size-3.5" /> No. Rekening
+                    </p>
+                    <p className="text-sm font-semibold text-slate-800 mt-1 font-mono">{selectedData.no_rekening || '-'}</p>
                   </div>
 
                   {selectedData.kategori === 'Perorangan' ? (

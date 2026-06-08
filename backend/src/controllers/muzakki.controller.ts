@@ -34,6 +34,7 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       upz, 
       alamat_kantor, 
       handphone,
+      no_rekening,
 
       // Lembaga
       no_pengukuhan, 
@@ -88,6 +89,17 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       }
     }
 
+    // Check if no_rekening already exists
+    if (no_rekening) {
+      const existingNoRekening = await prisma.muzakki.findUnique({
+        where: { no_rekening: String(no_rekening) }
+      });
+      if (existingNoRekening) {
+        res.status(400).json({ status: 'error', message: 'Nomor Rekening sudah terdaftar.' });
+        return;
+      }
+    }
+
     const newMuzakki = await prisma.muzakki.create({
       data: {
         npwz: finalNpwz,
@@ -100,6 +112,7 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
         telepon: telepon ? String(telepon) : null,
         email: email ? String(email) : null,
         status: status ? String(status) : 'Aktif',
+        no_rekening: no_rekening ? String(no_rekening) : null,
 
         // Perorangan
         nik: currentKategori === 'Perorangan' ? String(nik) : null,
@@ -152,6 +165,7 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
       upz, 
       alamat_kantor, 
       handphone,
+      no_rekening,
 
       // Lembaga
       no_pengukuhan, 
@@ -225,6 +239,18 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
       }
     }
 
+    if (req.body.no_rekening !== undefined && req.body.no_rekening !== existing.no_rekening) {
+      if (req.body.no_rekening) {
+        const existingNoRek = await prisma.muzakki.findUnique({
+          where: { no_rekening: String(req.body.no_rekening) }
+        });
+        if (existingNoRek && existingNoRek.id !== id) {
+          res.status(400).json({ status: 'error', message: 'Nomor Rekening sudah terpakai oleh data lain.' });
+          return;
+        }
+      }
+    }
+
     const updated = await prisma.muzakki.update({
       where: { id },
       data: {
@@ -238,6 +264,7 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
         telepon: telepon !== undefined ? (telepon ? String(telepon) : null) : existing.telepon,
         email: email !== undefined ? (email ? String(email) : null) : existing.email,
         status: status ? String(status) : existing.status,
+        no_rekening: req.body.no_rekening !== undefined ? (req.body.no_rekening ? String(req.body.no_rekening) : null) : existing.no_rekening,
 
         // Perorangan
         nik: currentKategori === 'Perorangan' ? (nik ? String(nik) : existing.nik) : null,
@@ -307,6 +334,7 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
       const telepon = row.telepon || row.telephone || null;
       const email = row.email || null;
       const status = row.status || 'Aktif';
+      const no_rekening = row.no_rekening || row['no rekening'] || row['no. rekening'] || null;
 
       if (kategori === 'Perorangan') {
         const nik = row.nik ? String(row.nik).trim() : null;
@@ -332,6 +360,7 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
             telepon: telepon ? String(telepon) : undefined,
             email: email ? String(email) : undefined,
             status: String(status),
+            no_rekening: no_rekening ? String(no_rekening) : undefined,
             tempat_lahir: tempat_lahir ? String(tempat_lahir) : undefined,
             tanggal_lahir: tanggal_lahir ? String(tanggal_lahir) : undefined,
             jenis_kelamin: String(jenis_kelamin),
@@ -352,6 +381,7 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
             telepon: telepon ? String(telepon) : null,
             email: email ? String(email) : null,
             status: String(status),
+            no_rekening: no_rekening ? String(no_rekening) : null,
             tempat_lahir: tempat_lahir ? String(tempat_lahir) : null,
             tanggal_lahir: tanggal_lahir ? String(tanggal_lahir) : null,
             jenis_kelamin: String(jenis_kelamin),
@@ -394,6 +424,7 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
               telepon: telepon ? String(telepon) : undefined,
               email: email ? String(email) : undefined,
               status: String(status),
+              no_rekening: no_rekening ? String(no_rekening) : undefined,
               no_pengukuhan: no_pengukuhan ? String(no_pengukuhan) : undefined,
               tanggal_pengukuhan: tanggal_pengukuhan ? String(tanggal_pengukuhan) : undefined,
               website: website ? String(website) : undefined,
@@ -418,6 +449,7 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
               telepon: telepon ? String(telepon) : null,
               email: email ? String(email) : null,
               status: String(status),
+              no_rekening: no_rekening ? String(no_rekening) : null,
               no_pengukuhan: no_pengukuhan ? String(no_pengukuhan) : null,
               tanggal_pengukuhan: tanggal_pengukuhan ? String(tanggal_pengukuhan) : null,
               website: website ? String(website) : null,
