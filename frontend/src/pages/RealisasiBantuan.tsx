@@ -60,7 +60,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
   const handleComplete = async (id: string) => {
     try {
       // Persist the status in database as 'Antrean_Arsip' to proceed to archiving
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
+      await axios.put(`/api/proposals/${id}`, {
         status: 'Antrean_Arsip'
       });
 

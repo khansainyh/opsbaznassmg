@@ -44,7 +44,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const res = await axios.get('http://127.0.0.1:4000/api/finance/accounts');
+        const res = await axios.get('/api/finance/accounts');
         setAccounts(res.data);
       } catch (e) {
         console.error('Gagal mengambil data rekening: ', e);
@@ -141,14 +141,14 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
       setSimGuardLoading(true);
       try {
         // 1. Fetch double-guard availability checks (batch)
-        const availabilityRes = await axios.post('http://127.0.0.1:4000/api/finance/check-availability-batch', {
+        const availabilityRes = await axios.post('/api/finance/check-availability-batch', {
           proposalIds: checkedProposalIds
         });
         setSimGuardResult(availabilityRes.data);
 
         // 2. Fetch journal preview if account is selected
         if (selectedAccountId) {
-          const previewRes = await axios.post('http://127.0.0.1:4000/api/finance/disburse/preview', {
+          const previewRes = await axios.post('/api/finance/disburse/preview', {
             proposalIds: checkedProposalIds,
             selectedAccountId
           });
@@ -206,7 +206,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
 
     setSimExecuting(true);
     try {
-      const res = await axios.post('http://127.0.0.1:4000/api/finance/disburse/execute', {
+      const res = await axios.post('/api/finance/disburse/execute', {
         proposalIds: checkedProposalIds,
         selectedAccountId,
         keterangan: simKeterangan
@@ -235,7 +235,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
       setSimPreviewResult(null);
 
       // Refresh accounts list
-      const resAcc = await axios.get('http://127.0.0.1:4000/api/finance/accounts');
+      const resAcc = await axios.get('/api/finance/accounts');
       setAccounts(resAcc.data);
     } catch (error: any) {
       alert('Eksekusi Finalisasi Gagal: ' + (error.response?.data?.error || error.message));

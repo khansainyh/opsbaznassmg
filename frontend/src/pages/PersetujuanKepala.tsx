@@ -39,7 +39,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const [rekomendasiNominal, setRekomendasiNominal] = useState<number>(0);
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:4000/api/users')
+    axios.get('/api/users')
       .then(res => setUsers(res.data.filter((u: any) => u.role.startsWith('Staf') || u.role === 'Relawan')))
       .catch(console.error);
   }, []);
@@ -83,7 +83,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setIsModalOpen(true);
     setLoadingAvailability(true);
     
-    axios.get(`http://127.0.0.1:4000/api/finance/check-availability/${item.id}`)
+    axios.get(`/api/finance/check-availability/${item.id}`)
       .then(res => {
         setAvailability(res.data);
         const acts = res.data.rkat_activities || [];
@@ -122,7 +122,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setIsSubmitting(true);
     try {
       if (selectedProposal) {
-        await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedProposal.id}`, {
+        await axios.put(`/api/proposals/${selectedProposal.id}`, {
           status: 'Persetujuan_Pimpinan',
           catatanKepala: catatan.trim(),
           nominal: Number(rekomendasiNominal),
@@ -139,7 +139,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
               rkatActivityId: selectedRkatId
             } : d));
       } else if (selectedSurat) {
-        await axios.put(`http://127.0.0.1:4000/api/surats/${selectedSurat.id}`, {
+        await axios.put(`/api/surats/${selectedSurat.id}`, {
           status: 'Review_Pimpinan',
           catatanKepala: catatan.trim(),
           assigned_staff: assignedStaff

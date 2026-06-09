@@ -134,9 +134,9 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
     try {
       if (editingSurat) {
         const { status: _, ...updatePayload } = payload;
-        await axios.put(`http://127.0.0.1:4000/api/surats/${editingSurat.id}`, updatePayload);
+        await axios.put(`/api/surats/${editingSurat.id}`, updatePayload);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/surats', payload);
+        await axios.post('/api/surats', payload);
       }
       window.location.reload();
     } catch (err: any) {
@@ -183,7 +183,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
         setIsScanning(false);
         return;
       }
-      await axios.post(`http://127.0.0.1:4000/api/surats/${scanTarget.id}/scan`, formData, {
+      await axios.post(`/api/surats/${scanTarget.id}/scan`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setIsScanModalOpen(false);
@@ -198,7 +198,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   const handleDeleteData = async (suratId: string) => {
     if (window.confirm('Yakin ingin menghapus surat ini?')) {
       try {
-        await axios.delete(`http://127.0.0.1:4000/api/surats/${suratId}`);
+        await axios.delete(`/api/surats/${suratId}`);
         window.location.reload();
       } catch (err) {
         console.error(err);

@@ -50,7 +50,7 @@ export default function NotificationBell() {
   const fetchNotifications = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`http://127.0.0.1:4000/api/notifications/user/${user.id}`);
+      const res = await axios.get(`/api/notifications/user/${user.id}`);
       setNotifications(res.data);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -77,7 +77,7 @@ export default function NotificationBell() {
 
   const markAsRead = async (id: string) => {
     try {
-      await axios.put(`http://127.0.0.1:4000/api/notifications/${id}/read`);
+      await axios.put(`/api/notifications/${id}/read`);
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     } catch (error) {
       console.error('Failed to mark as read:', error);
@@ -87,7 +87,7 @@ export default function NotificationBell() {
   const markAllAsRead = async () => {
     if (!user) return;
     try {
-      await axios.put(`http://127.0.0.1:4000/api/notifications/user/${user.id}/read-all`);
+      await axios.put(`/api/notifications/user/${user.id}/read-all`);
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error('Failed to mark all as read:', error);
@@ -101,7 +101,7 @@ export default function NotificationBell() {
     setIsLoadingDetail(true);
     setSuratDetail(null);
     try {
-      const res = await axios.get(`http://127.0.0.1:4000/api/surats/${suratId}`);
+      const res = await axios.get(`/api/surats/${suratId}`);
       setSuratDetail(res.data);
     } catch (err) {
       console.error(err);

@@ -84,7 +84,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   const [tanggalLahirInput, setTanggalLahirInput] = useState('');
 
   React.useEffect(() => {
-    axios.get('http://127.0.0.1:4000/api/pilars')
+    axios.get('/api/pilars')
       .then(res => {
         if (res.data && res.data.length > 0) {
           setPilarsList(res.data);
@@ -193,7 +193,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
     try {
       const isLembaga = jenisPengajuanState === 'Lembaga';
       if (nikStatus === 'new' && nikCheckStr.length === 16) {
-        const res = await axios.post('http://127.0.0.1:4000/api/mustahik/auto-register', {
+        const res = await axios.post('/api/mustahik/auto-register', {
           nik: nikCheckStr,
           nama: isLembaga ? payload.nama_instansi : payload.nama_pemohon,
           nama_pimpinan: isLembaga ? payload.pimpinan_organisasi : null,
@@ -218,7 +218,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
       } else if (matchedMustahikId) {
         payload.mustahik_id = matchedMustahikId;
         // Keep the Mustahik record updated with latest details
-        await axios.put(`http://127.0.0.1:4000/api/mustahik/${matchedMustahikId}`, {
+        await axios.put(`/api/mustahik/${matchedMustahikId}`, {
           nik: nikCheckStr,
           nama: isLembaga ? payload.nama_instansi : payload.nama_pemohon,
           nama_pimpinan: isLembaga ? payload.pimpinan_organisasi : null,
@@ -242,9 +242,9 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
 
       if (editingProposal) {
         const { status: _, ...updatePayload } = payload;
-        await axios.put(`http://127.0.0.1:4000/api/proposals/${editingProposal.id}`, updatePayload);
+        await axios.put(`/api/proposals/${editingProposal.id}`, updatePayload);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/proposals', payload);
+        await axios.post('/api/proposals', payload);
       }
       window.location.reload();
     } catch (err: any) {
@@ -260,7 +260,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
     setNikStatus('idle');
     setMatchedMustahikId(null);
     try {
-      const res = await axios.get(`http://127.0.0.1:4000/api/mustahik/cek-nik/${nikCheckStr}`);
+      const res = await axios.get(`/api/mustahik/cek-nik/${nikCheckStr}`);
       const { status, mustahik_id, message } = res.data;
       setNikStatus(status);
       setNikMessage(message);
@@ -334,7 +334,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
         setIsScanning(false);
         return;
       }
-      await axios.post(`http://127.0.0.1:4000/api/proposals/${scanTarget.id}/scan`, formData, {
+      await axios.post(`/api/proposals/${scanTarget.id}/scan`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setIsScanModalOpen(false);
@@ -349,7 +349,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   const handleDeleteData = async (proposalId: string) => {
     if (window.confirm('Yakin ingin menghapus proposal ini?')) {
       try {
-        await axios.delete(`http://127.0.0.1:4000/api/proposals/${proposalId}`);
+        await axios.delete(`/api/proposals/${proposalId}`);
         window.location.reload();
       } catch (err) {
         console.error(err);

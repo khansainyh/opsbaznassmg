@@ -26,7 +26,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   React.useEffect(() => {
     const fetchBps = async () => {
       try {
-        const res = await axios.get('http://127.0.0.1:4000/api/parameters/GARIS_KEMISKINAN_BPS');
+        const res = await axios.get('/api/parameters/GARIS_KEMISKINAN_BPS');
         if (res.data && res.data.value) {
           setBpsPovertyLine(parseInt(res.data.value));
         }
@@ -185,7 +185,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const handleClaimTask = async (task: ProposalMemo) => {
     try {
       const surveyorName = user?.name || 'Relawan';
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${task.id}`, {
+      await axios.put(`/api/proposals/${task.id}`, {
         surveyorName
       });
       const updated = data.map(d => d.id === task.id ? { ...d, surveyorName } : d);
@@ -200,7 +200,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
 
   const handleStartSurvey = async (task: ProposalMemo) => {
     try {
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${task.id}`, {
+      await axios.put(`/api/proposals/${task.id}`, {
         isBeingSurveyed: true
       });
       const updated = data.map(d => d.id === task.id ? { ...d, isBeingSurveyed: true } : d);
@@ -231,7 +231,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       formData.append('score', totalScore.toString());
       formData.append('survey_data', JSON.stringify(surveyForm));
 
-      const response = await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedTask.id}`, formData, {
+      const response = await axios.put(`/api/proposals/${selectedTask.id}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }

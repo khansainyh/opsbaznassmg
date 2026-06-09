@@ -29,7 +29,7 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const res = await axios.get('http://127.0.0.1:4000/api/finance/accounts');
+        const res = await axios.get('/api/finance/accounts');
         setAccounts(res.data);
       } catch (e) {
         console.error('Gagal mengambil data rekening: ', e);

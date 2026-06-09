@@ -54,7 +54,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
 
     setSavingId(proposalId);
     try {
-      const res = await axios.put(`http://127.0.0.1:4000/api/mustahik/${mustahikId}`, {
+      const res = await axios.put(`/api/mustahik/${mustahikId}`, {
         nrm: nrmValue
       });
 
@@ -90,7 +90,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
   const handleCompleteSync = async (proposalId: string) => {
     setSyncingId(proposalId);
     try {
-      const res = await axios.put(`http://127.0.0.1:4000/api/proposals/${proposalId}`, {
+      const res = await axios.put(`/api/proposals/${proposalId}`, {
         status: 'Realisasi_Bantuan'
       });
 

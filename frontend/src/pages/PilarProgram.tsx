@@ -38,7 +38,7 @@ export default function PilarProgram() {
 
   const fetchData = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:4000/api/pilars');
+      const res = await axios.get('/api/pilars');
       setData(res.data);
     } catch (e) {
       console.error(e);
@@ -101,7 +101,7 @@ export default function PilarProgram() {
           throw new Error("File kosong atau format salah.");
       }
 
-      const res = await axios.post('http://127.0.0.1:4000/api/programs/import', parsedData);
+      const res = await axios.post('/api/programs/import', parsedData);
       
       const newMessages = [];
       if (res.data.status === 'success') {
@@ -196,20 +196,20 @@ export default function PilarProgram() {
       if (editType === 'pilar') {
         if (!isAdding && editingPilar) {
           // Update
-          const res = await axios.put(`http://127.0.0.1:4000/api/pilars/${editingPilar.code}`, {
+          const res = await axios.put(`/api/pilars/${editingPilar.code}`, {
             name: formData.name, category: formData.category
           });
           setData(prev => prev.map(p => p.code === editingPilar.code ? { ...p, ...res.data } : p));
         } else {
           // Add
-          const res = await axios.post('http://127.0.0.1:4000/api/pilars', {
+          const res = await axios.post('/api/pilars', {
             code: formData.code, name: formData.name, category: formData.category, status: 'Aktif'
           });
           setData(prev => [...prev, { ...res.data, programs: [] }]);
         }
       } else if (editType === 'program' && editingProgram) {
         if (!isAdding) {
-          const res = await axios.put(`http://127.0.0.1:4000/api/programs/${editingProgram.program.code}`, {
+          const res = await axios.put(`/api/programs/${editingProgram.program.code}`, {
             pilar_code: editingProgram.pilarCode,
             name: formData.name,
             tipe: formData.tipe
@@ -219,7 +219,7 @@ export default function PilarProgram() {
             programs: p.programs.map(pr => pr.code === editingProgram.program.code ? res.data : pr)
           } : p));
         } else {
-          const res = await axios.post('http://127.0.0.1:4000/api/programs', {
+          const res = await axios.post('/api/programs', {
             code: formData.code,
             pilar_code: editingProgram.pilarCode,
             name: formData.name,
@@ -241,7 +241,7 @@ export default function PilarProgram() {
   const handleDeletePilar = async (code: string) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus pilar ini beserta seluruh program di dalamnya?")) {
       try {
-        await axios.delete(`http://127.0.0.1:4000/api/pilars/${code}`);
+        await axios.delete(`/api/pilars/${code}`);
         setData(prev => prev.filter(p => p.code !== code));
       } catch (e) {
         alert('Gagal menghapus pilar.');
@@ -252,7 +252,7 @@ export default function PilarProgram() {
   const handleDeleteProgram = async (pilarCode: string, programCode: string) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus program ini?")) {
       try {
-        await axios.delete(`http://127.0.0.1:4000/api/programs/${programCode}`);
+        await axios.delete(`/api/programs/${programCode}`);
         setData(prev => prev.map(p => p.code === pilarCode ? {
           ...p,
           programs: p.programs.filter(pr => pr.code !== programCode)

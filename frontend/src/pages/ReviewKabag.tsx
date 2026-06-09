@@ -68,7 +68,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
 
   const handleApproveProposal = async (id: string) => {
     try {
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
+      await axios.put(`/api/proposals/${id}`, {
         status: 'Monitoring_Tugas'
       });
       const updatedData = data.map(item => 
@@ -84,7 +84,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
 
   const handleApproveSurat = async (id: string) => {
     try {
-      await axios.put(`http://127.0.0.1:4000/api/surats/${id}`, {
+      await axios.put(`/api/surats/${id}`, {
         status: 'Review_Kepala_Pelaksana'
       });
       const updatedData = suratData.map(item => 

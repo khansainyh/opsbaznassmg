@@ -106,7 +106,7 @@ export default function DataMustahik() {
 
   const fetchData = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:4000/api/mustahik');
+      const res = await axios.get('/api/mustahik');
       if (res.data.status === 'success') {
         setLocalMustahikData(res.data.data);
       }
@@ -143,7 +143,7 @@ export default function DataMustahik() {
           throw new Error("File kosong atau format salah.");
       }
 
-      const res = await axios.post('http://127.0.0.1:4000/api/mustahik/import', parsedData);
+      const res = await axios.post('/api/mustahik/import', parsedData);
       
       const newMessages = [];
       if (res.data.insertedCount > 0) {
@@ -190,7 +190,7 @@ export default function DataMustahik() {
           throw new Error("File kosong atau format salah.");
       }
 
-      const res = await axios.post('http://127.0.0.1:4000/api/mustahik/import-riwayat', parsedData);
+      const res = await axios.post('/api/mustahik/import-riwayat', parsedData);
       
       const newMessages = [];
       if (res.data.insertedCount > 0) {
@@ -266,7 +266,7 @@ export default function DataMustahik() {
 
     setIsLoading(true);
     try {
-      const res = await axios.post('http://127.0.0.1:4000/api/mustahik', data);
+      const res = await axios.post('/api/mustahik', data);
       if (res.data.status === 'success') {
         setIsModalOpen(false);
         fetchData();
@@ -324,7 +324,7 @@ export default function DataMustahik() {
 
     setIsLoading(true);
     try {
-      const res = await axios.put(`http://127.0.0.1:4000/api/mustahik/${selectedData.id}`, data);
+      const res = await axios.put(`/api/mustahik/${selectedData.id}`, data);
       if (res.data.status === 'success') {
         setIsEditModalOpen(false);
         fetchData();
@@ -344,7 +344,7 @@ export default function DataMustahik() {
     if (!window.confirm("Apakah Anda yakin ingin menghapus data Mustahik ini? Aksi ini tidak dapat dibatalkan.")) return;
     
     try {
-      const res = await axios.delete(`http://127.0.0.1:4000/api/mustahik/${selectedData.id}`);
+      const res = await axios.delete(`/api/mustahik/${selectedData.id}`);
       if (res.data.status === 'success') {
         setIsEditModalOpen(false);
         fetchData();

@@ -57,7 +57,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   }, [pilars]);
 
   const fetchPilars = useCallback(() => {
-    axios.get('http://127.0.0.1:4000/api/pilars')
+    axios.get('/api/pilars')
       .then(res => {
         if (res.data) {
           setPilars(res.data);
@@ -346,7 +346,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const handleUpdateStatus = async (id: string, newStatus: ProposalMemo['status']) => {
     try {
       const backendStatus = newStatus.replace(/ /g, '_');
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, { status: backendStatus });
+      await axios.put(`/api/proposals/${id}`, { status: backendStatus });
       const updatedData = data.map(item => item.id === id ? { ...item, status: newStatus } : item);
       onUpdate(updatedData);
     } catch (err) {
@@ -368,7 +368,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         hasil_identifikasi: hasilIdentifikasi,
         approval_kabag: true
       };
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${task.id}`, payload);
+      await axios.put(`/api/proposals/${task.id}`, payload);
       const updatedData = data.map(item => item.id === task.id ? { 
         ...item, 
         status: 'Review Kepala Pelaksana',

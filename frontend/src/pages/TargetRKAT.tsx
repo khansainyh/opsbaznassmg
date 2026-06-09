@@ -395,7 +395,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
   const fetchRkatPengumpulan = useCallback(async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:4000/api/rkat-pengumpulan');
+      const res = await axios.get('/api/rkat-pengumpulan');
       if (res.data.status === 'success') {
         setRkatPengumpulanList(res.data.data);
       }
@@ -406,7 +406,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
   const fetchRkatOperasional = useCallback(async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:4000/api/rkat-operasional');
+      const res = await axios.get('/api/rkat-operasional');
       if (res.data.status === 'success') {
         setRkatOperasionalList(res.data.data);
       }
@@ -438,7 +438,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         target_nov: formPengMonths.nov,
         target_des: formPengMonths.des
       };
-      await axios.post('http://127.0.0.1:4000/api/rkat-pengumpulan', body);
+      await axios.post('/api/rkat-pengumpulan', body);
       setIsAddPengumpulanOpen(false);
       fetchRkatPengumpulan();
       alert('Berhasil menyimpan target RKAT Pengumpulan baru.');
@@ -472,7 +472,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         target_nov: formPengMonths.nov,
         target_des: formPengMonths.des
       };
-      await axios.put(`http://127.0.0.1:4000/api/rkat-pengumpulan/${editingPengumpulanItem.id}`, body);
+      await axios.put(`/api/rkat-pengumpulan/${editingPengumpulanItem.id}`, body);
       setEditingPengumpulanItem(null);
       fetchRkatPengumpulan();
       alert('Berhasil memperbarui target RKAT Pengumpulan.');
@@ -485,7 +485,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const deletePengumpulan = async (id: string) => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus program pengumpulan ini?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:4000/api/rkat-pengumpulan/${id}`);
+      await axios.delete(`/api/rkat-pengumpulan/${id}`);
       fetchRkatPengumpulan();
       alert('Program berhasil dihapus.');
     } catch (error) {
@@ -518,7 +518,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         target_nov: formOperMonths.nov,
         target_des: formOperMonths.des
       };
-      await axios.post('http://127.0.0.1:4000/api/rkat-operasional', body);
+      await axios.post('/api/rkat-operasional', body);
       setIsAddOperasionalOpen(false);
       fetchRkatOperasional();
       alert('Berhasil menyimpan target RKAT Operasional baru.');
@@ -553,7 +553,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         target_nov: formOperMonths.nov,
         target_des: formOperMonths.des
       };
-      await axios.put(`http://127.0.0.1:4000/api/rkat-operasional/${editingOperasionalItem.id}`, body);
+      await axios.put(`/api/rkat-operasional/${editingOperasionalItem.id}`, body);
       setEditingOperasionalItem(null);
       fetchRkatOperasional();
       alert('Berhasil memperbarui target RKAT Operasional.');
@@ -566,7 +566,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const deleteOperasional = async (id: string) => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus program operasional ini?')) return;
     try {
-      await axios.delete(`http://127.0.0.1:4000/api/rkat-operasional/${id}`);
+      await axios.delete(`/api/rkat-operasional/${id}`);
       fetchRkatOperasional();
       alert('Program berhasil dihapus.');
     } catch (error) {
@@ -585,7 +585,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const [coas, setCoas] = useState<any[]>([]);
 
   const fetchPilars = useCallback(() => {
-    axios.get('http://127.0.0.1:4000/api/pilars')
+    axios.get('/api/pilars')
       .then(res => {
         const pilars = res.data.map((pilar: any) => ({
           ...pilar,
@@ -602,7 +602,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
   }, []);
 
   const fetchCoas = useCallback(() => {
-    axios.get('http://127.0.0.1:4000/api/finance/coa')
+    axios.get('/api/finance/coa')
       .then(res => setCoas(res.data))
       .catch(err => console.error('Failed to fetch COAs in RKAT', err));
   }, []);
@@ -971,7 +971,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     const updatedTargets = [...currentTargets, newTarget];
     const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
 
-    axios.put(`http://127.0.0.1:4000/api/programs/${formProgramCode}`, {
+    axios.put(`/api/programs/${formProgramCode}`, {
       rkat_details: updatedTargets,
       budget_rkat: newBudget
     }).then(() => {
@@ -1021,12 +1021,12 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       });
 
       if (isGeneral) {
-        axios.put(`http://127.0.0.1:4000/api/programs/${targetProgramCode}`, {
+        axios.put(`/api/programs/${targetProgramCode}`, {
           budget_rkat: 0
         }).then(() => fetchPilars()).catch(console.error);
       } else if (targetProgramCode) {
         const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
-        axios.put(`http://127.0.0.1:4000/api/programs/${targetProgramCode}`, {
+        axios.put(`/api/programs/${targetProgramCode}`, {
           rkat_details: updatedTargets,
           budget_rkat: newBudget
         }).then(() => fetchPilars()).catch(console.error);
@@ -1083,7 +1083,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
           });
         });
         const oldBudget = oldTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
-        await axios.put(`http://127.0.0.1:4000/api/programs/${editingActivity.programCode}`, {
+        await axios.put(`/api/programs/${editingActivity.programCode}`, {
           rkat_details: oldTargets,
           budget_rkat: oldBudget
         });
@@ -1099,7 +1099,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         });
         const updatedNewTargets = [...newTargets, updatedTarget];
         const newBudget = updatedNewTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
-        await axios.put(`http://127.0.0.1:4000/api/programs/${formProgramCode}`, {
+        await axios.put(`/api/programs/${formProgramCode}`, {
           rkat_details: updatedNewTargets,
           budget_rkat: newBudget
         });
@@ -1131,7 +1131,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
       const newBudget = currentTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
 
-      axios.put(`http://127.0.0.1:4000/api/programs/${formProgramCode}`, {
+      axios.put(`/api/programs/${formProgramCode}`, {
         rkat_details: currentTargets,
         budget_rkat: newBudget
       }).then(() => {
@@ -3121,7 +3121,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                 target_des: row["Target Des"] || row.target_des || row["Target_Des"] || row["Target_Dec"] || null
                               }));
 
-                              await axios.post('http://127.0.0.1:4000/api/rkat-pengumpulan/import', payload);
+                              await axios.post('/api/rkat-pengumpulan/import', payload);
                               alert(`Migrasi Berhasil! Berhasil menyimpan/memperbarui data RKAT Pengumpulan.`);
                               fetchRkatPengumpulan();
                             } else if (activeTab === 'Operasional') {
@@ -3147,7 +3147,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                 target_des: row["Target Des"] || row.target_des || row["Target_Des"] || row["Target_Dec"] || null
                               }));
 
-                              await axios.post('http://127.0.0.1:4000/api/rkat-operasional/import', payload);
+                              await axios.post('/api/rkat-operasional/import', payload);
                               alert(`Migrasi Berhasil! Berhasil menyimpan/memperbarui data RKAT Operasional.`);
                               fetchRkatOperasional();
                               setIsMigrationModalOpen(false);
@@ -3187,7 +3187,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                 try {
                                   const rkatDetails = groupedByProgram[code];
                                   const budgetRkat = rkatDetails.reduce((sum, t) => sum + (t.mustahik * t.frekuensi * t.nominal), 0);
-                                  await axios.put(`http://127.0.0.1:4000/api/programs/${code}`, {
+                                  await axios.put(`/api/programs/${code}`, {
                                     rkat_details: rkatDetails,
                                     budget_rkat: budgetRkat
                                   });

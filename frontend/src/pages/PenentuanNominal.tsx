@@ -33,7 +33,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:4000/api/pilars')
+    axios.get('/api/pilars')
       .then(res => setPilars(res.data))
       .catch(console.error);
   }, []);
@@ -140,7 +140,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
 
   const handleSetTipe = async (id: string, tipe: 'Tunai' | 'Barang') => {
     try {
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
+      await axios.put(`/api/proposals/${id}`, {
         tipe_bantuan: tipe
       });
       const updatedData = data.map(item =>
@@ -178,7 +178,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
 
     setIsSubmitting(true);
     try {
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, {
+      await axios.put(`/api/proposals/${id}`, {
         nominal,
         alasan_perubahan_nominal: (defaultNominal !== undefined && nominal !== defaultNominal) ? alasan : undefined,
         status: 'Pencairan_Dana'

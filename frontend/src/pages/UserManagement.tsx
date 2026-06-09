@@ -48,7 +48,7 @@ export default function UserManagement() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('http://127.0.0.1:4000/api/users');
+      const res = await axios.get('/api/users');
       setUsers(res.data);
     } catch (err: any) {
       console.error(err);
@@ -78,10 +78,10 @@ export default function UserManagement() {
     e.preventDefault();
     try {
       if (isEdit) {
-        await axios.put(`http://127.0.0.1:4000/api/users/${formData.id}`, formData);
+        await axios.put(`/api/users/${formData.id}`, formData);
         setMessages([{ type: 'success', text: 'Data user berhasil diperbarui.' }]);
       } else {
-        await axios.post('http://127.0.0.1:4000/api/users', formData);
+        await axios.post('/api/users', formData);
         setMessages([{ type: 'success', text: 'User baru berhasil ditambahkan.' }]);
       }
       setIsModalOpen(false);
@@ -95,7 +95,7 @@ export default function UserManagement() {
   const handleDelete = async (id: string) => {
     if (confirm('Yakin ingin menghapus user ini secara permanen?')) {
       try {
-        await axios.delete(`http://127.0.0.1:4000/api/users/${id}`);
+        await axios.delete(`/api/users/${id}`);
         setMessages([{ type: 'success', text: 'User berhasil dihapus.' }]);
         fetchUsers();
       } catch (err: any) {
@@ -125,7 +125,7 @@ export default function UserManagement() {
         return;
       }
 
-      await axios.post('http://127.0.0.1:4000/api/users/bulk', mappedUsers);
+      await axios.post('/api/users/bulk', mappedUsers);
       setMessages([{ type: 'success', text: `${mappedUsers.length} Users berhasil disinkronisasi!` }]);
       fetchUsers();
 

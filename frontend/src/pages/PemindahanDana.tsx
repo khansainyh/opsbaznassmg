@@ -32,7 +32,7 @@ export default function PemindahanDana() {
   // Fetch accounts on mount
   const fetchAccounts = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:4000/api/finance/accounts');
+      const res = await axios.get('/api/finance/accounts');
       setAccounts(res.data);
     } catch (e) {
       console.error('Gagal mengambil data akun keuangan:', e);
@@ -77,7 +77,7 @@ export default function PemindahanDana() {
 
     setLoading(true);
     try {
-      await axios.post('http://127.0.0.1:4000/api/finance/replenish', {
+      await axios.post('/api/finance/replenish', {
         sourceBankId: replenishBank,
         allocations: filteredAlloc,
         keterangan: replenishKeterangan

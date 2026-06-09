@@ -94,14 +94,14 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
     setIsSubmitting(true);
     try {
       if (selectedProposal) {
-        await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedProposal.id}`, {
+        await axios.put(`/api/proposals/${selectedProposal.id}`, {
           status: 'Penentuan_Nominal',
           catatanPimpinan
         });
         onUpdate(data.map(d => d.id === selectedProposal.id
           ? { ...d, status: 'Penentuan Nominal' as any, catatanPimpinan } : d));
       } else if (selectedSurat) {
-        await axios.put(`http://127.0.0.1:4000/api/surats/${selectedSurat.id}`, {
+        await axios.put(`/api/surats/${selectedSurat.id}`, {
           status: 'Selesai',
           catatanPimpinan
         });
@@ -126,13 +126,13 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
     try {
       if (activeTab === 'proposal') {
         await Promise.all(selectedIds.map(id => 
-          axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, { status: 'Penentuan_Nominal', catatanPimpinan: cat })
+          axios.put(`/api/proposals/${id}`, { status: 'Penentuan_Nominal', catatanPimpinan: cat })
         ));
         onUpdate(data.map(d => selectedIds.includes(d.id) 
           ? { ...d, status: 'Penentuan Nominal' as any, catatanPimpinan: cat } : d));
       } else {
         await Promise.all(selectedIds.map(id => 
-          axios.put(`http://127.0.0.1:4000/api/surats/${id}`, { status: 'Selesai', catatanPimpinan: cat })
+          axios.put(`/api/surats/${id}`, { status: 'Selesai', catatanPimpinan: cat })
         ));
         onUpdateSurat(suratData.map(d => selectedIds.includes(d.id) 
           ? { ...d, status: 'Selesai', catatanPimpinan: cat } : d));
@@ -152,14 +152,14 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
     setIsSubmitting(true);
     try {
       if (selectedProposal) {
-        await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedProposal.id}`, {
+        await axios.put(`/api/proposals/${selectedProposal.id}`, {
           status: 'Ditolak',
           catatanPimpinan
         });
         onUpdate(data.map(d => d.id === selectedProposal.id
           ? { ...d, status: 'Ditolak' as any, catatanPimpinan } : d));
       } else if (selectedSurat) {
-        await axios.put(`http://127.0.0.1:4000/api/surats/${selectedSurat.id}`, {
+        await axios.put(`/api/surats/${selectedSurat.id}`, {
           status: 'Ditolak',
           catatanPimpinan
         });
@@ -184,13 +184,13 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
     try {
       if (activeTab === 'proposal') {
         await Promise.all(selectedIds.map(id => 
-          axios.put(`http://127.0.0.1:4000/api/proposals/${id}`, { status: 'Ditolak', catatanPimpinan: cat })
+          axios.put(`/api/proposals/${id}`, { status: 'Ditolak', catatanPimpinan: cat })
         ));
         onUpdate(data.map(d => selectedIds.includes(d.id) 
           ? { ...d, status: 'Ditolak' as any, catatanPimpinan: cat } : d));
       } else {
         await Promise.all(selectedIds.map(id => 
-          axios.put(`http://127.0.0.1:4000/api/surats/${id}`, { status: 'Ditolak', catatanPimpinan: cat })
+          axios.put(`/api/surats/${id}`, { status: 'Ditolak', catatanPimpinan: cat })
         ));
         onUpdateSurat(suratData.map(d => selectedIds.includes(d.id) 
           ? { ...d, status: 'Ditolak', catatanPimpinan: cat } : d));

@@ -146,7 +146,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
       };
 
       // Call API to update status to 'Selesai' and persist survey_data
-      await axios.put(`http://127.0.0.1:4000/api/proposals/${selectedProposal.id}`, {
+      await axios.put(`/api/proposals/${selectedProposal.id}`, {
         status: 'Selesai',
         survey_data: updatedSurveyData
       });

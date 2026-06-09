@@ -47,10 +47,10 @@ function App() {
   const [surats, setSurats] = useState<Surat[]>([]);
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:4000/api/pilars')
+    axios.get('/api/pilars')
       .then(pilarRes => {
         const pilarList = pilarRes.data || [];
-        axios.get('http://127.0.0.1:4000/api/proposals')
+        axios.get('/api/proposals')
           .then(res => {
             const mappedData = res.data.map((item: any) => {
               const matchedPilar = pilarList.find((p: any) => p.code === item.program?.pilar_code);
@@ -114,7 +114,7 @@ function App() {
       })
       .catch(err => {
         console.error('Gagal mengambil data pilar:', err);
-        axios.get('http://127.0.0.1:4000/api/proposals')
+        axios.get('/api/proposals')
           .then(res => {
             const mappedData = res.data.map((item: any) => ({
               id: item.id,
@@ -172,7 +172,7 @@ function App() {
           .catch(console.error);
       })
 
-    axios.get('http://127.0.0.1:4000/api/surats')
+    axios.get('/api/surats')
       .then(res => {
         const mappedSurats = res.data.map((item: any) => ({
           id: item.id,

@@ -37,7 +37,7 @@ export default function ParameterSistem() {
   const fetchParameters = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://127.0.0.1:4000/api/parameters');
+      const res = await axios.get('/api/parameters');
       setParams(res.data);
       
       // Map API array to form state dictionary
@@ -77,7 +77,7 @@ export default function ParameterSistem() {
       // Send sequential posts or individual posts to update each parameter
       const updatePromises = Object.entries(formValues).map(([key, value]) => {
         const matchingParam = params.find(p => p.key === key);
-        return axios.post('http://127.0.0.1:4000/api/parameters', {
+        return axios.post('/api/parameters', {
           key,
           value: value.toString(),
           description: matchingParam?.description || ''

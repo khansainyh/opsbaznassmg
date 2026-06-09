@@ -80,7 +80,7 @@ export default function GantiPassword() {
 
     setIsLoading(true);
     try {
-      await axios.put(`http://127.0.0.1:4000/api/users/${user?.id}/change-password`, {
+      await axios.put(`/api/users/${user?.id}/change-password`, {
         oldPassword,
         newPassword,
       });
