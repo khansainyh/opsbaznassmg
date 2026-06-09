@@ -1,0 +1,51 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            echo "==== STARTING DEPLOYMENT ===="
+            cd /var/www/baznas-app
+            
+            echo "1. Pulling latest code from GitHub..."
+            git pull origin main
+            
+            echo "2. Setting up Backend..."
+            cd backend
+            npm install
+            
+            echo "3. Updating Database Schema (Prisma)..."
+            # Perintah ini akan menyamarkan/mengupdate skema DB otomatis di server
+            npx prisma db push
+            
+            echo "4. Building Backend..."
+            npm run build
+            
+            echo "5. Restarting PM2 Backend Process..."
+            pm2 restart baznas-api || pm2 start dist/src/index.js --name "baznas-api"
+            
+            echo "6. Setting up Frontend..."
+            cd ../frontend
+            npm install --legacy-peer-deps
+            
+            echo "7. Building Frontend..."
+            npm run build
+            
+            echo "==== DEPLOYMENT SUCCESSFUL ===="
