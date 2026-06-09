@@ -153,7 +153,29 @@ export const getMustahik = async (req: Request, res: Response): Promise<void> =>
 export const updateMustahik = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = String(req.params.id);
-    const { nik, nrm, nama, tempat_lahir, tanggal_lahir, jenis_kelamin, pekerjaan, alamat, handphone, email, catatan, kategori, status_graduasi } = req.body;
+    const {
+      kategori,
+      nik,
+      nrm,
+      nama,
+      nama_pimpinan,
+      jenis_lembaga,
+      jumlah_anggota,
+      tempat_lahir,
+      tanggal_lahir,
+      jenis_kelamin,
+      pekerjaan,
+      alamat,
+      telepon,
+      handphone,
+      email,
+      provinsi,
+      kabupaten,
+      kecamatan,
+      kelurahan,
+      catatan,
+      status_graduasi
+    } = req.body;
 
     const existing = await prisma.mustahik.findUnique({ where: { id } });
     if (!existing) {
@@ -177,21 +199,33 @@ export const updateMustahik = async (req: Request, res: Response): Promise<void>
       }
     }
 
+    const isLembaga = (kategori || existing.kategori) === 'Lembaga';
+    const parsedJumlahAnggota = jumlah_anggota !== undefined ? parseInt(String(jumlah_anggota), 10) : existing.jumlah_anggota;
+
     const updated = await prisma.mustahik.update({
       where: { id },
       data: {
-        nik: nik ? String(nik) : existing.nik,
-        nrm: nrm ? String(nrm) : existing.nrm,
-        nama: nama ? String(nama) : existing.nama,
-        tempat_lahir: tempat_lahir ? String(tempat_lahir) : existing.tempat_lahir,
-        tanggal_lahir: tanggal_lahir ? String(tanggal_lahir) : existing.tanggal_lahir,
-        jenis_kelamin: jenis_kelamin ? String(jenis_kelamin) : existing.jenis_kelamin,
+        kategori: kategori !== undefined ? String(kategori) : existing.kategori,
+        nik: nik !== undefined ? (nik ? String(nik) : null) : existing.nik,
+        nrm: nrm !== undefined ? (nrm ? String(nrm) : null) : existing.nrm,
+        nama: nama !== undefined ? String(nama) : existing.nama,
+        nama_pimpinan: nama_pimpinan !== undefined ? (nama_pimpinan ? String(nama_pimpinan) : null) : existing.nama_pimpinan,
+        jenis_lembaga: jenis_lembaga !== undefined ? (jenis_lembaga ? String(jenis_lembaga) : null) : existing.jenis_lembaga,
+        jumlah_anggota: parsedJumlahAnggota,
+        tempat_lahir: tempat_lahir !== undefined ? (tempat_lahir ? String(tempat_lahir) : null) : existing.tempat_lahir,
+        tanggal_lahir: tanggal_lahir !== undefined ? (tanggal_lahir ? String(tanggal_lahir) : null) : existing.tanggal_lahir,
+        jenis_kelamin: jenis_kelamin !== undefined ? (jenis_kelamin ? String(jenis_kelamin) : null) : existing.jenis_kelamin,
         pekerjaan: pekerjaan !== undefined ? (pekerjaan ? String(pekerjaan) : null) : existing.pekerjaan,
-        alamat: alamat !== undefined ? (alamat ? String(alamat) : "") : existing.alamat,
-        handphone: handphone ? String(handphone) : existing.handphone,
+        alamat: alamat !== undefined ? (alamat ? String(alamat) : null) : existing.alamat,
+        telepon: telepon !== undefined ? (telepon ? String(telepon) : null) : existing.telepon,
+        handphone: handphone !== undefined ? (handphone ? String(handphone) : null) : existing.handphone,
         email: email !== undefined ? (email ? String(email) : null) : existing.email,
+        provinsi: provinsi !== undefined ? (provinsi ? String(provinsi) : null) : existing.provinsi,
+        kabupaten: kabupaten !== undefined ? (kabupaten ? String(kabupaten) : null) : existing.kabupaten,
+        kecamatan: kecamatan !== undefined ? (kecamatan ? String(kecamatan) : null) : existing.kecamatan,
+        kelurahan: kelurahan !== undefined ? (kelurahan ? String(kelurahan) : null) : existing.kelurahan,
         catatan: catatan !== undefined ? (catatan ? String(catatan) : "") : existing.catatan,
-        status_graduasi: status_graduasi ? String(status_graduasi) : existing.status_graduasi
+        status_graduasi: status_graduasi !== undefined ? String(status_graduasi) : existing.status_graduasi
       }
     });
 
@@ -205,7 +239,18 @@ export const updateMustahik = async (req: Request, res: Response): Promise<void>
 export const deleteMustahik = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = String(req.params.id);
-    await prisma.mustahik.delete({ where: { id } });
+    
+    await prisma.$transaction(async (tx) => {
+      // Disconnect related proposals
+      await tx.proposal.updateMany({
+        where: { mustahik_id: id },
+        data: { mustahik_id: null }
+      });
+
+      // Delete mustahik
+      await tx.mustahik.delete({ where: { id } });
+    });
+
     res.status(200).json({ status: 'success', message: 'Data berhasil dihapus.' });
   } catch (error) {
     console.error('Error deleting Mustahik:', error);
@@ -215,17 +260,50 @@ export const deleteMustahik = async (req: Request, res: Response): Promise<void>
 
 export const createMustahik = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nik, nrm, nama, tempat_lahir, tanggal_lahir, jenis_kelamin, pekerjaan, alamat, handphone, email, catatan, status_graduasi } = req.body;
-    
-    if (!nik || !nama || !tempat_lahir || !tanggal_lahir || !jenis_kelamin || !alamat || !handphone) {
-      res.status(400).json({ status: 'error', message: 'Field NIK, Nama, Tempat Lahir, Tanggal Lahir, Jenis Kelamin, Alamat, dan Handphone wajib diisi.' });
-      return;
+    const {
+      kategori,
+      nik,
+      nrm,
+      nama,
+      nama_pimpinan,
+      jenis_lembaga,
+      jumlah_anggota,
+      tempat_lahir,
+      tanggal_lahir,
+      jenis_kelamin,
+      pekerjaan,
+      alamat,
+      telepon,
+      handphone,
+      email,
+      provinsi,
+      kabupaten,
+      kecamatan,
+      kelurahan,
+      catatan,
+      status_graduasi
+    } = req.body;
+
+    const isLembaga = kategori === 'Lembaga';
+
+    if (isLembaga) {
+      if (!nama || !nik || !nama_pimpinan || !jenis_lembaga || !alamat || !telepon) {
+        res.status(400).json({ status: 'error', message: 'Field Nama Lembaga, NIK Pimpinan, Nama Pimpinan, Jenis Lembaga, Alamat, dan Telepon wajib diisi.' });
+        return;
+      }
+    } else {
+      if (!nama || !nik || !jenis_kelamin || !alamat || !telepon) {
+        res.status(400).json({ status: 'error', message: 'Field Nama, NIK, Jenis Kelamin, Alamat, dan Telepon wajib diisi.' });
+        return;
+      }
     }
 
-    const existingNik = await prisma.mustahik.findUnique({ where: { nik: String(nik) } });
-    if (existingNik) {
-      res.status(400).json({ status: 'error', message: 'NIK sudah terdaftar.' });
-      return;
+    if (nik) {
+      const existingNik = await prisma.mustahik.findUnique({ where: { nik: String(nik) } });
+      if (existingNik) {
+        res.status(400).json({ status: 'error', message: isLembaga ? 'NIK Pimpinan sudah terdaftar.' : 'NIK sudah terdaftar.' });
+        return;
+      }
     }
     
     if (nrm) {
@@ -236,18 +314,29 @@ export const createMustahik = async (req: Request, res: Response): Promise<void>
       }
     }
 
+    const parsedJumlahAnggota = jumlah_anggota ? parseInt(String(jumlah_anggota), 10) : 0;
+
     const newData = await prisma.mustahik.create({
       data: {
-        nik: String(nik),
+        kategori: kategori || 'Perorangan',
+        nik: nik ? String(nik) : null,
         nrm: nrm ? String(nrm) : null,
         nama: String(nama),
-        tempat_lahir: String(tempat_lahir),
-        tanggal_lahir: String(tanggal_lahir),
-        jenis_kelamin: String(jenis_kelamin),
-        pekerjaan: pekerjaan ? String(pekerjaan) : null,
-        alamat: String(alamat),
-        handphone: String(handphone),
+        nama_pimpinan: isLembaga ? String(nama_pimpinan) : null,
+        jenis_lembaga: isLembaga ? String(jenis_lembaga) : null,
+        jumlah_anggota: isLembaga ? parsedJumlahAnggota : 0,
+        tempat_lahir: !isLembaga && tempat_lahir ? String(tempat_lahir) : null,
+        tanggal_lahir: !isLembaga && tanggal_lahir ? String(tanggal_lahir) : null,
+        jenis_kelamin: !isLembaga && jenis_kelamin ? String(jenis_kelamin) : null,
+        pekerjaan: !isLembaga && pekerjaan ? String(pekerjaan) : null,
+        alamat: alamat ? String(alamat) : null,
+        telepon: telepon ? String(telepon) : null,
+        handphone: !isLembaga && handphone ? String(handphone) : null,
         email: email ? String(email) : null,
+        provinsi: provinsi ? String(provinsi) : null,
+        kabupaten: kabupaten ? String(kabupaten) : null,
+        kecamatan: kecamatan ? String(kecamatan) : null,
+        kelurahan: kelurahan ? String(kelurahan) : null,
         catatan: catatan ? String(catatan) : '',
         status_graduasi: status_graduasi ? String(status_graduasi) : 'Belum'
       }
@@ -263,10 +352,40 @@ export const createMustahik = async (req: Request, res: Response): Promise<void>
 // Auto-register a new Mustahik from a proposal submission (NIK not yet in DB)
 export const autoRegisterMustahik = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nik, nama, tempat_lahir, tanggal_lahir, jenis_kelamin, pekerjaan, alamat, handphone, email, catatan } = req.body;
-    if (!nik || !nama || !tempat_lahir || !tanggal_lahir || !jenis_kelamin || !alamat || !handphone) {
-      res.status(400).json({ status: 'error', message: 'Field NIK, Nama, Tempat Lahir, Tanggal Lahir, Jenis Kelamin, Alamat, dan Handphone wajib diisi.' });
-      return;
+    const {
+      kategori,
+      nik,
+      nama,
+      nama_pimpinan,
+      jenis_lembaga,
+      jumlah_anggota,
+      tempat_lahir,
+      tanggal_lahir,
+      jenis_kelamin,
+      pekerjaan,
+      alamat,
+      telepon,
+      handphone,
+      email,
+      provinsi,
+      kabupaten,
+      kecamatan,
+      kelurahan,
+      catatan
+    } = req.body;
+
+    const isLembaga = kategori === 'Lembaga';
+
+    if (isLembaga) {
+      if (!nik || !nama || !nama_pimpinan || !jenis_lembaga || !alamat || !telepon) {
+        res.status(400).json({ status: 'error', message: 'Field NIK Pimpinan, Nama Lembaga, Nama Pimpinan, Jenis Lembaga, Alamat, dan Telepon wajib diisi.' });
+        return;
+      }
+    } else {
+      if (!nik || !nama || !jenis_kelamin || !alamat || !telepon) {
+        res.status(400).json({ status: 'error', message: 'Field NIK, Nama, Jenis Kelamin, Alamat, dan Telepon wajib diisi.' });
+        return;
+      }
     }
 
     // Check if NIK already exists
@@ -277,18 +396,29 @@ export const autoRegisterMustahik = async (req: Request, res: Response): Promise
       return;
     }
 
+    const parsedJumlahAnggota = jumlah_anggota ? parseInt(String(jumlah_anggota), 10) : 0;
+
     const newMustahik = await prisma.mustahik.create({
       data: {
+        kategori: kategori || 'Perorangan',
         nik: String(nik),
         nrm: null, // Will be assigned after SIMBA processing
         nama: String(nama),
-        tempat_lahir: String(tempat_lahir),
-        tanggal_lahir: String(tanggal_lahir),
-        jenis_kelamin: String(jenis_kelamin),
-        pekerjaan: pekerjaan ? String(pekerjaan) : null,
+        nama_pimpinan: isLembaga ? String(nama_pimpinan) : null,
+        jenis_lembaga: isLembaga ? String(jenis_lembaga) : null,
+        jumlah_anggota: isLembaga ? parsedJumlahAnggota : 0,
+        tempat_lahir: !isLembaga && tempat_lahir ? String(tempat_lahir) : null,
+        tanggal_lahir: !isLembaga && tanggal_lahir ? String(tanggal_lahir) : null,
+        jenis_kelamin: !isLembaga && jenis_kelamin ? String(jenis_kelamin) : null,
+        pekerjaan: !isLembaga && pekerjaan ? String(pekerjaan) : null,
         alamat: String(alamat),
-        handphone: String(handphone),
+        telepon: String(telepon),
+        handphone: !isLembaga && handphone ? String(handphone) : null,
         email: email ? String(email) : null,
+        provinsi: provinsi ? String(provinsi) : null,
+        kabupaten: kabupaten ? String(kabupaten) : null,
+        kecamatan: kecamatan ? String(kecamatan) : null,
+        kelurahan: kelurahan ? String(kelurahan) : null,
         catatan: catatan ? String(catatan) : '',
         status_graduasi: 'Belum'
       }
@@ -333,7 +463,7 @@ export const importRiwayatBantuan = async (req: Request, res: Response): Promise
         data: {
           mustahik_id: mustahik.id,
           nama_pemohon: mustahik.nama,
-          jenis_pengajuan: 'Individu',
+          jenis_pengajuan: 'Perorangan',
           jenis_permohonan: row.kode_program || row.program || null,
           tanggal_masuk: row.tanggal ? new Date(row.tanggal) : new Date(),
           status: 'Selesai',

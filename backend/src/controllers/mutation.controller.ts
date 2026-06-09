@@ -78,7 +78,7 @@ export const getMutations = async (req: Request, res: Response) => {
 
 export const createMutation = async (req: Request, res: Response) => {
   try {
-    const { tanggal, bankAccountId, keteranganBank, nominal } = req.body;
+    const { tanggal, bankAccountId, keteranganBank, nominal, type } = req.body;
     if (!tanggal || !bankAccountId || !keteranganBank || !nominal) {
       res.status(400).json({ error: 'Tanggal, bankAccount, keteranganBank, dan nominal wajib diisi' });
       return;
@@ -101,7 +101,7 @@ export const createMutation = async (req: Request, res: Response) => {
       bankName: account.nama_akun,
       keteranganBank,
       nominal: Number(nominal),
-      type: 'DEBIT', // Default for bank mutations created manually on the bank side (credited statement = money in)
+      type: type === 'KREDIT' ? 'KREDIT' : 'DEBIT',
       status: 'PENDING'
     };
 
@@ -196,7 +196,7 @@ export const reconcileMutation = async (req: Request, res: Response) => {
       // 1. Create Realisasi entry
       const realisasi = await tx.realisasi.create({
         data: {
-          rkat_id: isDebit ? (rkatId || null) : null,
+          rkat_id: rkatId || null,
           tanggal: new Date(mutation.tanggal),
           keterangan: isDebit
             ? `Rekonsiliasi Mutasi - Penerimaan dari ${muzakkiName || 'Hamba Allah'} (${keteranganRealisasi})`
@@ -301,6 +301,7 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     mutation.muzakkiId = muzakkiId || null;
     mutation.muzakkiName = muzakkiName || 'Hamba Allah';
     mutation.coaCode = coaCode;
+    mutation.rkatId = rkatId || null;
     mutation.sumberDana = isDebit ? sumberDana : '-';
     mutation.keteranganRealisasi = keteranganRealisasi;
 

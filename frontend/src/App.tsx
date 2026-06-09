@@ -334,7 +334,7 @@ function App() {
           <DataMuzakki onNavigate={setActiveMenu} />
         ) : activeMenu === 'Penerimaan ZIS' ? (
           <PenerimaanZis />
-        ) : activeMenu === 'Penerimaan Bulk' ? (
+        ) : activeMenu === 'Penerimaan Bank Jateng' ? (
           <PenerimaanBankJateng />
         ) : activeMenu === 'Identifikasi Mutasi' ? (
           <IdentifikasiMutasi />

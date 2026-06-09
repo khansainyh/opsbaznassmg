@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { 
   ArrowRightLeft, 
@@ -16,7 +16,8 @@ import {
   ArrowUpRight,
   BookOpen,
   UserPlus,
-  Trash2
+  Trash2,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -67,6 +68,148 @@ export interface Muzakki {
   alamat?: string;
 }
 
+interface SearchableDropdownSingleProps {
+  label: string;
+  selectedValue: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string; sublabel?: string }[];
+  placeholder?: string;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+}
+
+const SearchableDropdownSingle: React.FC<SearchableDropdownSingleProps> = ({
+  label,
+  selectedValue,
+  onChange,
+  options,
+  placeholder = "Pilih item...",
+  allowEmpty = true,
+  emptyLabel = "-- Kosong / Tidak Dipilih --"
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return options.filter(opt => 
+      opt.label.toLowerCase().includes(term) || 
+      (opt.value && opt.value.toLowerCase().includes(term)) ||
+      (opt.sublabel && opt.sublabel.toLowerCase().includes(term))
+    );
+  }, [options, searchTerm]);
+
+  const selectedOption = options.find(o => o.value === selectedValue);
+
+  return (
+    <div className="space-y-1.5 relative" ref={dropdownRef}>
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{label}</label>
+      
+      {/* Selector Trigger */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all cursor-pointer flex items-center justify-between gap-1.5 pr-8 relative"
+      >
+        <span className={cn("truncate", !selectedValue && "text-slate-400 font-normal")}>
+          {selectedOption ? (
+            <span className="flex items-center gap-2">
+              {selectedOption.sublabel && (
+                <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                  {selectedOption.sublabel}
+                </span>
+              )}
+              <span>{selectedOption.label}</span>
+            </span>
+          ) : (
+            emptyLabel
+          )}
+        </span>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+          <ChevronDown className="size-4 text-slate-400" />
+        </div>
+      </div>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-72 flex flex-col animate-in fade-in duration-100">
+          <div className="p-2 border-b border-slate-100 bg-slate-50/50">
+            <div className="relative">
+              <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={placeholder}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-0.5 max-h-52">
+            {allowEmpty && (
+              <div
+                onClick={() => {
+                  onChange("");
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "p-2 rounded-lg cursor-pointer transition-colors text-xs font-semibold select-none",
+                  !selectedValue ? "bg-primary/5 text-primary" : "hover:bg-slate-50 text-slate-500 italic"
+                )}
+              >
+                {emptyLabel}
+              </div>
+            )}
+            
+            {filteredOptions.length === 0 ? (
+              <p className="text-xs text-slate-400 italic p-3 text-center">Tidak ada hasil pencarian.</p>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.value === selectedValue;
+                return (
+                  <div
+                    key={opt.value}
+                    onClick={() => {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors text-xs font-medium select-none justify-between",
+                      isSelected ? "bg-primary/5 text-primary font-bold" : "hover:bg-slate-50 text-slate-700"
+                    )}
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      {opt.sublabel && (
+                        <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                          {opt.sublabel}
+                        </span>
+                      )}
+                      <span className="truncate">{opt.label}</span>
+                    </span>
+                    {isSelected && <Check className="size-3.5 text-primary shrink-0" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -84,6 +227,61 @@ export default function RekonsiliasiMutasi() {
   const [coas, setCoas] = useState<COAItem[]>([]);
   const [muzakkis, setMuzakkis] = useState<Muzakki[]>([]);
   const [rkatList, setRkatList] = useState<any[]>([]);
+  const [pilars, setPilars] = useState<any[]>([]);
+  const [rkatOperasionalList, setRkatOperasionalList] = useState<any[]>([]);
+
+  const rkatPenyaluranList = useMemo(() => {
+    const list: any[] = [];
+    (pilars || []).forEach((pilar) => {
+      (pilar.programs || []).forEach((prog: any) => {
+        const targets = prog.asnafTargets || [];
+        if (targets.length > 0) {
+          targets.forEach((target: any, tIdx: number) => {
+            const fallbackId = target.id || `act-auto-${prog.code}-${target.asnaf || 'General'}-${tIdx}`;
+            list.push({
+              id: fallbackId,
+              pilarCode: pilar.code,
+              pilarName: pilar.name,
+              name: target.name || prog.name,
+              coaCode: target.coaCode,
+              asnaf: target.asnaf,
+              programCode: prog.code,
+              type: 'PENYALURAN'
+            });
+          });
+        }
+      });
+    });
+    return list;
+  }, [pilars]);
+
+  const creditRkatOptions = useMemo(() => {
+    const options: { value: string; label: string; sublabel?: string; coaCode?: string; type: 'PENYALURAN' | 'OPERASIONAL' }[] = [];
+    
+    // 1. Add Penyaluran
+    rkatPenyaluranList.forEach(act => {
+      options.push({
+        value: act.id,
+        label: `[Penyaluran] ${act.pilarName} - ${act.name} (${act.asnaf || 'Umum'})`,
+        sublabel: act.coaCode || undefined,
+        coaCode: act.coaCode,
+        type: 'PENYALURAN'
+      });
+    });
+
+    // 2. Add Operasional
+    rkatOperasionalList.forEach(item => {
+      options.push({
+        value: item.id,
+        label: `[Operasional] ${item.nama}`,
+        sublabel: item.coa_codes || undefined,
+        coaCode: item.coa_codes ? item.coa_codes.split(',')[0].trim() : undefined,
+        type: 'OPERASIONAL'
+      });
+    });
+
+    return options;
+  }, [rkatPenyaluranList, rkatOperasionalList]);
   
   const [activeTab, setActiveTab] = useState<'PENERIMAAN' | 'PENYALURAN'>('PENERIMAAN');
   const [searchTerm, setSearchTerm] = useState('');
@@ -140,19 +338,36 @@ export default function RekonsiliasiMutasi() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resMutations, resAccounts, resCoas, resMuzakkis, resMustahiks, resRkat] = await Promise.all([
+      const [resMutations, resAccounts, resCoas, resMuzakkis, resMustahiks, resRkat, resPilars, resRkatOperasional] = await Promise.all([
         axios.get('/api/mutations'),
         axios.get('/api/finance/accounts'),
         axios.get('/api/finance/coa'),
         axios.get('/api/muzakki'),
         axios.get('/api/mustahik'),
-        axios.get('/api/rkat-pengumpulan')
+        axios.get('/api/rkat-pengumpulan'),
+        axios.get('/api/pilars'),
+        axios.get('/api/rkat-operasional')
       ]);
 
       setMutations(resMutations.data);
       setBankAccounts(resAccounts.data);
       setCoas(resCoas.data);
       setRkatList(resRkat.data.data || []);
+
+      const pilarsData = (resPilars.data || []).map((pilar: any) => ({
+        ...pilar,
+        programs: (pilar.programs || []).map((prog: any) => ({
+          ...prog,
+          asnafTargets: typeof prog.rkat_details === 'string'
+            ? JSON.parse(prog.rkat_details || '[]')
+            : (prog.rkat_details || [])
+        }))
+      }));
+      setPilars(pilarsData);
+
+      if (resRkatOperasional.data.status === 'success') {
+        setRkatOperasionalList(resRkatOperasional.data.data || []);
+      }
       
       // Map both muzakki and mustahik
       const muzakkiList = (resMuzakkis.data.data || []).map((m: any) => ({
@@ -416,8 +631,8 @@ export default function RekonsiliasiMutasi() {
       ? (selectedMuzakki?.nama || formCustomMuzakki.trim() || 'Hamba Allah')
       : '-';
 
-    if (isDebit && (!formRkatId || !formCoaCode)) {
-      showToast('Kegiatan RKAT dan Program Kegiatan (COA) wajib diisi untuk penerimaan!', 'error');
+    if (!formRkatId || !formCoaCode) {
+      showToast('Kegiatan RKAT dan Akun Buku Besar (COA) wajib diisi!', 'error');
       return;
     }
 
@@ -426,7 +641,7 @@ export default function RekonsiliasiMutasi() {
         muzakkiId: isDebit ? (formMuzakkiId || null) : null,
         muzakkiName: donorName,
         coaCode: formCoaCode,
-        rkatId: isDebit ? formRkatId : null,
+        rkatId: formRkatId,
         sumberDana: isDebit ? formSumberDana : '-',
         keteranganRealisasi: formKeteranganRealisasi.trim(),
         userName: user?.name || user?.role || 'Staff'
@@ -1093,7 +1308,28 @@ export default function RekonsiliasiMutasi() {
                 ) : (
                   // =================== PENYALURAN / KREDIT FLOW ===================
                   <>
-                    {/* 1. Account COA Code */}
+                    {/* 1. Kegiatan (RKAT Penyaluran / Operasional) */}
+                    <div className="space-y-1.5 text-left">
+                      <SearchableDropdownSingle
+                        label="Kegiatan RKAT (Penyaluran / Operasional) *"
+                        selectedValue={formRkatId}
+                        onChange={(val) => {
+                          setFormRkatId(val);
+                          const matched = creditRkatOptions.find(o => o.value === val);
+                          if (matched && matched.coaCode) {
+                            setFormCoaCode(matched.coaCode);
+                          } else {
+                            setFormCoaCode('');
+                          }
+                        }}
+                        options={creditRkatOptions}
+                        placeholder="Cari program Penyaluran / Operasional..."
+                        allowEmpty={true}
+                        emptyLabel="-- Pilih Kegiatan RKAT --"
+                      />
+                    </div>
+
+                    {/* 2. Account COA Code */}
                     <div className="space-y-1.5 text-left">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
                         Akun Buku Besar (Penyaluran/Penggunaan COA) *

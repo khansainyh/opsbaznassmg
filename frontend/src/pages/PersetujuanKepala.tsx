@@ -359,7 +359,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           </h4>
                           <div className="space-y-3">
                             <DetailItem label="Jenis Permohonan" value={selectedProposal.jenisPermohonan || '-'} />
-                            <DetailItem label="Nama Instansi" value={selectedProposal.namaInstansi || 'Individu'} />
+                            <DetailItem label="Nama Instansi" value={selectedProposal.namaInstansi || 'Perorangan'} />
                             <DetailItem label="Pimpinan Organisasi" value={selectedProposal.pimpinanOrganisasi || '-'} />
                             <DetailItem label="Tanggal Masuk" value={selectedProposal.tanggalMasuk} />
                             <DetailItem label="Jam Pengajuan" value={selectedProposal.jamPengajuan || '-'} />

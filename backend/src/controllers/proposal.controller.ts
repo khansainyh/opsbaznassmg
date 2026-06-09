@@ -56,6 +56,12 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
     if (data.tanggal_masuk) {
       data.tanggal_masuk = new Date(data.tanggal_masuk);
     }
+    if (data.jenis_permohonan === '') {
+      data.jenis_permohonan = null;
+    }
+    if (data.mustahik_id === '') {
+      data.mustahik_id = null;
+    }
 
     let gdriveLink = null;
     let gdriveId = null;
@@ -90,11 +96,10 @@ export const updateProposal = async (req: Request, res: Response) => {
 
     console.log(`[UPDATE PROPOSAL] ID: ${id}, DATA:`, body);
 
-    // Daftar field yang diizinkan di-update (whitelist)
     const allowedFields = [
       'tanggal_masuk', 'nama_instansi', 'pimpinan_organisasi', 'nama_pemohon',
-      'nama_anak', 'nik', 'ttl', 'alamat', 'kelurahan', 'kecamatan',
-      'pekerjaan', 'jenis_permohonan', 'no_telpon', 'jam_pengajuan',
+      'nama_anak', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kelurahan', 'kecamatan',
+      'pekerjaan', 'jenis_permohonan', 'no_telpon', 'email', 'jam_pengajuan',
       'yang_mengajukan', 'has_memo', 'memo_source', 'jenis_pengajuan',
       'rekomendasi', 'keterangan', 'status', 'file_gdrive_id',
       'file_gdrive_link', 'mustahik_id', 'surveyorName', 'isBeingSurveyed',
@@ -112,6 +117,12 @@ export const updateProposal = async (req: Request, res: Response) => {
 
     if (data.tanggal_masuk) {
       data.tanggal_masuk = new Date(data.tanggal_masuk);
+    }
+    if (data.jenis_permohonan === '') {
+      data.jenis_permohonan = null;
+    }
+    if (data.mustahik_id === '') {
+      data.mustahik_id = null;
     }
 
     // Parse survey_data jika dikirim sebagai string (JSON.stringify dari frontend)
@@ -180,7 +191,16 @@ export const updateProposal = async (req: Request, res: Response) => {
 export const deleteProposal = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    await prisma.proposal.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      // Disconnect related Realisasi records
+      await tx.realisasi.updateMany({
+        where: { proposal_id: id },
+        data: { proposal_id: null }
+      });
+
+      // Delete the proposal
+      await tx.proposal.delete({ where: { id } });
+    });
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: String(error) });

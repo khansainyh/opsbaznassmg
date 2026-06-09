@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { 
@@ -18,7 +18,8 @@ import {
   ChevronUp,
   BarChart4,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -49,6 +50,278 @@ export interface RKATActivity {
   tipe?: string;       // Bantuan Konsumtif vs Produktif classification
 }
 
+// Searchable Multi-Select Dropdown for COA Mappings
+interface SearchableCoaDropdownMultiProps {
+  label: string;
+  selectedCodes: string[];
+  onChange: (codes: string[]) => void;
+  availableCoas: any[];
+  placeholder?: string;
+}
+
+const SearchableCoaDropdownMulti: React.FC<SearchableCoaDropdownMultiProps> = ({
+  label,
+  selectedCodes,
+  onChange,
+  availableCoas,
+  placeholder = "Cari COA..."
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredCoas = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return availableCoas.filter(coa => 
+      coa.coa_code.toLowerCase().includes(term) || 
+      coa.nama_akun.toLowerCase().includes(term)
+    );
+  }, [availableCoas, searchTerm]);
+
+  const toggleSelect = (code: string) => {
+    if (selectedCodes.includes(code)) {
+      onChange(selectedCodes.filter(c => c !== code));
+    } else {
+      onChange([...selectedCodes, code]);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5 relative" ref={dropdownRef}>
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{label}</label>
+      
+      {/* Selector Trigger */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all cursor-pointer min-h-[42px] flex flex-wrap items-center gap-1.5 pr-8 relative"
+      >
+        {selectedCodes.length === 0 ? (
+          <span className="text-slate-400 text-xs font-normal">Pilih akun COA...</span>
+        ) : (
+          selectedCodes.map(code => {
+            return (
+              <span 
+                key={code} 
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleSelect(code);
+                }}
+              >
+                {code}
+                <X className="size-2.5 hover:text-red-500 cursor-pointer" />
+              </span>
+            );
+          })
+        )}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+          <ChevronDown className="size-4 text-slate-400" />
+        </div>
+      </div>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-72 flex flex-col">
+          <div className="p-2 border-b border-slate-100 bg-slate-50/50">
+            <div className="relative">
+              <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={placeholder}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-0.5 max-h-52">
+            {filteredCoas.length === 0 ? (
+              <p className="text-xs text-slate-400 italic p-3 text-center">Tidak ada hasil pencarian.</p>
+            ) : (
+              filteredCoas.map((coa) => {
+                const isSelected = selectedCodes.includes(coa.coa_code);
+                return (
+                  <div
+                    key={coa.coa_code}
+                    onClick={() => toggleSelect(coa.coa_code)}
+                    className={cn(
+                      "flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-colors text-xs font-medium select-none",
+                      isSelected ? "bg-primary/5 text-primary" : "hover:bg-slate-50 text-slate-700"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      readOnly
+                      className="rounded text-primary focus:ring-primary size-3.5 pointer-events-none"
+                    />
+                    <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">{coa.coa_code}</span>
+                    <span className="truncate">{coa.nama_akun}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Searchable Single-Select Dropdown for COA or General List
+interface SearchableDropdownSingleProps {
+  label: string;
+  selectedValue: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string; sublabel?: string }[];
+  placeholder?: string;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+}
+
+const SearchableDropdownSingle: React.FC<SearchableDropdownSingleProps> = ({
+  label,
+  selectedValue,
+  onChange,
+  options,
+  placeholder = "Pilih item...",
+  allowEmpty = true,
+  emptyLabel = "-- Kosong / Tidak Dipilih --"
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return options.filter(opt => 
+      opt.label.toLowerCase().includes(term) || 
+      (opt.value && opt.value.toLowerCase().includes(term)) ||
+      (opt.sublabel && opt.sublabel.toLowerCase().includes(term))
+    );
+  }, [options, searchTerm]);
+
+  const selectedOption = options.find(o => o.value === selectedValue);
+
+  return (
+    <div className="space-y-1.5 relative" ref={dropdownRef}>
+      <label className="text-xs font-bold text-slate-700 block">{label}</label>
+      
+      {/* Selector Trigger */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all cursor-pointer flex items-center justify-between gap-1.5 pr-8 relative"
+      >
+        <span className={cn("truncate", !selectedValue && "text-slate-400 font-normal")}>
+          {selectedOption ? (
+            <span className="flex items-center gap-2">
+              {selectedOption.sublabel && (
+                <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                  {selectedOption.sublabel}
+                </span>
+              )}
+              <span>{selectedOption.label}</span>
+            </span>
+          ) : (
+            emptyLabel
+          )}
+        </span>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+          <ChevronDown className="size-4 text-slate-400" />
+        </div>
+      </div>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-72 flex flex-col animate-in fade-in duration-100">
+          <div className="p-2 border-b border-slate-100 bg-slate-50/50">
+            <div className="relative">
+              <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={placeholder}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-0.5 max-h-52">
+            {allowEmpty && (
+              <div
+                onClick={() => {
+                  onChange("");
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "p-2 rounded-lg cursor-pointer transition-colors text-xs font-semibold select-none",
+                  !selectedValue ? "bg-primary/5 text-primary" : "hover:bg-slate-50 text-slate-500 italic"
+                )}
+              >
+                {emptyLabel}
+              </div>
+            )}
+            
+            {filteredOptions.length === 0 ? (
+              <p className="text-xs text-slate-400 italic p-3 text-center">Tidak ada hasil pencarian.</p>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.value === selectedValue;
+                return (
+                  <div
+                    key={opt.value}
+                    onClick={() => {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors text-xs font-medium select-none justify-between",
+                      isSelected ? "bg-primary/5 text-primary font-bold" : "hover:bg-slate-50 text-slate-700"
+                    )}
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      {opt.sublabel && (
+                        <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                          {opt.sublabel}
+                        </span>
+                      )}
+                      <span className="truncate">{opt.label}</span>
+                    </span>
+                    {isSelected && <Check className="size-3.5 text-primary shrink-0" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function TargetRKAT({ proposals }: TargetRKATProps) {
   const { user } = useAuth();
@@ -75,10 +348,45 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
   });
 
+  // RKAT Operasional States
+  const [rkatOperasionalList, setRkatOperasionalList] = useState<any[]>([]);
+  const [isAddOperasionalOpen, setIsAddOperasionalOpen] = useState(false);
+  const [editingOperasionalItem, setEditingOperasionalItem] = useState<any | null>(null);
+  const [formOperCoas, setFormOperCoas] = useState<string[]>([]);
+  const [expandedOperId, setExpandedOperId] = useState<string | null>(null);
+
+  // Form states for RKAT Operasional (Add/Edit)
+  const [formOperNo, setFormOperNo] = useState('');
+  const [formOperNama, setFormOperNama] = useState('');
+  const [formOperKeterangan, setFormOperKeterangan] = useState('');
+  const [formOperVolume, setFormOperVolume] = useState<number>(1);
+  const [formOperFrekuensi, setFormOperFrekuensi] = useState<number>(1);
+  const [formOperUnitCost, setFormOperUnitCost] = useState<number>(0);
+  const [formOperAnggaran, setFormOperAnggaran] = useState<number>(0);
+  const [formOperMonths, setFormOperMonths] = useState<Record<string, number>>({
+    jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
+  });
+
+  // Recalculate anggaran whenever volume, frekuensi, or unit cost changes
+  useEffect(() => {
+    const total = Number(formOperVolume || 0) * Number(formOperFrekuensi || 0) * Number(formOperUnitCost || 0);
+    setFormOperAnggaran(total);
+  }, [formOperVolume, formOperFrekuensi, formOperUnitCost]);
+
   const distributePengAnggaran = () => {
     const base = Math.floor(formPengAnggaran / 12);
     const remainder = formPengAnggaran - (base * 12);
     setFormPengMonths({
+      jan: base, feb: base, mar: base, apr: base,
+      mei: base, jun: base, jul: base, agt: base,
+      sep: base, okt: base, nov: base, des: base + remainder
+    });
+  };
+
+  const distributeOperAnggaran = () => {
+    const base = Math.floor(formOperAnggaran / 12);
+    const remainder = formOperAnggaran - (base * 12);
+    setFormOperMonths({
       jan: base, feb: base, mar: base, apr: base,
       mei: base, jun: base, jul: base, agt: base,
       sep: base, okt: base, nov: base, des: base + remainder
@@ -93,6 +401,17 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       }
     } catch (err) {
       console.error('Failed to fetch RKAT Pengumpulan:', err);
+    }
+  }, []);
+
+  const fetchRkatOperasional = useCallback(async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:4000/api/rkat-operasional');
+      if (res.data.status === 'success') {
+        setRkatOperasionalList(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch RKAT Operasional:', err);
     }
   }, []);
 
@@ -175,9 +494,91 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     }
   };
 
+  const saveNewOperasional = async () => {
+    try {
+      const body = {
+        no: formOperNo,
+        nama: formOperNama,
+        keterangan: formOperKeterangan || null,
+        coa_codes: formOperCoas.join(','),
+        volume: Number(formOperVolume) || 1,
+        frekuensi: Number(formOperFrekuensi) || 1,
+        unit_cost: Number(formOperUnitCost) || 0,
+        nilai_anggaran: formOperAnggaran,
+        target_jan: formOperMonths.jan,
+        target_feb: formOperMonths.feb,
+        target_mar: formOperMonths.mar,
+        target_apr: formOperMonths.apr,
+        target_mei: formOperMonths.mei,
+        target_jun: formOperMonths.jun,
+        target_jul: formOperMonths.jul,
+        target_agt: formOperMonths.agt,
+        target_sep: formOperMonths.sep,
+        target_okt: formOperMonths.okt,
+        target_nov: formOperMonths.nov,
+        target_des: formOperMonths.des
+      };
+      await axios.post('http://127.0.0.1:4000/api/rkat-operasional', body);
+      setIsAddOperasionalOpen(false);
+      fetchRkatOperasional();
+      alert('Berhasil menyimpan target RKAT Operasional baru.');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menyimpan data.');
+    }
+  };
+
+  const saveEditOperasional = async () => {
+    if (!editingOperasionalItem) return;
+    try {
+      const body = {
+        no: formOperNo,
+        nama: formOperNama,
+        keterangan: formOperKeterangan || null,
+        coa_codes: formOperCoas.join(','),
+        volume: Number(formOperVolume) || 1,
+        frekuensi: Number(formOperFrekuensi) || 1,
+        unit_cost: Number(formOperUnitCost) || 0,
+        nilai_anggaran: formOperAnggaran,
+        target_jan: formOperMonths.jan,
+        target_feb: formOperMonths.feb,
+        target_mar: formOperMonths.mar,
+        target_apr: formOperMonths.apr,
+        target_mei: formOperMonths.mei,
+        target_jun: formOperMonths.jun,
+        target_jul: formOperMonths.jul,
+        target_agt: formOperMonths.agt,
+        target_sep: formOperMonths.sep,
+        target_okt: formOperMonths.okt,
+        target_nov: formOperMonths.nov,
+        target_des: formOperMonths.des
+      };
+      await axios.put(`http://127.0.0.1:4000/api/rkat-operasional/${editingOperasionalItem.id}`, body);
+      setEditingOperasionalItem(null);
+      fetchRkatOperasional();
+      alert('Berhasil memperbarui target RKAT Operasional.');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal memperbarui data.');
+    }
+  };
+
+  const deleteOperasional = async (id: string) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus program operasional ini?')) return;
+    try {
+      await axios.delete(`http://127.0.0.1:4000/api/rkat-operasional/${id}`);
+      fetchRkatOperasional();
+      alert('Program berhasil dihapus.');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menghapus program.');
+    }
+  };
+
   useEffect(() => {
     fetchRkatPengumpulan();
-  }, [fetchRkatPengumpulan]);
+    fetchRkatOperasional();
+  }, [fetchRkatPengumpulan, fetchRkatOperasional]);
 
   // 1. Dynamic Pilar Data synced with backend API
   const [data, setData] = useState<Pilar[]>([]);
@@ -973,6 +1374,16 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     return { anggaran, perorangan, lembaga, realisasi };
   }, [filteredPengumpulanList]);
 
+  const statsOperasional = useMemo(() => {
+    let anggaran = 0;
+    let realisasi = 0;
+    rkatOperasionalList.forEach(item => {
+      anggaran += Number(item.nilai_anggaran) || 0;
+      realisasi += Number(item.realisasi_total) || 0;
+    });
+    return { anggaran, realisasi };
+  }, [rkatOperasionalList]);
+
   return (
     <div className="p-4 md:p-8 space-y-8 bg-slate-50/50 h-full overflow-y-auto">
       
@@ -1013,11 +1424,331 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
       </div>
 
       {activeTab === 'Operasional' ? (
-        <div className="py-24 text-center bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center animate-fade-in">
-          <Target className="size-16 text-slate-200 mb-4" />
-          <h3 className="text-lg font-bold text-slate-600">Modul RKAT {activeTab} Belum Tersedia</h3>
-          <p className="text-slate-400 text-sm mt-1">Data dan tampilan untuk RKAT {activeTab} saat ini sedang dalam pengembangan.</p>
-        </div>      ) : activeTab === 'Pengumpulan' ? (
+        <div className="space-y-8 animate-fade-in">
+          {/* Stats Cards for Operasional */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
+              <div className="p-4 bg-emerald-100 text-emerald-700 rounded-xl">
+                <TrendingUp className="size-8" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Anggaran Operasional</p>
+                <p className="text-2xl font-black text-slate-900 leading-tight mt-1">{formatCurrency(statsOperasional.anggaran)}</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-4">
+              <div className="p-4 bg-primary/10 text-primary rounded-xl">
+                <Percent className="size-8" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Capai Realisasi Operasional</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-2xl font-black text-slate-900">{formatCurrency(statsOperasional.realisasi)}</span>
+                  <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                    {(statsOperasional.anggaran > 0 ? (statsOperasional.realisasi / statsOperasional.anggaran) * 100 : 0).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table for Operasional */}
+          <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-primary/5 bg-slate-50/40 flex justify-between items-center flex-wrap gap-4">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <BarChart4 className="size-4 text-primary" />
+                  Rincian RKAT Operasional
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+                  Target dan realisasi operasional terhitung real-time.
+                </p>
+              </div>
+
+              {isSuperAdmin && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsMigrationModalOpen(true)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider transition-all active:scale-95 shrink-0 border border-slate-200"
+                  >
+                    <Upload className="size-3.5 stroke-[3]" />
+                    Migrasi
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingOperasionalItem(null);
+                      setFormOperNo(`O-${Date.now().toString().slice(-4)}`);
+                      setFormOperNama('');
+                      setFormOperKeterangan('');
+                      setFormOperCoas([]);
+                      setFormOperVolume(1);
+                      setFormOperFrekuensi(1);
+                      setFormOperUnitCost(0);
+                      setFormOperAnggaran(0);
+                      setFormOperMonths({
+                        jan: 0, feb: 0, mar: 0, apr: 0, mei: 0, jun: 0, jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
+                      });
+                      setIsAddOperasionalOpen(true);
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-md shadow-primary/15 transition-all active:scale-95 shrink-0"
+                  >
+                    <Plus className="size-3.5 stroke-[3]" />
+                    Tambah Program
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-x-auto font-sans">
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-12 text-center">No</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Program / Kegiatan</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-24 text-center">Volume</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-24 text-center">Frekuensi</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-32 text-right">Unit Cost</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-36 text-right">Nilai Anggaran</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-36 text-right">Realisasi</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-28 text-center">% Pencapaian</th>
+                    <th className="px-4 py-3.5 text-[10px] font-black uppercase text-slate-400 tracking-wider w-28 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {rkatOperasionalList.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-12 text-center text-slate-400 italic">
+                        Belum ada program operasional yang terdaftar.
+                      </td>
+                    </tr>
+                  ) : (
+                    rkatOperasionalList.map((item) => {
+                      const itemCoas = item.coa_codes ? item.coa_codes.split(',').map((c: any) => c.trim()).filter(Boolean) : [];
+                      const targetVal = Number(item.nilai_anggaran || 0);
+                      const realisasiVal = Number(item.realisasi_total || 0);
+                      const pct = targetVal > 0 ? (realisasiVal / targetVal) * 100 : 0;
+                      const isExpanded = expandedOperId === item.id;
+                      
+                      return (
+                        <>
+                          <tr 
+                            key={item.id} 
+                            onClick={() => setExpandedOperId(isExpanded ? null : item.id)}
+                            className={cn(
+                              "hover:bg-slate-50/80 transition-colors cursor-pointer select-none",
+                              isExpanded && "bg-slate-50/40"
+                            )}
+                          >
+                            <td className="px-4 py-4 text-center text-slate-400 font-bold font-mono">{item.no}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-800 hover:text-primary transition-colors">
+                                    {item.nama}
+                                  </span>
+                                  {isExpanded ? (
+                                    <ChevronUp className="size-3.5 text-slate-400" />
+                                  ) : (
+                                    <ChevronDown className="size-3.5 text-slate-400" />
+                                  )}
+                                </div>
+                                {item.keterangan && (
+                                  <span className="text-[11px] text-slate-400 font-medium mt-0.5">{item.keterangan}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-center font-bold text-slate-600 font-mono">{item.volume}</td>
+                            <td className="px-4 py-4 text-center font-bold text-slate-600 font-mono">{item.frekuensi}</td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-600 font-mono">{formatCurrency(Number(item.unit_cost || 0))}</td>
+
+                            <td className="px-4 py-4 text-right font-bold text-slate-900 font-mono">
+                              {formatCurrency(targetVal)}
+                            </td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-900 font-mono">
+                              {formatCurrency(realisasiVal)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase font-sans",
+                                  pct >= 100 ? "bg-emerald-100 text-emerald-800" :
+                                  pct >= 50 ? "bg-blue-100 text-blue-800" :
+                                  pct > 0 ? "bg-amber-100 text-amber-800" :
+                                  "bg-slate-100 text-slate-400"
+                                )}>
+                                  {pct.toFixed(1)}%
+                                </span>
+                                <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                  <div 
+                                    className={cn(
+                                      "h-full rounded-full transition-all duration-500",
+                                      pct >= 100 ? "bg-emerald-500" :
+                                      pct >= 50 ? "bg-blue-500" :
+                                      "bg-amber-500"
+                                    )} 
+                                    style={{ width: `${Math.min(pct, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-center font-sans" onClick={(e) => e.stopPropagation()}>
+                              {isSuperAdmin ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setEditingOperasionalItem(item);
+                                      setFormOperNo(item.no);
+                                      setFormOperNama(item.nama);
+                                      setFormOperKeterangan(item.keterangan || '');
+                                      setFormOperCoas(item.coa_codes ? item.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : []);
+                                      setFormOperVolume(Number(item.volume));
+                                      setFormOperFrekuensi(Number(item.frekuensi));
+                                      setFormOperUnitCost(Number(item.unit_cost));
+                                      setFormOperAnggaran(Number(item.nilai_anggaran));
+                                      setFormOperMonths({
+                                        jan: Number(item.target_jan || 0),
+                                        feb: Number(item.target_feb || 0),
+                                        mar: Number(item.target_mar || 0),
+                                        apr: Number(item.target_apr || 0),
+                                        mei: Number(item.target_mei || 0),
+                                        jun: Number(item.target_jun || 0),
+                                        jul: Number(item.target_jul || 0),
+                                        agt: Number(item.target_agt || 0),
+                                        sep: Number(item.target_sep || 0),
+                                        okt: Number(item.target_okt || 0),
+                                        nov: Number(item.target_nov || 0),
+                                        des: Number(item.target_des || 0)
+                                      });
+                                      setIsAddOperasionalOpen(true);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-primary hover:bg-slate-100 rounded transition-colors"
+                                  >
+                                    <Edit2 className="size-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteOperasional(item.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">No Access</span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Expanded Row for monthly breakdown */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/40">
+                              <td colSpan={9} className="p-4 border-t border-b border-slate-200/50">
+                                <div className="space-y-4">
+                                  <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Calendar className="size-3.5 text-primary" />
+                                      Detail Target vs Realisasi Bulanan: {item.nama}
+                                    </h4>
+                                    <span className="text-[10px] text-slate-400 italic">
+                                      Angka realisasi terhitung real-time berdasarkan COA
+                                    </span>
+                                  </div>
+
+                                  {/* Related COA Details */}
+                                  <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm flex items-center gap-3">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">COA Terkait:</span>
+                                    {itemCoas.length === 0 ? (
+                                      <span className="text-slate-400 italic text-[11px]">Belum dihubungkan ke COA</span>
+                                    ) : (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {itemCoas.map((coa: string) => {
+                                          const coaDetail = coas.find((c: any) => c.coa_code === coa);
+                                          return (
+                                            <span 
+                                              key={coa} 
+                                              title={coaDetail ? `${coaDetail.coa_code} - ${coaDetail.nama_akun}` : coa}
+                                              className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100"
+                                            >
+                                              {coa} {coaDetail ? `- ${coaDetail.nama_akun}` : ''}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                                    {['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'].map((m, idx) => {
+                                      const monthTarget = Number(item[`target_${m}`] || 0);
+                                      const monthReal = Number(item[m] || 0);
+                                      const mPct = monthTarget > 0 ? (monthReal / monthTarget) * 100 : 0;
+                                      
+                                      return (
+                                        <div key={m} className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm flex flex-col justify-between space-y-2">
+                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block border-b border-slate-100 pb-1">{getMonthName(idx + 1)}</span>
+                                          
+                                          <div className="space-y-1">
+                                            <div className="flex justify-between text-[10px]">
+                                              <span className="text-slate-400">Target:</span>
+                                              <span className="font-semibold text-slate-700 font-mono text-[11px]">{formatCurrency(monthTarget)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px]">
+                                              <span className="text-slate-400">Realisasi:</span>
+                                              <span className="font-bold text-slate-900 font-mono text-[11px]">{formatCurrency(monthReal)}</span>
+                                            </div>
+                                          </div>
+
+                                          <div className="pt-1.5 flex items-center justify-between border-t border-slate-100 text-[10px]">
+                                            <span className="text-slate-400">Pencapaian:</span>
+                                            <span className={cn(
+                                              "font-extrabold font-mono",
+                                              mPct >= 100 ? "text-emerald-600" :
+                                              mPct >= 50 ? "text-blue-600" :
+                                              mPct > 0 ? "text-amber-600" :
+                                              "text-slate-400"
+                                            )}>
+                                              {mPct.toFixed(0)}%
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      );
+                    })
+                  )}
+
+                  {/* Summary / Total Row */}
+                  {rkatOperasionalList.length > 0 && (
+                    <tr className="bg-slate-100/90 font-black text-slate-900 border-t-2 border-slate-300">
+                      <td colSpan={5} className="px-4 py-4 text-xs font-black uppercase tracking-wider text-slate-800 text-right">
+                        TOTAL KESELURUHAN (OPERASIONAL)
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-slate-950 font-mono">
+                        {formatCurrency(statsOperasional.anggaran)}
+                      </td>
+                      <td className="px-4 py-4 text-right font-black text-slate-950 font-mono">
+                        {formatCurrency(statsOperasional.realisasi)}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-black text-[10px] font-mono">
+                          {(statsOperasional.anggaran > 0 ? (statsOperasional.realisasi / statsOperasional.anggaran) * 100 : 0).toFixed(1)}%
+                        </span>
+                      </td>
+                      <td></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'Pengumpulan' ? (
         <div className="space-y-8 animate-fade-in">
           {/* Stats Cards for Pengumpulan */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1704,42 +2435,41 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">Kategori Asnaf (8 Golongan)</label>
-                  <select
-                    value={formAsnaf}
-                    onChange={(e) => setFormAsnaf(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
-                  >
-                    <option value="">-- Kosong (Umum / Non-Asnaf) --</option>
-                    <option value="Fakir">Fakir</option>
-                    <option value="Miskin">Miskin</option>
-                    <option value="Amil">Amil</option>
-                    <option value="Mualaf">Mualaf</option>
-                    <option value="Riqab">Riqab (Hamba Sahaya)</option>
-                    <option value="Gharimin">Gharimin (Orang Berhutang)</option>
-                    <option value="Fisabilillah">Fisabilillah</option>
-                    <option value="Ibnu Sabil">Ibnu Sabil</option>
-                  </select>
-                </div>
+                <SearchableDropdownSingle
+                  label="Kategori Asnaf (8 Golongan)"
+                  selectedValue={formAsnaf}
+                  onChange={setFormAsnaf}
+                  options={[
+                    { value: "Fakir", label: "Fakir" },
+                    { value: "Miskin", label: "Miskin" },
+                    { value: "Amil", label: "Amil" },
+                    { value: "Mualaf", label: "Mualaf" },
+                    { value: "Riqab", label: "Riqab (Hamba Sahaya)" },
+                    { value: "Gharimin", label: "Gharimin (Orang Berhutang)" },
+                    { value: "Fisabilillah", label: "Fisabilillah" },
+                    { value: "Ibnu Sabil", label: "Ibnu Sabil" }
+                  ]}
+                  placeholder="Cari / Pilih Asnaf..."
+                  emptyLabel="-- Kosong (Umum / Non-Asnaf) --"
+                  allowEmpty={true}
+                />
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">Hubungkan Ke COA (Chart of Accounts) - Opsional</label>
-                  <select
-                    value={formCoaCode}
-                    onChange={(e) => setFormCoaCode(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer font-mono"
-                  >
-                    <option value="" className="font-sans">-- Tidak dihubungkan (Opsional) --</option>
-                    {coas
-                      .filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan')
-                      .map(coa => (
-                        <option key={coa.coa_code} value={coa.coa_code}>
-                          {coa.coa_code} - {coa.nama_akun}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                <SearchableDropdownSingle
+                  label="Hubungkan Ke COA (Chart of Accounts) - Opsional"
+                  selectedValue={formCoaCode}
+                  onChange={setFormCoaCode}
+                  options={coas
+                    .filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan')
+                    .map(coa => ({
+                      value: coa.coa_code,
+                      label: coa.nama_akun,
+                      sublabel: coa.coa_code
+                    }))
+                  }
+                  placeholder="Cari COA Penyaluran..."
+                  emptyLabel="-- Tidak dihubungkan (Opsional) --"
+                  allowEmpty={true}
+                />
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">Keterangan / Spesifikasi Bantuan</label>
@@ -1932,34 +2662,13 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
                 {/* COA mapping selection */}
                 <div className="border-t border-slate-100 pt-4 space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Hubungkan ke Akun COA Penerimaan</label>
-                  <div className="border border-slate-200/60 rounded-xl p-3 max-h-48 overflow-y-auto bg-slate-50/50 space-y-2">
-                    {coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.')).length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">Tidak ada COA kategori Penerimaan yang tersedia.</p>
-                    ) : (
-                      coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.')).map((coa: any) => {
-                        const isChecked = formPengCoas.includes(coa.coa_code);
-                        return (
-                          <label key={coa.coa_code} className="flex items-center gap-2.5 p-2 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors text-xs text-slate-700 font-medium">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {
-                                if (isChecked) {
-                                  setFormPengCoas(formPengCoas.filter(c => c !== coa.coa_code));
-                                } else {
-                                  setFormPengCoas([...formPengCoas, coa.coa_code]);
-                                }
-                              }}
-                              className="rounded text-primary focus:ring-primary size-4"
-                            />
-                            <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">{coa.coa_code}</span>
-                            <span>{coa.nama_akun}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
+                  <SearchableCoaDropdownMulti
+                    label="Hubungkan ke Akun COA Penerimaan"
+                    selectedCodes={formPengCoas}
+                    onChange={setFormPengCoas}
+                    availableCoas={coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.'))}
+                    placeholder="Cari COA Penerimaan..."
+                  />
                   <p className="text-[10px] text-slate-400">Pilih satu atau lebih akun COA Penerimaan. Nilai transaksi Uang Masuk pada COA terpilih akan otomatis terakumulasi sebagai Realisasi program.</p>
                 </div>
 
@@ -2028,6 +2737,182 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
         )}
       </AnimatePresence>
 
+      {/* ADD / EDIT RKAT OPERASIONAL DIALOG MODAL */}
+      <AnimatePresence>
+        {(isAddOperasionalOpen || editingOperasionalItem !== null) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-100 overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  {editingOperasionalItem ? <Edit2 className="size-5 text-primary" /> : <Plus className="size-5 text-primary" />}
+                  {editingOperasionalItem ? 'Ubah Target RKAT Operasional' : 'Tambah Target RKAT Operasional'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsAddOperasionalOpen(false);
+                    setEditingOperasionalItem(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-all"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Urut</label>
+                    <input
+                      type="text"
+                      value={formOperNo}
+                      onChange={(e) => setFormOperNo(e.target.value)}
+                      placeholder="e.g. 1"
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Program / Kegiatan</label>
+                    <input
+                      type="text"
+                      value={formOperNama}
+                      onChange={(e) => setFormOperNama(e.target.value)}
+                      placeholder="e.g. Belanja ATK Kantor"
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan Kegiatan</label>
+                  <textarea
+                    value={formOperKeterangan}
+                    onChange={(e) => setFormOperKeterangan(e.target.value)}
+                    placeholder="e.g. Pembelian kertas, pulpen, tinta printer triwulanan"
+                    rows={2}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Volume</label>
+                    <input
+                      type="number"
+                      value={formOperVolume}
+                      onChange={(e) => setFormOperVolume(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Frekuensi</label>
+                    <input
+                      type="number"
+                      value={formOperFrekuensi}
+                      onChange={(e) => setFormOperFrekuensi(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Unit Cost (Rp)</label>
+                    <input
+                      type="number"
+                      value={formOperUnitCost}
+                      onChange={(e) => setFormOperUnitCost(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">Nilai Anggaran</label>
+                    <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-black text-right font-mono text-slate-700">
+                      {formatCurrency(formOperAnggaran)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* COA mapping selection */}
+                <div className="border-t border-slate-100 pt-4 space-y-2">
+                  <SearchableCoaDropdownMulti
+                    label="Hubungkan ke Akun COA Beban / Operasional"
+                    selectedCodes={formOperCoas}
+                    onChange={setFormOperCoas}
+                    availableCoas={coas.filter((coa: any) => coa.klasifikasi?.toLowerCase() === 'beban' || coa.coa_code.startsWith('5'))}
+                    placeholder="Cari COA Beban / Operasional..."
+                  />
+                  <p className="text-[10px] text-slate-400">Pilih satu atau lebih akun COA Beban. Nilai transaksi Pengeluaran (debit) pada COA terpilih akan otomatis terakumulasi sebagai Realisasi program.</p>
+                </div>
+
+                {/* Month-by-month grid */}
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-xs font-bold text-slate-700">Rincian Anggaran Target per Bulan</h4>
+                    <button
+                      type="button"
+                      onClick={distributeOperAnggaran}
+                      className="text-[10px] font-black uppercase text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      Bagi Rata 12 Bulan
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-3">
+                    {['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'].map((m) => (
+                      <div key={m} className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{m}</label>
+                        <input
+                          type="number"
+                          value={formOperMonths[m]}
+                          onChange={(e) => setFormOperMonths({ ...formOperMonths, [m]: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right font-mono focus:ring-2 focus:ring-primary/15 focus:border-primary outline-none transition-all"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 text-right">
+                    <span className="text-[10px] font-bold text-slate-400">Total Terdistribusi per Bulan: </span>
+                    <span className={cn(
+                      "text-xs font-black font-mono",
+                      Math.abs(Object.values(formOperMonths).reduce((a, b) => a + b, 0) - formOperAnggaran) < 5
+                        ? "text-emerald-600"
+                        : "text-amber-600"
+                    )}>
+                      {formatCurrency(Object.values(formOperMonths).reduce((a, b) => a + b, 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 font-semibold">
+                <button
+                  onClick={() => {
+                    setIsAddOperasionalOpen(false);
+                    setEditingOperasionalItem(null);
+                  }}
+                  className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={editingOperasionalItem ? saveEditOperasional : saveNewOperasional}
+                  className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <Check className="size-4" />
+                  {editingOperasionalItem ? 'Simpan Perubahan' : 'Simpan Target RKAT'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Migration Modal RKAT */}
       <AnimatePresence>
         {isMigrationModalOpen && (
@@ -2060,6 +2945,8 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                   <p className="text-xs text-slate-500">
                     {activeTab === 'Pengumpulan' 
                       ? 'Gunakan file Excel (.xlsx) dengan kolom: No, Kategori, Nama Program, Kode COA, Target Perorangan, Target Lembaga, Nilai Anggaran, serta target bulanan (Target Jan - Target Des).'
+                      : activeTab === 'Operasional'
+                      ? 'Gunakan file Excel (.xlsx) dengan kolom: No, Nama Program, Keterangan, Kode COA, Volume, Frekuensi, Unit Cost, serta target bulanan (Target Jan - Target Des).'
                       : 'Gunakan file Excel (.xlsx) dengan kolom: Kode Pilar, Kode Program, Nama Kegiatan, Asnaf, Keterangan, Target Jiwa, Frekuensi, Unit Cost, Kode COA.'}
                   </p>
                 </div>
@@ -2104,6 +2991,43 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                         XLSX.utils.book_append_sheet(wb, ws, "Template_Pengumpulan");
                         XLSX.utils.book_append_sheet(wb, wsRef, "Referensi_COA_Penerimaan");
                         XLSX.writeFile(wb, "Template_Migrasi_RKAT_Pengumpulan.xlsx");
+                      } else if (activeTab === 'Operasional') {
+                        const ws = XLSX.utils.json_to_sheet([
+                          { 
+                            "No": "1",
+                            "Nama Program": "Belanja ATK Kantor",
+                            "Keterangan": "Pembelian kertas, pulpen, tinta printer triwulanan",
+                            "Kode COA": "5.2.01.01.001",
+                            "Volume": 4,
+                            "Frekuensi": 1,
+                            "Unit Cost": 1500000,
+                            "Target Jan": 1500000,
+                            "Target Feb": 0,
+                            "Target Mar": 0,
+                            "Target Apr": 1500000,
+                            "Target Mei": 0,
+                            "Target Jun": 0,
+                            "Target Jul": 1500000,
+                            "Target Agt": 0,
+                            "Target Sep": 0,
+                            "Target Okt": 1500000,
+                            "Target Nov": 0,
+                            "Target Des": 0
+                          }
+                        ]);
+                        const refCoas = coas
+                          .filter(coa => coa.klasifikasi?.toLowerCase() === 'beban' || coa.coa_code.startsWith('5'))
+                          .map(coa => ({
+                            "Kode COA": coa.coa_code,
+                            "Nama Akun": coa.nama_akun,
+                            "Klasifikasi": coa.klasifikasi
+                          }));
+                        const wsRef = XLSX.utils.json_to_sheet(refCoas);
+
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Template_Operasional");
+                        XLSX.utils.book_append_sheet(wb, wsRef, "Referensi_COA_Beban");
+                        XLSX.writeFile(wb, "Template_Migrasi_RKAT_Operasional.xlsx");
                       } else {
                         const ws = XLSX.utils.json_to_sheet([
                           { 
@@ -2200,6 +3124,32 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                               await axios.post('http://127.0.0.1:4000/api/rkat-pengumpulan/import', payload);
                               alert(`Migrasi Berhasil! Berhasil menyimpan/memperbarui data RKAT Pengumpulan.`);
                               fetchRkatPengumpulan();
+                            } else if (activeTab === 'Operasional') {
+                              const payload = dataExcel.map(row => ({
+                                no: String(row.No || row.no || row.NO || '').trim(),
+                                nama: String(row["Nama Program"] || row["nama_program"] || row.Nama_Program || row.NamaProgram || row.Nama || '').trim(),
+                                keterangan: String(row.Keterangan || row.keterangan || '').trim(),
+                                coa_codes: String(row["Kode COA"] || row["kode_coa"] || row.Kode_COA || row.COA || '').trim(),
+                                volume: row.Volume || row.volume || 1,
+                                frekuensi: row.Frekuensi || row.frekuensi || 1,
+                                unit_cost: row["Unit Cost"] || row.unit_cost || row["Unit_Cost"] || 0,
+                                target_jan: row["Target Jan"] || row.target_jan || row["Target_Jan"] || null,
+                                target_feb: row["Target Feb"] || row.target_feb || row["Target_Feb"] || null,
+                                target_mar: row["Target Mar"] || row.target_mar || row["Target_Mar"] || null,
+                                target_apr: row["Target Apr"] || row.target_apr || row["Target_Apr"] || null,
+                                target_mei: row["Target Mei"] || row.target_mei || row["Target_Mei"] || null,
+                                target_jun: row["Target Jun"] || row.target_jun || row["Target_Jun"] || null,
+                                target_jul: row["Target Jul"] || row.target_jul || row["Target_Jul"] || null,
+                                target_agt: row["Target Agt"] || row.target_agt || row["Target_Agt"] || row["Target_Aug"] || null,
+                                target_sep: row["Target Sep"] || row.target_sep || row["Target_Sep"] || null,
+                                target_okt: row["Target Okt"] || row.target_okt || row["Target_Okt"] || row["Target_Oct"] || null,
+                                target_nov: row["Target Nov"] || row.target_nov || row["Target_Nov"] || null,
+                                target_des: row["Target Des"] || row.target_des || row["Target_Des"] || row["Target_Dec"] || null
+                              }));
+
+                              await axios.post('http://127.0.0.1:4000/api/rkat-operasional/import', payload);
+                              alert(`Migrasi Berhasil! Berhasil menyimpan/memperbarui data RKAT Operasional.`);
+                              fetchRkatOperasional();
                               setIsMigrationModalOpen(false);
                             } else {
                               // Group activities by Kode Program

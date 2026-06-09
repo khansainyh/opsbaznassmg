@@ -8,9 +8,9 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
+  id            String         @id @default(uuid())
   name          String
-  email         String   @unique
+  email         String         @unique
   password_hash String
   role          Role           @default(Super_Admin)
   created_at    DateTime       @default(now())
@@ -21,57 +21,61 @@ model Mustahik {
   id              String     @id @default(uuid())
   nrm             String?    @unique
   nama            String
-  nik             String     @unique
-  tempat_lahir    String
-  tanggal_lahir   String
-  jenis_kelamin   String
+  nik             String?    @unique
+  tempat_lahir    String?
+  tanggal_lahir   String?
+  jenis_kelamin   String?
   pekerjaan       String?
-  alamat          String     @db.Text
-  handphone       String
+  alamat          String?    @db.Text
+  handphone       String?
   email           String?
   catatan         String?    @db.Text
-
   status_graduasi String     @default("Belum")
   created_at      DateTime   @default(now())
   updated_at      DateTime   @updatedAt
+  jenis_lembaga   String?
+  jumlah_anggota  Int?       @default(0)
+  kabupaten       String?
+  kategori        String     @default("Perorangan")
+  kecamatan       String?
+  kelurahan       String?
+  nama_pimpinan   String?
+  provinsi        String?
+  telepon         String?
   proposals       Proposal[]
 }
 
 model Muzakki {
-  id                 String    @id @default(uuid())
-  npwz               String?   @unique
-  kategori           String    @default("Perorangan") // "Perorangan" | "Lembaga"
-  nama               String    // Nama Muzakki (Perorangan) atau Nama Lembaga (Lembaga)
+  id                 String          @id @default(uuid())
+  kategori           String          @default("Perorangan")
+  nama               String
   npwp               String?
-  zakat_per_bulan    Decimal?  @db.Decimal(15, 2)
-  keterangan         String?   @db.Text
-  alamat             String    @db.Text // Alamat Rumah (Perorangan) atau Alamat Kantor (Lembaga)
-  telepon            String?   // Telepon Rumah (Perorangan) atau Telepon Kantor (Lembaga)
+  zakat_per_bulan    Decimal?        @db.Decimal(15, 2)
+  keterangan         String?         @db.Text
+  alamat             String          @db.Text
+  telepon            String?
   email              String?
-  status             String    @default("Aktif")
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-
-  // Fields khusus Perorangan
-  nik                String?   @unique
+  status             String          @default("Aktif")
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+  nik                String?         @unique
   tempat_lahir       String?
   tanggal_lahir      String?
   jenis_kelamin      String?
   pekerjaan          String?
   upz                String?
-  alamat_kantor      String?   @db.Text
+  alamat_kantor      String?         @db.Text
   handphone          String?
-  no_rekening        String?   @unique
-
-  // Fields khusus Lembaga
   no_pengukuhan      String?
   tanggal_pengukuhan String?
   website            String?
   jenis_lembaga      String?
   fax                String?
-  cp_nama            String?   // Contact Person: Nama
-  cp_telepon         String?   // Contact Person: Telepon
-  cp_email           String?   // Contact Person: Email
+  cp_nama            String?
+  cp_telepon         String?
+  cp_email           String?
+  npwz               String?         @unique
+  no_rekening        String?         @unique
   penerimaans        PenerimaanZis[]
 }
 
@@ -93,98 +97,98 @@ model Pilar {
 }
 
 model Program {
-  code       String     @id
-  pilar_code String
-  name       String
-  budget_rkat Int?      @default(0)
+  code         String     @id
+  pilar_code   String
+  name         String
+  budget_rkat  Int?       @default(0)
   rkat_details Json?
-  tipe       String     @default("Konsumtif")
-  pilar      Pilar      @relation(fields: [pilar_code], references: [code])
-  proposals  Proposal[]
+  tipe         String     @default("Konsumtif")
+  pilar        Pilar      @relation(fields: [pilar_code], references: [code])
+  proposals    Proposal[]
 
   @@index([pilar_code], map: "Program_pilar_code_fkey")
 }
 
 model Proposal {
-  id                  String    @id @default(uuid())
-  agenda_no           Int       @unique @default(autoincrement())
-  tanggal_masuk       DateTime
-  nama_instansi       String?
-  pimpinan_organisasi String?
-  nama_pemohon        String
-  nama_anak           String?
-  nik                 String?
-  tempat_lahir        String?
-  tanggal_lahir       String?
-  jenis_kelamin       String?
-  alamat              String?   @db.Text
-  kelurahan           String?
-  kecamatan           String?
-  pekerjaan           String?
-  jenis_permohonan    String?
-  no_telpon           String?
-  email               String?
-  jam_pengajuan       String?
-  yang_mengajukan     String?
-  has_memo            Boolean   @default(false)
-  memo_source         String?
-  jenis_pengajuan     String    @default("")
-  rekomendasi         String?
-  keterangan          String?
-  status              String    @default("Pending")
-  file_gdrive_id      String?
-  file_gdrive_link    String?
-  mustahik_id         String?
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @updatedAt
-  isBeingSurveyed     Boolean?  @default(false)
-  score               Int?
-  surveyorName        String?
-  urgencyLevel        String?
-  survey_data         Json?
-  surveySubmittedAt   DateTime?
-  catatanKepala       String?   @db.Text
-  catatanPimpinan     String?   @db.Text
-  nominal             Int?
-  tipe_bantuan        String?
-  alasan_perubahan_nominal String? @db.Text
-  asnaf               String?
-  rekomendasi_kabag   String?
-  hasil_identifikasi  String?   @db.Text
-  approval_kabag      Boolean?
-  rkat_activity_id    String?
-  program             Program?  @relation(fields: [jenis_permohonan], references: [code])
-  mustahik            Mustahik? @relation(fields: [mustahik_id], references: [id])
+  id                       String    @id @default(uuid())
+  agenda_no                Int       @unique @default(autoincrement())
+  tanggal_masuk            DateTime
+  nama_instansi            String?
+  pimpinan_organisasi      String?
+  nama_pemohon             String
+  nama_anak                String?
+  nik                      String?
+  tempat_lahir             String?
+  tanggal_lahir            String?
+  jenis_kelamin            String?
+  alamat                   String?   @db.Text
+  kelurahan                String?
+  kecamatan                String?
+  pekerjaan                String?
+  jenis_permohonan         String?
+  no_telpon                String?
+  email                    String?
+  jam_pengajuan            String?
+  yang_mengajukan          String?
+  has_memo                 Boolean   @default(false)
+  memo_source              String?
+  jenis_pengajuan          String    @default("")
+  rekomendasi              String?
+  keterangan               String?
+  status                   String    @default("Pending")
+  file_gdrive_id           String?
+  file_gdrive_link         String?
+  mustahik_id              String?
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
+  isBeingSurveyed          Boolean?  @default(false)
+  score                    Int?
+  surveyorName             String?
+  urgencyLevel             String?
+  survey_data              Json?
+  surveySubmittedAt        DateTime?
+  catatanKepala            String?   @db.Text
+  nominal                  Int?
+  tipe_bantuan             String?
+  alasan_perubahan_nominal String?   @db.Text
+  catatanPimpinan          String?   @db.Text
+  approval_kabag           Boolean?
+  asnaf                    String?
+  hasil_identifikasi       String?   @db.Text
+  rekomendasi_kabag        String?
+  rkat_activity_id         String?
+  program                  Program?  @relation(fields: [jenis_permohonan], references: [code])
+  mustahik                 Mustahik? @relation(fields: [mustahik_id], references: [id])
 
   @@index([jenis_permohonan], map: "Proposal_jenis_permohonan_fkey")
   @@index([mustahik_id], map: "Proposal_mustahik_id_fkey")
 }
 
 model Surat {
-  id                  String   @id @default(uuid())
-  agenda_no           Int      @unique @default(autoincrement())
+  id                  String    @id @default(uuid())
+  agenda_no           Int       @unique @default(autoincrement())
   tanggal_masuk       DateTime
   nama_instansi       String?
   pimpinan_organisasi String?
-  alamat              String?  @db.Text
+  alamat              String?   @db.Text
   kelurahan           String?
   kecamatan           String?
-  kategori            String?  // Undangan, Surat Izin Kerja, dll
-  keperluan           String   @db.Text
-  tanggal_acara       DateTime?
-  jam_acara           String?
+  keperluan           String    @db.Text
   no_telpon           String?
   jam_pengajuan       String?
   yang_mengajukan     String?
   arsip               String?
-  status              String   @default("Registrasi")
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  status              String    @default("Registrasi")
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
   file_gdrive_id      String?
   file_gdrive_link    String?
-  catatanKepala       String?  @db.Text
-  catatanPimpinan     String?  @db.Text
-  assigned_staff      Json?    // Array of User IDs assigned to attend the event
+  catatanKepala       String?   @db.Text
+  catatanPimpinan     String?   @db.Text
+  jam_acara           String?
+  kategori            String?
+  tanggal_acara       DateTime?
+  assigned_staff      Json?
 }
 
 model Notification {
@@ -195,10 +199,186 @@ model Notification {
   isRead    Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
-
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model SystemParameter {
+  key         String   @id
+  value       String   @db.Text
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
+}
+
+model ChartOfAccounts {
+  coa_code       String           @id @db.VarChar(20)
+  nama_akun      String           @db.VarChar(255)
+  klasifikasi    String?          @db.VarChar(50)
+  tipe_dana      String?          @db.VarChar(30)
+  bankAccounts   BankAccount[]
+  debitRules     CoaMappingRule[] @relation("DebitCoa")
+  kreditRules    CoaMappingRule[] @relation("KreditCoa")
+  journalEntries JournalEntry[]
+}
+
+model BankAccount {
+  account_id            String               @id @default(uuid())
+  nama_akun             String               @db.VarChar(100)
+  tipe_kas              String               @db.VarChar(20)
+  kelompok_dana         String               @db.VarChar(20)
+  saldo                 Decimal              @default(0.00) @db.Decimal(15, 2)
+  no_rekening           String?              @db.VarChar(50)
+  kode_laci             String?              @db.VarChar(1)
+  coa_code              String               @db.VarChar(20)
+  coa                   ChartOfAccounts      @relation(fields: [coa_code], references: [coa_code])
+  sourceMutations       CashMutation[]
+  targetMutationDetails CashMutationDetail[]
+  journalEntries        JournalEntry[]
+  penerimaans           PenerimaanZis[]
+
+  @@index([coa_code], map: "BankAccount_coa_code_fkey")
+}
+
+model CoaMappingRule {
+  rule_id         String          @id @default(uuid())
+  program_code    String          @db.VarChar(50)
+  asnaf_id        String?         @db.VarChar(50)
+  tipe_kas        String          @db.VarChar(20)
+  sumber_dana_tag String          @db.VarChar(20)
+  debit_coa_code  String          @db.VarChar(20)
+  kredit_coa_code String          @db.VarChar(20)
+  debitCoa        ChartOfAccounts @relation("DebitCoa", fields: [debit_coa_code], references: [coa_code])
+  kreditCoa       ChartOfAccounts @relation("KreditCoa", fields: [kredit_coa_code], references: [coa_code])
+
+  @@index([debit_coa_code], map: "CoaMappingRule_debit_coa_code_fkey")
+  @@index([kredit_coa_code], map: "CoaMappingRule_kredit_coa_code_fkey")
+}
+
+model Realisasi {
+  transaksi_id   String         @id @default(uuid())
+  proposal_id    String?
+  rkat_id        String?        @db.VarChar(100)
+  tanggal        DateTime       @default(now())
+  keterangan     String?        @db.Text
+  nrm            String?        @db.VarChar(100)
+  createdAt      DateTime       @default(now())
+  journalEntries JournalEntry[]
+}
+
+model JournalEntry {
+  entry_id     String          @id @default(uuid())
+  transaksi_id String
+  coa_code     String          @db.VarChar(20)
+  debit        Decimal         @default(0.00) @db.Decimal(15, 2)
+  kredit       Decimal         @default(0.00) @db.Decimal(15, 2)
+  account_id   String?
+  account      BankAccount?    @relation(fields: [account_id], references: [account_id])
+  coa          ChartOfAccounts @relation(fields: [coa_code], references: [coa_code])
+  realisasi    Realisasi       @relation(fields: [transaksi_id], references: [transaksi_id], onDelete: Cascade)
+
+  @@index([account_id], map: "JournalEntry_account_id_fkey")
+  @@index([coa_code], map: "JournalEntry_coa_code_fkey")
+  @@index([transaksi_id], map: "JournalEntry_transaksi_id_fkey")
+}
+
+model CashMutation {
+  mutation_id       String               @id @default(uuid())
+  source_account_id String
+  nominal_total     Decimal              @db.Decimal(15, 2)
+  tanggal           DateTime             @default(now())
+  keterangan        String?              @db.Text
+  sourceAccount     BankAccount          @relation(fields: [source_account_id], references: [account_id])
+  details           CashMutationDetail[]
+
+  @@index([source_account_id], map: "CashMutation_source_account_id_fkey")
+}
+
+model CashMutationDetail {
+  detail_id         String       @id @default(uuid())
+  mutation_id       String
+  target_account_id String
+  nominal_alokasi   Decimal      @db.Decimal(15, 2)
+  mutation          CashMutation @relation(fields: [mutation_id], references: [mutation_id], onDelete: Cascade)
+  targetAccount     BankAccount  @relation(fields: [target_account_id], references: [account_id])
+
+  @@index([mutation_id], map: "CashMutationDetail_mutation_id_fkey")
+  @@index([target_account_id], map: "CashMutationDetail_target_account_id_fkey")
+}
+
+model RkatPengumpulan {
+  id                String          @id @default(uuid())
+  no                String
+  kategori          String
+  nama_program      String
+  target_perorangan Int?
+  target_lembaga    Int?
+  nilai_anggaran    Decimal         @db.Decimal(15, 2)
+  target_jan        Decimal?        @db.Decimal(15, 2)
+  target_feb        Decimal?        @db.Decimal(15, 2)
+  target_mar        Decimal?        @db.Decimal(15, 2)
+  target_apr        Decimal?        @db.Decimal(15, 2)
+  target_mei        Decimal?        @db.Decimal(15, 2)
+  target_jun        Decimal?        @db.Decimal(15, 2)
+  target_jul        Decimal?        @db.Decimal(15, 2)
+  target_agt        Decimal?        @db.Decimal(15, 2)
+  target_sep        Decimal?        @db.Decimal(15, 2)
+  target_okt        Decimal?        @db.Decimal(15, 2)
+  target_nov        Decimal?        @db.Decimal(15, 2)
+  target_des        Decimal?        @db.Decimal(15, 2)
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+  coa_codes         String?         @db.Text
+  penerimaans       PenerimaanZis[]
+}
+
+model PenerimaanZis {
+  id                 String          @id @default(uuid())
+  no_kuitansi        String          @unique
+  muzakki_id         String
+  rkat_id            String
+  bank_account_id    String
+  nominal            Decimal         @db.Decimal(15, 2)
+  metode_pembayaran  String
+  tanggal_pembayaran DateTime        @default(now())
+  keterangan         String?         @db.Text
+  status_simba       String          @default("PENDING")
+  transaksi_id       String?
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+  bankAccount        BankAccount     @relation(fields: [bank_account_id], references: [account_id])
+  muzakki            Muzakki         @relation(fields: [muzakki_id], references: [id])
+  rkat               RkatPengumpulan @relation(fields: [rkat_id], references: [id])
+
+  @@index([bank_account_id], map: "PenerimaanZis_bank_account_id_fkey")
+  @@index([muzakki_id], map: "PenerimaanZis_muzakki_id_fkey")
+  @@index([rkat_id], map: "PenerimaanZis_rkat_id_fkey")
+}
+
+model RkatOperasional {
+  id             String   @id @default(uuid())
+  no             String
+  nama           String
+  keterangan     String?  @db.Text
+  coa_codes      String?  @db.Text
+  volume         Int      @default(1)
+  frekuensi      Int      @default(1)
+  unit_cost      Decimal  @default(0.00) @db.Decimal(15, 2)
+  nilai_anggaran Decimal  @default(0.00) @db.Decimal(15, 2)
+  target_jan     Decimal? @db.Decimal(15, 2)
+  target_feb     Decimal? @db.Decimal(15, 2)
+  target_mar     Decimal? @db.Decimal(15, 2)
+  target_apr     Decimal? @db.Decimal(15, 2)
+  target_mei     Decimal? @db.Decimal(15, 2)
+  target_jun     Decimal? @db.Decimal(15, 2)
+  target_jul     Decimal? @db.Decimal(15, 2)
+  target_agt     Decimal? @db.Decimal(15, 2)
+  target_sep     Decimal? @db.Decimal(15, 2)
+  target_okt     Decimal? @db.Decimal(15, 2)
+  target_nov     Decimal? @db.Decimal(15, 2)
+  target_des     Decimal? @db.Decimal(15, 2)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
 }
 
 enum Role {
@@ -230,146 +410,3 @@ enum KategoriUPZ {
   Sekolah
   OPD
 }
-
-model SystemParameter {
-  key         String   @id
-  value       String   @db.Text
-  description String?  @db.Text
-  updatedAt   DateTime @updatedAt
-}
-
-model ChartOfAccounts {
-  coa_code    String    @id @db.VarChar(20)
-  nama_akun   String    @db.VarChar(255)
-  klasifikasi String?   @db.VarChar(50) // 'Aktiva', 'Kewajiban', 'Saldo', 'Penerimaan', 'Penyaluran'
-  tipe_dana   String?   @db.VarChar(30) // 'ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT', 'AMIL', 'APBD'
-
-  bankAccounts BankAccount[]
-  debitRules   CoaMappingRule[] @relation("DebitCoa")
-  kreditRules  CoaMappingRule[] @relation("KreditCoa")
-  journalEntries JournalEntry[]
-}
-
-model BankAccount {
-  account_id    String    @id @default(uuid())
-  nama_akun     String    @db.VarChar(100) // Contoh: 'BSI - Rekening Utama Zakat', 'Kas Utama Tunai (A) - Zakat'
-  tipe_kas      String    @db.VarChar(20)  // 'TUNAI' atau 'BANK'
-  kelompok_dana String    @db.VarChar(20)  // 'ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT', 'AMIL', 'APBD', 'NON-HALAL'
-  saldo         Decimal   @db.Decimal(15, 2) @default(0.00)
-  no_rekening   String?   @db.VarChar(50)
-  kode_laci     String?   @db.VarChar(1)   // 'A' s.d 'G' untuk tipe TUNAI
-  coa_code      String    @db.VarChar(20)
-  
-  coa           ChartOfAccounts @relation(fields: [coa_code], references: [coa_code])
-  journalEntries JournalEntry[]
-  sourceMutations CashMutation[]
-  targetMutationDetails CashMutationDetail[]
-  penerimaans        PenerimaanZis[]
-}
-
-model CoaMappingRule {
-  rule_id         String    @id @default(uuid())
-  program_code    String    @db.VarChar(50) // references Program.code
-  asnaf_id        String?   @db.VarChar(50) // can be NULL
-  tipe_kas        String    @db.VarChar(20)  // 'TUNAI' or 'BANK'
-  sumber_dana_tag String    @db.VarChar(20)  // 'ZAKAT', 'IST', 'ISTT', 'AMIL', 'APBD'
-  debit_coa_code  String    @db.VarChar(20)
-  kredit_coa_code String    @db.VarChar(20)
-
-  debitCoa        ChartOfAccounts @relation("DebitCoa", fields: [debit_coa_code], references: [coa_code])
-  kreditCoa       ChartOfAccounts @relation("KreditCoa", fields: [kredit_coa_code], references: [coa_code])
-}
-
-model Realisasi {
-  transaksi_id String    @id @default(uuid())
-  proposal_id  String?   @db.VarChar(191) // references Proposal.id
-  rkat_id      String?   @db.VarChar(100) // References target/asnaf id or Program.code
-  tanggal      DateTime  @default(now())
-  keterangan   String?   @db.Text
-  nrm          String?   @db.VarChar(100)
-  createdAt    DateTime  @default(now())
-
-  journalEntries JournalEntry[]
-}
-
-model JournalEntry {
-  entry_id     String    @id @default(uuid())
-  transaksi_id String    @db.VarChar(191)
-  coa_code     String    @db.VarChar(20)
-  debit        Decimal   @db.Decimal(15, 2) @default(0.00)
-  kredit       Decimal   @db.Decimal(15, 2) @default(0.00)
-  account_id   String?   @db.VarChar(191)
-
-  realisasi    Realisasi       @relation(fields: [transaksi_id], references: [transaksi_id], onDelete: Cascade)
-  coa          ChartOfAccounts @relation(fields: [coa_code], references: [coa_code])
-  account      BankAccount?    @relation(fields: [account_id], references: [account_id])
-}
-
-model CashMutation {
-  mutation_id       String    @id @default(uuid())
-  source_account_id String    @db.VarChar(191)
-  nominal_total     Decimal   @db.Decimal(15, 2)
-  tanggal           DateTime  @default(now())
-  keterangan        String?   @db.Text
-
-  sourceAccount     BankAccount @relation(fields: [source_account_id], references: [account_id])
-  details           CashMutationDetail[]
-}
-
-model CashMutationDetail {
-  detail_id         String    @id @default(uuid())
-  mutation_id       String    @db.VarChar(191)
-  target_account_id String    @db.VarChar(191)
-  nominal_alokasi   Decimal   @db.Decimal(15, 2)
-
-  mutation          CashMutation @relation(fields: [mutation_id], references: [mutation_id], onDelete: Cascade)
-  targetAccount     BankAccount  @relation(fields: [target_account_id], references: [account_id])
-}
-
-model RkatPengumpulan {
-  id                   String    @id @default(uuid())
-  no                   String    // e.g. "1", "2", "11", etc.
-  kategori             String    // "Zakat" | "Infak" | "DSKL" | "CSR"
-  nama_program         String
-  coa_codes            String?   @db.Text
-  target_perorangan    Int?
-  target_lembaga       Int?
-  nilai_anggaran       Decimal   @db.Decimal(15, 2)
-  target_jan           Decimal?  @db.Decimal(15, 2)
-  target_feb           Decimal?  @db.Decimal(15, 2)
-  target_mar           Decimal?  @db.Decimal(15, 2)
-  target_apr           Decimal?  @db.Decimal(15, 2)
-  target_mei           Decimal?  @db.Decimal(15, 2)
-  target_jun           Decimal?  @db.Decimal(15, 2)
-  target_jul           Decimal?  @db.Decimal(15, 2)
-  target_agt           Decimal?  @db.Decimal(15, 2)
-  target_sep           Decimal?  @db.Decimal(15, 2)
-  target_okt           Decimal?  @db.Decimal(15, 2)
-  target_nov           Decimal?  @db.Decimal(15, 2)
-  target_des           Decimal?  @db.Decimal(15, 2)
-  created_at           DateTime  @default(now())
-  updated_at           DateTime  @updatedAt
-  penerimaans        PenerimaanZis[]
-}
-
-model PenerimaanZis {
-  id                 String    @id @default(uuid())
-  no_kuitansi        String    @unique
-  muzakki_id         String    @db.VarChar(191)
-  rkat_id            String    @db.VarChar(191) // References RkatPengumpulan.id
-  bank_account_id    String    @db.VarChar(191) // References BankAccount.account_id
-  nominal            Decimal   @db.Decimal(15, 2)
-  metode_pembayaran  String    // "TUNAI" | "TRANSFER"
-  tanggal_pembayaran DateTime  @default(now())
-  keterangan         String?   @db.Text
-  status_simba       String    @default("PENDING") // "PENDING" | "SYNCED"
-  transaksi_id       String?   @db.VarChar(191) // associated Realisasi/JournalEntry ID
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-
-  muzakki            Muzakki         @relation(fields: [muzakki_id], references: [id])
-  rkat               RkatPengumpulan @relation(fields: [rkat_id], references: [id])
-  bankAccount        BankAccount     @relation(fields: [bank_account_id], references: [account_id])
-}
-
-

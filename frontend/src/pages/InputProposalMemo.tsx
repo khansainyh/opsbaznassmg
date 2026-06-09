@@ -75,9 +75,13 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   // Kecamatan/Kelurahan state
   const [selectedKecamatan, setSelectedKecamatan] = useState('');
   const [selectedKelurahan, setSelectedKelurahan] = useState('');
-  const [jenisPengajuanState, setJenisPengajuanState] = useState<'Individu' | 'Kelompok'>('Individu');
+  const [jenisPengajuanState, setJenisPengajuanState] = useState<'Perorangan' | 'Lembaga'>('Perorangan');
   const [isKtpSemarang, setIsKtpSemarang] = useState(true);
   const [pilarsList, setPilarsList] = useState<Pilar[]>(pilarData);
+  const [selectedProgramCode, setSelectedProgramCode] = useState('');
+  const [programSearchQuery, setProgramSearchQuery] = useState('');
+  const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
+  const [tanggalLahirInput, setTanggalLahirInput] = useState('');
 
   React.useEffect(() => {
     axios.get('http://127.0.0.1:4000/api/pilars')
@@ -92,6 +96,26 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   const kelurahanOptions = kecamatanKelurahanSemarang.find(
     k => k.kecamatan === selectedKecamatan
   )?.kelurahan ?? [];
+
+  const filteredPilars = pilarsList.map(pilar => {
+    const matchingProgs = pilar.programs.filter(prog => 
+      prog.code.toLowerCase().includes(programSearchQuery.toLowerCase()) ||
+      prog.name.toLowerCase().includes(programSearchQuery.toLowerCase())
+    );
+    return {
+      ...pilar,
+      programs: matchingProgs
+    };
+  }).filter(pilar => pilar.programs.length > 0);
+
+  const selectedProgramName = (() => {
+    if (!selectedProgramCode) return 'Pilih Program...';
+    for (const pilar of pilarsList) {
+      const prog = pilar.programs.find(p => p.code === selectedProgramCode);
+      if (prog) return `${prog.code} - ${prog.name}`;
+    }
+    return selectedProgramCode;
+  })();
 
   // Sorted: terbaru di atas
   const filteredData = data
@@ -120,9 +144,20 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
 
   const handleAddData = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (jenisPengajuanState === 'Individu' && nikCheckStr.length !== 16) {
-      alert('NIK wajib diisi 16 digit untuk pengajuan Individu.');
+    if (nikCheckStr.length !== 16) {
+      alert('NIK / NIK Pimpinan wajib diisi 16 digit.');
       return;
+    }
+    if (jenisPengajuanState === 'Perorangan') {
+      if (tanggalLahirInput.length !== 10) {
+        alert('Tanggal lahir wajib diisi dengan format DD-MM-YYYY.');
+        return;
+      }
+      const parts = tanggalLahirInput.split('-');
+      if (parts.length !== 3 || parts[0].length !== 2 || parts[1].length !== 2 || parts[2].length !== 4) {
+        alert('Format Tanggal Lahir tidak valid (DD-MM-YYYY). Contoh: 17-08-1945');
+        return;
+      }
     }
     const fd = new FormData(e.currentTarget);
     const get = (name: string) => String(fd.get(name) ?? '');
@@ -130,21 +165,21 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
     const payload: Record<string, any> = {
       tanggal_masuk:       get('tanggalMasuk'),
       jam_pengajuan:       get('jamPengajuan'),
-      jenis_permohonan:    get('jenisPermohonan'),
-      jenis_pengajuan:     get('jenis_pengajuan') || 'Individu',
-      nama_instansi:       get('namaInstansi') || null,
-      pimpinan_organisasi: get('pimpinanOrganisasi') || null,
-      nama_pemohon:        get('namaPemohon'),
+      jenis_permohonan:    selectedProgramCode,
+      jenis_pengajuan:     jenisPengajuanState,
+      nama_instansi:       jenisPengajuanState === 'Lembaga' ? get('namaInstansi') : (get('namaInstansi') || null),
+      pimpinan_organisasi: jenisPengajuanState === 'Lembaga' ? get('pimpinanOrganisasi') : (get('pimpinanOrganisasi') || null),
+      nama_pemohon:        jenisPengajuanState === 'Lembaga' ? get('pimpinanOrganisasi') : get('namaPemohon'),
       nama_anak:           get('namaAnak') || null,
       nik:                 nikCheckStr || get('nik') || null,
-      tempat_lahir:        get('tempat_lahir'),
-      tanggal_lahir:       get('tanggal_lahir'),
-      jenis_kelamin:       get('jenis_kelamin'),
+      tempat_lahir:        jenisPengajuanState === 'Perorangan' ? get('tempat_lahir') : null,
+      tanggal_lahir:       jenisPengajuanState === 'Perorangan' ? tanggalLahirInput : null,
+      jenis_kelamin:       jenisPengajuanState === 'Perorangan' ? get('jenis_kelamin') : null,
       alamat:              get('alamat') || null,
       kelurahan:           selectedKelurahan || get('kelurahan') || null,
       kecamatan:           selectedKecamatan || get('kecamatan') || null,
-      pekerjaan:           get('pekerjaan') || null,
-      no_telpon:           get('handphone') || null,
+      pekerjaan:           jenisPengajuanState === 'Perorangan' ? get('pekerjaan') : null,
+      no_telpon:           get('telepon') || null,
       email:               get('email') || null,
       catatan:             get('catatan') || null,
       yang_mengajukan:     get('yangMengajukan') || null,
@@ -156,23 +191,53 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
     };
 
     try {
+      const isLembaga = jenisPengajuanState === 'Lembaga';
       if (nikStatus === 'new' && nikCheckStr.length === 16) {
         const res = await axios.post('http://127.0.0.1:4000/api/mustahik/auto-register', {
           nik: nikCheckStr,
-          nama: payload.nama_pemohon,
+          nama: isLembaga ? payload.nama_instansi : payload.nama_pemohon,
+          nama_pimpinan: isLembaga ? payload.pimpinan_organisasi : null,
+          jenis_lembaga: isLembaga ? get('jenisLembaga') : null,
+          jumlah_anggota: isLembaga ? (parseInt(get('jumlahAnggota'), 10) || 0) : 0,
           tempat_lahir: payload.tempat_lahir,
           tanggal_lahir: payload.tanggal_lahir,
           jenis_kelamin: payload.jenis_kelamin,
           alamat: payload.alamat || null,
-          handphone: payload.no_telpon,
+          telepon: payload.no_telpon,
+          handphone: isLembaga ? null : payload.no_telpon,
           email: payload.email,
           catatan: payload.catatan || '',
-          kategori: null,
-          pekerjaan: payload.pekerjaan || null
+          kategori: jenisPengajuanState,
+          pekerjaan: payload.pekerjaan || null,
+          provinsi: 'Jawa Tengah',
+          kabupaten: isKtpSemarang ? 'Kota Semarang' : 'Luar Kota Semarang',
+          kecamatan: selectedKecamatan || null,
+          kelurahan: selectedKelurahan || null
         });
         if (res.data.mustahik_id) payload.mustahik_id = res.data.mustahik_id;
       } else if (matchedMustahikId) {
         payload.mustahik_id = matchedMustahikId;
+        // Keep the Mustahik record updated with latest details
+        await axios.put(`http://127.0.0.1:4000/api/mustahik/${matchedMustahikId}`, {
+          nik: nikCheckStr,
+          nama: isLembaga ? payload.nama_instansi : payload.nama_pemohon,
+          nama_pimpinan: isLembaga ? payload.pimpinan_organisasi : null,
+          jenis_lembaga: isLembaga ? get('jenisLembaga') : null,
+          jumlah_anggota: isLembaga ? (parseInt(get('jumlahAnggota'), 10) || 0) : 0,
+          tempat_lahir: payload.tempat_lahir,
+          tanggal_lahir: payload.tanggal_lahir,
+          jenis_kelamin: payload.jenis_kelamin,
+          alamat: payload.alamat || null,
+          telepon: payload.no_telpon,
+          handphone: isLembaga ? null : payload.no_telpon,
+          email: payload.email,
+          kategori: jenisPengajuanState,
+          pekerjaan: payload.pekerjaan || null,
+          provinsi: 'Jawa Tengah',
+          kabupaten: isKtpSemarang ? 'Kota Semarang' : 'Luar Kota Semarang',
+          kecamatan: selectedKecamatan || null,
+          kelurahan: selectedKelurahan || null
+        });
       }
 
       if (editingProposal) {
@@ -216,10 +281,22 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
     setSelectedKecamatan(proposal.kecamatan || '');
     setSelectedKelurahan(proposal.kelurahan || '');
     setNikCheckStr(proposal.nik || '');
-    const isKelompok = (proposal as any).jenis_pengajuan === 'Kelompok' || proposal.jenisPermohonan === 'Kelompok';
-    setJenisPengajuanState(isKelompok ? 'Kelompok' : 'Individu');
+    setSelectedProgramCode(proposal.programCode || proposal.jenisPermohonan || '');
+    let dob = proposal.tanggal_lahir || '';
+    if (dob.includes('-')) {
+      const parts = dob.split('-');
+      if (parts[0].length === 4) {
+        dob = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+    setTanggalLahirInput(dob);
+    setMatchedMustahikId(proposal.mustahik_id || null);
+
+    const isLembaga = (proposal as any).jenis_pengajuan === 'Lembaga' || (proposal as any).jenis_pengajuan === 'Kelompok' || proposal.jenisPermohonan === 'Lembaga' || proposal.jenisPermohonan === 'Kelompok';
+    setJenisPengajuanState(isLembaga ? 'Lembaga' : 'Perorangan');
+    
     const isSemarang = kecamatanKelurahanSemarang.some(k => k.kecamatan === proposal.kecamatan);
-    setIsKtpSemarang(!isKelompok && (isSemarang || !proposal.kecamatan));
+    setIsKtpSemarang(isSemarang || !proposal.kecamatan);
     setIsModalOpen(true);
   };
 
@@ -382,8 +459,11 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
               setMatchedMustahikId(null);
               setSelectedKecamatan('');
               setSelectedKelurahan('');
-              setJenisPengajuanState('Individu');
+              setJenisPengajuanState('Perorangan');
               setIsKtpSemarang(true);
+              setSelectedProgramCode('');
+              setProgramSearchQuery('');
+              setTanggalLahirInput('');
               setIsModalOpen(true);
             }}
             className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
@@ -898,7 +978,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                 </button>
               </div>
               
-              <form onSubmit={handleAddData} className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              <form key={editingProposal ? editingProposal.id : 'new'} onSubmit={handleAddData} className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left Column: Informasi Pengajuan */}
                   <div className="space-y-4">
@@ -916,28 +996,85 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                     </div>
 
                      <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Permohonan (Program)</label>
-                      <select required name="jenisPermohonan" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingProposal?.jenisPermohonan || ""}>
-                        <option value="">Pilih Program...</option>
-                        {pilarsList.map(pilar => (
-                          <optgroup key={pilar.code} label={pilar.name}>
-                            {pilar.programs.map(prog => (
-                              <option key={prog.code} value={prog.code}>{prog.code} - {prog.name}</option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Permohonan (Program) *</label>
+                      <div className="relative">
+                        <input type="hidden" name="jenisPermohonan" value={selectedProgramCode} required />
+                        <button
+                          type="button"
+                          onClick={() => setIsProgramDropdownOpen(!isProgramDropdownOpen)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
+                        >
+                          <span className={selectedProgramCode ? "text-slate-800 font-medium" : "text-slate-400"}>
+                            {selectedProgramName}
+                          </span>
+                          <span className="text-slate-400">▼</span>
+                        </button>
+
+                        {isProgramDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setIsProgramDropdownOpen(false)} />
+                            <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                              <input
+                                type="text"
+                                placeholder="Cari program..."
+                                value={programSearchQuery}
+                                onChange={(e) => setProgramSearchQuery(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary outline-none"
+                                autoFocus
+                              />
+                              <div className="max-h-56 overflow-y-auto space-y-2 text-left">
+                                {filteredPilars.length > 0 ? (
+                                  filteredPilars.map(pilar => (
+                                    <div key={pilar.code} className="space-y-1">
+                                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-0.5 bg-slate-50 rounded">
+                                        {pilar.name}
+                                      </div>
+                                      {pilar.programs.map(prog => (
+                                        <button
+                                          key={prog.code}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedProgramCode(prog.code);
+                                            setIsProgramDropdownOpen(false);
+                                            setProgramSearchQuery('');
+                                          }}
+                                          className={cn(
+                                            "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex justify-between items-center",
+                                            selectedProgramCode === prog.code
+                                              ? "bg-primary text-white font-bold"
+                                              : "text-slate-700 hover:bg-slate-100"
+                                          )}
+                                        >
+                                          <span>{prog.code} - {prog.name}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-center text-xs text-slate-400 py-4">
+                                    Tidak ada program yang cocok
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Instansi (Opsional)</label>
-                      <input name="namaInstansi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama organisasi/lembaga..." defaultValue={editingProposal?.namaInstansi || ""} />
-                    </div>
+                    {jenisPengajuanState === 'Perorangan' && (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Instansi (Opsional)</label>
+                          <input name="namaInstansi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama organisasi/lembaga..." defaultValue={editingProposal?.namaInstansi || ""} />
+                        </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pimpinan Organisasi (Opsional)</label>
-                      <input name="pimpinanOrganisasi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pimpinan..." defaultValue={editingProposal?.pimpinanOrganisasi || ""} />
-                    </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pimpinan Organisasi (Opsional)</label>
+                          <input name="pimpinanOrganisasi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pimpinan..." defaultValue={editingProposal?.pimpinanOrganisasi || ""} />
+                        </div>
+                      </>
+                    )}
 
                     <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-3">
                       <div className="flex items-center justify-between">
@@ -968,14 +1105,14 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                     <div className="space-y-2 pb-4 border-b border-primary/5">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between">
-                          NIK {jenisPengajuanState === 'Kelompok' ? '(Opsional)' : ''}
+                          {jenisPengajuanState === 'Perorangan' ? 'NIK *' : 'NIK Pimpinan / Ketua *'}
                           <span className="text-amber-500 font-bold lowercase bg-amber-50 px-1 rounded">Cek Riwayat 1 Tahun</span>
                         </label>
                         <div className="flex gap-2">
                           <input 
                             type="text" 
                             maxLength={16}
-                            placeholder={jenisPengajuanState === 'Kelompok' ? "Opsional..." : "Masukkan 16 digit NIK..."}
+                            placeholder={jenisPengajuanState === 'Perorangan' ? "Masukkan 16 digit NIK..." : "NIK Pimpinan..."}
                             className={cn(
                               'flex-1 rounded-xl px-4 py-2.5 text-sm focus:ring-2 outline-none transition-all font-mono tracking-widest',
                               nikStatus === 'success'     ? 'bg-emerald-50 border border-emerald-200 text-emerald-900 focus:ring-emerald-200' :
@@ -1017,7 +1154,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                       <div className="flex items-center gap-3 pt-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Jenis Pengajuan</label>
                         <div className="flex gap-2 items-center">
-                          {['Individu', 'Kelompok'].map(jenis => (
+                          {['Perorangan', 'Lembaga'].map(jenis => (
                             <label key={jenis} className="flex items-center gap-1.5 cursor-pointer">
                               <input
                                 type="radio"
@@ -1034,46 +1171,100 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                       </div>
                     </div>
 
-                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2">Data Pemohon</h4>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2">
+                      {jenisPengajuanState === 'Perorangan' ? 'Data Pemohon' : 'Data Lembaga'}
+                    </h4>
                     
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pemohon</label>
-                      <input required name="namaPemohon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama lengkap..." defaultValue={editingProposal?.namaPemohon || ""} />
-                    </div>
+                    {jenisPengajuanState === 'Perorangan' ? (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Nama Pemohon *
+                          </label>
+                          <input required name="namaPemohon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama lengkap..." defaultValue={editingProposal?.namaPemohon || ""} />
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anak (Opsional)</label>
-                        <input name="namaAnak" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Jika pendidikan..." defaultValue={editingProposal?.namaAnak || ""} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin</label>
-                        <select required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingProposal?.jenis_kelamin || ""}>
-                          <option value="">Pilih...</option>
-                          <option value="Pria">Pria</option>
-                          <option value="Wanita">Wanita</option>
-                        </select>
-                      </div>
-                    </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anak (Opsional)</label>
+                            <input name="namaAnak" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Jika pendidikan..." defaultValue={editingProposal?.namaAnak || ""} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
+                            <select required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingProposal?.jenis_kelamin || ""}>
+                              <option value="">Pilih...</option>
+                              <option value="Pria">Pria</option>
+                              <option value="Wanita">Wanita</option>
+                            </select>
+                          </div>
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
-                        <input required name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kota" defaultValue={editingProposal?.tempat_lahir || ""} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Lahir</label>
-                        <input required name="tanggal_lahir" type="date" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingProposal?.tanggal_lahir || ""} />
-                      </div>
-                    </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
+                            <input required name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kota" defaultValue={editingProposal?.tempat_lahir || ""} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Lahir *</label>
+                            <input 
+                              required 
+                              name="tanggal_lahir" 
+                              type="text" 
+                              placeholder="DD-MM-YYYY"
+                              maxLength={10}
+                              value={tanggalLahirInput}
+                              onChange={(e) => {
+                                let val = e.target.value.replace(/\D/g, ''); // Keep only digits
+                                if (val.length > 8) val = val.slice(0, 8);
+                                // Format as DD-MM-YYYY
+                                let formatted = val;
+                                if (val.length > 4) {
+                                  formatted = `${val.slice(0, 2)}-${val.slice(2, 4)}-${val.slice(4)}`;
+                                } else if (val.length > 2) {
+                                  formatted = `${val.slice(0, 2)}-${val.slice(2)}`;
+                                }
+                                setTanggalLahirInput(formatted);
+                              }}
+                              className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono tracking-wider" 
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Nama Lembaga *
+                          </label>
+                          <input required name="namaInstansi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama instansi/lembaga..." defaultValue={editingProposal?.namaInstansi || (editingProposal as any)?.mustahik?.nama || ""} />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Nama Pimpinan / Ketua *
+                          </label>
+                          <input required name="pimpinanOrganisasi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pimpinan/ketua..." defaultValue={editingProposal?.pimpinanOrganisasi || (editingProposal as any)?.mustahik?.nama_pimpinan || ""} />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga *</label>
+                            <input required name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, Kelompok, dll..." defaultValue={(editingProposal as any)?.mustahik?.jenis_lembaga || (editingProposal as any)?.jenisLembaga || "Lembaga"} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jumlah Anggota (Opsional)</label>
+                            <input name="jumlahAnggota" type="number" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Jumlah..." defaultValue={(editingProposal as any)?.mustahik?.jumlah_anggota || (editingProposal as any)?.jumlahAnggota || ""} />
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Lengkap</label>
                       <textarea required name="alamat" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Alamat domisili..." defaultValue={editingProposal?.alamat || ""} />
                     </div>
 
-                    {jenisPengajuanState === 'Individu' && (
-                      <div className="flex">
+                    <div className="flex">
                         <label className="flex items-center gap-2 cursor-pointer px-3 py-2 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-xl transition-colors w-fit">
                           <input
                             type="checkbox"
@@ -1081,103 +1272,113 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                             onChange={(e) => setIsKtpSemarang(e.target.checked)}
                             className="accent-primary rounded size-4"
                           />
-                          <span className="text-xs font-bold text-primary">KTP Wilayah Kota Semarang</span>
+                          <span className="text-xs font-bold text-primary">
+                            {jenisPengajuanState === 'Perorangan' ? 'KTP Wilayah Kota Semarang' : 'Domisili Wilayah Kota Semarang'}
+                          </span>
                         </label>
                       </div>
-                    )}
 
-                    {/* Kecamatan & Kelurahan Dropdown */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
-                        {jenisPengajuanState === 'Individu' && isKtpSemarang ? (
-                          <select
-                            required
-                            name="kecamatan"
-                            className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                            value={selectedKecamatan}
-                            onChange={e => {
-                              setSelectedKecamatan(e.target.value);
-                              setSelectedKelurahan('');
-                            }}
-                          >
-                            <option value="">Pilih Kecamatan...</option>
-                            {kecamatanKelurahanSemarang.map(k => (
-                              <option key={k.kecamatan} value={k.kecamatan}>{k.kecamatan}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            name="kecamatan"
-                            placeholder="Kecamatan..."
-                            className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                            value={selectedKecamatan}
-                            onChange={e => setSelectedKecamatan(e.target.value)}
-                          />
-                        )}
+                      {/* Kecamatan & Kelurahan Dropdown */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
+                          {isKtpSemarang ? (
+                            <select
+                              required
+                              name="kecamatan"
+                              className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                              value={selectedKecamatan}
+                              onChange={e => {
+                                setSelectedKecamatan(e.target.value);
+                                setSelectedKelurahan('');
+                              }}
+                            >
+                              <option value="">Pilih Kecamatan...</option>
+                              {kecamatanKelurahanSemarang.map(k => (
+                                <option key={k.kecamatan} value={k.kecamatan}>{k.kecamatan}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              name="kecamatan"
+                              placeholder="Kecamatan..."
+                              className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                              value={selectedKecamatan}
+                              onChange={e => setSelectedKecamatan(e.target.value)}
+                            />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Kelurahan
+                            {isKtpSemarang && !selectedKecamatan && <span className="ml-1 text-slate-300">(pilih kecamatan dulu)</span>}
+                          </label>
+                          {isKtpSemarang ? (
+                            <select
+                              required
+                              name="kelurahan"
+                              className={cn(
+                                "w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all",
+                                !selectedKecamatan && "opacity-50 cursor-not-allowed"
+                              )}
+                              value={selectedKelurahan}
+                              onChange={e => setSelectedKelurahan(e.target.value)}
+                              disabled={!selectedKecamatan}
+                            >
+                              <option value="">Pilih Kelurahan...</option>
+                              {kelurahanOptions.map(kel => (
+                                <option key={kel} value={kel}>{kel}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              name="kelurahan"
+                              placeholder="Kelurahan..."
+                              className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                              value={selectedKelurahan}
+                              onChange={e => setSelectedKelurahan(e.target.value)}
+                            />
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          Kelurahan
-                          {jenisPengajuanState === 'Individu' && isKtpSemarang && !selectedKecamatan && <span className="ml-1 text-slate-300">(pilih kecamatan dulu)</span>}
-                        </label>
-                        {jenisPengajuanState === 'Individu' && isKtpSemarang ? (
-                          <select
-                            required
-                            name="kelurahan"
-                            className={cn(
-                              "w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all",
-                              !selectedKecamatan && "opacity-50 cursor-not-allowed"
-                            )}
-                            value={selectedKelurahan}
-                            onChange={e => setSelectedKelurahan(e.target.value)}
-                            disabled={!selectedKecamatan}
-                          >
-                            <option value="">Pilih Kelurahan...</option>
-                            {kelurahanOptions.map(kel => (
-                              <option key={kel} value={kel}>{kel}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            name="kelurahan"
-                            placeholder="Kelurahan..."
-                            className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                            value={selectedKelurahan}
-                            onChange={e => setSelectedKelurahan(e.target.value)}
-                          />
-                        )}
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Handphone</label>
-                        <input required name="handphone" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="08xxx..." defaultValue={editingProposal?.noTelpon || ""} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon *</label>
+                          <input required name="telepon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="08xxx..." defaultValue={editingProposal?.noTelpon || ""} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email (Opsional)</label>
+                          <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="email@..." defaultValue={editingProposal?.email || ""} />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email (Opsional)</label>
-                        <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="email@..." defaultValue={editingProposal?.email || ""} />
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
-                        <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Pekerjaan..." defaultValue={editingProposal?.pekerjaan || ""} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          {jenisPengajuanState === 'Perorangan' ? (
+                            <>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
+                              <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Pekerjaan..." defaultValue={editingProposal?.pekerjaan || ""} />
+                            </>
+                          ) : (
+                            <>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga (Opsional)</label>
+                              <input name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, dll..." defaultValue={(editingProposal as any)?.jenisLembaga || "Lembaga"} />
+                            </>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Yang Mengajukan</label>
+                          <input name="yangMengajukan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pengaju..." defaultValue={editingProposal?.yangMengajukan || ""} />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Yang Mengajukan</label>
-                        <input name="yangMengajukan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pengaju..." defaultValue={editingProposal?.yangMengajukan || ""} />
-                      </div>
-                    </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catatan</label>
-                      <textarea name="catatan" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Catatan tambahan (opsional)..." defaultValue={editingProposal?.catatan || ""} />
-                    </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catatan</label>
+                        <textarea name="catatan" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Catatan tambahan (opsional)..." defaultValue={editingProposal?.catatan || ""} />
+                      </div>
                   </div>
                 </div>
 

@@ -222,7 +222,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.namaInstansi || 'Individu'}</p>
+                      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.namaInstansi || 'Perorangan'}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-900">{item.tanggalMasuk}</p>

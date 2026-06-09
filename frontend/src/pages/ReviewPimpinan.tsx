@@ -475,7 +475,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                           </h4>
                           <div className="space-y-3">
                             <DetailItem label="Jenis Permohonan" value={selectedProposal.jenisPermohonan || '-'} />
-                            <DetailItem label="Nama Instansi" value={selectedProposal.namaInstansi || 'Individu'} />
+                            <DetailItem label="Nama Instansi" value={selectedProposal.namaInstansi || 'Perorangan'} />
                             <DetailItem label="Tanggal Masuk" value={selectedProposal.tanggalMasuk} />
                           </div>
                         </div>

@@ -41,6 +41,27 @@ export const updatePilar = async (req: Request, res: Response) => {
 export const deletePilar = async (req: Request, res: Response) => {
   try {
     const code = req.params.code as string;
+
+    // Find all programs belonging to this pilar
+    const programs = await prisma.program.findMany({
+      where: { pilar_code: code }
+    });
+    const programCodes = programs.map(p => p.code);
+
+    if (programCodes.length > 0) {
+      // Set jenis_permohonan to null in proposals referencing these programs
+      await prisma.proposal.updateMany({
+        where: { jenis_permohonan: { in: programCodes } },
+        data: { jenis_permohonan: null }
+      });
+
+      // Delete the programs
+      await prisma.program.deleteMany({
+        where: { code: { in: programCodes } }
+      });
+    }
+
+    // Delete the pilar
     await prisma.pilar.delete({ where: { code } });
     res.status(204).send();
   } catch (error) {

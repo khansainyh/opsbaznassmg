@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Building2, 
   Search, 
@@ -18,7 +18,8 @@ import {
   Calendar,
   Upload,
   FileSpreadsheet,
-  Edit2
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -34,7 +35,21 @@ const kecamatanData: Record<string, string[]> = {
 };
 
 export default function DatabaseUPZ() {
-  const [data, setData] = useState<UPZ[]>(initialUpzData);
+  const [data, setData] = useState<UPZ[]>(() => {
+    const local = localStorage.getItem('baznas_upz_data');
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return initialUpzData;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('baznas_upz_data', JSON.stringify(data));
+  }, [data]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
   const [kecamatanFilter, setKecamatanFilter] = useState('Semua');
@@ -70,6 +85,13 @@ export default function DatabaseUPZ() {
     anggota2: { nama: '', alamat: '' },
   });
   const [anggotaTambahan, setAnggotaTambahan] = useState<{ nama: string; alamat: string }[]>([]);
+
+  const [formNamaUpz, setFormNamaUpz] = useState('');
+  const [formAlamatLengkap, setFormAlamatLengkap] = useState('');
+  const [formNoTelepon, setFormNoTelepon] = useState('');
+  const [formNoSKPenetapan, setFormNoSKPenetapan] = useState('');
+  const [formTahunMulai, setFormTahunMulai] = useState('');
+  const [formTahunBerakhir, setFormTahunBerakhir] = useState('');
 
   const kelurahanOptions = useMemo(() => {
     return formKecamatan ? kecamatanData[formKecamatan] || [] : [];
@@ -120,6 +142,13 @@ export default function DatabaseUPZ() {
 
   const openEditModal = (upz: UPZ) => {
     setSelectedUPZ(upz);
+    setFormNamaUpz(upz.name);
+    setFormAlamatLengkap(upz.metadata?.address || '');
+    setFormNoTelepon(upz.metadata?.upzPhone || '');
+    setFormNoSKPenetapan(upz.activeSKNumber || '');
+    setFormTahunMulai(upz.skStartYear || '');
+    setFormTahunBerakhir(upz.skExpiryDate || '');
+
     setFormKecamatan(upz.kecamatan);
     setFormKelurahan(upz.kelurahan);
     setFormType(upz.type);
@@ -1022,7 +1051,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama UPZ</label>
                       <input 
                         type="text" 
-                        defaultValue={selectedUPZ.name}
+                        value={formNamaUpz}
+                        onChange={e => setFormNamaUpz(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
                     </div>
@@ -1033,11 +1063,11 @@ export default function DatabaseUPZ() {
                         onChange={e => setFormCategory(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
-                        <option>OPD</option>
-                        <option>Kecamatan</option>
-                        <option>Sekolah</option>
-                        <option>Masjid/Musholla</option>
-                        <option>Yayasan/Lembaga</option>
+                        <option value="OPD">OPD</option>
+                        <option value="Kecamatan">Kecamatan</option>
+                        <option value="Sekolah">Sekolah</option>
+                        <option value="Masjid">Masjid/Musholla</option>
+                        <option value="Yayasan/Lembaga">Yayasan/Lembaga</option>
                       </select>
                     </div>
                   </div>
@@ -1103,7 +1133,8 @@ export default function DatabaseUPZ() {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Lengkap</label>
                     <textarea 
                       rows={2}
-                      defaultValue={selectedUPZ.metadata.address}
+                      value={formAlamatLengkap}
+                      onChange={e => setFormAlamatLengkap(e.target.value)}
                       className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                     />
                   </div>
@@ -1111,7 +1142,8 @@ export default function DatabaseUPZ() {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Telepon UPZ</label>
                     <input 
                       type="text" 
-                      defaultValue={selectedUPZ.metadata.upzPhone}
+                      value={formNoTelepon}
+                      onChange={e => setFormNoTelepon(e.target.value)}
                       className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                     />
                   </div>
@@ -1128,7 +1160,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. SK Penetapan</label>
                       <input 
                         type="text" 
-                        defaultValue={selectedUPZ.activeSKNumber}
+                        value={formNoSKPenetapan}
+                        onChange={e => setFormNoSKPenetapan(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
                     </div>
@@ -1136,7 +1169,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Mulai</label>
                       <input 
                         type="number" 
-                        defaultValue={new Date(selectedUPZ.skExpiryDate).getFullYear() - 5}
+                        value={formTahunMulai}
+                        onChange={e => setFormTahunMulai(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
                     </div>
@@ -1144,7 +1178,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Berakhir</label>
                       <input 
                         type="number" 
-                        defaultValue={new Date(selectedUPZ.skExpiryDate).getFullYear()}
+                        value={formTahunBerakhir}
+                        onChange={e => setFormTahunBerakhir(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
                     </div>
@@ -1228,21 +1263,62 @@ export default function DatabaseUPZ() {
               <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <button 
                   type="button" 
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-6 py-2.5 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-rose-500 transition-all"
-                >
-                  Batalkan Perubahan
-                </button>
-                <button 
-                  type="button"
                   onClick={() => {
-                    alert('Data UPZ berhasil diperbarui.');
-                    setIsEditModalOpen(false);
+                    if (window.confirm(`Apakah Anda yakin ingin menghapus UPZ "${selectedUPZ.name}"?`)) {
+                      setData(prev => prev.filter(u => u.id !== selectedUPZ.id));
+                      setIsEditModalOpen(false);
+                      alert('Data UPZ berhasil dihapus.');
+                    }
                   }}
-                  className="px-10 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+                  className="px-4 py-2.5 text-xs font-black text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  Simpan Perubahan
+                  <Trash2 className="size-3.5" />
+                  Hapus UPZ
                 </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-6 py-2.5 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-rose-500 transition-all cursor-pointer"
+                  >
+                    Batalkan Perubahan
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (!formNamaUpz.trim()) {
+                        alert('Nama UPZ tidak boleh kosong.');
+                        return;
+                      }
+                      setData(prev => prev.map(u => u.id === selectedUPZ.id ? {
+                        ...u,
+                        name: formNamaUpz,
+                        category: formCategory,
+                        type: formType,
+                        kecamatan: formKecamatan,
+                        kelurahan: formKelurahan,
+                        activeSKNumber: formNoSKPenetapan,
+                        skExpiryDate: `${formTahunBerakhir}-12-31`,
+                        skStartYear: formTahunMulai,
+                        metadata: {
+                          ...u.metadata,
+                          address: formAlamatLengkap,
+                          upzPhone: formNoTelepon,
+                          pimpinanName: formPengurus.ketua.nama || formPengurus.penasehat.nama || '',
+                          pengurus: {
+                            ...formPengurus,
+                            anggotaTambahan: anggotaTambahan
+                          }
+                        }
+                      } : u));
+                      alert('Data UPZ berhasil diperbarui.');
+                      setIsEditModalOpen(false);
+                    }}
+                    className="px-10 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all cursor-pointer"
+                  >
+                    Simpan Perubahan
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -1289,6 +1365,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama UPZ</label>
                       <input 
                         type="text" 
+                        value={formNamaUpz}
+                        onChange={e => setFormNamaUpz(e.target.value)}
                         placeholder="Masukkan nama UPZ..."
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
@@ -1300,11 +1378,11 @@ export default function DatabaseUPZ() {
                         onChange={e => setFormCategory(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
-                        <option>OPD</option>
-                        <option>Kecamatan</option>
-                        <option>Sekolah</option>
-                        <option>Masjid/Musholla</option>
-                        <option>Yayasan/Lembaga</option>
+                        <option value="OPD">OPD</option>
+                        <option value="Kecamatan">Kecamatan</option>
+                        <option value="Sekolah">Sekolah</option>
+                        <option value="Masjid">Masjid/Musholla</option>
+                        <option value="Yayasan/Lembaga">Yayasan/Lembaga</option>
                       </select>
                     </div>
                   </div>
@@ -1370,6 +1448,8 @@ export default function DatabaseUPZ() {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Lengkap</label>
                     <textarea 
                       rows={2}
+                      value={formAlamatLengkap}
+                      onChange={e => setFormAlamatLengkap(e.target.value)}
                       placeholder="Masukkan alamat lengkap..."
                       className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                     />
@@ -1378,6 +1458,8 @@ export default function DatabaseUPZ() {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Telepon UPZ</label>
                     <input 
                       type="text" 
+                      value={formNoTelepon}
+                      onChange={e => setFormNoTelepon(e.target.value)}
                       placeholder="Masukkan No. Telepon UPZ..."
                       className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                     />
@@ -1395,7 +1477,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. SK Penetapan</label>
                       <input 
                         type="text" 
-                        defaultValue={nextBaseSK.toString()}
+                        value={formNoSKPenetapan || nextBaseSK.toString()}
+                        onChange={e => setFormNoSKPenetapan(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
                     </div>
@@ -1403,6 +1486,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Mulai</label>
                       <input 
                         type="number" 
+                        value={formTahunMulai}
+                        onChange={e => setFormTahunMulai(e.target.value)}
                         placeholder="Tahun..."
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
@@ -1411,6 +1496,8 @@ export default function DatabaseUPZ() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Berakhir</label>
                       <input 
                         type="number" 
+                        value={formTahunBerakhir}
+                        onChange={e => setFormTahunBerakhir(e.target.value)}
                         placeholder="Tahun..."
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
@@ -1503,6 +1590,74 @@ export default function DatabaseUPZ() {
                 <button 
                   type="button"
                   onClick={() => {
+                    if (!formNamaUpz.trim()) {
+                      alert('Nama UPZ harus diisi.');
+                      return;
+                    }
+
+                    const nextCode = `UPZ-${Date.now()}`;
+                    const skPenetapan = formNoSKPenetapan || nextBaseSK.toString();
+
+                    const newUpz: UPZ = {
+                      id: nextCode,
+                      code: nextCode,
+                      name: formNamaUpz,
+                      category: formCategory,
+                      type: formType,
+                      kecamatan: formKecamatan || '-',
+                      kelurahan: formKelurahan || '-',
+                      activeSKNumber: skPenetapan,
+                      skStartYear: formTahunMulai || new Date().getFullYear().toString(),
+                      skExpiryDate: formTahunBerakhir || (new Date().getFullYear() + 5).toString(),
+                      metadata: {
+                        address: formAlamatLengkap,
+                        upzPhone: formNoTelepon,
+                        pengurus: {
+                          penasehat: { nama: formPengurus.penasehat.nama, alamat: formPengurus.penasehat.alamat || '' },
+                          ketua: { nama: formPengurus.ketua.nama, alamat: formPengurus.ketua.alamat || '' },
+                          sekretaris: { nama: formPengurus.sekretaris.nama, alamat: formPengurus.sekretaris.alamat || '' },
+                          bendahara: { nama: formPengurus.bendahara.nama, alamat: formPengurus.bendahara.alamat || '' },
+                          anggota1: { nama: formPengurus.anggota1.nama, alamat: formPengurus.anggota1.alamat || '' },
+                          anggota2: { nama: formPengurus.anggota2.nama, alamat: formPengurus.anggota2.alamat || '' },
+                          anggotaTambahan: anggotaTambahan
+                        }
+                      }
+                    };
+
+                    const newSkHistoryEntry: SKHistory = {
+                      id: `SK-${Date.now()}`,
+                      upzId: newUpz.id,
+                      skNumber: skPenetapan,
+                      startDate: newUpz.skStartYear,
+                      endDate: newUpz.skExpiryDate,
+                      pimpinanName: formPengurus.ketua.nama || '-',
+                      status: 'Aktif'
+                    };
+
+                    setData(prev => [newUpz, ...prev]);
+                    setSkHistory(prev => [newSkHistoryEntry, ...prev]);
+
+                    // Reset form states
+                    setFormNamaUpz('');
+                    setFormAlamatLengkap('');
+                    setFormNoTelepon('');
+                    setFormNoSKPenetapan('');
+                    setFormTahunMulai('');
+                    setFormTahunBerakhir('');
+                    setFormKecamatan('');
+                    setFormKelurahan('');
+                    setFormCategory('Masjid');
+                    setFormType('Off-Balance');
+                    setFormPengurus({
+                      penasehat: { nama: '', alamat: '' },
+                      ketua: { nama: '', alamat: '' },
+                      sekretaris: { nama: '', alamat: '' },
+                      bendahara: { nama: '', alamat: '' },
+                      anggota1: { nama: '', alamat: '' },
+                      anggota2: { nama: '', alamat: '' }
+                    });
+                    setAnggotaTambahan([]);
+
                     alert('UPZ baru berhasil didaftarkan.');
                     setIsAddModalOpen(false);
                   }}

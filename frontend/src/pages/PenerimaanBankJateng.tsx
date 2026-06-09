@@ -10,12 +10,15 @@ import {
   Search, 
   Building, 
   FileSpreadsheet,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import { upzData as initialUpzData } from '@/src/data/upzData';
+import { UPZ } from '@/src/types/upz';
 
 interface RawRow {
   No?: any;
@@ -41,6 +44,7 @@ interface ProcessedTransaction {
   muzakki_id: string | null;
   npwz: string | null;
   nama_muzakki: string | null;
+  originalOpd?: string;
   selected: boolean;
 }
 
@@ -52,14 +56,10 @@ export default function PenerimaanBankJateng() {
   const [isDragOver, setIsDragOver] = useState(false);
   
   // API Data
-  const [rkatList, setRkatList] = useState<any[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [coaList, setCoaList] = useState<any[]>([]);
   
   // Selections
-  const [selectedRkatId, setSelectedRkatId] = useState<string>('');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
-  const [selectedCoaCode, setSelectedCoaCode] = useState<string>('');
   const [tanggalPembayaran, setTanggalPembayaran] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -77,6 +77,178 @@ export default function PenerimaanBankJateng() {
   const [registerPhone, setRegisterPhone] = useState('-');
   const [registerGender, setRegisterGender] = useState('Pria');
   const [registerUpz, setRegisterUpz] = useState('');
+
+  const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
+
+  const toggleBatchExpand = (batchName: string) => {
+    setExpandedBatches(prev => ({
+      ...prev,
+      [batchName]: !prev[batchName]
+    }));
+  };
+
+  const [opdMapping, setOpdMapping] = useState<Record<string, string>>({});
+  const [openSearchDropdown, setOpenSearchDropdown] = useState<string | null>(null);
+  const [upzSearchQuery, setUpzSearchQuery] = useState('');
+
+  // Load UPZ list from localStorage or fallback to initialUpzData
+  const upzList = useMemo<UPZ[]>(() => {
+    const local = localStorage.getItem('baznas_upz_data');
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return initialUpzData;
+  }, []);
+
+  const findMatchingUpzName = (rawOpd: string) => {
+    const cleanRaw = rawOpd.toLowerCase().replace(/upz/gi, '').trim();
+    
+    // 1. Exact match
+    const exactMatch = upzList.find(u => u.name.toLowerCase() === rawOpd.toLowerCase());
+    if (exactMatch) return exactMatch.name;
+
+    // 2. Contains or starts with match
+    const partialMatch = upzList.find(u => {
+      const cleanUName = u.name.toLowerCase().replace(/upz/gi, '').trim();
+      return cleanUName.includes(cleanRaw) || cleanRaw.includes(cleanUName);
+    });
+    if (partialMatch) return partialMatch.name;
+
+    return '';
+  };
+
+  const handleMapOpd = (rawOpd: string, targetUpzName: string) => {
+    setOpdMapping(prev => ({
+      ...prev,
+      [rawOpd]: targetUpzName
+    }));
+
+    setFileData(prevData => prevData.map(item => {
+      const isMatch = (item.originalOpd || item.opd) === rawOpd;
+      if (isMatch) {
+        return {
+          ...item,
+          opd: targetUpzName,
+          originalOpd: rawOpd
+        };
+      }
+      return item;
+    }));
+  };
+
+  const getBatchName = (noKuitansi: string) => {
+    if (noKuitansi && noKuitansi.includes(' / ')) {
+      return noKuitansi.split(' / ')[0];
+    }
+    return noKuitansi;
+  };
+
+  const getDisplayBatchName = (batchName: string) => {
+    const match = batchName.match(/\(([^)]+)\)\s*-\s*(\d+)/);
+    if (match) {
+      const monthYear = match[1]; // "Juni 2026"
+      const index = match[2]; // "1"
+      const month = monthYear.split(' ')[0]; // "Juni"
+      return `${month} - ${index}`;
+    }
+    return batchName;
+  };
+
+  const handleDeleteBatch = async (batchName: string) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus batch "${getDisplayBatchName(batchName)}" beserta seluruh transaksi di dalamnya?`)) {
+      return;
+    }
+
+    try {
+      const res = await axios.delete(`/api/bank-jateng/batch/${encodeURIComponent(batchName)}`);
+      if (res.data.status === 'success') {
+        setMessages([{ type: 'success', text: `Batch ${getDisplayBatchName(batchName)} berhasil dihapus!` }]);
+        fetchHistory();
+      }
+    } catch (err: any) {
+      console.error('Error deleting batch:', err);
+      setMessages([{ type: 'error', text: err.response?.data?.error || 'Gagal menghapus batch.' }]);
+    }
+  };
+
+  const groupedHistory = useMemo(() => {
+    const groups: {
+      [batchId: string]: {
+        batchName: string;
+        tanggal_pembayaran: string;
+        bankAccountName: string;
+        bankAccountNumber: string;
+        totalNominal: number;
+        items: any[];
+      }
+    } = {};
+
+    historyData.forEach(item => {
+      const batchName = getBatchName(item.no_kuitansi);
+      if (!groups[batchName]) {
+        groups[batchName] = {
+          batchName,
+          tanggal_pembayaran: item.tanggal_pembayaran,
+          bankAccountName: item.bankAccount?.nama_akun || '-',
+          bankAccountNumber: item.bankAccount?.no_rekening || item.bankAccount?.nomor_rekening || '-',
+          totalNominal: 0,
+          items: []
+        };
+      }
+      groups[batchName].totalNominal += Number(item.nominal);
+      groups[batchName].items.push(item);
+    });
+
+    return Object.values(groups).sort((a, b) => new Date(b.tanggal_pembayaran).getTime() - new Date(a.tanggal_pembayaran).getTime());
+  }, [historyData]);
+
+  const exportHistoryToSimba = (items: any[], batchName: string) => {
+    if (!items || items.length === 0) return;
+
+    const exportRows = items.map((item, idx) => {
+      const isZakat = Number(item.nominal) >= 100000;
+      let zakatVal = '';
+      let infakVal = '';
+
+      if (isZakat) {
+        zakatVal = String(item.nominal);
+      } else {
+        infakVal = String(item.nominal);
+      }
+
+      // Build Keterangan
+      const labelTipe = isZakat ? 'Zakat Maal' : 'Infak';
+      const namaMuzakki = item.muzakki?.nama || '-';
+      const keteranganVal = item.keterangan || `Terima ${labelTipe} a.n ${namaMuzakki}`;
+
+      // Date format: DD/MM/YYYY
+      const pDate = new Date(item.tanggal_pembayaran);
+      const formattedDate = `${String(pDate.getDate()).padStart(2, '0')}/${String(pDate.getMonth() + 1).padStart(2, '0')}/${pDate.getFullYear()}`;
+
+      return {
+        'No': idx + 1,
+        'tgl_transaksi': formattedDate,
+        'NPWZ': item.muzakki?.npwz || '-',
+        'nama': namaMuzakki,
+        'zakat': zakatVal ? Number(zakatVal) : '',
+        'zakat fitrah': '',
+        'infak': infakVal ? Number(infakVal) : '',
+        'titipan': '',
+        'Keterangan': keteranganVal
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
+    
+    const docName = `${batchName.replace(/[^a-zA-Z0-9]/g, '_')}_SIMBA.xlsx`;
+    XLSX.writeFile(workbook, docName);
+  };
 
   // Fetch RKAT & Bank Accounts & History
   useEffect(() => {
@@ -104,21 +276,7 @@ export default function PenerimaanBankJateng() {
 
   const fetchMeta = async () => {
     try {
-      const [rkatRes, bankRes, coaRes] = await Promise.all([
-        axios.get('/api/rkat-pengumpulan'),
-        axios.get('/api/finance/accounts'),
-        axios.get('/api/finance/coa')
-      ]);
-      
-      let initialRkatId = '';
-      if (rkatRes.data.status === 'success') {
-        setRkatList(rkatRes.data.data);
-        if (rkatRes.data.data.length > 0) {
-          initialRkatId = rkatRes.data.data[0].id;
-          setSelectedRkatId(initialRkatId);
-        }
-      }
-      
+      const bankRes = await axios.get('/api/finance/accounts');
       const bankData = bankRes.data?.status === 'success' ? bankRes.data.data : bankRes.data;
       if (Array.isArray(bankData)) {
         const banksOnly = bankData.filter((acc: any) => acc.tipe_kas === 'BANK');
@@ -127,32 +285,8 @@ export default function PenerimaanBankJateng() {
           setSelectedBankAccountId(banksOnly[0].account_id);
         }
       }
-      
-      const coaData = coaRes.data?.status === 'success' ? coaRes.data.data : coaRes.data;
-      setCoaList(Array.isArray(coaData) ? coaData : []);
-
-      // Initialize default COA code based on initial RKAT
-      const rkatData = rkatRes.data?.status === 'success' ? rkatRes.data.data : rkatRes.data;
-      if (initialRkatId && Array.isArray(rkatData)) {
-        const firstRkat = rkatData.find((r: any) => r.id === initialRkatId);
-        const codes = firstRkat?.coa_codes ? firstRkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
-        if (codes.length > 0) {
-          setSelectedCoaCode(codes[0]);
-        }
-      }
     } catch (err) {
       console.error('Error fetching metadata:', err);
-    }
-  };
-
-  const handleRkatChange = (rkatId: string) => {
-    setSelectedRkatId(rkatId);
-    const rkat = rkatList.find(r => r.id === rkatId);
-    const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
-    if (codes.length > 0) {
-      setSelectedCoaCode(codes[0]);
-    } else {
-      setSelectedCoaCode('');
     }
   };
 
@@ -263,11 +397,37 @@ export default function PenerimaanBankJateng() {
     try {
       const res = await axios.post('/api/bank-jateng/lookup', { items });
       if (res.data.status === 'success') {
-        const lookedUp = res.data.data.map((item: any) => ({
-          ...item,
-          selected: !!item.matched // default select matched rows
-        }));
-        setFileData(lookedUp);
+        const lookedUp = res.data.data.map((item: any, idx: number) => {
+          const originalItem = items[idx];
+          return {
+            ...item,
+            originalOpd: originalItem ? originalItem.opd : item.opd,
+            selected: !!item.matched // default select matched rows
+          };
+        });
+
+        // Automatically attempt to match each unique raw OPD to Database UPZ
+        const initialMappings: Record<string, string> = {};
+        const uniqueRawOpds = Array.from(new Set(lookedUp.map((item: any) => (item.originalOpd || item.opd) as string))) as string[];
+        
+        uniqueRawOpds.forEach((raw: string) => {
+          const matchedUpzName = findMatchingUpzName(raw);
+          if (matchedUpzName) {
+            initialMappings[raw] = matchedUpzName;
+          }
+        });
+
+        // Update the items with the automatically matched UPZ names
+        const matchedItems = lookedUp.map((item: any) => {
+          const matchedName = initialMappings[item.originalOpd || item.opd];
+          return {
+            ...item,
+            opd: matchedName || item.opd
+          };
+        });
+
+        setOpdMapping(initialMappings);
+        setFileData(matchedItems);
         
         const matchedCount = lookedUp.filter((i: any) => i.matched).length;
         const unmatchedCount = lookedUp.length - matchedCount;
@@ -366,8 +526,8 @@ export default function PenerimaanBankJateng() {
       return;
     }
 
-    if (!selectedBankAccountId || !selectedRkatId) {
-      setMessages([{ type: 'error', text: 'Silakan pilih rekening penerima dan program RKAT terlebih dahulu.' }]);
+    if (!selectedBankAccountId) {
+      setMessages([{ type: 'error', text: 'Silakan pilih rekening penerima terlebih dahulu.' }]);
       return;
     }
 
@@ -378,11 +538,10 @@ export default function PenerimaanBankJateng() {
           muzakki_id: t.muzakki_id,
           nominal: t.nominal,
           no_rekening: t.no_rekening,
+          opd: t.opd,
           keterangan: `Penerimaan payroll Bank Jateng OPD ${t.opd} - Rekening ${t.no_rekening}`
         })),
         bank_account_id: selectedBankAccountId,
-        rkat_id: selectedRkatId,
-        coa_code: selectedCoaCode,
         tanggal_pembayaran: tanggalPembayaran
       };
 
@@ -410,7 +569,7 @@ export default function PenerimaanBankJateng() {
     const groups: { [key: string]: { name: string, count: number, total: number, items: ProcessedTransaction[] } } = {};
     
     fileData.forEach(item => {
-      const key = item.opd || 'Lainnya';
+      const key = item.originalOpd || item.opd || 'Lainnya';
       if (!groups[key]) {
         groups[key] = { name: key, count: 0, total: 0, items: [] };
       }
@@ -426,7 +585,7 @@ export default function PenerimaanBankJateng() {
   const exportToSimba = (groupName?: string) => {
     let itemsToExport = fileData;
     if (groupName) {
-      itemsToExport = fileData.filter(item => item.opd === groupName);
+      itemsToExport = fileData.filter(item => (item.originalOpd || item.opd) === groupName);
     }
 
     if (itemsToExport.length === 0) {
@@ -435,35 +594,23 @@ export default function PenerimaanBankJateng() {
     }
 
     const exportRows = itemsToExport.map((item, idx) => {
-      const selectedRkat = rkatList.find(r => r.id === selectedRkatId);
-      const isFitrah = selectedRkat?.nama_program?.toLowerCase().includes('fitrah');
-      const isZakat = selectedRkat?.kategori?.toLowerCase() === 'zakat';
-      const isInfak = selectedRkat?.kategori?.toLowerCase() === 'infak';
-
+      const isZakat = item.nominal >= 100000;
+      
       let zakatVal = '';
-      let zakatFitrahVal = '';
       let infakVal = '';
-      let titipanVal = '';
 
-      if (isFitrah) {
-        zakatFitrahVal = String(item.nominal);
-      } else if (isZakat) {
+      if (isZakat) {
         zakatVal = String(item.nominal);
-      } else if (isInfak) {
-        infakVal = String(item.nominal);
       } else {
-        titipanVal = String(item.nominal);
+        infakVal = String(item.nominal);
       }
 
       // Build Keterangan
-      let labelTipe = 'Penerimaan';
-      if (isFitrah) labelTipe = 'Zakat Fitrah';
-      else if (isZakat) labelTipe = 'Zakat Maal';
-      else if (isInfak) labelTipe = 'Infak';
-      else labelTipe = selectedRkat ? selectedRkat.kategori : 'Titipan';
+      const labelTipe = isZakat ? 'Zakat Maal' : 'Infak';
 
       const namaMuzakki = item.nama_muzakki || item.nama;
-      const keteranganVal = `Terima ${labelTipe} a.n ${namaMuzakki}`;
+      const cleanOpd = item.opd ? (String(item.opd).startsWith('UPZ') ? String(item.opd) : `UPZ ${String(item.opd)}`) : 'UPZ';
+      const keteranganVal = `Terima ${labelTipe} a.n ${namaMuzakki} (${cleanOpd})`;
 
       // Date format: DD/MM/YYYY
       const dateParts = tanggalPembayaran.split('-');
@@ -475,9 +622,9 @@ export default function PenerimaanBankJateng() {
         'NPWZ': item.npwz || '-',
         'nama': namaMuzakki,
         'zakat': zakatVal ? Number(zakatVal) : '',
-        'zakat fitrah': zakatFitrahVal ? Number(zakatFitrahVal) : '',
+        'zakat fitrah': '',
         'infak': infakVal ? Number(infakVal) : '',
-        'titipan': titipanVal ? Number(titipanVal) : '',
+        'titipan': '',
         'Keterangan': keteranganVal
       };
     });
@@ -519,14 +666,14 @@ export default function PenerimaanBankJateng() {
         <nav className="flex text-sm gap-2 items-center text-slate-550">
           <span>Pengumpulan</span>
           <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Penerimaan Bulk</span>
+          <span className="text-primary font-bold">Penerimaan Bank Jateng</span>
         </nav>
         <h2 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
           <Building className="size-8 text-primary" />
-          Penerimaan Bulk (OPD &amp; Bank Jateng)
+          Penerimaan Bank Jateng
         </h2>
         <p className="text-slate-500 font-medium max-w-3xl">
-          Modul otomasi rekonsiliasi data penerimaan bulk (OPD, instansi, potong gaji, payroll, Bank Jateng). Upload file Excel rekapitulasi, mapping NPWZ secara real-time, dan lakukan posting jurnal pembukuan instan.
+          Modul otomasi rekonsiliasi data penerimaan Bank Jateng (OPD, instansi, potong gaji, payroll). Upload file Excel rekapitulasi, mapping NPWZ secara real-time, dan lakukan posting jurnal pembukuan instan.
         </p>
       </motion.div>
 
@@ -681,7 +828,7 @@ export default function PenerimaanBankJateng() {
               {/* Table rendering based on tab */}
               {activeTab === 'berhasil' && (
                 <div className="overflow-x-auto min-h-[300px]">
-                  <table className="w-full text-left">
+                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-slate-50 text-slate-550 uppercase text-[10px] font-bold tracking-wider border-b border-slate-150">
                         <th className="px-4 py-3 text-center w-12">
@@ -695,6 +842,7 @@ export default function PenerimaanBankJateng() {
                         <th className="px-4 py-3">Warga / Norek</th>
                         <th className="px-4 py-3">NPWZ / Muzakki Terpetakan</th>
                         <th className="px-4 py-3">OPD / Instansi</th>
+                        <th className="px-4 py-3 text-center">Jenis Dana</th>
                         <th className="px-4 py-3 text-right">Nominal</th>
                         <th className="px-4 py-3 text-center">Status Mapping</th>
                         <th className="px-4 py-3 text-right">Aksi</th>
@@ -703,7 +851,7 @@ export default function PenerimaanBankJateng() {
                     <tbody className="divide-y divide-slate-100 text-xs">
                       {filteredFileData.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-4 py-12 text-center text-slate-400 italic">
+                          <td colSpan={8} className="px-4 py-12 text-center text-slate-400 italic">
                             Tidak ada transaksi terfilter.
                           </td>
                         </tr>
@@ -736,6 +884,17 @@ export default function PenerimaanBankJateng() {
                             </td>
                             <td className="px-4 py-3">
                               <p className="font-medium text-slate-700">{row.opd}</p>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {row.nominal >= 100000 ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
+                                  Zakat
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
+                                  Infak
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right font-semibold text-emerald-600">
                               Rp {row.nominal.toLocaleString('id-ID')}
@@ -784,12 +943,76 @@ export default function PenerimaanBankJateng() {
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-2">Data Realisasi Dikelompokkan Per OPD</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {opdGroups.map((group, idx) => (
-                      <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between hover:border-slate-300 transition-colors">
+                      <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between hover:border-slate-300 transition-colors relative">
                         <div>
                           <h4 className="font-black text-slate-800 text-sm mb-1">{group.name}</h4>
                           <div className="flex justify-between text-xs text-slate-550 mt-2">
                             <span>Jumlah: {group.count} pegawai</span>
                             <span className="font-semibold text-emerald-600">Rp {group.total.toLocaleString('id-ID')}</span>
+                          </div>
+
+                          {/* Searchable UPZ Database Matcher */}
+                          <div className="mt-3.5 space-y-1 relative">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                              Mencocokan dengan Database UPZ:
+                            </label>
+                            
+                            {openSearchDropdown === group.name ? (
+                              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={upzSearchQuery}
+                                  onChange={(e) => setUpzSearchQuery(e.target.value)}
+                                  placeholder="Cari nama UPZ..."
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                                <div className="space-y-1">
+                                  <button
+                                    onClick={() => {
+                                      handleMapOpd(group.name, '');
+                                      setOpenSearchDropdown(null);
+                                      setUpzSearchQuery('');
+                                    }}
+                                    className="w-full text-left px-2 py-1.5 rounded hover:bg-slate-50 text-xs text-rose-600 font-semibold"
+                                  >
+                                    -- Putuskan Hubungan --
+                                  </button>
+                                  {upzList
+                                    .filter(upz => upz.name.toLowerCase().includes(upzSearchQuery.toLowerCase()))
+                                    .map(upz => (
+                                      <button
+                                        key={upz.id}
+                                        onClick={() => {
+                                          handleMapOpd(group.name, upz.name);
+                                          setOpenSearchDropdown(null);
+                                          setUpzSearchQuery('');
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-2 py-1.5 rounded hover:bg-slate-150 text-xs transition-colors",
+                                          opdMapping[group.name] === upz.name ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                        )}
+                                      >
+                                        {upz.name} <span className="text-[9px] text-slate-400">({upz.category})</span>
+                                      </button>
+                                    ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenSearchDropdown(openSearchDropdown === group.name ? null : group.name);
+                                setUpzSearchQuery('');
+                              }}
+                              className="w-full text-left text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-700 font-semibold flex justify-between items-center"
+                            >
+                              <span className={opdMapping[group.name] ? "text-primary font-bold" : "text-slate-400 font-normal"}>
+                                {opdMapping[group.name] || 'Pilih UPZ Database...'}
+                              </span>
+                              <ChevronRight className="size-3.5 text-slate-400 rotate-90" />
+                            </button>
                           </div>
                         </div>
                         <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end">
@@ -816,56 +1039,12 @@ export default function PenerimaanBankJateng() {
             
             <div className="bg-white p-6 rounded-2xl border border-primary/10 shadow-sm space-y-6">
               <div className="border-b border-slate-150 pb-4">
-                <h3 className="text-lg font-black text-slate-900">Konfirmasi &amp; Approval</h3>
-                <p className="text-xs text-slate-550 mt-1">Konfigurasikan pembukuan ZIS untuk data transaksi Bank Jateng.</p>
+                <h3 className="text-lg font-black text-slate-900">Pengaturan Pembukuan</h3>
+                <p className="text-xs text-slate-550 mt-1">Konfigurasikan rekening penerima dan tanggal pembukuan Bank Jateng.</p>
               </div>
 
               {/* Meta Config Form */}
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Kegiatan (RKAT) *</label>
-                  <select 
-                    value={selectedRkatId} 
-                    onChange={(e) => handleRkatChange(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-800 cursor-pointer font-semibold"
-                  >
-                    {rkatList.map((rkat) => (
-                      <option key={rkat.id} value={rkat.id}>
-                        [{rkat.kategori}] {rkat.nama_program}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {selectedRkatId && (
-                  <div className="space-y-1 animate-fade-in">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Program Kegiatan (COA) *</label>
-                    <select
-                      required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-700"
-                      value={selectedCoaCode}
-                      onChange={(e) => setSelectedCoaCode(e.target.value)}
-                    >
-                      {(() => {
-                        const rkat = rkatList.find(r => r.id === selectedRkatId);
-                        const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
-                        if (codes.length === 0) {
-                          return <option value="">Tidak ada COA pemetaan</option>;
-                        }
-                        return codes.map((code: string) => {
-                          const coa = coaList.find(c => c.coa_code === code);
-                          const label = coa ? `${code} - ${coa.nama_akun}` : `${code} - Penerimaan ${rkat?.nama_program || ''}`;
-                          return (
-                            <option key={code} value={code}>
-                              {label}
-                            </option>
-                          );
-                        });
-                      })()}
-                    </select>
-                  </div>
-                )}
-
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">via (Bank) *</label>
                   <select 
@@ -934,7 +1113,7 @@ export default function PenerimaanBankJateng() {
                 ) : (
                   <>
                     <CheckCircle2 className="size-4" />
-                    Approve &amp; Simpan ke Penerimaan
+                    Simpan ke Penerimaan
                   </>
                 )}
               </button>
@@ -968,49 +1147,141 @@ export default function PenerimaanBankJateng() {
             <thead>
               <tr className="bg-slate-50 text-slate-550 uppercase text-[10px] font-bold tracking-wider border-b border-slate-150">
                 <th className="px-4 py-3 w-10 text-center">No</th>
-                <th className="px-4 py-3">No. Kuitansi</th>
-                <th className="px-4 py-3">Muzakki (NPWZ)</th>
-                <th className="px-4 py-3">Program / RKAT</th>
+                <th className="px-4 py-3">Batch Penerimaan</th>
                 <th className="px-4 py-3">Rekening Penerima</th>
-                <th className="px-4 py-3 text-right">Nominal</th>
-                <th className="px-4 py-3 text-center">Tanggal Pembayaran</th>
+                <th className="px-4 py-3 text-right">Total Nominal</th>
+                <th className="px-4 py-3 text-center">Jumlah Pegawai</th>
+                <th className="px-4 py-3 text-center">Tanggal Potong</th>
+                <th className="px-4 py-3 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
-              {historyData.length === 0 ? (
+              {groupedHistory.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-slate-400 italic">
                     Belum ada riwayat transaksi terimpor di database.
                   </td>
                 </tr>
               ) : (
-                historyData.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-slate-50/20 transition-colors">
-                    <td className="px-4 py-3 text-center font-bold text-slate-400">{idx + 1}</td>
-                    <td className="px-4 py-3 font-mono font-bold text-slate-700">{item.no_kuitansi}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-bold text-slate-900">{item.muzakki?.nama || '-'}</p>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">{item.muzakki?.npwz || 'NPWZ tidak ada'}</p>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      [{item.rkat?.kategori || '-'}] {item.rkat?.nama_program || '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-700">{item.bankAccount?.nama_akun || '-'}</p>
-                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">{item.bankAccount?.nomor_rekening || '-'}</p>
-                    </td>
-                    <td className="px-4 py-3 text-right font-black text-emerald-600">
-                      Rp {Number(item.nominal).toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-4 py-3 text-center text-slate-500">
-                      {new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </td>
-                  </tr>
-                ))
+                groupedHistory.map((batch, idx) => {
+                  const isExpanded = !!expandedBatches[batch.batchName];
+                  return (
+                    <React.Fragment key={batch.batchName}>
+                      <tr className="hover:bg-slate-50/20 transition-colors border-b border-slate-100">
+                        <td className="px-4 py-3.5 text-center font-bold text-slate-400">{idx + 1}</td>
+                        <td className="px-4 py-3.5 font-bold text-slate-800">
+                          <button 
+                            onClick={() => toggleBatchExpand(batch.batchName)}
+                            className="flex items-center gap-2 text-slate-800 hover:text-primary transition-colors focus:outline-none"
+                          >
+                            <ChevronRight className={cn("size-4 text-slate-400 transition-transform duration-200", isExpanded && "rotate-90")} />
+                            <span>{getDisplayBatchName(batch.batchName)}</span>
+                          </button>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-slate-700">{batch.bankAccountName}</p>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">{batch.bankAccountNumber}</p>
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-black text-emerald-600">
+                          Rp {batch.totalNominal.toLocaleString('id-ID')}
+                        </td>
+                        <td className="px-4 py-3.5 text-center font-semibold text-slate-700">
+                          {batch.items.length} pegawai
+                        </td>
+                        <td className="px-4 py-3.5 text-center text-slate-500">
+                          {new Date(batch.tanggal_pembayaran).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => exportHistoryToSimba(batch.items, batch.batchName)}
+                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                              title="Unduh SIMBA Excel"
+                            >
+                              <FileSpreadsheet className="size-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBatch(batch.batchName)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-55 rounded-lg transition-all"
+                              title="Hapus Batch"
+                            >
+                              <Trash2 className="size-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-slate-50/30">
+                          <td colSpan={7} className="px-8 py-4 border-b border-slate-150">
+                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
+                              <table className="w-full text-left">
+                                <thead>
+                                  <tr className="bg-slate-50 text-slate-500 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
+                                    <th className="px-4 py-2 text-center w-12">No</th>
+                                    <th className="px-4 py-2">Muzakki (NPWZ)</th>
+                                    <th className="px-4 py-2">Dinas / OPD</th>
+                                    <th className="px-4 py-2 text-center">Jenis Dana</th>
+                                    <th className="px-4 py-2 text-right">Nominal</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
+                                  {batch.items.map((item, itemIdx) => {
+                                    const isZakat = Number(item.nominal) >= 100000;
+                                    
+                                    // Extract OPD from keterangan
+                                    let opdName = '-';
+                                    if (item.keterangan) {
+                                      const match = item.keterangan.match(/\(([^)]+)\)$/) || item.keterangan.match(/\(([^)]+)\)[^()]*$/);
+                                      if (match) {
+                                        opdName = match[1].trim();
+                                      } else {
+                                        const parts = item.keterangan.split('OPD');
+                                        if (parts.length > 1) {
+                                          opdName = parts[1].split('-')[0].trim();
+                                        }
+                                      }
+                                    }
+                                    
+                                    return (
+                                      <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
+                                        <td className="px-4 py-2 text-center font-medium text-slate-400">{itemIdx + 1}</td>
+                                        <td className="px-4 py-2">
+                                          <p className="font-bold text-slate-900">{item.muzakki?.nama || '-'}</p>
+                                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">{item.muzakki?.npwz || '-'}</p>
+                                        </td>
+                                        <td className="px-4 py-2">
+                                          <p className="font-medium text-slate-750">{opdName}</p>
+                                        </td>
+                                        <td className="px-4 py-2 text-center">
+                                          {isZakat ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
+                                              Zakat
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
+                                              Infak
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-2 text-right font-semibold text-emerald-600">
+                                          Rp {Number(item.nominal).toLocaleString('id-ID')}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
