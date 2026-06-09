@@ -26,8 +26,9 @@ jobs:
             echo "==== STARTING DEPLOYMENT ===="
             cd /var/www/baznas-app
             
-            echo "1. Pulling latest code from GitHub..."
-            git pull origin master
+            echo "1. Fetching latest code from GitHub..."
+            git fetch https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/khansainyh/opsbaznassmg.git master
+            git reset --hard FETCH_HEAD
             
             echo "2. Setting up Backend..."
             cd backend
