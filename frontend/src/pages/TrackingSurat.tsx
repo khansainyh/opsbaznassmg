@@ -19,7 +19,6 @@ const STATUS_ORDER = [
   'Review Kabag Admin',
   'Review Kepala Pelaksana',
   'Review Pimpinan',
-  'Arsip',
   'Selesai'
 ];
 
@@ -29,7 +28,6 @@ const FILTER_STATUSES = [
   'Review Kabag Admin',
   'Review Kepala Pelaksana',
   'Review Pimpinan',
-  'Arsip',
   'Selesai',
   'Ditolak'
 ];
@@ -39,7 +37,6 @@ const STEPS = [
   { id: 'KABAG', label: 'KABAG', full: 'Review Kabag Admin' },
   { id: 'KEPEL', label: 'KEPEL', full: 'Kepala Pelaksana' },
   { id: 'PIMP',  label: 'PIMP',  full: 'Pimpinan BAZNAS' },
-  { id: 'ARSIP', label: 'ARSIP', full: 'Pengarsipan' },
   { id: 'DONE',  label: 'DONE',  full: 'Selesai' },
 ];
 
@@ -47,8 +44,8 @@ function getProgressSteps(status: string) {
   if (status === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
   const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === status.toLowerCase());
   return STEPS.map((step, i) => {
-    // ADM: 0, KABAG: 1, KEPEL: 2, PIMP: 3, ARSIP: 4, DONE: 5
-    const ranges = [[0,0],[1,1],[2,2],[3,3],[4,4],[5,5]];
+    // ADM: 0, KABAG: 1, KEPEL: 2, PIMP: 3, DONE: 4
+    const ranges = [[0,0],[1,1],[2,2],[3,3],[4,4]];
     const [lo, hi] = ranges[i];
     const active = idx >= lo && idx <= hi;
     const completed = idx > hi;
@@ -329,7 +326,7 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                       value={`${selectedSurat.tanggalMasuk}${selectedSurat.jamPengajuan ? ' · ' + selectedSurat.jamPengajuan : ''}`} />
                     {selectedSurat.tanggalAcara && (
                       <InfoRow icon={<Calendar className="size-4 text-slate-400"/>} label="Tanggal Acara (Undangan)"
-                        value={`${selectedSurat.tanggalAcara}${selectedSurat.jamAcara ? ' · ' + selectedSurat.jamAcara : ''}`} />
+                        value={`${selectedSurat.tanggalAcara ? new Date(selectedSurat.tanggalAcara).toLocaleDateString('id-ID') : '—'}${selectedSurat.jamAcara ? ' · ' + selectedSurat.jamAcara : ''}`} />
                     )}
                   </div>
                 </div>
