@@ -21,15 +21,15 @@ export const getCOAs = async (req: Request, res: Response) => {
 
 export const createCOA = async (req: Request, res: Response) => {
   try {
-    const { coa_code, nama_akun, klasifikasi, tipe_dana } = req.body;
+    const { coa_code, nama_akun, klasifikasi, tipe_dana, saldo_awal } = req.body;
     if (!coa_code || !nama_akun) {
       res.status(400).json({ error: 'Kode COA dan Nama Akun wajib diisi' });
       return;
     }
     const coa = await prisma.chartOfAccounts.upsert({
       where: { coa_code },
-      update: { nama_akun, klasifikasi, tipe_dana },
-      create: { coa_code, nama_akun, klasifikasi, tipe_dana }
+      update: { nama_akun, klasifikasi, tipe_dana, saldo_awal: saldo_awal !== undefined ? Number(saldo_awal) : undefined },
+      create: { coa_code, nama_akun, klasifikasi, tipe_dana, saldo_awal: saldo_awal !== undefined ? Number(saldo_awal) : 0 }
     });
     res.status(201).json(coa);
   } catch (error) {
@@ -40,10 +40,15 @@ export const createCOA = async (req: Request, res: Response) => {
 export const updateCOA = async (req: Request, res: Response) => {
   try {
     const { coa_code } = req.params;
-    const { nama_akun, klasifikasi, tipe_dana } = req.body;
+    const { nama_akun, klasifikasi, tipe_dana, saldo_awal } = req.body;
     const coa = await prisma.chartOfAccounts.update({
       where: { coa_code } as any,
-      data: { nama_akun, klasifikasi, tipe_dana }
+      data: { 
+        nama_akun, 
+        klasifikasi, 
+        tipe_dana,
+        saldo_awal: saldo_awal !== undefined ? Number(saldo_awal) : undefined
+      }
     });
     res.status(200).json(coa);
   } catch (error) {

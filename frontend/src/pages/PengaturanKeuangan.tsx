@@ -29,6 +29,7 @@ export interface COAItem {
   nama_akun: string;
   klasifikasi: string;
   tipe_dana?: string;
+  saldo_awal?: number;
 }
 
 export interface BankAccountItem {
@@ -113,7 +114,8 @@ export default function PengaturanKeuangan() {
     coa_code: '',
     nama_akun: '',
     klasifikasi: 'Aktiva',
-    tipe_dana: ''
+    tipe_dana: '',
+    saldo_awal: 0
   });
 
   // Form states - Rules
@@ -346,7 +348,8 @@ export default function PengaturanKeuangan() {
         coa_code: item.coa_code,
         nama_akun: item.nama_akun,
         klasifikasi: item.klasifikasi || 'Aktiva',
-        tipe_dana: item.tipe_dana || ''
+        tipe_dana: item.tipe_dana || '',
+        saldo_awal: Number(item.saldo_awal) || 0
       });
     } else {
       setEditingItem(null);
@@ -354,7 +357,8 @@ export default function PengaturanKeuangan() {
         coa_code: '',
         nama_akun: '',
         klasifikasi: 'Aktiva',
-        tipe_dana: ''
+        tipe_dana: '',
+        saldo_awal: 0
       });
     }
     setIsCOAModalOpen(true);
@@ -365,7 +369,8 @@ export default function PengaturanKeuangan() {
     try {
       const payload = {
         ...coaForm,
-        tipe_dana: coaForm.tipe_dana || null
+        tipe_dana: coaForm.tipe_dana || null,
+        saldo_awal: Number(coaForm.saldo_awal) || 0
       };
       if (editingItem) {
         await axios.put(`/api/finance/coa/${editingItem.coa_code}`, payload);
@@ -914,13 +919,14 @@ export default function PengaturanKeuangan() {
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening / Akun Buku Besar</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Klasifikasi</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo Awal (IDR)</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {filteredCOAs.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">Bagan akun COA masih kosong</td>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Bagan akun COA masih kosong</td>
                       </tr>
                     ) : filteredCOAs.map((item) => (
                       <tr key={item.coa_code} className="hover:bg-slate-50/30 transition-colors group">
@@ -943,6 +949,9 @@ export default function PengaturanKeuangan() {
                           </span>
                         </td>
                         <td className="px-6 py-5 font-bold text-slate-700">{item.tipe_dana || '-'}</td>
+                        <td className="px-6 py-5 font-black text-slate-950 text-right">
+                          {formatCurrency(Number(item.saldo_awal || 0))}
+                        </td>
                         <td className="px-6 py-5">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button 
@@ -1209,6 +1218,18 @@ export default function PengaturanKeuangan() {
                       <option value="APBD">APBD</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Awal (IDR)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={coaForm.saldo_awal}
+                    onChange={(e) => setCoaForm({ ...coaForm, saldo_awal: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold text-right"
+                    placeholder="0"
+                  />
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex gap-3">

@@ -20,6 +20,7 @@ export interface COAItem {
   nama_akun: string;
   klasifikasi: string;
   tipe_dana?: string;
+  saldo_awal?: number;
 }
 
 export interface BankAccountItem {
@@ -57,11 +58,25 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const KAS_SETARA_KAS_CODES = [
+  '11010101', '11010102', '11010103', '11010104', '11010105',
+  '11010201', '11010202', '11010203', '11010204', '11010205',
+  '11010206', '11010207', '11010208', '11010209', '11010210',
+  '11010301', '11010302', '11010303', '11010304', '11010305',
+  '11010501', '11010502', '11011501', '11011201'
+];
+
 export default function BukuBesar() {
   const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
   const [coas, setCoas] = useState<COAItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'jurnal' | 'rekap'>('jurnal');
+  const [rekapFilterType, setRekapFilterType] = useState<'semua' | 'kas'>('semua');
+  const [showZeroBalances, setShowZeroBalances] = useState(false);
+  const [rekapSearchTerm, setRekapSearchTerm] = useState('');
 
   // Filter parameters
   const [startDate, setStartDate] = useState(() => {
@@ -85,6 +100,25 @@ export default function BukuBesar() {
   const [coaSearchTerm, setCoaSearchTerm] = useState('');
   
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Helper function to determine normal balance type
+  const getNormalBalanceType = (coaCode: string, classification?: string) => {
+    const firstChar = coaCode.trim()[0];
+    const cls = classification?.toLowerCase() || '';
+    
+    if (
+      firstChar === '1' || 
+      firstChar === '5' || 
+      firstChar === '6' || 
+      cls.includes('aset') || 
+      cls.includes('beban') || 
+      cls.includes('biaya') || 
+      cls.includes('pengeluaran')
+    ) {
+      return 'DEBIT';
+    }
+    return 'KREDIT';
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -210,6 +244,124 @@ export default function BukuBesar() {
     return filteredLedger.reduce((sum, item) => sum + Number(item.kredit || 0), 0);
   }, [filteredLedger]);
 
+  // COA Summaries calculation for Rekapitulasi tab
+  const coaSummaries = useMemo(() => {
+    // 1. Group ledger entries by coa_code
+    const ledgerByCoa: Record<string, { debit: number; kredit: number }> = {};
+    filteredLedger.forEach(entry => {
+      if (!ledgerByCoa[entry.coa_code]) {
+        ledgerByCoa[entry.coa_code] = { debit: 0, kredit: 0 };
+      }
+      ledgerByCoa[entry.coa_code].debit += Number(entry.debit || 0);
+      ledgerByCoa[entry.coa_code].kredit += Number(entry.kredit || 0);
+    });
+
+    // 2. Map over all COAs
+    const summaries = coas.map(coa => {
+      const entrySum = ledgerByCoa[coa.coa_code] || { debit: 0, kredit: 0 };
+      const normalType = getNormalBalanceType(coa.coa_code, coa.klasifikasi);
+      const saldoAwal = Number(coa.saldo_awal || 0);
+      
+      let saldo = 0;
+      if (normalType === 'DEBIT') {
+        saldo = saldoAwal + entrySum.debit - entrySum.kredit;
+      } else {
+        saldo = saldoAwal + entrySum.kredit - entrySum.debit;
+      }
+
+      return {
+        ...coa,
+        saldo_awal: saldoAwal,
+        debit: entrySum.debit,
+        kredit: entrySum.kredit,
+        saldo,
+        normalType
+      };
+    });
+
+    // 3. Filter by search term
+    let result = summaries;
+    if (rekapSearchTerm.trim()) {
+      const search = rekapSearchTerm.toLowerCase();
+      result = result.filter(s => 
+        s.coa_code.includes(search) || 
+        s.nama_akun.toLowerCase().includes(search) ||
+        (s.klasifikasi && s.klasifikasi.toLowerCase().includes(search))
+      );
+    }
+
+    // Filter by Kas & Setara Kas if active
+    if (rekapFilterType === 'kas') {
+      result = result.filter(s => KAS_SETARA_KAS_CODES.includes(s.coa_code));
+    }
+
+    // 4. Filter by zero balance toggle
+    if (!showZeroBalances) {
+      result = result.filter(s => s.saldo_awal !== 0 || s.debit > 0 || s.kredit > 0 || s.saldo !== 0);
+    }
+
+    return result;
+  }, [coas, filteredLedger, showZeroBalances, rekapSearchTerm, rekapFilterType]);
+
+  // Compute Trial Balance Totals (for checking standard identity debit == kredit)
+  const trialBalanceTotals = useMemo(() => {
+    let totalDebitBalance = 0;
+    let totalKreditBalance = 0;
+
+    coaSummaries.forEach(s => {
+      if (s.normalType === 'DEBIT') {
+        if (s.saldo >= 0) {
+          totalDebitBalance += s.saldo;
+        } else {
+          totalKreditBalance += Math.abs(s.saldo);
+        }
+      } else {
+        if (s.saldo >= 0) {
+          totalKreditBalance += s.saldo;
+        } else {
+          totalDebitBalance += Math.abs(s.saldo);
+        }
+      }
+    });
+
+    return {
+      debit: totalDebitBalance,
+      kredit: totalKreditBalance,
+      balanced: Math.abs(totalDebitBalance - totalKreditBalance) < 0.01
+    };
+  }, [coaSummaries]);
+
+  // Compute Kas & Setara Kas metrics (Awal, Mutasi, Akhir)
+  const kasSetaraKasTotals = useMemo(() => {
+    let totalAwal = 0;
+    let totalMutasi = 0;
+
+    // Group ledger entries by coa_code
+    const ledgerByCoa: Record<string, { debit: number; kredit: number }> = {};
+    filteredLedger.forEach(entry => {
+      if (!ledgerByCoa[entry.coa_code]) {
+        ledgerByCoa[entry.coa_code] = { debit: 0, kredit: 0 };
+      }
+      ledgerByCoa[entry.coa_code].debit += Number(entry.debit || 0);
+      ledgerByCoa[entry.coa_code].kredit += Number(entry.kredit || 0);
+    });
+
+    KAS_SETARA_KAS_CODES.forEach(code => {
+      const coaInfo = coas.find(c => c.coa_code === code);
+      const saldoAwal = Number(coaInfo?.saldo_awal || 0);
+      totalAwal += saldoAwal;
+
+      const entrySum = ledgerByCoa[code] || { debit: 0, kredit: 0 };
+      totalMutasi += (entrySum.debit - entrySum.kredit);
+    });
+
+    return {
+      awal: totalAwal,
+      mutasi: totalMutasi,
+      akhir: totalAwal + totalMutasi
+    };
+  }, [coas, filteredLedger]);
+
   // Handle printing as PDF using browser built-in print
   const handlePrint = () => {
     window.print();
@@ -262,7 +414,11 @@ export default function BukuBesar() {
               BAZNAS KOTA SEMARANG
             </h1>
             <p className="text-xs text-slate-500 font-bold">
-              Laporan Jurnal Buku Besar (General Ledger)
+              {activeTab === 'jurnal' 
+                ? 'Laporan Jurnal Buku Besar (General Ledger)' 
+                : rekapFilterType === 'kas'
+                  ? 'Laporan Rekapitulasi Kas & Setara Kas'
+                  : 'Laporan Rekapitulasi Saldo Chart of Accounts (COA)'}
             </p>
           </div>
           <div className="text-right text-xs text-slate-500 font-semibold space-y-0.5">
@@ -297,52 +453,198 @@ export default function BukuBesar() {
         </div>
       </motion.div>
 
+      {/* Tab Switcher (No-Print) */}
+      <div className="flex border-b border-slate-200 no-print gap-1">
+        <button
+          onClick={() => setActiveTab('jurnal')}
+          className={cn(
+            "px-6 py-3 text-xs font-black transition-all border-b-2 uppercase tracking-wider",
+            activeTab === 'jurnal' 
+              ? "border-primary text-primary" 
+              : "border-transparent text-slate-400 hover:text-slate-650"
+          )}
+        >
+          Jurnal Transaksi
+        </button>
+        <button
+          onClick={() => setActiveTab('rekap')}
+          className={cn(
+            "px-6 py-3 text-xs font-black transition-all border-b-2 uppercase tracking-wider",
+            activeTab === 'rekap' 
+              ? "border-primary text-primary" 
+              : "border-transparent text-slate-400 hover:text-slate-650"
+          )}
+        >
+          Rekapitulasi Saldo COA
+        </button>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
-        >
-          <div className="size-12 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 no-print">
-            <TrendingUp className="size-6" />
-          </div>
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Debit Jurnal</span>
-            <p className="text-lg font-black text-slate-800">{formatCurrency(totalDebit)}</p>
-          </div>
-        </motion.div>
+        {activeTab === 'jurnal' ? (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className="size-12 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 no-print">
+                <TrendingUp className="size-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Debit Jurnal</span>
+                <p className="text-lg font-black text-slate-800">{formatCurrency(totalDebit)}</p>
+              </div>
+            </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
-        >
-          <div className="size-12 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0 no-print">
-            <TrendingUp className="size-6 rotate-90" />
-          </div>
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Kredit Jurnal</span>
-            <p className="text-lg font-black text-slate-800">{formatCurrency(totalKredit)}</p>
-          </div>
-        </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className="size-12 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0 no-print">
+                <TrendingUp className="size-6 rotate-90" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Kredit Jurnal</span>
+                <p className="text-lg font-black text-slate-800">{formatCurrency(totalKredit)}</p>
+              </div>
+            </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
-        >
-          <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 no-print">
-            <Activity className="size-6" />
-          </div>
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Jumlah Baris Transaksi</span>
-            <p className="text-lg font-black text-slate-800">{filteredLedger.length} Baris Jurnal</p>
-          </div>
-        </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 no-print">
+                <Activity className="size-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Jumlah Baris Transaksi</span>
+                <p className="text-lg font-black text-slate-800">{filteredLedger.length} Baris Jurnal</p>
+              </div>
+            </motion.div>
+          </>
+        ) : rekapFilterType === 'kas' ? (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className="size-12 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0 no-print">
+                <TrendingUp className="size-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Kas Awal</span>
+                <p className="text-lg font-black text-slate-800">{formatCurrency(kasSetaraKasTotals.awal)}</p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className={cn(
+                "size-12 rounded-xl flex items-center justify-center shrink-0 no-print",
+                kasSetaraKasTotals.mutasi >= 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
+              )}>
+                <Activity className="size-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Mutasi Kas</span>
+                <p className={cn(
+                  "text-lg font-black",
+                  kasSetaraKasTotals.mutasi >= 0 ? "text-emerald-700" : "text-rose-700"
+                )}>
+                  {kasSetaraKasTotals.mutasi >= 0 ? '+' : ''}{formatCurrency(kasSetaraKasTotals.mutasi)}
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 no-print">
+                <TrendingUp className="size-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Kas Akhir</span>
+                <p className="text-lg font-black text-slate-800">{formatCurrency(kasSetaraKasTotals.akhir)}</p>
+              </div>
+            </motion.div>
+          </>
+        ) : (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className="size-12 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 no-print">
+                <TrendingUp className="size-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Saldo Debit</span>
+                <p className="text-lg font-black text-slate-800">{formatCurrency(trialBalanceTotals.debit)}</p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className="size-12 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0 no-print">
+                <TrendingUp className="size-6 rotate-90" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Saldo Kredit</span>
+                <p className="text-lg font-black text-slate-800">{formatCurrency(trialBalanceTotals.kredit)}</p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 print:border print:border-slate-100"
+            >
+              <div className={cn(
+                "size-12 rounded-xl flex items-center justify-center shrink-0 no-print",
+                trialBalanceTotals.balanced 
+                  ? "bg-emerald-500/10 text-emerald-600" 
+                  : "bg-rose-500/10 text-rose-600"
+              )}>
+                {trialBalanceTotals.balanced ? (
+                  <Check className="size-6 text-emerald-600" />
+                ) : (
+                  <X className="size-6 text-rose-600" />
+                )}
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status Keseimbangan</span>
+                <p className={cn(
+                  "text-base font-black",
+                  trialBalanceTotals.balanced ? "text-emerald-600" : "text-rose-600"
+                )}>
+                  {trialBalanceTotals.balanced ? 'Seimbang (Balanced)' : 'Belum Seimbang'}
+                </p>
+              </div>
+            </motion.div>
+          </>
+        )}
       </div>
 
       {/* Filter and Ledger Table Card */}
@@ -353,233 +655,443 @@ export default function BukuBesar() {
         className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden print:border-0"
       >
         
-        {/* Filters Panel (No-Print) */}
-        <div className="p-6 border-b border-slate-100 bg-slate-50/20 space-y-4 no-print">
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        {/* TAB 1: JURNAL TRANSAKSI - Filters Panel (No-Print) */}
+        {activeTab === 'jurnal' && (
+          <div className="p-6 border-b border-slate-100 bg-slate-50/20 space-y-4 no-print">
             
-            {/* Search Input */}
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pencarian Transaksi</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              
+              {/* Search Input */}
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pencarian Transaksi</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                  <input 
+                    type="text"
+                    placeholder="Cari keterangan, kode COA, atau kas..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Date Start */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="size-3.5" /> Tanggal Mulai
+                </label>
                 <input 
-                  type="text"
-                  placeholder="Cari keterangan, kode COA, atau kas..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                 />
               </div>
+
+              {/* Date End */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="size-3.5" /> Tanggal Selesai
+                </label>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+
             </div>
 
-            {/* Date Start */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="size-3.5" /> Tanggal Mulai
-              </label>
-              <input 
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+              
+              {/* Multi-Select COA Dropdown */}
+              <div className="space-y-1.5 md:col-span-3" ref={dropdownRef}>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Filter Berdasarkan Akun (COA)</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsCoaDropdownOpen(!isCoaDropdownOpen)}
+                    className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-all text-slate-700"
+                  >
+                    <span className="truncate pr-4">
+                      {selectedCoas.length === 0 
+                        ? "Menampilkan Semua Akun COA" 
+                        : `Terpilih ${selectedCoas.length} Akun COA (${selectedCoas.slice(0, 3).join(', ')}${selectedCoas.length > 3 ? '...' : ''})`
+                      }
+                    </span>
+                    <ChevronDown className="size-4 text-slate-400 shrink-0" />
+                  </button>
 
-            {/* Date End */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="size-3.5" /> Tanggal Selesai
-              </label>
-              <input 
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-              />
-            </div>
+                  <AnimatePresence>
+                    {isCoaDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+                      >
+                        <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+                          <input
+                             type="text"
+                            placeholder="Cari COA..."
+                            value={coaSearchTerm}
+                            onChange={(e) => setCoaSearchTerm(e.target.value)}
+                            className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={selectAllCoas}
+                              className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider"
+                            >
+                              Semua
+                            </button>
+                            <span className="text-slate-355">|</span>
+                            <button
+                              type="button"
+                              onClick={clearCoaSelection}
+                              className="text-[10px] font-black text-rose-500 hover:underline uppercase tracking-wider"
+                            >
+                              Bersih
+                            </button>
+                          </div>
+                        </div>
 
-          </div>
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+                          {filteredCoasForDropdown.length === 0 ? (
+                            <p className="p-4 text-xs font-semibold text-slate-400 italic text-center">Akun tidak ditemukan</p>
+                          ) : (
+                            filteredCoasForDropdown.map((coa) => {
+                              const isSelected = selectedCoas.includes(coa.coa_code);
+                              return (
+                                <div
+                                  key={coa.coa_code}
+                                  onClick={() => toggleCoaSelection(coa.coa_code)}
+                                  className={cn(
+                                    "px-4 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-slate-50 font-bold transition-all",
+                                    isSelected ? "bg-primary/5 text-primary" : "text-slate-700"
+                                  )}
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-mono">{coa.coa_code}</span>
+                                    <span className="text-[10px] text-slate-400 mt-0.5">{coa.nama_akun}</span>
+                                  </div>
+                                  {isSelected && <Check className="size-4 text-primary shrink-0" />}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-            
-            {/* Multi-Select COA Dropdown */}
-            <div className="space-y-1.5 md:col-span-3" ref={dropdownRef}>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Filter Berdasarkan Akun (COA)</label>
-              <div className="relative">
+              {/* Cetak PDF Button */}
+              <div className="space-y-1.5 self-end">
                 <button
                   type="button"
-                  onClick={() => setIsCoaDropdownOpen(!isCoaDropdownOpen)}
-                  className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-all text-slate-700"
+                  onClick={handlePrint}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 uppercase tracking-wider shadow-lg shadow-primary/10"
                 >
-                  <span className="truncate pr-4">
-                    {selectedCoas.length === 0 
-                      ? "Menampilkan Semua Akun COA" 
-                      : `Terpilih ${selectedCoas.length} Akun COA (${selectedCoas.slice(0, 3).join(', ')}${selectedCoas.length > 3 ? '...' : ''})`
-                    }
-                  </span>
-                  <ChevronDown className="size-4 text-slate-400 shrink-0" />
+                  <Printer className="size-4" />
+                  Cetak PDF
                 </button>
-
-                <AnimatePresence>
-                  {isCoaDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 5 }}
-                      className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden"
-                    >
-                      <div className="p-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-                        <input
-                           type="text"
-                          placeholder="Cari COA..."
-                          value={coaSearchTerm}
-                          onChange={(e) => setCoaSearchTerm(e.target.value)}
-                          className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={selectAllCoas}
-                            className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider"
-                          >
-                            Semua
-                          </button>
-                          <span className="text-slate-350">|</span>
-                          <button
-                            type="button"
-                            onClick={clearCoaSelection}
-                            className="text-[10px] font-black text-rose-500 hover:underline uppercase tracking-wider"
-                          >
-                            Bersih
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="max-h-60 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
-                        {filteredCoasForDropdown.length === 0 ? (
-                          <p className="p-4 text-xs font-semibold text-slate-400 italic text-center">Akun tidak ditemukan</p>
-                        ) : (
-                          filteredCoasForDropdown.map((coa) => {
-                            const isSelected = selectedCoas.includes(coa.coa_code);
-                            return (
-                              <div
-                                key={coa.coa_code}
-                                onClick={() => toggleCoaSelection(coa.coa_code)}
-                                className={cn(
-                                  "px-4 py-2.5 text-xs flex items-center justify-between cursor-pointer hover:bg-slate-50 font-bold transition-all",
-                                  isSelected ? "bg-primary/5 text-primary" : "text-slate-700"
-                                )}
-                              >
-                                <div className="flex flex-col">
-                                  <span className="font-mono">{coa.coa_code}</span>
-                                  <span className="text-[10px] text-slate-400 mt-0.5">{coa.nama_akun}</span>
-                                </div>
-                                {isSelected && <Check className="size-4 text-primary shrink-0" />}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
+
+              {/* Refresh Button */}
+              <div className="space-y-1.5 self-end">
+                <button
+                  type="button"
+                  onClick={fetchData}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-black transition-all disabled:opacity-60"
+                >
+                  {loading ? 'Me-refresh...' : 'Refresh Jurnal'}
+                </button>
+              </div>
+
             </div>
 
-            {/* Cetak PDF Button */}
-            <div className="space-y-1.5 self-end">
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 uppercase tracking-wider shadow-lg shadow-primary/10"
-              >
-                <Printer className="size-4" />
-                Cetak PDF
-              </button>
-            </div>
-
-            {/* Refresh Button */}
-            <div className="space-y-1.5 self-end">
-              <button
-                type="button"
-                onClick={fetchData}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-black transition-all disabled:opacity-60"
-              >
-                {loading ? 'Me-refresh...' : 'Refresh Jurnal'}
-              </button>
-            </div>
+            {/* Active COA Badges */}
+            {selectedCoas.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100/50">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-1">Filter Aktif:</span>
+                {selectedCoas.map(code => {
+                  const matchingCoa = coas.find(c => c.coa_code === code);
+                  return (
+                    <span 
+                      key={code} 
+                      className="inline-flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-lg text-[10px] font-bold"
+                    >
+                      <span>{code} {matchingCoa ? `(${matchingCoa.nama_akun})` : ''}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => toggleCoaSelection(code)}
+                        className="hover:text-rose-600 transition-colors"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
 
           </div>
+        )}
 
-          {/* Active COA Badges */}
-          {selectedCoas.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100/50">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-1">Filter Aktif:</span>
-              {selectedCoas.map(code => {
-                const matchingCoa = coas.find(c => c.coa_code === code);
-                return (
-                  <span 
-                    key={code} 
-                    className="inline-flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-lg text-[10px] font-bold"
-                  >
-                    <span>{code} {matchingCoa ? `(${matchingCoa.nama_akun})` : ''}</span>
-                    <button 
-                      type="button" 
-                      onClick={() => toggleCoaSelection(code)}
-                      className="hover:text-rose-600 transition-colors"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                );
-              })}
+        {/* TAB 2: REKAPITULASI COA - Filters Panel (No-Print) */}
+        {activeTab === 'rekap' && (
+          <div className="p-6 border-b border-slate-100 bg-slate-50/20 space-y-4 no-print">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              
+              {/* Search Input */}
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cari Akun COA</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                  <input 
+                    type="text"
+                    placeholder="Cari kode COA, nama akun, klasifikasi..."
+                    value={rekapSearchTerm}
+                    onChange={(e) => setRekapSearchTerm(e.target.value)}
+                    className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Date Start */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="size-3.5" /> Tanggal Mulai
+                </label>
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+
+              {/* Date End */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="size-3.5" /> Tanggal Selesai
+                </label>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+
             </div>
-          )}
 
-        </div>
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+              
+              <div className="flex flex-wrap items-center gap-6">
+                {/* Sub-Tab Selector */}
+                <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setRekapFilterType('semua')}
+                    className={cn(
+                      "px-3 py-1.5 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider",
+                      rekapFilterType === 'semua'
+                        ? "bg-white text-primary shadow-sm"
+                        : "text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    Semua COA
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRekapFilterType('kas')}
+                    className={cn(
+                      "px-3 py-1.5 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider",
+                      rekapFilterType === 'kas'
+                        ? "bg-white text-primary shadow-sm"
+                        : "text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    Kas & Setara Kas
+                  </button>
+                </div>
 
-        {/* Ledger Entries Table */}
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/50 print:bg-white print:border-b">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Tanggal Jurnal</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Keterangan Jurnal (Realisasi)</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Kode COA</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Nama Akun COA</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Debet (IDR)</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Kredit (IDR)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {sortedLedger.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
+                {/* Zero Balances Toggle */}
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox"
+                    id="showZeroBalances"
+                    checked={showZeroBalances}
+                    onChange={(e) => setShowZeroBalances(e.target.checked)}
+                    className="rounded text-primary focus:ring-primary size-4"
+                  />
+                  <label htmlFor="showZeroBalances" className="text-xs font-bold text-slate-650 cursor-pointer select-none">
+                    Tampilkan Akun Bersaldo Nol
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Cetak PDF Button */}
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 uppercase tracking-wider shadow-lg shadow-primary/10"
+                >
+                  <Printer className="size-4" />
+                  Cetak PDF Rekap
+                </button>
+
+                {/* Refresh Button */}
+                <button
+                  type="button"
+                  onClick={fetchData}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-black transition-all disabled:opacity-60"
+                >
+                  {loading ? 'Me-refresh...' : 'Refresh'}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TAB 1: JURNAL TRANSAKSI - Table */}
+        {activeTab === 'jurnal' && (
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50/50 print:bg-white print:border-b">
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Tanggal Jurnal</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Keterangan Jurnal (Realisasi)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Kode COA</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Nama Akun COA</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Debet (IDR)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Kredit (IDR)</th>
                 </tr>
-              ) : sortedLedger.map((item) => (
-                <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
-                  <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">
-                    {new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}
-                  </td>
-                  <td className="px-6 py-5 font-bold text-slate-800 print:text-black">
-                    {item.realisasi.keterangan}
-                    {item.account && <span className="block text-[10px] text-slate-400 mt-1 font-semibold print:text-slate-500">Kas Fisik: {item.account.nama_akun}</span>}
-                  </td>
-                  <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">{item.coa_code}</td>
-                  <td className="px-6 py-5 font-bold text-slate-800 print:text-black">{item.coa.nama_akun}</td>
-                  <td className="px-6 py-5 text-right font-black text-emerald-700 print:text-black">
-                    {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-'}
-                  </td>
-                  <td className="px-6 py-5 text-right font-black text-blue-700 print:text-black">
-                    {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-'}
-                  </td>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {sortedLedger.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
+                  </tr>
+                ) : sortedLedger.map((item) => (
+                  <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
+                    <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">
+                      {new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}
+                    </td>
+                    <td className="px-6 py-5 font-bold text-slate-800 print:text-black">
+                      {item.realisasi.keterangan}
+                      {item.account && <span className="block text-[10px] text-slate-400 mt-1 font-semibold print:text-slate-500">Kas Fisik: {item.account.nama_akun}</span>}
+                    </td>
+                    <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">{item.coa_code}</td>
+                    <td className="px-6 py-5 font-bold text-slate-800 print:text-black">{item.coa.nama_akun}</td>
+                    <td className="px-6 py-5 text-right font-black text-emerald-700 print:text-black">
+                      {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-'}
+                    </td>
+                    <td className="px-6 py-5 text-right font-black text-blue-700 print:text-black">
+                      {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* TAB 2: REKAPITULASI COA - Table */}
+        {activeTab === 'rekap' && (
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50/50 print:bg-white print:border-b">
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Kode COA</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Nama Akun COA</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Klasifikasi</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest print:text-black">Normal</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Saldo Awal (IDR)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Total Debet (IDR)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Total Kredit (IDR)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:text-black">Saldo Akhir (IDR)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {coaSummaries.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400 italic font-medium">Rekapitulasi COA kosong / Tidak ditemukan</td>
+                  </tr>
+                ) : (
+                  <>
+                    {coaSummaries.map((item) => (
+                      <tr key={item.coa_code} className="hover:bg-slate-50/30 transition-colors group">
+                        <td className="px-6 py-4 font-mono text-xs text-slate-650 font-bold print:text-black">{item.coa_code}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800 print:text-black">{item.nama_akun}</td>
+                        <td className="px-6 py-4 font-bold text-slate-500 print:text-black">
+                          {item.klasifikasi || '—'}
+                        </td>
+                        <td className="px-6 py-4 font-bold text-xs text-slate-400 print:text-black">
+                          {item.normalType}
+                        </td>
+                        <td className="px-6 py-4 text-right font-black text-slate-600 print:text-black">
+                          {item.saldo_awal !== 0 ? formatCurrency(item.saldo_awal) : '—'}
+                        </td>
+                        <td className="px-6 py-4 text-right font-black text-emerald-700 print:text-black">
+                          {item.debit > 0 ? formatCurrency(item.debit) : '—'}
+                        </td>
+                        <td className="px-6 py-4 text-right font-black text-blue-700 print:text-black">
+                          {item.kredit > 0 ? formatCurrency(item.kredit) : '—'}
+                        </td>
+                        <td className={cn(
+                          "px-6 py-4 text-right font-black print:text-black",
+                          item.saldo >= 0 ? "text-slate-800" : "text-rose-700"
+                        )}>
+                          {formatCurrency(item.saldo)}
+                          {item.saldo < 0 && <span className="text-[10px] font-bold block text-rose-500 print:hidden">Defisit / Kontra</span>}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Total Summary Row for Trial Balance */}
+                    <tr className="bg-slate-50/70 font-black border-t-2 border-slate-200">
+                      <td colSpan={4} className="px-6 py-5 text-slate-800 uppercase tracking-wider text-xs">
+                        TOTAL SALDO REKAPITULASI COA
+                      </td>
+                      <td className="px-6 py-5 text-right text-slate-700 text-sm">
+                        {formatCurrency(coaSummaries.reduce((sum, s) => sum + s.saldo_awal, 0))}
+                      </td>
+                      <td className="px-6 py-5 text-right text-emerald-800 text-sm">
+                        {formatCurrency(coaSummaries.reduce((sum, s) => sum + s.debit, 0))}
+                      </td>
+                      <td className="px-6 py-5 text-right text-blue-800 text-sm">
+                        {formatCurrency(coaSummaries.reduce((sum, s) => sum + s.kredit, 0))}
+                      </td>
+                      <td className="px-6 py-5 text-right text-slate-900 text-sm">
+                        <div className="flex flex-col items-end">
+                          <span>
+                            {formatCurrency(trialBalanceTotals.debit)}
+                          </span>
+                          <span className={cn(
+                            "text-[9px] uppercase tracking-wider font-bold mt-0.5",
+                            trialBalanceTotals.balanced ? "text-emerald-600" : "text-rose-600"
+                          )}>
+                            {trialBalanceTotals.balanced ? 'BALANCED' : 'UNBALANCED'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </motion.div>
     </div>
   );

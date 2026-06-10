@@ -141,5 +141,24 @@
     "rkatId": "d0980e41-b62a-4dcf-a78b-8614097ce05c",
     "sumberDana": "-",
     "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Belanja ATK Bulan Juni"
+  },
+  {
+    "id": "mut-1781065236213",
+    "tanggalCatatan": "2026-06-10",
+    "tanggal": "2026-06-10",
+    "bankAccountId": "012ca878-06d4-47e8-b7d9-4503b7e63ffc",
+    "bankName": "Dana Infak dan Sedekah Tidak Terikat",
+    "keteranganBank": "Beli Pulpen",
+    "nominal": 50000,
+    "type": "KREDIT",
+    "status": "RECONCILED",
+    "reconciledAt": "2026-06-10T04:22:35.254Z",
+    "reconciledBy": "Super Admin",
+    "muzakkiId": null,
+    "muzakkiName": "-",
+    "coaCode": "53040201",
+    "rkatId": "d0980e41-b62a-4dcf-a78b-8614097ce05c",
+    "sumberDana": "-",
+    "keteranganRealisasi": "Belanja ATK Pulpen Bulan Juni"
   }
 ]

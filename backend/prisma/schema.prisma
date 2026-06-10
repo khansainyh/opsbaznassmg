@@ -216,6 +216,7 @@ model ChartOfAccounts {
   nama_akun      String           @db.VarChar(255)
   klasifikasi    String?          @db.VarChar(50)
   tipe_dana      String?          @db.VarChar(30)
+  saldo_awal     Decimal          @default(0.00) @db.Decimal(15, 2)
   bankAccounts   BankAccount[]
   debitRules     CoaMappingRule[] @relation("DebitCoa")
   kreditRules    CoaMappingRule[] @relation("KreditCoa")
