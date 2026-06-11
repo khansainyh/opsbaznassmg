@@ -83,6 +83,177 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Report modal state
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [signatories, setSignatories] = useState({
+    kabagAdministrasi: '',
+    stafAdministrasi: ''
+  });
+
+  React.useEffect(() => {
+    if (isReportModalOpen) {
+      axios.get('/api/users')
+        .then(res => {
+          setUsers(res.data || []);
+        })
+        .catch(err => console.error('Error fetching users:', err));
+    }
+  }, [isReportModalOpen]);
+
+  React.useEffect(() => {
+    if (users.length > 0) {
+      const kabagUser = users.find(u => u.role === 'Kabag_Administrasi');
+      const stafUser = users.find(u => u.role === 'Staf_Administrasi') || users.find(u => u.role.startsWith('Staf_'));
+
+      setSignatories({
+        kabagAdministrasi: kabagUser ? kabagUser.name : '',
+        stafAdministrasi: stafUser ? stafUser.name : ''
+      });
+    }
+  }, [users]);
+
+  const handlePrintReport = () => {
+    const filtered = allData.filter(item => item.tanggalMasuk === selectedDate);
+
+    const formatIndonesianDateStr = (dateStr: string) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      return `${String(date.getDate()).padStart(2, '0')} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    };
+
+    const title = `REKAP SURAT MASUK ${formatIndonesianDateStr(selectedDate).toUpperCase()}`;
+    const semarangDate = formatIndonesianDateStr(selectedDate);
+
+    const contentHtml = `
+      <h2 style="font-size: 18px; text-align: center; font-family: Arial, sans-serif; font-weight: bold; margin-bottom: 30px;">
+        ${title}
+      </h2>
+      <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; margin-bottom: 25px;">
+        <thead>
+          <tr style="background-color: #ffffff;">
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">No</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">No Agenda</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Tanggal Proposal Masuk</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 12%;">Nama Instansi</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Pimpinan Organisasi</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 15%;">Alamat</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kelurahan</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kecamatan</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 15%;">Keperluan</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">No Telpon</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Jam Pengajuan</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Yang Mengajukan</th>
+            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length === 0 ? `
+            <tr>
+              <td colspan="13" style="border: 1px solid #000; padding: 12px; text-align: center; color: #555;">Tidak ada data surat masuk</td>
+            </tr>
+          ` : filtered.map((item, index) => `
+            <tr>
+              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${index + 1}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.agendaNo}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${formatIndonesianDateStr(item.tanggalMasuk)}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaInstansi || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px;">${item.pimpinanOrganisasi || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px;">${item.alamat || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px;">${item.kelurahan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px;">${item.kecamatan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px;">${item.keperluan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.noTelpon || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.jamPengajuan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.yangMengajukan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.arsip || '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    const signatureHtml = `
+      <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+        <tr style="border: none;">
+          <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
+          <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
+            Semarang, ${semarangDate}<br><br>
+          </td>
+        </tr>
+        <tr style="border: none;">
+          <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+            Plh. Kepala Pelaksana<br>
+            Kabag. Administrasi, SDM, dan Umum<br><br><br><br><br>
+            <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+          </td>
+          <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+            Staff Administrasi, SDM, dan Umum<br><br><br><br><br><br>
+            <strong>${signatories.stafAdministrasi || '................................'}</strong>
+          </td>
+        </tr>
+      </table>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Gagal membuka jendela print preview. Pastikan popup tidak diblokir oleh browser.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 15mm;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              color: #000;
+              margin: 0;
+              padding: 10px;
+            }
+            table {
+              page-break-inside: auto;
+            }
+            tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+            thead {
+              display: table-header-group;
+            }
+            tfoot {
+              display: table-footer-group;
+            }
+          </style>
+        </head>
+        <body>
+          ${contentHtml}
+          ${signatureHtml}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // Sorted: terbaru di atas
   const filteredData = data
     .filter(item => {
@@ -289,17 +460,26 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               <span className="text-xs font-bold text-slate-500">Status: Registrasi</span>
             </div>
           </div>
-          <button 
-            onClick={() => {
-              setEditingSurat(null);
-              setSelectedKategori('');
-              setIsModalOpen(true);
-            }}
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
-          >
-            <Plus className="size-4" />
-            Tambah Data Baru
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setIsReportModalOpen(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20 active:scale-95"
+            >
+              <ClipboardList className="size-4" />
+              Cetak Laporan / Rekap
+            </button>
+            <button 
+              onClick={() => {
+                setEditingSurat(null);
+                setSelectedKategori('');
+                setIsModalOpen(true);
+              }}
+              className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
+            >
+              <Plus className="size-4" />
+              Tambah Data Baru
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -906,6 +1086,143 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Cetak Laporan Modal ─── */}
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsReportModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-xl">
+                    <ClipboardList className="size-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900">Cetak Laporan Rekap Surat</h3>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                      Modul khusus administrasi untuk rekap harian detail surat masuk.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="p-2 hover:bg-white/80 rounded-full transition-colors"
+                >
+                  <X className="size-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-5">
+                {/* Filter Tanggal */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Waktu & Periode</h4>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600">Pilih Tanggal</label>
+                    <input 
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Penandatangan (Signatories) */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penandatangan Laporan</h4>
+
+                  {/* Kabag Administrasi */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi (Plh. Kepala Pelaksana)</label>
+                    <div className="flex gap-2">
+                      <select
+                        className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
+                          }
+                        }}
+                        value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
+                      >
+                        <option value="">-- Pilih User --</option>
+                        {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
+                          <option key={u.id} value={u.name}>{u.name}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={signatories.kabagAdministrasi}
+                        onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
+                        placeholder="Nama Kabag Administrasi..."
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Staff Administrasi */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-600">Nama Staff Administrasi</label>
+                    <div className="flex gap-2">
+                      <select
+                        className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }));
+                          }
+                        }}
+                        value={users.some(u => u.name === signatories.stafAdministrasi) ? signatories.stafAdministrasi : ''}
+                      >
+                        <option value="">-- Pilih User --</option>
+                        {users.filter(u => u.role === 'Staf_Administrasi').map(u => (
+                          <option key={u.id} value={u.name}>{u.name}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={signatories.stafAdministrasi}
+                        onChange={(e) => setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }))}
+                        placeholder="Nama Staff Administrasi..."
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
+                <button
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handlePrintReport}
+                  className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
+                >
+                  <ClipboardList className="size-4" />
+                  Cetak / Preview
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

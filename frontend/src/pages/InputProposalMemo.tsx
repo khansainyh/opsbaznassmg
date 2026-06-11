@@ -83,6 +83,412 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
   const [tanggalLahirInput, setTanggalLahirInput] = useState('');
 
+  // Report modal state
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportType, setReportType] = useState<'harian_pilar' | 'harian_detail' | 'mingguan' | 'bulanan'>('harian_pilar');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedWeek, setSelectedWeek] = useState(1);
+  const [users, setUsers] = useState<any[]>([]);
+  const [signatories, setSignatories] = useState({
+    kepalaPelaksana: '',
+    kabagAdministrasi: '',
+    wakilKetuaIv: '',
+    ketua: '',
+    stafAdministrasi: ''
+  });
+
+  React.useEffect(() => {
+    if (isReportModalOpen) {
+      axios.get('/api/users')
+        .then(res => {
+          setUsers(res.data || []);
+        })
+        .catch(err => console.error('Error fetching users:', err));
+    }
+  }, [isReportModalOpen]);
+
+  React.useEffect(() => {
+    if (users.length > 0) {
+      const kpUser = users.find(u => u.role === 'Kepala_Pelaksana');
+      const kabagUser = users.find(u => u.role === 'Kabag_Administrasi');
+      const wk4User = users.find(u => u.role === 'Wakil_Ketua_IV');
+      const ketuaUser = users.find(u => u.role === 'Ketua');
+      const stafUser = users.find(u => u.role === 'Staf_Administrasi') || users.find(u => u.role.startsWith('Staf_'));
+
+      setSignatories({
+        kepalaPelaksana: kpUser ? kpUser.name : '',
+        kabagAdministrasi: kabagUser ? kabagUser.name : '',
+        wakilKetuaIv: wk4User ? wk4User.name : '',
+        ketua: ketuaUser ? ketuaUser.name : '',
+        stafAdministrasi: stafUser ? stafUser.name : ''
+      });
+    }
+  }, [users]);
+
+  const handlePrintReport = () => {
+    const filtered = allData.filter(item => {
+      if (!item.tanggalMasuk) return false;
+      const [y, m, d] = item.tanggalMasuk.split('-').map(Number);
+      if (reportType === 'harian_pilar' || reportType === 'harian_detail') {
+        return item.tanggalMasuk === selectedDate;
+      } else if (reportType === 'mingguan') {
+        if (y !== selectedYear || m !== selectedMonth) return false;
+        if (selectedWeek === 1) return d >= 1 && d <= 7;
+        if (selectedWeek === 2) return d >= 8 && d <= 14;
+        if (selectedWeek === 3) return d >= 15 && d <= 21;
+        if (selectedWeek === 4) return d >= 22 && d <= 28;
+        if (selectedWeek === 5) return d >= 29;
+      } else if (reportType === 'bulanan') {
+        return y === selectedYear && m === selectedMonth;
+      }
+      return false;
+    });
+
+    const formatIndonesianDateStr = (dateStr: string) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      return `${String(date.getDate()).padStart(2, '0')} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    };
+
+    const MONTH_NAMES = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    let title = '';
+    let semarangDate = '';
+
+    if (reportType === 'harian_pilar') {
+      title = `REKAP PROPOSAL PENGAJUAN ${formatIndonesianDateStr(selectedDate).toUpperCase()}`;
+      semarangDate = formatIndonesianDateStr(selectedDate);
+    } else if (reportType === 'harian_detail') {
+      title = `REKAP DETAIL PROPOSAL MASUK ${formatIndonesianDateStr(selectedDate).toUpperCase()}`;
+      semarangDate = formatIndonesianDateStr(selectedDate);
+    } else if (reportType === 'mingguan') {
+      title = `REKAP PROPOSAL MASUK MINGGU KE-${selectedWeek} BULAN ${MONTH_NAMES[selectedMonth - 1].toUpperCase()} ${selectedYear}`;
+      const endDay = selectedWeek === 1 ? 7 : selectedWeek === 2 ? 14 : selectedWeek === 3 ? 21 : selectedWeek === 4 ? 28 : new Date(selectedYear, selectedMonth, 0).getDate();
+      const endDayStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+      semarangDate = formatIndonesianDateStr(endDayStr);
+    } else if (reportType === 'bulanan') {
+      title = `REKAP PROPOSAL MASUK BULAN ${MONTH_NAMES[selectedMonth - 1].toUpperCase()} ${selectedYear}`;
+      const endDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const endDayStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+      semarangDate = formatIndonesianDateStr(endDayStr);
+    }
+
+    let contentHtml = '';
+
+    if (reportType === 'harian_pilar' || reportType === 'mingguan' || reportType === 'bulanan') {
+      const PILARS = [
+        'Semarang Peduli',
+        'Semarang Sehat',
+        'Semarang Cerdas',
+        'Semarang Taqwa',
+        'Semarang Makmur'
+      ];
+      
+      const counts: Record<string, number> = {};
+      PILARS.forEach(p => counts[p] = 0);
+      let totalCount = 0;
+
+      filtered.forEach(p => {
+        const pilarName = p.program;
+        const matched = PILARS.find(pil => pilarName && pilarName.toLowerCase().includes(pil.toLowerCase()));
+        if (matched) {
+          counts[matched]++;
+          totalCount++;
+        } else {
+          const fallback = PILARS.find(pil => p.jenisPermohonan && p.jenisPermohonan.toLowerCase().includes(pil.toLowerCase()));
+          if (fallback) {
+            counts[fallback]++;
+            totalCount++;
+          } else {
+            counts['Semarang Peduli']++;
+            totalCount++;
+          }
+        }
+      });
+
+      const activeRows = PILARS.map(pilar => ({ pilar, count: counts[pilar] }))
+        .filter(r => r.count > 0);
+
+      contentHtml = `
+        <h2 style="font-size: 18px; text-align: center; font-family: Arial, sans-serif; font-weight: bold; margin-bottom: 30px; line-height: 1.5;">
+          ${title}
+        </h2>
+        <table style="width: 70%; margin: 0 auto; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 13px; margin-bottom: 40px;">
+          <thead>
+            <tr>
+              <th style="border: 2px solid #000; padding: 10px; width: 10%; text-align: center;">No</th>
+              <th style="border: 2px solid #000; padding: 10px; width: 60%; text-align: center;">Jenis Permohonan</th>
+              <th style="border: 2px solid #000; padding: 10px; width: 30%; text-align: center;">Jumlah</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${activeRows.length === 0 ? `
+              <tr>
+                <td colspan="3" style="border: 2px solid #000; padding: 12px; text-align: center; color: #555;">Tidak ada data proposal masuk</td>
+              </tr>
+            ` : activeRows.map((r, i) => `
+              <tr>
+                <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">${i + 1}</td>
+                <td style="border: 2px solid #000; padding: 10px; font-weight: bold;">${r.pilar}</td>
+                <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">${r.count}</td>
+              </tr>
+            `).join('')}
+            <tr style="font-weight: bold;">
+              <td colspan="2" style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">Total</td>
+              <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">${totalCount}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    } else {
+      const PILARS = [
+        'Semarang Peduli',
+        'Semarang Sehat',
+        'Semarang Cerdas',
+        'Semarang Taqwa',
+        'Semarang Makmur'
+      ];
+
+      const grouped: Record<string, typeof filtered> = {};
+      PILARS.forEach(p => grouped[p] = []);
+
+      filtered.forEach(p => {
+        const pilarName = p.program;
+        const matched = PILARS.find(pil => pilarName && pilarName.toLowerCase().includes(pil.toLowerCase()));
+        if (matched) {
+          grouped[matched].push(p);
+        } else {
+          const fallback = PILARS.find(pil => p.jenisPermohonan && p.jenisPermohonan.toLowerCase().includes(pil.toLowerCase()));
+          if (fallback) {
+            grouped[fallback].push(p);
+          } else {
+            grouped['Semarang Peduli'].push(p);
+          }
+        }
+      });
+
+      const activeGroups = PILARS.map(pilar => ({ pilar, items: grouped[pilar] }))
+        .filter(g => g.items.length > 0);
+
+      contentHtml = `
+        <h2 style="font-size: 18px; text-align: center; font-family: Arial, sans-serif; font-weight: bold; margin-bottom: 30px;">
+          ${title}
+        </h2>
+        ${activeGroups.length === 0 ? `
+          <p style="text-align: center; font-family: Arial, sans-serif; font-size: 14px; margin-top: 50px;">Tidak ada data detail proposal masuk</p>
+        ` : activeGroups.map(g => `
+          <h3 style="font-size: 14px; text-align: left; font-family: Arial, sans-serif; font-weight: bold; margin-top: 30px; margin-bottom: 10px;">
+            ${g.pilar} : ${g.items.length}
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; margin-bottom: 25px;">
+            <thead>
+              <tr style="background-color: #ffffff;">
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">No</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">No Agenda</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Tanggal Proposal Masuk</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 12%;">Nama Instansi</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Pimpinan Organisasi</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Nama Pemohon</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 14%;">Alamat</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kelurahan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kecamatan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Jenis Permohonan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">NoTelpon</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Jam Pengajuan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Yang Mengajukan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">TTD</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${g.items.map((item, index) => {
+                const combinedPermohonan = item.programCode ? `${item.programCode} || ${item.jenisPermohonan}` : item.jenisPermohonan;
+                return `
+                  <tr>
+                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${index + 1}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.agendaNo}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${formatIndonesianDateStr(item.tanggalMasuk)}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaInstansi || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.pimpinanOrganisasi || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaPemohon || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.alamat || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.kelurahan || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.kecamatan || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${combinedPermohonan || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.noTelpon || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.jamPengajuan || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.yangMengajukan || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;"></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `).join('')}
+      `;
+    }
+
+    let signatureHtml = '';
+    if (reportType === 'harian_pilar') {
+      signatureHtml = `
+        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
+            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Semarang, ${semarangDate}<br><br>
+            </td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Kepala Pelaksana<br><br><br><br><br>
+              <strong>${signatories.kepalaPelaksana || '................................'}</strong>
+            </td>
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Kepala Bagian<br>
+              Administrasi, SDM, dan Umum<br><br><br><br>
+              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            </td>
+          </tr>
+        </table>
+      `;
+    } else if (reportType === 'harian_detail') {
+      signatureHtml = `
+        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
+            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Semarang, ${semarangDate}<br><br>
+            </td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Kepala Bagian<br>
+              Administrasi, SDM, dan Umum<br><br><br><br><br>
+              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            </td>
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Staff Administrasi, SDM, dan Umum<br><br><br><br><br><br>
+              <strong>${signatories.stafAdministrasi || '................................'}</strong>
+            </td>
+          </tr>
+        </table>
+      `;
+    } else if (reportType === 'mingguan') {
+      signatureHtml = `
+        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
+            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Semarang, ${semarangDate}<br><br>
+            </td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Mengetahui<br>
+              Wakil Ketua IV<br><br><br><br><br>
+              <strong>${signatories.wakilKetuaIv || '................................'}</strong>
+            </td>
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Plh. Kepala Pelaksana<br>
+              Kabag. Administrasi, SDM, dan Umum<br><br><br><br>
+              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            </td>
+          </tr>
+        </table>
+      `;
+    } else if (reportType === 'bulanan') {
+      signatureHtml = `
+        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
+            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Semarang, ${semarangDate}<br><br>
+            </td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Wakil Ketua IV<br><br><br><br><br>
+              <strong>${signatories.wakilKetuaIv || '................................'}</strong>
+            </td>
+            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Plh. Kepala Pelaksana<br>
+              Kabag. Administrasi, SDM, dan Umum<br><br><br><br>
+              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            </td>
+          </tr>
+          <tr style="border: none;">
+            <td colspan="2" style="border: none; text-align: center; vertical-align: top; padding: 40px 0 0 0; font-family: Arial, sans-serif; font-size: 13px;">
+              Mengetahui,<br>
+              Ketua BAZNAS Kota Semarang<br><br><br><br><br>
+              <strong>${signatories.ketua || '................................'}</strong>
+            </td>
+          </tr>
+        </table>
+      `;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Gagal membuka jendela print preview. Pastikan popup tidak diblokir oleh browser.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            @page {
+              size: ${reportType === 'harian_detail' ? 'A4 landscape' : 'A4 portrait'};
+              margin: 15mm;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              color: #000;
+              margin: 0;
+              padding: 10px;
+            }
+            table {
+              page-break-inside: auto;
+            }
+            tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+            thead {
+              display: table-header-group;
+            }
+            tfoot {
+              display: table-footer-group;
+            }
+          </style>
+        </head>
+        <body>
+          ${contentHtml}
+          ${signatureHtml}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   React.useEffect(() => {
     axios.get('/api/pilars')
       .then(res => {
@@ -450,27 +856,36 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
               <span className="text-xs font-bold text-slate-500">Status: Registrasi</span>
             </div>
           </div>
-          <button 
-            onClick={() => {
-              setEditingProposal(null);
-              setNikCheckStr('');
-              setNikStatus('idle');
-              setNikMessage('');
-              setMatchedMustahikId(null);
-              setSelectedKecamatan('');
-              setSelectedKelurahan('');
-              setJenisPengajuanState('Perorangan');
-              setIsKtpSemarang(true);
-              setSelectedProgramCode('');
-              setProgramSearchQuery('');
-              setTanggalLahirInput('');
-              setIsModalOpen(true);
-            }}
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
-          >
-            <Plus className="size-4" />
-            Tambah Data Baru
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setIsReportModalOpen(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20 active:scale-95"
+            >
+              <ClipboardList className="size-4" />
+              Cetak Laporan / Rekap
+            </button>
+            <button 
+              onClick={() => {
+                setEditingProposal(null);
+                setNikCheckStr('');
+                setNikStatus('idle');
+                setNikMessage('');
+                setMatchedMustahikId(null);
+                setSelectedKecamatan('');
+                setSelectedKelurahan('');
+                setJenisPengajuanState('Perorangan');
+                setIsKtpSemarang(true);
+                setSelectedProgramCode('');
+                setProgramSearchQuery('');
+                setTanggalLahirInput('');
+                setIsModalOpen(true);
+              }}
+              className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
+            >
+              <Plus className="size-4" />
+              Tambah Data Baru
+            </button>
+          </div>
         </div>
 
         {/* Table */}
@@ -1408,6 +1823,367 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Cetak Laporan Modal ─── */}
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsReportModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-xl">
+                    <ClipboardList className="size-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900">Cetak Laporan Rekap Proposal</h3>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                      Modul khusus administrasi untuk rekap harian, mingguan, dan bulanan.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="p-2 hover:bg-white/80 rounded-full transition-colors"
+                >
+                  <X className="size-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-5">
+                {/* Tipe Laporan */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Laporan</label>
+                  <select
+                    value={reportType}
+                    onChange={(e: any) => setReportType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                  >
+                    <option value="harian_pilar">Rekap Proposal Harian</option>
+                    <option value="harian_detail">Rekap Proposal Harian Detail</option>
+                    <option value="mingguan">Rekap Proposal Mingguan</option>
+                    <option value="bulanan">Rekap Proposal Bulanan</option>
+                  </select>
+                </div>
+
+                {/* Filter Waktu */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Waktu & Periode</h4>
+                  
+                  {(reportType === 'harian_pilar' || reportType === 'harian_detail') && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-600">Pilih Tanggal</label>
+                      <input 
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                      />
+                    </div>
+                  )}
+
+                  {reportType === 'mingguan' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600">Tahun</label>
+                        <input 
+                          type="number"
+                          value={selectedYear}
+                          onChange={(e) => setSelectedYear(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600">Bulan</label>
+                        <select
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        >
+                          <option value={1}>Januari</option>
+                          <option value={2}>Februari</option>
+                          <option value={3}>Maret</option>
+                          <option value={4}>April</option>
+                          <option value={5}>Mei</option>
+                          <option value={6}>Juni</option>
+                          <option value={7}>Juli</option>
+                          <option value={8}>Agustus</option>
+                          <option value={9}>September</option>
+                          <option value={10}>Oktober</option>
+                          <option value={11}>November</option>
+                          <option value={12}>Desember</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600">Minggu Ke-</label>
+                        <select
+                          value={selectedWeek}
+                          onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        >
+                          <option value={1}>1 (Tanggal 1-7)</option>
+                          <option value={2}>2 (Tanggal 8-14)</option>
+                          <option value={3}>3 (Tanggal 15-21)</option>
+                          <option value={4}>4 (Tanggal 22-28)</option>
+                          <option value={5}>5 (Tanggal 29+)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {reportType === 'bulanan' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600">Tahun</label>
+                        <input 
+                          type="number"
+                          value={selectedYear}
+                          onChange={(e) => setSelectedYear(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600">Bulan</label>
+                        <select
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        >
+                          <option value={1}>Januari</option>
+                          <option value={2}>Februari</option>
+                          <option value={3}>Maret</option>
+                          <option value={4}>April</option>
+                          <option value={5}>Mei</option>
+                          <option value={6}>Juni</option>
+                          <option value={7}>Juli</option>
+                          <option value={8}>Agustus</option>
+                          <option value={9}>September</option>
+                          <option value={10}>Oktober</option>
+                          <option value={11}>November</option>
+                          <option value={12}>Desember</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Penandatangan (Signatories) */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penandatangan Laporan</h4>
+
+                  {/* Kepala Pelaksana */}
+                  {reportType === 'harian_pilar' && (
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-600">Nama Kepala Pelaksana</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }));
+                            }
+                          }}
+                          value={users.some(u => u.name === signatories.kepalaPelaksana) ? signatories.kepalaPelaksana : ''}
+                        >
+                          <option value="">-- Pilih User --</option>
+                          {users.filter(u => u.role === 'Kepala_Pelaksana').map(u => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={signatories.kepalaPelaksana}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
+                          placeholder="Nama Kepala Pelaksana..."
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Wakil Ketua IV */}
+                  {(reportType === 'mingguan' || reportType === 'bulanan') && (
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-600">Nama Wakil Ketua IV</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setSignatories(prev => ({ ...prev, wakilKetuaIv: e.target.value }));
+                            }
+                          }}
+                          value={users.some(u => u.name === signatories.wakilKetuaIv) ? signatories.wakilKetuaIv : ''}
+                        >
+                          <option value="">-- Pilih User --</option>
+                          {users.filter(u => u.role === 'Wakil_Ketua_IV').map(u => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={signatories.wakilKetuaIv}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, wakilKetuaIv: e.target.value }))}
+                          placeholder="Nama Wakil Ketua IV..."
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Kabag Administrasi */}
+                  {reportType !== 'bulanan' && (
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
+                            }
+                          }}
+                          value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
+                        >
+                          <option value="">-- Pilih User --</option>
+                          {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={signatories.kabagAdministrasi}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
+                          placeholder="Nama Kabag Administrasi..."
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ketua (Untuk Bulanan) */}
+                  {reportType === 'bulanan' && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi (Plh. Kepala Pelaksana)</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.kabagAdministrasi}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
+                            placeholder="Nama Kabag Administrasi..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold text-slate-600">Nama Ketua BAZNAS</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, ketua: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.ketua) ? signatories.ketua : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.filter(u => u.role === 'Ketua').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.ketua}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, ketua: e.target.value }))}
+                            placeholder="Nama Ketua BAZNAS..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Staff Administrasi (Untuk Detail Harian) */}
+                  {reportType === 'harian_detail' && (
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-600">Nama Staff Administrasi</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }));
+                            }
+                          }}
+                          value={users.some(u => u.name === signatories.stafAdministrasi) ? signatories.stafAdministrasi : ''}
+                        >
+                          <option value="">-- Pilih User --</option>
+                          {users.filter(u => u.role === 'Staf_Administrasi').map(u => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={signatories.stafAdministrasi}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }))}
+                          placeholder="Nama Staff Administrasi..."
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
+                <button
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handlePrintReport}
+                  className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
+                >
+                  <ClipboardList className="size-4" />
+                  Cetak / Preview
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
