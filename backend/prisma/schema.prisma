@@ -118,6 +118,7 @@ model Proposal {
   nama_pemohon             String
   nama_anak                String?
   nik                      String?
+  no_kk                    String?
   tempat_lahir             String?
   tanggal_lahir            String?
   jenis_kelamin            String?
@@ -403,6 +404,7 @@ enum Role {
   Relawan
   Relawan_Sementara
   Tim_Monev
+  Humas
 }
 
 enum KategoriUPZ {

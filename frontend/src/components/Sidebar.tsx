@@ -21,7 +21,8 @@ import {
   ArrowRightLeft,
   BookOpen,
   RefreshCw,
-  Archive
+  Archive,
+  Upload
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
@@ -46,7 +47,8 @@ type Role =
   | 'Staf_Pelaporan'
   | 'Relawan'
   | 'Relawan_Sementara'
-  | 'Tim_Monev';
+  | 'Tim_Monev'
+  | 'Humas';
 
 const menuGroups = [
   {
@@ -69,13 +71,14 @@ const menuGroups = [
     title: "ADMINISTRASI",
     items: [
       { name: "Input Proposal", icon: FileText, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
+      { name: "Upload Proposal", icon: Upload, roles: ["Super_Admin", "Staf_Administrasi", "Humas"] },
       { name: "Input Surat", icon: Newspaper, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },
   {
     title: "OPERASIONAL",
     items: [
-      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
+      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas"] },
       { name: "Tracking Surat", icon: ClipboardCheck, roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },

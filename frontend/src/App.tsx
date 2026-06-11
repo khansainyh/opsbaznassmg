@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Sidebar from '@/src/components/Sidebar';
 import InputProposalMemo from '@/src/pages/InputProposalMemo';
+import UploadProposalHumas from '@/src/pages/UploadProposalHumas';
 import InputSurat, { Surat } from '@/src/pages/InputSurat';
 import PilarProgram from '@/src/pages/PilarProgram';
 import DataMustahik from '@/src/pages/DataMustahik';
@@ -138,6 +139,7 @@ function App() {
               hasMemo: item.has_memo,
               memoSource: item.memo_source || '',
               jenisPengajuan: item.jenis_ajuan || item.jenis_pengajuan || '',
+              no_kk: item.no_kk || '',
               status: item.status.replace(/_/g, ' '),
               fileGdriveLink: item.file_gdrive_link || '',
               surveyorName: item.surveyorName || undefined,
@@ -207,8 +209,8 @@ function App() {
     return <Login />;
   }
 
-  // Hanya proposal berstatus Registrasi yang masuk ke tabel Input Proposal
-  const registrasiProposals = proposals.filter(p => p.status === 'Registrasi');
+  // Hanya proposal berstatus Registrasi atau Scan Proposal yang masuk ke tabel Input Proposal
+  const registrasiProposals = proposals.filter(p => p.status === 'Registrasi' || p.status === 'Scan_Proposal' || p.status === 'Scan Proposal');
   const registrasiSurats = surats.filter(s => s.status === 'Registrasi');
 
   return (
@@ -249,6 +251,11 @@ function App() {
           <InputProposalMemo 
             data={registrasiProposals} 
             allData={proposals}
+            onUpdate={handleUpdateProposals} 
+          />
+        ) : activeMenu === 'Upload Proposal' ? (
+          <UploadProposalHumas 
+            data={registrasiProposals} 
             onUpdate={handleUpdateProposals} 
           />
         ) : activeMenu === 'Input Surat' ? (

@@ -18,6 +18,8 @@ const MONTH_MAP: Record<string, string> = { Januari:'01',Februari:'02',Maret:'03
 
 const STATUS_ORDER = [
   'Registrasi',
+  'Scan Proposal',
+  'Scan_Proposal',
   'Review Kabag Admin', 'Review Kabag', 'Review Kabag Administrasi',
   'Survei Assessment', 'Proses Disposisi', 'Monitoring Tugas', 'Tim Survei',
   'Survei Selesai',
@@ -34,6 +36,7 @@ const STATUS_ORDER = [
 const FILTER_STATUSES = [
   'Semua Status',
   'Registrasi',
+  'Scan Proposal',
   'Review Kabag',
   'Survei Assessment',
   'Survei Selesai',
@@ -48,13 +51,15 @@ const FILTER_STATUSES = [
 ];
 
 const STEPS = [
-  { id: 'ADM',   label: 'ADM',   full: 'Bagian Administrasi' },
-  { id: 'SURV',  label: 'SURV',  full: 'Bagian Survei' },
-  { id: 'KEPEL', label: 'KEPEL', full: 'Kepala Pelaksana' },
-  { id: 'PIMP',  label: 'PIMP',  full: 'Pimpinan BAZNAS' },
-  { id: 'KEU',   label: 'KEU',   full: 'Bagian Keuangan' },
-  { id: 'DIST',  label: 'DIST',  full: 'Pendistribusian' },
-  { id: 'ARSIP', label: 'ARSIP', full: 'Pengarsipan' },
+  { id: 'ADM',   label: 'ADM',   full: 'Administrasi' },
+  { id: 'HUM',   label: 'HUM',   full: 'Humas (Scan)' },
+  { id: 'KDM',   label: 'KDM',   full: 'Kabag Administrasi' },
+  { id: 'SURV',  label: 'SURV',  full: 'Survey' },
+  { id: 'KAPEL', label: 'KAPEL', full: 'Kepala Pelaksana' },
+  { id: 'PIMP',  label: 'PIMP',  full: 'Pimpinan' },
+  { id: 'KEU',   label: 'KEU',   full: 'Keuangan' },
+  { id: 'DIST',  label: 'DIST',  full: 'Distribusi & Dayaguna' },
+  { id: 'Arsip', label: 'Arsip', full: 'Arsip' },
   { id: 'DONE',  label: 'DONE',  full: 'Selesai' },
 ];
 
@@ -63,8 +68,18 @@ function getProgressSteps(status: string) {
   if (normStatus === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
   const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === normStatus.toLowerCase());
   return STEPS.map((step, i) => {
-    // ADM: idx 0-3, SURV: 4-8, KEPEL: 9, PIMP: 10-11, KEU: 12-13, DIST: 14, ARSIP: 15, DONE: 16
-    const ranges = [[0,3],[4,8],[9,9],[10,11],[12,13],[14,14],[15,15],[16,16]];
+    const ranges = [
+      [0,0],   // ADM: Registrasi (idx 0)
+      [1,2],   // HUM: Scan Proposal, Scan_Proposal (idx 1-2)
+      [3,5],   // KDM: Review Kabag Admin, Review Kabag, Review Kabag Administrasi (idx 3-5)
+      [6,9],   // SURV: Survei Assessment, Proses Disposisi, Monitoring Tugas, Tim Survei (idx 6-9)
+      [10,11], // KAPEL: Survei Selesai, Review Kepala Pelaksana (idx 10-11)
+      [12,13], // PIMP: Review Pimpinan, Persetujuan Pimpinan (idx 12-13)
+      [14,15], // KEU: Penentuan Nominal, Pencairan Dana (idx 14-15)
+      [16,16], // DIST: Realisasi Bantuan (idx 16)
+      [17,17], // Arsip: Antrean Arsip (idx 17)
+      [18,18]  // DONE: Selesai & Arsip (idx 18)
+    ];
     const [lo, hi] = ranges[i];
     const active = idx >= lo && idx <= hi;
     const completed = idx > hi;
@@ -76,6 +91,8 @@ function getStatusColor(status: string) {
   const normStatus = status === 'Selesai' ? 'Selesai & Arsip' : status;
   const map: Record<string, string> = {
     'Registrasi': 'bg-slate-100 text-slate-600',
+    'Scan Proposal': 'bg-blue-100 text-blue-700',
+    'Scan_Proposal': 'bg-blue-100 text-blue-700',
     'Review Kabag Admin': 'bg-indigo-100 text-indigo-700',
     'Review Kabag': 'bg-indigo-100 text-indigo-700',
     'Review Kabag Administrasi': 'bg-indigo-100 text-indigo-700',
@@ -107,6 +124,9 @@ function matchesStatus(itemStatus: string, filterStatus: string) {
   const normItem = itemStatus.toLowerCase().trim();
   const normFilter = filterStatus.toLowerCase().trim();
   
+  if (normFilter === 'scan proposal') {
+    return normItem === 'scan proposal' || normItem === 'scan_proposal';
+  }
   if (normFilter === 'review kabag') {
     return normItem === 'review kabag' || normItem === 'review kabag admin' || normItem === 'review kabag administrasi';
   }

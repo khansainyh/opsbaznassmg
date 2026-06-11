@@ -6,6 +6,7 @@ export interface SKHistory {
   endDate: string;
   pimpinanName: string;
   status: 'Aktif' | 'Tidak Aktif';
+  skType?: 'Baru' | 'Pembaruan' | 'Perubahan';
 }
 
 // Struktur pengurus per jabatan (nama + alamat, tanpa input jabatan manual)
@@ -40,6 +41,7 @@ export interface UPZMetadata {
   pimpinanName?: string;
   pimpinanAddress?: string;
   phone?: string;
+  onBalanceType?: 'Pengumpulan' | 'Pembantuan Pendistribusian dan Pendayagunaan';
 }
 
 export interface UPZ {

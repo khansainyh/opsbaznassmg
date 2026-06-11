@@ -25,14 +25,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { upzData as initialUpzData, skHistoryData as initialSkHistoryData } from '@/src/data/upzData';
 import { UPZ, SKHistory } from '@/src/types/upz';
-import { getNextRenewalSKNumber, getNextBaseSKNumber, isSKPembentukan } from '@/src/utils/skUtils';
-
-const kecamatanData: Record<string, string[]> = {
-  "Semarang Tengah": ["Pekunden", "Sekayu", "Kembangsari", "Miroto"],
-  "Pedurungan": ["Tlogosari Kulon", "Tlogosari Wetan", "Pedurungan Kidul", "Pedurungan Lor"],
-  "Banyumanik": ["Srondol Kulon", "Srondol Wetan", "Padangsari", "Banyumanik"],
-  "Mijen": ["Jatisari", "Mijen", "Pesantren", "Kedungpane"]
-};
+import { getNextRenewalSKNumber, getNextBaseSKNumber, isSKPembentukan, parseSKNumber } from '@/src/utils/skUtils';
+import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 
 export default function DatabaseUPZ() {
   const [data, setData] = useState<UPZ[]>(() => {
@@ -60,22 +54,64 @@ export default function DatabaseUPZ() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
+  // Print Date Modal states
+  const [isPrintDateModalOpen, setIsPrintDateModalOpen] = useState(false);
+  const [printDateValue, setPrintDateValue] = useState('');
+  const [printHistoryTarget, setPrintHistoryTarget] = useState<SKHistory | null>(null);
+  const [printActionType, setPrintActionType] = useState<'print' | 'download' | null>(null);
+
+  const openPrintDateModal = (history: SKHistory, action: 'print' | 'download') => {
+    setPrintHistoryTarget(history);
+    setPrintActionType(action);
+    if (history.startDate) {
+      setPrintDateValue(history.startDate);
+    } else {
+      setPrintDateValue(new Date().toISOString().split('T')[0]);
+    }
+    setIsPrintDateModalOpen(true);
+  };
+
+  const handleConfirmPrintDate = () => {
+    if (!printHistoryTarget || !printActionType) return;
+    setIsPrintDateModalOpen(false);
+    if (printActionType === 'print') {
+      handlePrintSK(printHistoryTarget, printDateValue);
+    } else {
+      handleDownloadSKDoc(printHistoryTarget, printDateValue);
+    }
+    setPrintHistoryTarget(null);
+    setPrintActionType(null);
+  };
+
   // History modal view: 'list' | 'perubahan' | 'pembaruan'
   const [historyView, setHistoryView] = useState<'list' | 'perubahan' | 'pembaruan'>('list');
 
-  // SK History state (reactive so we can add entries)
-  const [skHistory, setSkHistory] = useState<SKHistory[]>(initialSkHistoryData);
+  // SK History state with local storage persistence
+  const [skHistory, setSkHistory] = useState<SKHistory[]>(() => {
+    const local = localStorage.getItem('baznas_upz_sk_history');
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return initialSkHistoryData;
+  });
 
-  // Pembaruan (SK renewal) form state
-  const [renewalForm, setRenewalForm] = useState({ startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
+  useEffect(() => {
+    localStorage.setItem('baznas_upz_sk_history', JSON.stringify(skHistory));
+  }, [skHistory]);
 
-
+  // Pembaruan (SK renewal) form state (includes manually filled skNumber)
+  const [renewalForm, setRenewalForm] = useState({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
 
   // Form States for Add/Edit
   const [formKecamatan, setFormKecamatan] = useState('');
   const [formKelurahan, setFormKelurahan] = useState('');
   const [formType, setFormType] = useState<'On-Balance' | 'Off-Balance'>('Off-Balance');
-  const [formCategory, setFormCategory] = useState('Masjid');
+  const [formOnBalanceType, setFormOnBalanceType] = useState<'Pengumpulan' | 'Pembantuan Pendistribusian dan Pendayagunaan'>('Pengumpulan');
+  const [formCategory, setFormCategory] = useState('Masjid & Mushola');
   const [formPengurus, setFormPengurus] = useState({
     penasehat: { nama: '', alamat: '' },
     ketua: { nama: '', alamat: '' },
@@ -94,10 +130,11 @@ export default function DatabaseUPZ() {
   const [formTahunBerakhir, setFormTahunBerakhir] = useState('');
 
   const kelurahanOptions = useMemo(() => {
-    return formKecamatan ? kecamatanData[formKecamatan] || [] : [];
+    const found = kecamatanKelurahanSemarang.find(k => k.kecamatan === formKecamatan);
+    return found ? found.kelurahan : [];
   }, [formKecamatan]);
 
-  const isFlexibleAnggota = formCategory === 'OPD' || formCategory === 'Kecamatan';
+  const isFlexibleAnggota = formCategory === 'OPD' || formCategory === 'Pemerintah Kecamatan' || formCategory === 'Desa/Kelurahan';
 
   const updatePengurusField = (jabatan: keyof typeof formPengurus, field: 'nama' | 'alamat', value: string) => {
     setFormPengurus(prev => ({ ...prev, [jabatan]: { ...prev[jabatan], [field]: value } }));
@@ -120,10 +157,17 @@ export default function DatabaseUPZ() {
   };
 
   const resetForm = () => {
+    setFormNamaUpz('');
+    setFormAlamatLengkap('');
+    setFormNoTelepon('');
+    setFormNoSKPenetapan('');
+    setFormTahunMulai('');
+    setFormTahunBerakhir('');
     setFormKecamatan('');
     setFormKelurahan('');
     setFormType('Off-Balance');
-    setFormCategory('Masjid');
+    setFormOnBalanceType('Pengumpulan');
+    setFormCategory('Masjid & Mushola');
     setFormPengurus({
       penasehat: { nama: '', alamat: '' },
       ketua: { nama: '', alamat: '' },
@@ -152,6 +196,7 @@ export default function DatabaseUPZ() {
     setFormKecamatan(upz.kecamatan);
     setFormKelurahan(upz.kelurahan);
     setFormType(upz.type);
+    setFormOnBalanceType(upz.metadata?.onBalanceType || 'Pengumpulan');
     setFormCategory(upz.category);
     const p = upz.metadata.pengurus;
     if (p) {
@@ -194,8 +239,10 @@ export default function DatabaseUPZ() {
     setSelectedUPZ(upz);
     setHistoryView('list');
     
-    // Load current data into forms
+    const nextRenewalSK = getNextRenewalSKNumber(upz.activeSKNumber);
+    // Load current data into forms with pre-filled renewal SK
     setRenewalForm({ 
+      skNumber: nextRenewalSK,
       startYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear()).toString() : '', 
       endYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear() + 5).toString() : '', 
       pimpinanName: upz.metadata.pimpinanName || '', 
@@ -225,24 +272,25 @@ export default function DatabaseUPZ() {
       .sort((a, b) => a.skNumber.localeCompare(b.skNumber, undefined, { numeric: true }));
   };
 
-  // Computed: next SK number for selected UPZ
+  // Computed: next SK number for selected UPZ (re-evaluated reactively)
   const nextRenewalSK = selectedUPZ ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) : '';
   // Computed: next base SK number for new UPZ registration
   const nextBaseSK = getNextBaseSKNumber(skHistory);
 
   const handleRenewalSK = () => {
-    if (!selectedUPZ || !renewalForm.startYear || !renewalForm.endYear || !formPengurus.penasehat.nama) {
-      alert('Harap isi minimal Tahun dan Nama Penasehat/Ketua.');
+    if (!selectedUPZ || !renewalForm.skNumber || !renewalForm.startYear || !renewalForm.endYear || !formPengurus.penasehat.nama) {
+      alert('Harap isi minimal Nomor SK, Tahun, dan Nama Penasehat/Ketua.');
       return;
     }
     const newEntry: SKHistory = {
       id: `sk-${Date.now()}`,
       upzId: selectedUPZ.id,
-      skNumber: nextRenewalSK,
+      skNumber: renewalForm.skNumber,
       startDate: `${renewalForm.startYear}-01-01`,
       endDate: `${renewalForm.endYear}-12-31`,
       pimpinanName: formPengurus.penasehat.nama,
       status: 'Aktif',
+      skType: 'Pembaruan'
     };
     
     setSkHistory(prev => [
@@ -252,7 +300,7 @@ export default function DatabaseUPZ() {
 
     setData(prev => prev.map(u => u.id === selectedUPZ.id ? { 
       ...u, 
-      activeSKNumber: nextRenewalSK,
+      activeSKNumber: renewalForm.skNumber,
       skExpiryDate: `${renewalForm.endYear}-12-31`,
       metadata: { 
         ...u.metadata, 
@@ -266,7 +314,7 @@ export default function DatabaseUPZ() {
     
     setSelectedUPZ(prev => prev ? { 
       ...prev, 
-      activeSKNumber: nextRenewalSK,
+      activeSKNumber: renewalForm.skNumber,
       skExpiryDate: `${renewalForm.endYear}-12-31`,
       metadata: { 
         ...prev.metadata, 
@@ -278,9 +326,9 @@ export default function DatabaseUPZ() {
       }
     } : prev);
 
-    setRenewalForm({ startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
+    setRenewalForm({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
     setHistoryView('list');
-    alert(`✅ SK Pembaruan ${nextRenewalSK} berhasil disimpan dengan struktur pengurus baru!`);
+    alert(`✅ SK Pembaruan ${renewalForm.skNumber} berhasil disimpan dengan struktur pengurus baru!`);
   };
 
   const handlePerubahanSK = () => {
@@ -289,17 +337,19 @@ export default function DatabaseUPZ() {
       return;
     }
 
-    // Get current SK dates to keep them same
+    // Get current SK dates and number to keep them same
     const currentSK = skHistory.find(h => h.upzId === selectedUPZ.id && h.status === 'Aktif');
+    const sameSKNumber = selectedUPZ.activeSKNumber;
     
     const newEntry: SKHistory = {
       id: `sk-${Date.now()}`,
       upzId: selectedUPZ.id,
-      skNumber: nextRenewalSK, // Perubahan juga ganti nomor SK versi baru
+      skNumber: sameSKNumber,
       startDate: currentSK?.startDate || '',
       endDate: currentSK?.endDate || '',
       pimpinanName: formPengurus.penasehat.nama,
       status: 'Aktif',
+      skType: 'Perubahan'
     };
 
     setSkHistory(prev => [
@@ -309,7 +359,6 @@ export default function DatabaseUPZ() {
 
     setData(prev => prev.map(u => u.id === selectedUPZ.id ? { 
       ...u, 
-      activeSKNumber: nextRenewalSK,
       metadata: { 
         ...u.metadata, 
         pimpinanName: formPengurus.penasehat.nama,
@@ -322,7 +371,6 @@ export default function DatabaseUPZ() {
 
     setSelectedUPZ(prev => prev ? { 
       ...prev, 
-      activeSKNumber: nextRenewalSK,
       metadata: { 
         ...prev.metadata, 
         pimpinanName: formPengurus.penasehat.nama,
@@ -333,9 +381,329 @@ export default function DatabaseUPZ() {
       }
     } : prev);
 
-
     setHistoryView('list');
-    alert(`✅ Perubahan pengurus berhasil disimpan. No. SK diperbarui menjadi ${nextRenewalSK}. Masa berlaku tetap.`);
+    alert(`✅ Perubahan pengurus berhasil disimpan. No. SK tetap ${sameSKNumber}. Masa berlaku tetap.`);
+  };
+
+  const generateSKHtml = (upz: UPZ, history: SKHistory, customTglDitetapkan?: string) => {
+    const isPembentukan = history.skType === 'Baru' || isSKPembentukan(history.skNumber);
+    
+    let tipePerubahan = "";
+    let aksiBentukAtauUsul = "membentuk";
+    
+    if (!isPembentukan) {
+      const { version } = parseSKNumber(history.skNumber);
+      const numbersInWords = ["PERTAMA", "KEDUA", "KETIGA", "KEEMPAT", "KELIMA", "KEENAM"];
+      const versionWord = version > 0 && version <= numbersInWords.length ? numbersInWords[version - 1] : `KE-${version}`;
+      tipePerubahan = `PERUBAHAN ${versionWord}`;
+      aksiBentukAtauUsul = `mengusulkan Perubahan ${versionWord.charAt(0) + versionWord.slice(1).toLowerCase()}`;
+    }
+    
+    const startDate = history.startDate ? new Date(history.startDate) : new Date();
+    const endDate = history.endDate ? new Date(history.endDate) : new Date(startDate.getFullYear() + 5, 11, 31);
+    const periodeTahun = `${startDate.getFullYear()} - ${endDate.getFullYear()}`;
+    
+    const formatIndoDate = (date: Date) => {
+      const months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      ];
+      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    };
+    
+    const tglSuratMasuk = formatIndoDate(new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000));
+    
+    let chosenDate = startDate;
+    let tglDitetapkan = formatIndoDate(startDate);
+    if (customTglDitetapkan) {
+      const parts = customTglDitetapkan.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        chosenDate = new Date(year, month, day);
+        tglDitetapkan = formatIndoDate(chosenDate);
+      }
+    }
+
+    const getRomanMonth = (monthNum: number): string => {
+      const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+      return roman[monthNum - 1] || "V";
+    };
+    
+     const p = upz.metadata.pengurus;
+    const pengurusList: { nama: string; alamat: string; jabatan: string }[] = [];
+    if (p?.penasehat?.nama) pengurusList.push({ nama: p.penasehat.nama, alamat: p.penasehat.alamat || '', jabatan: 'Penasehat' });
+    if (p?.ketua?.nama) pengurusList.push({ nama: p.ketua.nama, alamat: p.ketua.alamat || '', jabatan: 'Ketua' });
+    if (p?.sekretaris?.nama) pengurusList.push({ nama: p.sekretaris.nama, alamat: p.sekretaris.alamat || '', jabatan: 'Sekretaris' });
+    if (p?.bendahara?.nama) pengurusList.push({ nama: p.bendahara.nama, alamat: p.bendahara.alamat || '', jabatan: 'Bendahara' });
+    if (p?.anggota1?.nama) pengurusList.push({ nama: p.anggota1.nama, alamat: p.anggota1.alamat || '', jabatan: 'Anggota' });
+    if (p?.anggota2?.nama) pengurusList.push({ nama: p.anggota2.nama, alamat: p.anggota2.alamat || '', jabatan: 'Anggota' });
+    if (p?.anggotaTambahan && Array.isArray(p.anggotaTambahan)) {
+      p.anggotaTambahan.forEach(a => {
+        if (a.nama) {
+          pengurusList.push({ nama: a.nama, alamat: a.alamat || '', jabatan: 'Anggota' });
+        }
+      });
+    }
+       return `<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Template SK BAZNAS</title>
+    <style>
+        @page {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+        }
+        @page Section1 {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+            mso-header-margin: 0.5in;
+            mso-footer-margin: 0.5in;
+            mso-paper-source: 0;
+        }
+        div.Section1 {
+            page: Section1;
+        }
+        body, p, ol, ul, li, table, tr, td, th, div, span {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            mso-margin-top-alt: 0pt;
+            mso-margin-bottom-alt: 0pt;
+            mso-padding-top-alt: 0pt;
+            mso-padding-bottom-alt: 0pt;
+            line-height: 1.0;
+            mso-line-height-rule: exactly;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            color: #000;
+            background-color: #fff;
+        }
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+        .uppercase { text-transform: uppercase; }
+        
+        /* Layout untuk bagian Menimbang, Mengingat, Menetapkan */
+        .layout-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            vertical-align: top;
+        }
+        .layout-table td {
+            padding: 1px 0;
+            vertical-align: top;
+        }
+        .col-title { width: 110px; font-weight: bold; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; }
+        .col-content { width: calc(100% - 125px); text-align: justify; }
+
+        /* Tabel Susunan Pengurus */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid black;
+            padding: 3px 5px;
+            text-align: left;
+            font-size: 10pt;
+            line-height: 1.0;
+        }
+        .data-table th { text-align: center; font-weight: bold; }
+
+        ol, ul {
+            padding-left: 15px;
+        }
+        li {
+            line-height: 1.0;
+            text-align: justify;
+        }
+
+        .tembusan, .tembusan * {
+            line-height: 1.0 !important;
+        }
+    </style>
+</head>
+<body>
+<div class="Section1">
+
+    <div style="border-top: 2px solid #000; margin-bottom: 12px; width: 100%;"></div>
+
+    <div class="text-center uppercase" style="line-height: 1.0; margin-bottom: 12px;">
+        <span class="bold">KEPUTUSAN</span><br>
+        <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+
+        <div style="margin: 6px 0;">TENTANG</div>
+
+        PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT ${upz.name.toUpperCase()}<br>
+        KELURAHAN ${upz.kelurahan.toUpperCase()} KECAMATAN ${upz.kecamatan.toUpperCase()} KOTA SEMARANG<br>
+        MASA BHAKTI ${periodeTahun}<br>
+
+        <div style="margin: 6px 0;">DENGAN RAHMAT TUHAN YANG MAHA ESA</div>
+        <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span>
+    </div>
+
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menimbang</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol type="a" style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 0px;">Bahwa untuk meningkatkan dayaguna dan hasil guna serta akuntabilitas dalam pengelolaan zakat, infak, sedekah dan dana sosial keagamaan lainnya (DSKL), maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) Masjid se-Kota Semarang;</li>
+                    <li style="margin-bottom: 0px;">Surat dari ${upz.name} tanggal ${tglSuratMasuk} tentang permohonan pembentukan pengurus UPZ ${upz.name} BAZNAS Kota Semarang Masa Bhakti ${periodeTahun};</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">Mengingat</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 0px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                    <li style="margin-bottom: 0px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-Undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                    <li style="margin-bottom: 0px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
+                    <li style="margin-bottom: 0px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027.</li>
+                </ol>
+            </td>
+        </tr>
+    </table>
+
+    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 10px; font-size: 10pt;">MEMUTUSKAN</div>
+
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menetapkan</td>
+            <td class="col-colon">:</td>
+            <td class="col-content uppercase">
+                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upz.name.toUpperCase()} MASA BHAKTI ${periodeTahun}.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">PERTAMA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Mengangkat ${tipePerubahan ? tipePerubahan + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Masa Bhakti ${periodeTahun} dengan susunan pengurus sebagai berikut:
+                
+                <table class="data-table">
+                    <tr>
+                        <th style="width: 5%;">NO</th>
+                        <th style="width: 30%;">NAMA</th>
+                        <th style="width: 45%;">ALAMAT</th>
+                        <th style="width: 20%;">JABATAN</th>
+                    </tr>
+                    ${pengurusList.map((item, idx) => `
+                    <tr>
+                        <td class="text-center">${idx + 1}</td>
+                        <td>${item.nama}</td>
+                        <td>${item.alamat}</td>
+                        <td>${item.jabatan}</td>
+                    </tr>
+                    `).join('')}
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KEDUA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Pengurus sebagaimana dimaksud pada DIKTUM PERTAMA memiliki tugas dan kewajiban sebagai berikut:
+                <ol style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 0px;">Mengumpulkan dan mendistribusikan dana zakat, infak, sedekah dan dana sosial keagamaan lainnya (DSKL) secara mandiri di lingkungan masjid;</li>
+                    <li style="margin-bottom: 0px;">Memberikan penyuluhan tentang zakat, infak, sedekah and DSKL kepada masyarakat di wilayah lingkungan masjid;</li>
+                    <li style="margin-bottom: 0px;">Memberikan pelaporan hasil pengumpulan, pendistribusian dan pendayagunaan dana zakat, infak, sedekah dan DSKL kepada BAZNAS Kota Semarang;</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KETIGA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Surat Keputusan ini mulai berlaku sejak tanggal ini ditetapkan dan akan ditinjau kembali jika ada kekeliruan didalamnya;
+            </td>
+        </tr>
+    </table>
+
+    <div style="clear: both; margin-top: 20px; width: 100%; page-break-inside: avoid;">
+        <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+            <tr>
+                <td style="width: 90px; border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 10px; border: none; padding: 1px 0; text-align: center; font-size: 10pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">Semarang</td>
+            </tr>
+            <tr>
+                <td style="border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 1px 0; text-align: center; font-size: 10pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10pt; font-family: Arial, sans-serif; padding-top: 8px; padding-bottom: 50px;">K E T U A,</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+            </tr>
+        </table>
+        <div style="clear: both;"></div>
+    </div>
+
+    <div class="tembusan" style="margin-top: 15px; font-size: 6.5pt; line-height: 1.0; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+        <div style="font-weight: bold; text-decoration: underline; margin-bottom: 2px;">Tembusan ini disampaikan kepada Yth.:</div>
+        <ol style="margin: 0; padding-left: 12px; list-style-type: decimal;">
+            <li style="margin-bottom: 1px;">Walikota Semarang (sebagai laporan);</li>
+            <li style="margin-bottom: 1px;">Ketua BAZNAS Provinsi Jawa Tengah (sebagai laporan);</li>
+            <li style="margin-bottom: 1px;">Kepala Kementerian Agama Kota Semarang;</li>
+            <li style="margin-bottom: 1px;">Ketua Dewan Masjid Indonesia (DMI) Kota Semarang;</li>
+            <li style="margin-bottom: 1px;">Camat ${upz.kecamatan};</li>
+            <li style="margin-bottom: 1px;">Lurah ${upz.kelurahan}.</li>
+        </ol>
+    </div>
+
+</div>
+</body>
+</html>`;
+  };
+
+  const handlePrintSK = (history: SKHistory, customTglDitetapkan?: string) => {
+    if (!selectedUPZ) return;
+    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan);
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    }
+  };
+
+  const handleDownloadSKDoc = (history: SKHistory, customTglDitetapkan?: string) => {
+    if (!selectedUPZ) return;
+    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan);
+    const blob = new Blob(['\ufeff' + htmlContent], {
+      type: 'application/msword'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SK_UPZ_${selectedUPZ.name.replace(/\s+/g, '_')}_${history.skNumber.replace(/[\/\\:*?"<>|]/g, '_')}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -428,11 +796,18 @@ export default function DatabaseUPZ() {
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             <option value="Semua">Semua Kategori</option>
+            <option value="Instansi Vertikal">Instansi Vertikal</option>
             <option value="OPD">OPD</option>
-            <option value="Kecamatan">Kecamatan</option>
-            <option value="Sekolah">Sekolah</option>
-            <option value="Masjid">Masjid</option>
-            <option value="Yayasan/Lembaga">Yayasan/Lembaga</option>
+            <option value="BUMD">BUMD</option>
+            <option value="Perusahaan Swasta">Perusahaan Swasta</option>
+            <option value="Masjid & Mushola">Masjid & Mushola</option>
+            <option value="Pemerintah Kecamatan">Pemerintah Kecamatan</option>
+            <option value="KUA">KUA</option>
+            <option value="Desa/Kelurahan">Desa/Kelurahan</option>
+            <option value="Univ/PT/Pendidikan Menengah">Univ/PT/Pendidikan Menengah</option>
+            <option value="Pendidikan Dasar">Pendidikan Dasar</option>
+            <option value="Organisasi Profesi">Organisasi Profesi</option>
+            <option value="Yayasan">Yayasan</option>
           </select>
           <select 
             className="text-sm bg-slate-50 border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer font-medium text-slate-600"
@@ -440,9 +815,9 @@ export default function DatabaseUPZ() {
             onChange={(e) => setKecamatanFilter(e.target.value)}
           >
             <option value="Semua">Semua Kecamatan</option>
-            <option value="Semarang Tengah">Semarang Tengah</option>
-            <option value="Pedurungan">Pedurungan</option>
-            <option value="Mijen">Mijen</option>
+            {kecamatanKelurahanSemarang.map(k => (
+              <option key={k.kecamatan} value={k.kecamatan}>{k.kecamatan}</option>
+            ))}
           </select>
         </div>
         <div className="flex gap-3 w-full lg:w-auto">
@@ -496,13 +871,18 @@ export default function DatabaseUPZ() {
                   </td>
                   <td className="px-6 py-4">
                     <span className={cn(
-                      "px-2 py-0.5 text-[10px] font-bold rounded uppercase",
+                      "px-2 py-0.5 text-[10px] font-bold rounded uppercase inline-block",
                       item.type === 'On-Balance' 
                         ? "bg-blue-100 text-blue-700" 
                         : "bg-emerald-100 text-emerald-700"
                     )}>
                       {item.category} ({item.type === 'On-Balance' ? 'On' : 'Off'})
                     </span>
+                    {item.type === 'On-Balance' && item.metadata.onBalanceType && (
+                      <span className="text-[9px] text-slate-400 font-semibold block mt-1">
+                        {item.metadata.onBalanceType}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-sm font-medium text-slate-600">{item.kecamatan}</p>
@@ -625,7 +1005,7 @@ export default function DatabaseUPZ() {
                         className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20">
                         <Edit2 className="size-4" />Perubahan
                       </button>
-                      <button onClick={() => { setRenewalForm({ startYear:'', endYear:'', pimpinanName:'', keterangan:'' }); setHistoryView('pembaruan'); }}
+                      <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'' }); setHistoryView('pembaruan'); }}
                         className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
                         <PlusCircle className="size-4" />Pembaruan
                       </button>
@@ -640,6 +1020,9 @@ export default function DatabaseUPZ() {
                           <th className="px-6 py-4">Masa Berlaku</th>
                           <th className="px-6 py-4">Pengurus Utama</th>
                           <th className="px-6 py-4 text-center">Status</th>
+                          {selectedUPZ.category === 'Masjid & Mushola' && (
+                            <th className="px-6 py-4 text-right">Draft SK</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -677,6 +1060,26 @@ export default function DatabaseUPZ() {
                                 {history.status}
                               </span>
                             </td>
+                            {selectedUPZ.category === 'Masjid & Mushola' && (
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => openPrintDateModal(history, 'print')}
+                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded text-[10px] font-black uppercase tracking-wider transition-colors"
+                                    title="Cetak/Pratinjau SK"
+                                  >
+                                    Cetak
+                                  </button>
+                                  <button
+                                    onClick={() => openPrintDateModal(history, 'download')}
+                                    className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded text-[10px] font-black uppercase tracking-wider transition-colors"
+                                    title="Download Word (.doc)"
+                                  >
+                                    Docx
+                                  </button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -684,8 +1087,8 @@ export default function DatabaseUPZ() {
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed">
-                    <span className="font-black text-slate-700">Perubahan</span> = pergantian pengurus, No. SK diperbarui, masa berlaku tetap. &nbsp;
-                    <span className="font-black text-slate-700">Pembaruan</span> = masa berlaku SK habis, No. SK diperbarui, masa berlaku baru (5 thn).
+                    <span className="font-black text-slate-700">Perubahan</span> = pergantian pengurus, No. SK tetap, masa berlaku tetap. &nbsp;
+                    <span className="font-black text-slate-700">Pembaruan</span> = masa berlaku SK habis, No. SK baru diisi manual, masa berlaku baru (5 thn).
                   </div>
                 </div>
               )}
@@ -694,8 +1097,8 @@ export default function DatabaseUPZ() {
               {historyView === 'perubahan' && (
                 <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
-                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Nomor SK Baru (Perubahan)</p>
-                    <p className="text-2xl font-black text-amber-800">{nextRenewalSK}</p>
+                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Nomor SK (Tetap)</p>
+                    <p className="text-2xl font-black text-amber-800">{selectedUPZ.activeSKNumber}</p>
                     <p className="text-[10px] text-amber-600 font-medium">Masa berlaku tetap mengikuti SK aktif saat ini.</p>
                   </div>
 
@@ -746,10 +1149,18 @@ export default function DatabaseUPZ() {
               {/* ── VIEW: PEMBARUAN ── */}
               {historyView === 'pembaruan' && (
                 <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-                  <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl space-y-1">
-                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">Nomor SK Baru (Auto-Generated)</p>
-                    <p className="text-3xl font-black text-primary tracking-tight">{nextRenewalSK}</p>
-                    <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-primary uppercase tracking-widest">Nomor SK Pembaruan</label>
+                      <input 
+                        type="text" 
+                        placeholder="Masukkan nomor SK Baru..." 
+                        value={renewalForm.skNumber} 
+                        onChange={e => setRenewalForm(prev => ({ ...prev, skNumber: e.target.value }))} 
+                        className="w-full bg-white border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20" 
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Mulai</label>
                         <input type="number" value={renewalForm.startYear} onChange={e => setRenewalForm(prev => ({ ...prev, startYear: e.target.value }))} className="w-full bg-white border-slate-200 rounded-xl px-4 py-2 text-sm" />
@@ -829,6 +1240,62 @@ export default function DatabaseUPZ() {
                     Tutup
                   </button>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Print Date Input Modal */}
+      <AnimatePresence>
+        {isPrintDateModalOpen && printHistoryTarget && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsPrintDateModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Tanggal Penetapan SK</h3>
+                <button onClick={() => setIsPrintDateModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Silakan masukkan tanggal penetapan SK yang akan tercantum pada dokumen sebelum di-print/unduh.
+                </p>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Ditetapkan</label>
+                  <input 
+                    type="date"
+                    value={printDateValue}
+                    onChange={(e) => setPrintDateValue(e.target.value)}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button 
+                  onClick={() => setIsPrintDateModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleConfirmPrintDate}
+                  className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 shadow-lg shadow-primary/20 transition-colors"
+                >
+                  Proses
+                </button>
               </div>
             </motion.div>
           </div>
@@ -955,7 +1422,14 @@ export default function DatabaseUPZ() {
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori / Tipe</p>
-                      <p className="text-sm font-bold text-slate-900">{selectedUPZ.category} ({selectedUPZ.type})</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {selectedUPZ.category} ({selectedUPZ.type})
+                        {selectedUPZ.type === 'On-Balance' && selectedUPZ.metadata.onBalanceType && (
+                          <span className="block text-[11px] text-primary font-semibold mt-0.5">
+                            Sub-tipe: {selectedUPZ.metadata.onBalanceType}
+                          </span>
+                        )}
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -1063,11 +1537,18 @@ export default function DatabaseUPZ() {
                         onChange={e => setFormCategory(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
+                        <option value="Instansi Vertikal">Instansi Vertikal</option>
                         <option value="OPD">OPD</option>
-                        <option value="Kecamatan">Kecamatan</option>
-                        <option value="Sekolah">Sekolah</option>
-                        <option value="Masjid">Masjid/Musholla</option>
-                        <option value="Yayasan/Lembaga">Yayasan/Lembaga</option>
+                        <option value="BUMD">BUMD</option>
+                        <option value="Perusahaan Swasta">Perusahaan Swasta</option>
+                        <option value="Masjid & Mushola">Masjid & Mushola</option>
+                        <option value="Pemerintah Kecamatan">Pemerintah Kecamatan</option>
+                        <option value="KUA">KUA</option>
+                        <option value="Desa/Kelurahan">Desa/Kelurahan</option>
+                        <option value="Univ/PT/Pendidikan Menengah">Univ/PT/Pendidikan Menengah</option>
+                        <option value="Pendidikan Dasar">Pendidikan Dasar</option>
+                        <option value="Organisasi Profesi">Organisasi Profesi</option>
+                        <option value="Yayasan">Yayasan</option>
                       </select>
                     </div>
                   </div>
@@ -1095,6 +1576,34 @@ export default function DatabaseUPZ() {
                         <span className="text-sm font-medium text-slate-600 group-hover:text-primary transition-colors">On-Balance (Kas BAZNAS)</span>
                       </label>
                     </div>
+
+                    {formType === 'On-Balance' && (
+                      <div className="pl-6 pt-2 border-l-2 border-primary/20 space-y-2 mt-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Sub-Tipe On-Balance</label>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              name="edit_on_balance_type" 
+                              checked={formOnBalanceType === 'Pengumpulan'} 
+                              onChange={() => setFormOnBalanceType('Pengumpulan')}
+                              className="size-4 text-primary border-slate-300 focus:ring-primary/20" 
+                            />
+                            <span className="text-xs font-semibold text-slate-600 group-hover:text-primary transition-colors">Pengumpulan</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              name="edit_on_balance_type" 
+                              checked={formOnBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan'} 
+                              onChange={() => setFormOnBalanceType('Pembantuan Pendistribusian dan Pendayagunaan')}
+                              className="size-4 text-primary border-slate-300 focus:ring-primary/20" 
+                            />
+                            <span className="text-xs font-semibold text-slate-600 group-hover:text-primary transition-colors">Pembantuan Pendistribusian dan Pendayagunaan</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </section>
 
@@ -1113,7 +1622,7 @@ export default function DatabaseUPZ() {
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
                         <option value="">Pilih Kecamatan</option>
-                        {Object.keys(kecamatanData).map(k => <option key={k} value={k}>{k}</option>)}
+                        {kecamatanKelurahanSemarang.map(k => <option key={k.kecamatan} value={k.kecamatan}>{k.kecamatan}</option>)}
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -1283,7 +1792,7 @@ export default function DatabaseUPZ() {
                   >
                     Batalkan Perubahan
                   </button>
-                  <button 
+                   <button 
                     type="button"
                     onClick={() => {
                       if (!formNamaUpz.trim()) {
@@ -1304,6 +1813,7 @@ export default function DatabaseUPZ() {
                           ...u.metadata,
                           address: formAlamatLengkap,
                           upzPhone: formNoTelepon,
+                          onBalanceType: formType === 'On-Balance' ? formOnBalanceType : undefined,
                           pimpinanName: formPengurus.ketua.nama || formPengurus.penasehat.nama || '',
                           pengurus: {
                             ...formPengurus,
@@ -1378,11 +1888,18 @@ export default function DatabaseUPZ() {
                         onChange={e => setFormCategory(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
+                        <option value="Instansi Vertikal">Instansi Vertikal</option>
                         <option value="OPD">OPD</option>
-                        <option value="Kecamatan">Kecamatan</option>
-                        <option value="Sekolah">Sekolah</option>
-                        <option value="Masjid">Masjid/Musholla</option>
-                        <option value="Yayasan/Lembaga">Yayasan/Lembaga</option>
+                        <option value="BUMD">BUMD</option>
+                        <option value="Perusahaan Swasta">Perusahaan Swasta</option>
+                        <option value="Masjid & Mushola">Masjid & Mushola</option>
+                        <option value="Pemerintah Kecamatan">Pemerintah Kecamatan</option>
+                        <option value="KUA">KUA</option>
+                        <option value="Desa/Kelurahan">Desa/Kelurahan</option>
+                        <option value="Univ/PT/Pendidikan Menengah">Univ/PT/Pendidikan Menengah</option>
+                        <option value="Pendidikan Dasar">Pendidikan Dasar</option>
+                        <option value="Organisasi Profesi">Organisasi Profesi</option>
+                        <option value="Yayasan">Yayasan</option>
                       </select>
                     </div>
                   </div>
@@ -1410,6 +1927,34 @@ export default function DatabaseUPZ() {
                         <span className="text-sm font-medium text-slate-600 group-hover:text-primary transition-colors">On-Balance (Kas BAZNAS)</span>
                       </label>
                     </div>
+
+                    {formType === 'On-Balance' && (
+                      <div className="pl-6 pt-2 border-l-2 border-primary/20 space-y-2 mt-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Sub-Tipe On-Balance</label>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              name="add_on_balance_type" 
+                              checked={formOnBalanceType === 'Pengumpulan'} 
+                              onChange={() => setFormOnBalanceType('Pengumpulan')}
+                              className="size-4 text-primary border-slate-300 focus:ring-primary/20" 
+                            />
+                            <span className="text-xs font-semibold text-slate-600 group-hover:text-primary transition-colors">Pengumpulan</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              name="add_on_balance_type" 
+                              checked={formOnBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan'} 
+                              onChange={() => setFormOnBalanceType('Pembantuan Pendistribusian dan Pendayagunaan')}
+                              className="size-4 text-primary border-slate-300 focus:ring-primary/20" 
+                            />
+                            <span className="text-xs font-semibold text-slate-600 group-hover:text-primary transition-colors">Pembantuan Pendistribusian dan Pendayagunaan</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </section>
 
@@ -1428,7 +1973,7 @@ export default function DatabaseUPZ() {
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
                         <option value="">Pilih Kecamatan</option>
-                        {Object.keys(kecamatanData).map(k => <option key={k} value={k}>{k}</option>)}
+                        {kecamatanKelurahanSemarang.map(k => <option key={k.kecamatan} value={k.kecamatan}>{k.kecamatan}</option>)}
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -1612,6 +2157,9 @@ export default function DatabaseUPZ() {
                       metadata: {
                         address: formAlamatLengkap,
                         upzPhone: formNoTelepon,
+                        onBalanceType: formType === 'On-Balance' ? formOnBalanceType : undefined,
+                        pimpinanTitle: 'Ketua',
+                        pimpinanName: formPengurus.ketua.nama || formPengurus.penasehat.nama || '',
                         pengurus: {
                           penasehat: { nama: formPengurus.penasehat.nama, alamat: formPengurus.penasehat.alamat || '' },
                           ketua: { nama: formPengurus.ketua.nama, alamat: formPengurus.ketua.alamat || '' },
@@ -1631,7 +2179,8 @@ export default function DatabaseUPZ() {
                       startDate: newUpz.skStartYear,
                       endDate: newUpz.skExpiryDate,
                       pimpinanName: formPengurus.ketua.nama || '-',
-                      status: 'Aktif'
+                      status: 'Aktif',
+                      skType: 'Baru'
                     };
 
                     setData(prev => [newUpz, ...prev]);
@@ -1646,8 +2195,9 @@ export default function DatabaseUPZ() {
                     setFormTahunBerakhir('');
                     setFormKecamatan('');
                     setFormKelurahan('');
-                    setFormCategory('Masjid');
+                    setFormCategory('Masjid & Mushola');
                     setFormType('Off-Balance');
+                    setFormOnBalanceType('Pengumpulan');
                     setFormPengurus({
                       penasehat: { nama: '', alamat: '' },
                       ketua: { nama: '', alamat: '' },

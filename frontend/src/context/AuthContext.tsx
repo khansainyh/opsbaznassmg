@@ -20,7 +20,8 @@ export type Role =
   | 'Staf_Pelaporan'
   | 'Relawan'
   | 'Relawan_Sementara'
-  | 'Tim_Monev';
+  | 'Tim_Monev'
+  | 'Humas';
 
 export interface User {
   id: string;

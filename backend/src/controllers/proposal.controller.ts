@@ -39,7 +39,7 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
     // Whitelist field yang valid di model Proposal (buang field asing seperti `catatan`)
     const allowedFields = [
       'tanggal_masuk', 'nama_instansi', 'pimpinan_organisasi', 'nama_pemohon',
-      'nama_anak', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
+      'nama_anak', 'nik', 'no_kk', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
       'alamat', 'kelurahan', 'kecamatan', 'pekerjaan', 'jenis_permohonan',
       'no_telpon', 'email', 'jam_pengajuan', 'yang_mengajukan',
       'has_memo', 'memo_source', 'jenis_pengajuan', 'rekomendasi',
@@ -98,7 +98,7 @@ export const updateProposal = async (req: Request, res: Response) => {
 
     const allowedFields = [
       'tanggal_masuk', 'nama_instansi', 'pimpinan_organisasi', 'nama_pemohon',
-      'nama_anak', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kelurahan', 'kecamatan',
+      'nama_anak', 'nik', 'no_kk', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kelurahan', 'kecamatan',
       'pekerjaan', 'jenis_permohonan', 'no_telpon', 'email', 'jam_pengajuan',
       'yang_mengajukan', 'has_memo', 'memo_source', 'jenis_pengajuan',
       'rekomendasi', 'keterangan', 'status', 'file_gdrive_id',

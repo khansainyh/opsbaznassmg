@@ -7,6 +7,7 @@ export interface ProposalMemo {
   namaPemohon: string;
   namaAnak: string;
   nik: string;
+  no_kk?: string;
   tempat_lahir?: string;
   tanggal_lahir?: string;
   jenis_kelamin?: string;

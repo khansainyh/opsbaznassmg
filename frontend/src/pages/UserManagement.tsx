@@ -19,7 +19,8 @@ const ALL_ROLES = [
   'Super_Admin', 'Ketua', 'Wakil_Ketua_I', 'Wakil_Ketua_II', 'Wakil_Ketua_III', 'Wakil_Ketua_IV', 
   'Kepala_Pelaksana', 'Kabag_Administrasi', 'Kabag_Pelaporan', 'Kabag_Pengumpulan', 
   'Kabag_Pendistribusian', 'Kabag_Pendayagunaan', 'Staf_Distribusi', 'Staf_Keuangan', 
-  'Staf_Administrasi', 'Staf_Pengumpulan', 'Staf_Pelaporan', 'Relawan', 'Relawan_Sementara', 'Tim_Monev'
+  'Staf_Administrasi', 'Staf_Pengumpulan', 'Staf_Pelaporan', 'Relawan', 'Relawan_Sementara', 'Tim_Monev',
+  'Humas'
 ];
 
 export default function UserManagement() {

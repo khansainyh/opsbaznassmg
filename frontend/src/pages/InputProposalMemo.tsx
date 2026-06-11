@@ -20,9 +20,12 @@ import {
   Trash2,
   ExternalLink,
   FileSearch,
-  Monitor
+  Monitor,
+  Send,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
@@ -50,7 +53,8 @@ interface InputProposalMemoProps {
   onUpdate: (data: ProposalMemo[]) => void;
 }
 
-export default function InputProposalMemo({ data, allData }: InputProposalMemoProps) {
+export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }: InputProposalMemoProps) {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -62,6 +66,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   const [nikMessage, setNikMessage] = useState('');
   const [matchedMustahikId, setMatchedMustahikId] = useState<string | null>(null);
   const [editingProposal, setEditingProposal] = useState<ProposalMemo | null>(null);
+  const [noKk, setNoKk] = useState('');
 
   // Scan modal state
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -526,6 +531,10 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
   // Sorted: terbaru di atas
   const filteredData = data
     .filter(item => {
+      if (user?.role === 'Humas') {
+        const itemStatus = item.status.toLowerCase().replace(/_/g, ' ');
+        if (itemStatus !== 'scan proposal') return false;
+      }
       const matchesSearch = item.agendaNo.toString().includes(searchTerm) || 
                            item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (item.namaInstansi && item.namaInstansi.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -554,6 +563,10 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
       alert('NIK / NIK Pimpinan wajib diisi 16 digit.');
       return;
     }
+    if (jenisPengajuanState === 'Perorangan' && noKk && noKk.length !== 16) {
+      alert('No. KK harus 16 digit jika diisi.');
+      return;
+    }
     if (jenisPengajuanState === 'Perorangan') {
       if (tanggalLahirInput.length !== 10) {
         alert('Tanggal lahir wajib diisi dengan format DD-MM-YYYY.');
@@ -578,6 +591,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
       nama_pemohon:        jenisPengajuanState === 'Lembaga' ? get('pimpinanOrganisasi') : get('namaPemohon'),
       nama_anak:           get('namaAnak') || null,
       nik:                 nikCheckStr || get('nik') || null,
+      no_kk:               jenisPengajuanState === 'Perorangan' ? (noKk || null) : null,
       tempat_lahir:        jenisPengajuanState === 'Perorangan' ? get('tempat_lahir') : null,
       tanggal_lahir:       jenisPengajuanState === 'Perorangan' ? tanggalLahirInput : null,
       jenis_kelamin:       jenisPengajuanState === 'Perorangan' ? get('jenis_kelamin') : null,
@@ -687,6 +701,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
     setSelectedKecamatan(proposal.kecamatan || '');
     setSelectedKelurahan(proposal.kelurahan || '');
     setNikCheckStr(proposal.nik || '');
+    setNoKk(proposal.no_kk || '');
     setSelectedProgramCode(proposal.programCode || proposal.jenisPermohonan || '');
     let dob = proposal.tanggal_lahir || '';
     if (dob.includes('-')) {
@@ -764,9 +779,385 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
     }
   };
 
+  const handlePrintBajuSurat = (proposal: ProposalMemo) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Helper to get step index
+    const getStepIndex = (status: string): number => {
+      const s = status.replace(/ /g, '_');
+      if (s === 'Registrasi') return 0;
+      if (s === 'Scan_Proposal' || s === 'Scan Proposal') return 1;
+      if (s === 'Review_Kabag_Administrasi') return 2;
+      if (s === 'Survey') return 3;
+      if (s === 'Review_Kepala_Pelaksana') return 4;
+      if (s === 'Persetujuan_Pimpinan') return 5;
+      if (s === 'Penentuan_Nominal') return 6;
+      if (s === 'Penyaluran') return 7;
+      if (s === 'Arsip') return 8;
+      if (s === 'Selesai') return 9;
+      return 0;
+    };
+
+    const currentIdx = getStepIndex(proposal.status);
+    const fillRow1 = currentIdx >= 4 ? 92 : (currentIdx / 4) * 92;
+    const fillRow2 = currentIdx < 5 ? 0 : ((currentIdx - 5) / 4) * 92;
+
+    const stepsRow1 = [
+      { id: 'AD', label: 'ADM', idx: 0 },
+      { id: 'HU', label: 'HUM', idx: 1 },
+      { id: 'KD', label: 'KDM', idx: 2 },
+      { id: 'SU', label: 'SURV', idx: 3 },
+      { id: 'KA', label: 'KAPEL', idx: 4 }
+    ];
+
+    const stepsRow2 = [
+      { id: 'DO', label: 'DONE', idx: 9 },
+      { id: 'Ar', label: 'ARSIP', idx: 8 },
+      { id: 'DI', label: 'DIST', idx: 7 },
+      { id: 'KE', label: 'KEU', idx: 6 },
+      { id: 'PI', label: 'PIMP', idx: 5 }
+    ];
+
+    const row1NodesHtml = stepsRow1.map((step) => {
+      let circleClass = 'upcoming';
+      let circleContent = step.id;
+      let labelClass = 'upcoming';
+
+      if (step.idx < currentIdx) {
+        circleClass = 'completed';
+        circleContent = '✓';
+        labelClass = 'active';
+      } else if (step.idx === currentIdx) {
+        circleClass = 'active';
+        labelClass = 'active';
+      }
+
+      return `
+        <div class="step-node">
+          <div class="step-circle ${circleClass}">${circleContent}</div>
+          <div class="step-label ${labelClass}">${step.label}</div>
+        </div>
+      `;
+    }).join('');
+
+    const row2NodesHtml = stepsRow2.map((step) => {
+      let circleClass = 'upcoming';
+      let circleContent = step.id;
+      let labelClass = 'upcoming';
+
+      if (step.idx < currentIdx) {
+        circleClass = 'completed';
+        circleContent = '✓';
+        labelClass = 'active';
+      } else if (step.idx === currentIdx) {
+        circleClass = 'active';
+        labelClass = 'active';
+      }
+
+      return `
+        <div class="step-node">
+          <div class="step-circle ${circleClass}">${circleContent}</div>
+          <div class="step-label ${labelClass}">${step.label}</div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Baju Surat - ${proposal.agendaNo}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+            @page {
+              size: A5 landscape;
+              margin: 6mm;
+            }
+            body {
+              font-family: 'Inter', sans-serif;
+              padding: 0;
+              margin: 0;
+              color: #0f172a;
+              font-size: 11px;
+              line-height: 1.4;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #0f172a;
+              padding-bottom: 5px;
+              margin-bottom: 12px;
+            }
+            .header h1 {
+              font-size: 15px;
+              font-weight: 900;
+              margin: 0;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .header p {
+              margin: 2px 0 0 0;
+              font-size: 9px;
+              color: #475569;
+            }
+            .title {
+              text-align: center;
+              font-size: 12px;
+              font-weight: 900;
+              text-transform: uppercase;
+              text-decoration: underline;
+              margin-bottom: 15px;
+            }
+            .info-box {
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 10px 14px;
+              margin-top: 10px;
+              margin-bottom: 18px;
+              background-color: #f8fafc;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 6px 20px;
+            }
+            .info-item {
+              display: flex;
+              align-items: flex-start;
+            }
+            .info-label {
+              font-weight: 700;
+              color: #475569;
+              font-size: 10px;
+              text-transform: uppercase;
+              width: 120px;
+              flex-shrink: 0;
+            }
+            .info-value {
+              font-weight: 700;
+              font-size: 11px;
+            }
+            .steps-title {
+              font-size: 10px;
+              font-weight: 900;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 15px;
+              color: #475569;
+              text-align: center;
+            }
+            .stepper-container {
+              position: relative;
+              width: 90%;
+              margin: 15px auto 10px auto;
+              height: 140px;
+            }
+            .nodes-row {
+              position: absolute;
+              left: 0;
+              right: 0;
+              display: flex;
+              justify-content: space-between;
+              z-index: 2;
+            }
+            .nodes-row.row-1 {
+              top: 0;
+            }
+            .nodes-row.row-2 {
+              top: 80px;
+            }
+            
+            /* Horizontal lines for row 1 */
+            .line-row-1 {
+              position: absolute;
+              top: 18px;
+              left: 4%;
+              right: 4%;
+              height: 3px;
+              background-color: #e2e8f0;
+              z-index: 1;
+            }
+            .line-row-1-fill {
+              position: absolute;
+              top: 18px;
+              left: 4%;
+              height: 3px;
+              background-color: #10b981;
+              z-index: 1.5;
+              max-width: 92%;
+            }
+            
+            /* Vertical connector on the right edge */
+            .line-vertical-bg {
+              position: absolute;
+              top: 18px;
+              right: 4%;
+              height: 80px;
+              width: 3px;
+              background-color: #e2e8f0;
+              z-index: 1;
+            }
+            .line-vertical-fill {
+              position: absolute;
+              top: 18px;
+              right: 4%;
+              height: 80px;
+              width: 3px;
+              background-color: #e2e8f0;
+              z-index: 1.5;
+            }
+            .line-vertical-fill.active {
+              background-color: #10b981;
+            }
+            
+            /* Horizontal lines for row 2 */
+            .line-row-2 {
+              position: absolute;
+              top: 98px;
+              left: 4%;
+              right: 4%;
+              height: 3px;
+              background-color: #e2e8f0;
+              z-index: 1;
+            }
+            .line-row-2-fill {
+              position: absolute;
+              top: 98px;
+              right: 4%;
+              height: 3px;
+              background-color: #10b981;
+              z-index: 1.5;
+              max-width: 92%;
+            }
+            
+            .step-node {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              width: 50px;
+            }
+            .step-circle {
+              width: 36px;
+              height: 36px;
+              border: 2px solid #e2e8f0;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 11px;
+              font-weight: 800;
+              color: #94a3b8;
+              background-color: #f8fafc;
+              margin-bottom: 6px;
+              box-shadow: 0 0 0 3px #fff;
+            }
+            .step-circle.completed {
+              border-color: #10b981;
+              background-color: #10b981;
+              color: white;
+            }
+            .step-circle.active {
+              border-color: #10b981;
+              color: #10b981;
+              background-color: #f0fdf4;
+            }
+            .step-circle.upcoming {
+              border-color: #e2e8f0;
+              color: #94a3b8;
+              background-color: #f8fafc;
+            }
+            .step-label {
+              font-size: 9.5px;
+              font-weight: 800;
+              color: #94a3b8;
+              text-align: center;
+              white-space: nowrap;
+            }
+            .step-label.active {
+              color: #10b981;
+            }
+            .step-label.upcoming {
+              color: #94a3b8;
+            }
+            @media print {
+              body { margin: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>BAZNAS KOTA SEMARANG</h1>
+            <p>Jl. Setiabudi No. 123, Semarang - Telp: (024) 1234567</p>
+          </div>
+          <div class="title">LEMBAR KONTROL PROPOSAL (BAJU SURAT)</div>
+          
+          <div class="info-box">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">No. Agenda</span>
+                <span class="info-value">: ${proposal.agendaNo}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Tanggal Masuk</span>
+                <span class="info-value">: ${proposal.tanggalMasuk} (${proposal.jamPengajuan})</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Nama Pemohon</span>
+                <span class="info-value">: ${proposal.namaPemohon}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Jenis Permohonan</span>
+                <span class="info-value">: ${proposal.jenisPermohonan}</span>
+              </div>
+              ${proposal.namaAnak ? `
+              <div class="info-item">
+                <span class="info-label">Nama Anak</span>
+                <span class="info-value">: ${proposal.namaAnak}</span>
+              </div>
+              ` : ''}
+              <div class="info-item" style="grid-column: span 2;">
+                <span class="info-label">Alamat</span>
+                <span class="info-value">: ${proposal.alamat}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="steps-title">Progress Alur Dokumen</div>
+          <div class="stepper-container">
+            <div class="line-row-1"></div>
+            <div class="line-row-1-fill" style="width: ${fillRow1}%;"></div>
+            
+            <div class="line-vertical-bg"></div>
+            <div class="line-vertical-fill ${currentIdx >= 5 ? 'active' : ''}"></div>
+            
+            <div class="line-row-2"></div>
+            <div class="line-row-2-fill" style="width: ${fillRow2}%;"></div>
+            
+            <div class="nodes-row row-1">
+              ${row1NodesHtml}
+            </div>
+            
+            <div class="nodes-row row-2">
+              ${row2NodesHtml}
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Registrasi': return 'bg-slate-100 text-slate-600';
+      case 'Scan Proposal':
+      case 'Scan_Proposal': return 'bg-blue-100 text-blue-700';
       case 'Review Kabag':
       case 'Review Kabag Admin':
       case 'Review Kabag Administrasi': return 'bg-indigo-100 text-indigo-700';
@@ -798,7 +1189,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
           Administrasi: Input Proposal
         </h2>
         <p className="text-slate-500 font-medium">
-          Registrasi proposal bantuan masuk. Setelah discan, proposal diteruskan ke Kabag Administrasi.
+          Registrasi proposal bantuan masuk. Teruskan ke Humas untuk discan sebelum diproses oleh Kabag Administrasi.
         </p>
       </motion.div>
 
@@ -868,6 +1259,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
               onClick={() => {
                 setEditingProposal(null);
                 setNikCheckStr('');
+                setNoKk('');
                 setNikStatus('idle');
                 setNikMessage('');
                 setMatchedMustahikId(null);
@@ -957,14 +1349,46 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                       >
                         <Eye className="size-4" />
                       </button>
-                      {/* Tombol Scan Proposal — hanya saat Registrasi */}
                       <button 
-                        onClick={() => handleOpenScanModal(item)}
-                        className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors" 
-                        title="Scan Proposal → Review Kabag"
+                        onClick={() => handlePrintBajuSurat(item)}
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded transition-colors" 
+                        title="Print Baju Surat"
                       >
-                        <FileCheck className="size-4" />
+                        <Printer className="size-4" />
                       </button>
+                      
+                      {/* Tombol Kirim ke Humas — hanya saat status Registrasi dan bukan untuk Humas */}
+                      {item.status.toLowerCase().replace(/_/g, ' ') === 'registrasi' && user?.role !== 'Humas' && (
+                        <button 
+                          onClick={async () => {
+                            if (window.confirm('Kirim proposal ini ke bagian Humas untuk proses Scan?')) {
+                              try {
+                                await axios.put(`/api/proposals/${item.id}`, { status: 'Scan_Proposal' });
+                                window.location.reload();
+                              } catch (err) {
+                                console.error(err);
+                                alert('Gagal mengirim proposal ke Humas.');
+                              }
+                            }
+                          }}
+                          className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors" 
+                          title="Kirim ke Humas"
+                        >
+                          <Send className="size-4" />
+                        </button>
+                      )}
+
+                      {/* Tombol Scan Proposal — saat status Scan Proposal */}
+                      {item.status.toLowerCase().replace(/_/g, ' ') === 'scan proposal' && (
+                        <button 
+                          onClick={() => handleOpenScanModal(item)}
+                          className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors" 
+                          title="Scan Proposal"
+                        >
+                          <FileCheck className="size-4" />
+                        </button>
+                      )}
+
                       <button 
                         onClick={() => handleEditClick(item)}
                         className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-500 rounded transition-colors" 
@@ -1285,6 +1709,9 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                       <div className="space-y-4">
                         <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
                         <DetailItem label="NIK" value={selectedProposal.nik} />
+                        {selectedProposal.no_kk && (
+                          <DetailItem label="No. KK" value={selectedProposal.no_kk} />
+                        )}
                         <DetailItem label="Nama Anak" value={selectedProposal.namaAnak} />
                         <DetailItem label="Tempat Lahir" value={selectedProposal.tempat_lahir || '-'} />
                         <DetailItem label="Tanggal Lahir" value={selectedProposal.tanggal_lahir || '-'} />
@@ -1332,6 +1759,15 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+                {selectedProposal && (
+                  <button 
+                    onClick={() => handlePrintBajuSurat(selectedProposal)}
+                    className="px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <Printer className="size-4" />
+                    Baju Surat
+                  </button>
+                )}
                 <button 
                   onClick={() => {
                     setIsDetailModalOpen(false);
@@ -1370,6 +1806,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
               onClick={() => {
                 setIsModalOpen(false);
                 setEditingProposal(null);
+                setNoKk('');
               }}
             />
             <motion.div 
@@ -1386,6 +1823,7 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                   onClick={() => {
                     setIsModalOpen(false);
                     setEditingProposal(null);
+                    setNoKk('');
                   }} 
                   className="p-2 hover:bg-slate-100 rounded-full transition-colors"
                 >
@@ -1565,6 +2003,22 @@ export default function InputProposalMemo({ data, allData }: InputProposalMemoPr
                           </p>
                         )}
                       </div>
+
+                      {/* No KK (Only for Perorangan) */}
+                      {jenisPengajuanState === 'Perorangan' && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. KK (Kartu Keluarga)</label>
+                          <input
+                            type="text"
+                            maxLength={16}
+                            placeholder="Masukkan 16 digit No KK..."
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono tracking-widest"
+                            value={noKk}
+                            onChange={(e) => setNoKk(e.target.value)}
+                          />
+                        </div>
+                      )}
+
                       {/* Jenis Pengajuan */}
                       <div className="flex items-center gap-3 pt-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Jenis Pengajuan</label>
