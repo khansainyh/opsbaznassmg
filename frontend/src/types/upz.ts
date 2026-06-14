@@ -58,4 +58,7 @@ export interface UPZ {
   metadata: UPZMetadata;
   totalSetoran?: number;
   hakSalur?: number;
+  status?: 'Aktif' | 'Mengundurkan Diri';
+  resignationDate?: string;
+  resignationReason?: string;
 }

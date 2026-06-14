@@ -38,9 +38,19 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const [selectedSumberKas, setSelectedSumberKas] = useState<string>('Zakat');
   const [rekomendasiNominal, setRekomendasiNominal] = useState<number>(0);
 
+  const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+
   useEffect(() => {
     axios.get('/api/users')
       .then(res => setUsers(res.data.filter((u: any) => u.role.startsWith('Staf') || u.role === 'Relawan')))
+      .catch(console.error);
+
+    axios.get('/api/parameters/survey_template_individu')
+      .then(res => {
+        if (res.data && res.data.value) {
+          setDynamicQuestions(JSON.parse(res.data.value));
+        }
+      })
       .catch(console.error);
   }, []);
 
@@ -445,24 +455,33 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           </h4>
                           
                           <div className="grid grid-cols-1 gap-3">
-                            <SurveyDetailSection title="A. Kondisi Rumah" items={[
-                              { label: 'Luas Bangunan', value: getLabelForScore('luasBangunan', selectedProposal.survey_data?.luasBangunan) },
-                              { label: 'Jenis Lantai', value: getLabelForScore('jenisLantai', selectedProposal.survey_data?.jenisLantai) },
-                              { label: 'Jenis Dinding', value: getLabelForScore('jenisDinding', selectedProposal.survey_data?.jenisDinding) },
-                              { label: 'Status Tinggal', value: getLabelForScore('statusTempatTinggal', selectedProposal.survey_data?.statusTempatTinggal) },
-                            ]} />
+                            {[
+                              { code: 'A', title: 'A. Kondisi Rumah' },
+                              { code: 'B', title: 'B. Kondisi Ekonomi' },
+                              { code: 'C', title: 'C. Fisik & Lainnya' }
+                            ].map(sec => {
+                              const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
+                                { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
+                                { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
+                                { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
+                                { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
+                                { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
+                                { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
+                                { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
+                                { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
+                                { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
+                                { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
+                              ]).filter(q => q.section === sec.code);
 
-                            <SurveyDetailSection title="B. Kondisi Ekonomi" items={[
-                              { label: 'Pekerjaan KRT', value: getLabelForScore('pekerjaanKepala', selectedProposal.survey_data?.pekerjaanKepala) },
-                              { label: 'Frekuensi Makan', value: getLabelForScore('frekuensiMakan', selectedProposal.survey_data?.frekuensiMakan) },
-                              { label: 'Kemampuan Lauk', value: getLabelForScore('kemampuanLauk', selectedProposal.survey_data?.kemampuanLauk) },
-                            ]} />
+                              const items = secQuestions.map(q => ({
+                                label: q.label,
+                                value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                              }));
 
-                            <SurveyDetailSection title="C. Fisik & Lainnya" items={[
-                              { label: 'Keadaan Fisik', value: getLabelForScore('keadaanFisik', selectedProposal.survey_data?.keadaanFisik) },
-                              { label: 'Kondisi Hutang', value: getLabelForScore('hutang', selectedProposal.survey_data?.hutang) },
-                              { label: 'BPJS/Kesehatan', value: getLabelForScore('kesehatan', selectedProposal.survey_data?.kesehatan) },
-                            ]} />
+                              return (
+                                <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -922,9 +941,31 @@ function SurveyDetailSection({ title, items }: { title: string; items: { label: 
   );
 }
 
-function getLabelForScore(field: string, score: number | undefined): string {
-  if (score === undefined || score === 0) return '-';
+function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): string {
+  if (score === undefined || score === null || score === 0 || score === '') return '-';
   
+  if (dynamicQuestions && dynamicQuestions.length > 0) {
+    const question = dynamicQuestions.find(q => q.id === field);
+    if (question) {
+      if (question.type === 'checkbox') {
+        if (Array.isArray(score)) {
+          const selectedLabels = score.map((val: any) => {
+            const option = question.options?.find((opt: any) => opt.val === val);
+            return option ? option.label : val;
+          });
+          return selectedLabels.join(', ') || '-';
+        }
+      } else if (question.type === 'text') {
+        return String(score);
+      } else {
+        if (question.options) {
+          const option = question.options.find((opt: any) => opt.val === score);
+          if (option) return option.label;
+        }
+      }
+    }
+  }
+
   const mapping: Record<string, Record<number, string>> = {
     luasBangunan: { 3: '≤ 8 m²', 2: '8-10 m²', 1: '> 10 m²' },
     jenisLantai: { 3: 'Tanah', 2: 'Semen', 1: 'Keramik' },

@@ -7,7 +7,11 @@ import {
   AlertCircle,
   Coins,
   Scale,
-  ChevronRight
+  ChevronRight,
+  Plus,
+  Trash2,
+  Settings,
+  ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -23,6 +27,8 @@ export default function ParameterSistem() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [activeTab, setActiveTab] = useState<'utama' | 'survei'>('utama');
+  const [surveyTemplate, setSurveyTemplate] = useState<any[]>([]);
 
   // Form values state mapped by parameter key
   const [formValues, setFormValues] = useState<Record<string, string>>({
@@ -44,6 +50,13 @@ export default function ParameterSistem() {
       const valuesMap: Record<string, string> = {};
       res.data.forEach((p: ParameterItem) => {
         valuesMap[p.key] = p.value;
+        if (p.key === 'survey_template_individu') {
+          try {
+            setSurveyTemplate(JSON.parse(p.value));
+          } catch (e) {
+            console.error('Failed to parse survey template JSON', e);
+          }
+        }
       });
       setFormValues(prev => ({ ...prev, ...valuesMap }));
     } catch (error) {
@@ -70,19 +83,85 @@ export default function ParameterSistem() {
     }));
   };
 
+  const handleUpdateQuestionLabel = (index: number, label: string) => {
+    setSurveyTemplate(prev => prev.map((q, i) => i === index ? { ...q, label } : q));
+  };
+
+  const handleUpdateQuestionType = (index: number, type: 'radio' | 'checkbox' | 'text') => {
+    setSurveyTemplate(prev => prev.map((q, i) => i === index ? { ...q, type } : q));
+  };
+
+  const handleUpdateOptionLabel = (questionIndex: number, optionIndex: number, label: string) => {
+    setSurveyTemplate(prev => prev.map((q, i) => {
+      if (i !== questionIndex) return q;
+      const options = q.options.map((opt: any, oi: number) => oi === optionIndex ? { ...opt, label } : opt);
+      return { ...q, options };
+    }));
+  };
+
+  const handleUpdateOptionVal = (questionIndex: number, optionIndex: number, val: number) => {
+    setSurveyTemplate(prev => prev.map((q, i) => {
+      if (i !== questionIndex) return q;
+      const options = q.options.map((opt: any, oi: number) => oi === optionIndex ? { ...opt, val } : opt);
+      return { ...q, options };
+    }));
+  };
+
+  const handleAddOption = (questionIndex: number) => {
+    setSurveyTemplate(prev => prev.map((q, i) => {
+      if (i !== questionIndex) return q;
+      const newVal = q.options.length > 0 ? Math.max(...q.options.map((o: any) => o.val)) + 1 : 1;
+      const options = [...q.options, { val: newVal, label: 'Opsi Baru' }];
+      return { ...q, options };
+    }));
+  };
+
+  const handleRemoveOption = (questionIndex: number, optionIndex: number) => {
+    setSurveyTemplate(prev => prev.map((q, i) => {
+      if (i !== questionIndex) return q;
+      const options = q.options.filter((_: any, oi: number) => oi !== optionIndex);
+      return { ...q, options };
+    }));
+  };
+
+  const handleAddQuestion = (section: string, sectionTitle: string) => {
+    const newId = `customPertanyaan_${Date.now()}`;
+    const newQuestion = {
+      id: newId,
+      section,
+      sectionTitle,
+      label: 'Pertanyaan Baru',
+      type: 'radio',
+      options: [
+        { val: 3, label: 'Opsi Tinggi / Kurang Mampu' },
+        { val: 2, label: 'Opsi Sedang' },
+        { val: 1, label: 'Opsi Mampu / Standard' }
+      ]
+    };
+    setSurveyTemplate(prev => [...prev, newQuestion]);
+  };
+
+  const handleRemoveQuestion = (index: number) => {
+    if (confirm('Apakah Anda yakin ingin menghapus pertanyaan ini?')) {
+      setSurveyTemplate(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      // Send sequential posts or individual posts to update each parameter
-      const updatePromises = Object.entries(formValues).map(([key, value]) => {
-        const matchingParam = params.find(p => p.key === key);
-        return axios.post('/api/parameters', {
-          key,
-          value: value.toString(),
-          description: matchingParam?.description || ''
+      // Exclude survey_template_individu as it is saved separately
+      const updatePromises = Object.entries(formValues)
+        .filter(([key]) => key !== 'survey_template_individu')
+        .map(([key, value]) => {
+          const matchingParam = params.find(p => p.key === key);
+          return axios.post('/api/parameters', {
+            key,
+            value: value.toString(),
+            description: matchingParam?.description || ''
+          });
         });
-      });
 
       await Promise.all(updatePromises);
       showToast('Parameter sistem berhasil disimpan!', 'success');
@@ -90,6 +169,25 @@ export default function ParameterSistem() {
     } catch (error) {
       console.error(error);
       showToast('Gagal menyimpan parameter.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveSurveyTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await axios.post('/api/parameters', {
+        key: 'survey_template_individu',
+        value: JSON.stringify(surveyTemplate),
+        description: 'Template Form Asesmen Individu (JSON)'
+      });
+      showToast('Format formulir survei berhasil diperbarui!', 'success');
+      fetchParameters();
+    } catch (error) {
+      console.error(error);
+      showToast('Gagal menyimpan format formulir survei.', 'error');
     } finally {
       setSaving(false);
     }
@@ -105,61 +203,54 @@ export default function ParameterSistem() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-55/30">
-      
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={cn(
-              "fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-4 rounded-xl shadow-xl border text-sm font-bold",
-              toast.type === 'success' 
-                ? "bg-emerald-50 text-emerald-800 border-emerald-150" 
-                : "bg-rose-50 text-rose-800 border-rose-150"
-            )}
-          >
-            {toast.type === 'success' ? (
-              <CheckCircle2 className="size-5 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="size-5 text-rose-600 shrink-0" />
-            )}
-            <span>{toast.message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Title & Description */}
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-2"
-      >
-        <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-          <span className="hover:text-primary transition-colors cursor-pointer">Pelaporan</span>
-          <ChevronRight className="size-3.5 text-slate-300" />
-          <span className="text-primary font-black">Parameter Sistem</span>
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
+      {/* Header */}
+      <div className="space-y-2">
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Pengaturan</span>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-primary font-bold">Parameter Sistem</span>
         </nav>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              Parameter Sistem BAZNAS
-            </h2>
-            <p className="text-slate-500 font-medium">
-              Konfigurasi persentase Hak Amil dan garis kemiskinan BPS secara dinamis tanpa mengubah baris kode program.
-            </p>
-          </div>
-        </div>
-      </motion.div>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Parameter & Ketetapan Sistem</h2>
+        <p className="text-slate-500 font-medium">Atur hak amil, batas kemiskinan, serta format formulir survei lapangan.</p>
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button
+          type="button"
+          onClick={() => setActiveTab('utama')}
+          className={cn(
+            "pb-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
+            activeTab === 'utama'
+              ? "border-primary text-primary"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          )}
+        >
+          <Settings className="size-4" />
+          Parameter Utama
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('survei')}
+          className={cn(
+            "pb-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
+            activeTab === 'survei'
+              ? "border-primary text-primary"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          )}
+        >
+          <ClipboardList className="size-4" />
+          Format Formulir Survei
+        </button>
+      </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="size-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
           <p className="text-sm font-bold text-slate-400">Memuat ketentuan parameter...</p>
         </div>
-      ) : (
+      ) : activeTab === 'utama' ? (
         <form onSubmit={handleSave} className="space-y-8 max-w-4xl">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -196,7 +287,7 @@ export default function ParameterSistem() {
                       step="0.1" 
                       min="0" 
                       max="100"
-                      className="w-full text-sm font-bold bg-slate-50 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
                       value={formValues.hak_amil_zakat_maal}
                       onChange={(e) => handleInputChange('hak_amil_zakat_maal', e.target.value)}
                       required
@@ -219,7 +310,7 @@ export default function ParameterSistem() {
                       step="0.1" 
                       min="0" 
                       max="100"
-                      className="w-full text-sm font-bold bg-slate-50 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
                       value={formValues.hak_amil_infak_sedekah}
                       onChange={(e) => handleInputChange('hak_amil_infak_sedekah', e.target.value)}
                       required
@@ -242,7 +333,7 @@ export default function ParameterSistem() {
                       step="0.1" 
                       min="0" 
                       max="100"
-                      className="w-full text-sm font-bold bg-slate-50 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
                       value={formValues.hak_amil_zakat_fitrah}
                       onChange={(e) => handleInputChange('hak_amil_zakat_fitrah', e.target.value)}
                       required
@@ -284,7 +375,7 @@ export default function ParameterSistem() {
                     <input 
                       type="number" 
                       min="0"
-                      className="w-full text-sm font-bold bg-slate-50 border-slate-200 rounded-xl pr-4 pl-12 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-4 pl-12 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
                       value={formValues.bps_garis_kemiskinan}
                       onChange={(e) => handleInputChange('bps_garis_kemiskinan', e.target.value)}
                       required
@@ -309,7 +400,7 @@ export default function ParameterSistem() {
                       step="0.1" 
                       min="0" 
                       max="100"
-                      className="w-full text-sm font-bold bg-slate-50 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
                       value={formValues.upz_hak_salur_persentase}
                       onChange={(e) => handleInputChange('upz_hak_salur_persentase', e.target.value)}
                       required
@@ -358,7 +449,232 @@ export default function ParameterSistem() {
           </motion.div>
 
         </form>
+      ) : (
+        <form onSubmit={handleSaveSurveyTemplate} className="space-y-8 max-w-4xl">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs font-semibold text-amber-850 flex items-start gap-2.5">
+            <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-900 mb-0.5">Perhatian Pengubahan Format Survei:</p>
+              <p>Mengubah format atau opsi di sini akan langsung mempengaruhi tampilan pengisian formulir survei oleh Relawan Lapangan. Nilai skor pada opsi digunakan untuk menentukan tingkat urgensi mustahik secara otomatis.</p>
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            {[
+              { code: 'A', title: 'Bagian A: Kondisi Rumah' },
+              { code: 'B', title: 'Bagian B: Kondisi Ekonomi' },
+              { code: 'C', title: 'Bagian C: Kondisi Fisik & Tanggungan' }
+            ].map(section => {
+              const sectionQuestions = surveyTemplate.filter(q => q.section === section.code);
+              
+              return (
+                <div key={section.code} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-md font-black text-slate-900">{section.title}</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                        {sectionQuestions.length} Pertanyaan
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleAddQuestion(section.code, section.title)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-primary/10 text-primary hover:bg-primary text-xs font-black rounded-lg hover:text-white transition-all"
+                    >
+                      <Plus className="size-3.5" />
+                      Tambah Pertanyaan
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    {sectionQuestions.map((q, idx) => {
+                      const actualIndex = surveyTemplate.findIndex(sq => sq.id === q.id);
+                      if (actualIndex === -1) return null;
+
+                      return (
+                        <div 
+                          key={q.id} 
+                          className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-sm hover:shadow-md hover:border-slate-300 transition-all space-y-4"
+                        >
+                          {/* Header Pertanyaan */}
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <span className="bg-emerald-50 text-emerald-800 text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border border-emerald-200/50">
+                                Pertanyaan #{idx + 1}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                ID: {q.id.replace('customPertanyaan_', '')}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveQuestion(actualIndex)}
+                              className="flex items-center gap-1 text-[10px] font-black text-rose-500 hover:text-rose-700 bg-rose-55 hover:bg-rose-100 px-2.5 py-1.5 rounded-lg transition-all"
+                              title="Hapus Pertanyaan"
+                            >
+                              <Trash2 className="size-3.5" />
+                              HAPUS
+                            </button>
+                          </div>
+
+                          {/* Detail Pertanyaan */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="md:col-span-2 space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Teks/Label Pertanyaan
+                              </label>
+                              <input
+                                type="text"
+                                value={q.label}
+                                onChange={(e) => handleUpdateQuestionLabel(actualIndex, e.target.value)}
+                                className="w-full text-sm font-bold bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-inner"
+                                required
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Tipe Pertanyaan
+                              </label>
+                              <select
+                                value={q.type || 'radio'}
+                                onChange={(e: any) => handleUpdateQuestionType(actualIndex, e.target.value)}
+                                className="w-full text-sm font-bold bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-inner"
+                              >
+                                <option value="radio">Pilihan Tunggal</option>
+                                <option value="checkbox">Pilihan Ganda</option>
+                                <option value="text">Isian Bebas</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Opsi Jawaban */}
+                          {q.type !== 'text' && (
+                            <div className="bg-white p-4 rounded-xl border border-slate-200/80 space-y-3 shadow-inner">
+                              <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                                <span className="text-[10px] font-black text-slate-505 uppercase tracking-widest">
+                                  Opsi Jawaban &amp; Skor/Poin
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddOption(actualIndex)}
+                                  className="flex items-center gap-1 text-[10px] text-primary bg-primary/5 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg font-black transition-all"
+                                >
+                                  <Plus className="size-3" /> Tambah Opsi
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-2.5">
+                                {q.options?.map((opt: any, optIdx: number) => (
+                                  <div key={optIdx} className="flex items-center gap-2">
+                                    <div className="w-20 shrink-0">
+                                      <input
+                                        type="number"
+                                        value={opt.val}
+                                        onChange={(e) => handleUpdateOptionVal(actualIndex, optIdx, parseInt(e.target.value) || 0)}
+                                        placeholder="Skor"
+                                        className="w-full text-center text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 focus:ring-primary focus:border-primary outline-none"
+                                        required
+                                      />
+                                    </div>
+                                    <div className="flex-1">
+                                      <input
+                                        type="text"
+                                        value={opt.label}
+                                        onChange={(e) => handleUpdateOptionLabel(actualIndex, optIdx, e.target.value)}
+                                        placeholder="Label Opsi Jawaban"
+                                        className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-primary focus:border-primary outline-none"
+                                        required
+                                      />
+                                    </div>
+                                    {q.options.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveOption(actualIndex, optIdx)}
+                                        className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                        title="Hapus Opsi"
+                                      >
+                                        <Trash2 className="size-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {sectionQuestions.length === 0 && (
+                      <div className="py-8 text-center text-slate-400 text-xs font-medium italic">
+                        Belum ada pertanyaan di bagian ini.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Action Buttons */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-end gap-3 pt-4 border-t border-slate-150/40"
+          >
+            <button 
+              type="button" 
+              onClick={fetchParameters}
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 hover:bg-slate-55 text-xs font-black rounded-xl text-slate-650 transition-all active:scale-95 disabled:opacity-60"
+            >
+              <RotateCcw className="size-4" />
+              RESET
+            </button>
+            <button 
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-3 bg-primary text-white text-xs font-black rounded-xl hover:bg-primary/95 shadow-lg shadow-primary/25 transition-all active:scale-95 disabled:opacity-60"
+            >
+              {saving ? (
+                <>
+                  <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  MENYIMPAN...
+                </>
+              ) : (
+                <>
+                  <Save className="size-4" />
+                  SIMPAN FORMAT SURVEI
+                </>
+              )}
+            </button>
+          </motion.div>
+        </form>
       )}
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={cn(
+              "fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-bold",
+              toast.type === 'success' 
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800" 
+                : "bg-rose-50 border-rose-200 text-rose-800"
+            )}
+          >
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="size-4 text-emerald-600" />
+            ) : (
+              <AlertCircle className="size-4 text-rose-600" />
+            )}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

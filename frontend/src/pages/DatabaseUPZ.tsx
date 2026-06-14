@@ -129,6 +129,17 @@ export default function DatabaseUPZ() {
   const [formTahunMulai, setFormTahunMulai] = useState('');
   const [formTahunBerakhir, setFormTahunBerakhir] = useState('');
 
+  // Resignation & Status states
+  const [formStatus, setFormStatus] = useState<'Aktif' | 'Mengundurkan Diri'>('Aktif');
+  const [formResignationDate, setFormResignationDate] = useState('');
+  const [formResignationReason, setFormResignationReason] = useState('');
+
+  // Resignation confirmation modal states
+  const [isResignModalOpen, setIsResignModalOpen] = useState(false);
+  const [resignUPZ, setResignUPZ] = useState<UPZ | null>(null);
+  const [resignDate, setResignDate] = useState('');
+  const [resignReason, setResignReason] = useState('');
+
   const kelurahanOptions = useMemo(() => {
     const found = kecamatanKelurahanSemarang.find(k => k.kecamatan === formKecamatan);
     return found ? found.kelurahan : [];
@@ -168,6 +179,9 @@ export default function DatabaseUPZ() {
     setFormType('Off-Balance');
     setFormOnBalanceType('Pengumpulan');
     setFormCategory('Masjid & Mushola');
+    setFormStatus('Aktif');
+    setFormResignationDate('');
+    setFormResignationReason('');
     setFormPengurus({
       penasehat: { nama: '', alamat: '' },
       ketua: { nama: '', alamat: '' },
@@ -192,6 +206,9 @@ export default function DatabaseUPZ() {
     setFormNoSKPenetapan(upz.activeSKNumber || '');
     setFormTahunMulai(upz.skStartYear || '');
     setFormTahunBerakhir(upz.skExpiryDate || '');
+    setFormStatus(upz.status || 'Aktif');
+    setFormResignationDate(upz.resignationDate || '');
+    setFormResignationReason(upz.resignationReason || '');
 
     setFormKecamatan(upz.kecamatan);
     setFormKelurahan(upz.kelurahan);
@@ -264,6 +281,48 @@ export default function DatabaseUPZ() {
     }
 
     setIsHistoryModalOpen(true);
+  };
+
+  const handleTriggerResignation = (upz: UPZ) => {
+    setResignUPZ(upz);
+    setResignDate(new Date().toISOString().split('T')[0]);
+    setResignReason('');
+    setIsResignModalOpen(true);
+  };
+
+  const handleConfirmResignation = () => {
+    if (!resignUPZ) return;
+    setData(prev => prev.map(u => u.id === resignUPZ.id ? {
+      ...u,
+      status: 'Mengundurkan Diri',
+      resignationDate: resignDate,
+      resignationReason: resignReason
+    } : u));
+    setSelectedUPZ(prev => prev && prev.id === resignUPZ.id ? {
+      ...prev,
+      status: 'Mengundurkan Diri',
+      resignationDate: resignDate,
+      resignationReason: resignReason
+    } : prev);
+    setIsResignModalOpen(false);
+    setResignUPZ(null);
+  };
+
+  const handleReactivateUPZ = (upz: UPZ) => {
+    if (window.confirm(`Apakah Anda yakin ingin mengaktifkan kembali UPZ "${upz.name}"?`)) {
+      setData(prev => prev.map(u => u.id === upz.id ? {
+        ...u,
+        status: 'Aktif',
+        resignationDate: undefined,
+        resignationReason: undefined
+      } : u));
+      setSelectedUPZ(prev => prev && prev.id === upz.id ? {
+        ...prev,
+        status: 'Aktif',
+        resignationDate: undefined,
+        resignationReason: undefined
+      } : prev);
+    }
   };
 
   const getHistoryForUPZ = (upzId: string) => {
@@ -454,17 +513,17 @@ export default function DatabaseUPZ() {
     <style>
         @page {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
+            margin-top: 1.95in;
             margin-bottom: 1.0in;
-            margin-left: 0.8in;
-            margin-right: 0.9in;
+            margin-left: 0.6in;
+            margin-right: 0.6in;
         }
         @page Section1 {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
+            margin-top: 1.95in;
             margin-bottom: 1.0in;
-            margin-left: 0.8in;
-            margin-right: 0.9in;
+            margin-left: 0.6in;
+            margin-right: 0.6in;
             mso-header-margin: 0.5in;
             mso-footer-margin: 0.5in;
             mso-paper-source: 0;
@@ -854,6 +913,7 @@ export default function DatabaseUPZ() {
                 <th className="px-6 py-4">Kategori</th>
                 <th className="px-6 py-4">Wilayah (Kec/Kel)</th>
                 <th className="px-6 py-4 text-center">SK Aktif</th>
+                <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Aksi</th>
               </tr>
             </thead>
@@ -891,8 +951,13 @@ export default function DatabaseUPZ() {
                   <td className="px-6 py-4 text-center">
                     <div className="flex flex-col items-center gap-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-slate-700">{item.activeSKNumber}</span>
-                        {new Date(item.skExpiryDate) > new Date() ? (
+                        <span className={cn(
+                          "text-xs font-bold",
+                          item.status === 'Mengundurkan Diri' ? "text-slate-400 font-medium" : "text-slate-700"
+                        )}>
+                          {item.activeSKNumber}
+                        </span>
+                        {item.status !== 'Mengundurkan Diri' && new Date(item.skExpiryDate) > new Date() ? (
                           <CheckCircle2 className="size-4 text-emerald-500" />
                         ) : (
                           <XCircle className="size-4 text-rose-500" />
@@ -900,6 +965,16 @@ export default function DatabaseUPZ() {
                       </div>
                       <p className="text-[8px] font-black text-slate-400 uppercase">Exp: {item.skExpiryDate}</p>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={cn(
+                      "px-2.5 py-0.5 text-[10px] font-black rounded-full border uppercase tracking-wider inline-block",
+                      item.status === 'Mengundurkan Diri' 
+                        ? "bg-rose-50 text-rose-600 border-rose-100" 
+                        : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    )}>
+                      {item.status || 'Aktif'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-1">
@@ -1000,16 +1075,22 @@ export default function DatabaseUPZ() {
                   {/* Action buttons */}
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Daftar Rekam Jejak SK</h4>
-                    <div className="flex gap-2">
-                      <button onClick={() => setHistoryView('perubahan')}
-                        className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20">
-                        <Edit2 className="size-4" />Perubahan
-                      </button>
-                      <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'' }); setHistoryView('pembaruan'); }}
-                        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
-                        <PlusCircle className="size-4" />Pembaruan
-                      </button>
-                    </div>
+                    {selectedUPZ.status === 'Mengundurkan Diri' ? (
+                      <span className="px-3 py-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg uppercase tracking-wider">
+                        Aksi Dinonaktifkan (UPZ Mengundurkan Diri)
+                      </span>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={() => setHistoryView('perubahan')}
+                          className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20">
+                          <Edit2 className="size-4" />Perubahan
+                        </button>
+                        <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'' }); setHistoryView('pembaruan'); }}
+                          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
+                          <PlusCircle className="size-4" />Pembaruan
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -1030,9 +1111,12 @@ export default function DatabaseUPZ() {
                           <tr key={history.id} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <div className="space-y-1">
-                                <span className="text-sm font-black text-slate-900">{history.skNumber}</span>
+                                <span className={cn(
+                                  "text-sm font-black",
+                                  selectedUPZ.status === 'Mengundurkan Diri' ? "text-slate-400 font-medium" : "text-slate-900"
+                                )}>{history.skNumber}</span>
                                 <p className="text-[9px] font-bold uppercase tracking-wider"
-                                  style={{ color: isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb' }}>
+                                  style={{ color: selectedUPZ.status === 'Mengundurkan Diri' ? '#94a3b8' : (isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb') }}>
                                   {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
                                 </p>
                               </div>
@@ -1040,7 +1124,9 @@ export default function DatabaseUPZ() {
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
                                 <Calendar className="size-4 text-slate-400" />
-                                <span>{new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}</span>
+                                <span className={cn(selectedUPZ.status === 'Mengundurkan Diri' && "text-slate-400 font-medium")}>
+                                  {new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}
+                                </span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -1049,15 +1135,18 @@ export default function DatabaseUPZ() {
                                   <User className="size-4" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-bold text-slate-900">{history.pimpinanName}</p>
+                                  <p className={cn(
+                                    "text-sm font-bold",
+                                    selectedUPZ.status === 'Mengundurkan Diri' ? "text-slate-400 font-medium" : "text-slate-900"
+                                  )}>{history.pimpinanName}</p>
                                   <p className="text-[10px] text-slate-400 font-bold uppercase">Penasehat</p>
                                 </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 text-center">
                               <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-                                history.status === 'Aktif' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
-                                {history.status}
+                                (history.status === 'Aktif' && selectedUPZ.status !== 'Mengundurkan Diri') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
+                                {selectedUPZ.status === 'Mengundurkan Diri' ? 'Tidak Aktif' : history.status}
                               </span>
                             </td>
                             {selectedUPZ.category === 'Masjid & Mushola' && (
@@ -1421,6 +1510,19 @@ export default function DatabaseUPZ() {
                       <p className="text-sm font-mono font-bold text-primary">{selectedUPZ.code}</p>
                     </div>
                     <div className="space-y-1">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Keaktifan</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={cn(
+                          "px-2.5 py-0.5 text-xs font-bold rounded-full uppercase tracking-wider",
+                          selectedUPZ.status === 'Mengundurkan Diri'
+                            ? "bg-rose-100 text-rose-700 border border-rose-200"
+                            : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                        )}>
+                          {selectedUPZ.status || 'Aktif'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori / Tipe</p>
                       <p className="text-sm font-bold text-slate-900">
                         {selectedUPZ.category} ({selectedUPZ.type})
@@ -1448,8 +1550,34 @@ export default function DatabaseUPZ() {
                   </div>
                 </div>
 
-                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Informasi Pengurus Utama</h4>
+                {selectedUPZ.status === 'Mengundurkan Diri' && (
+                  <div className="p-6 bg-rose-50/50 rounded-2xl border border-rose-100 space-y-3">
+                    <h4 className="text-xs font-black text-rose-800 uppercase tracking-widest">Detail Pengunduran Diri</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Tanggal Mengundurkan Diri</p>
+                        <p className="text-sm font-bold text-slate-900">{selectedUPZ.resignationDate || '-'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Alasan</p>
+                        <p className="text-sm font-bold text-slate-950">{selectedUPZ.resignationReason || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className={cn(
+                  "p-6 rounded-2xl border transition-all space-y-4",
+                  selectedUPZ.status === 'Mengundurkan Diri'
+                    ? "bg-slate-50/50 border-slate-200/60 opacity-60"
+                    : "bg-slate-50 border-slate-100"
+                )}>
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Informasi Pengurus Utama</h4>
+                    {selectedUPZ.status === 'Mengundurkan Diri' && (
+                      <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-rose-50 text-rose-600 border border-rose-100 uppercase">Non-Aktif</span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-6">
                     <div className="flex items-center gap-3">
                       <div className="size-10 rounded-full bg-white flex items-center justify-center text-slate-400 shadow-sm">
@@ -1457,7 +1585,10 @@ export default function DatabaseUPZ() {
                       </div>
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedUPZ.metadata.pimpinanTitle}</p>
-                        <p className="text-sm font-bold text-slate-900">{selectedUPZ.metadata.pimpinanName}</p>
+                        <p className={cn(
+                          "text-sm font-bold",
+                          selectedUPZ.status === 'Mengundurkan Diri' ? "text-slate-400 font-medium" : "text-slate-900"
+                        )}>{selectedUPZ.metadata.pimpinanName}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1466,13 +1597,31 @@ export default function DatabaseUPZ() {
                       </div>
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Penasehat</p>
-                        <p className="text-sm font-bold text-slate-900">{selectedUPZ.metadata.pimpinanAddress || '-'}</p>
+                        <p className={cn(
+                          "text-sm font-bold",
+                          selectedUPZ.status === 'Mengundurkan Diri' ? "text-slate-400 font-medium" : "text-slate-900"
+                        )}>{selectedUPZ.metadata.pimpinanAddress || '-'}</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                {selectedUPZ.status === 'Mengundurkan Diri' ? (
+                  <button 
+                    onClick={() => handleReactivateUPZ(selectedUPZ)}
+                    className="px-6 py-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                  >
+                    Aktifkan UPZ Kembali
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => handleTriggerResignation(selectedUPZ)}
+                    className="px-6 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                  >
+                    Mengundurkan Diri
+                  </button>
+                )}
                 <button 
                   onClick={() => setIsDetailModalOpen(false)}
                   className="px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
@@ -1520,7 +1669,7 @@ export default function DatabaseUPZ() {
                     <Building2 className="size-4" />
                     <h4 className="text-xs font-black uppercase tracking-widest">Profil Utama</h4>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama UPZ</label>
                       <input 
@@ -1551,7 +1700,42 @@ export default function DatabaseUPZ() {
                         <option value="Yayasan">Yayasan</option>
                       </select>
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Keaktifan</label>
+                      <select 
+                        value={formStatus}
+                        onChange={e => setFormStatus(e.target.value as any)}
+                        className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      >
+                        <option value="Aktif">Aktif</option>
+                        <option value="Mengundurkan Diri">Mengundurkan Diri</option>
+                      </select>
+                    </div>
                   </div>
+
+                  {formStatus === 'Mengundurkan Diri' && (
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-rose-50/50 rounded-xl border border-rose-100/80">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Tanggal Mengundurkan Diri</label>
+                        <input 
+                          type="date"
+                          value={formResignationDate}
+                          onChange={e => setFormResignationDate(e.target.value)}
+                          className="w-full bg-white border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Alasan Mengundurkan Diri</label>
+                        <input 
+                          type="text"
+                          placeholder="Masukkan alasan pengunduran diri..."
+                          value={formResignationReason}
+                          onChange={e => setFormResignationReason(e.target.value)}
+                          className="w-full bg-white border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Dana</label>
                     <div className="flex gap-4">
@@ -1809,6 +1993,9 @@ export default function DatabaseUPZ() {
                         activeSKNumber: formNoSKPenetapan,
                         skExpiryDate: `${formTahunBerakhir}-12-31`,
                         skStartYear: formTahunMulai,
+                        status: formStatus,
+                        resignationDate: formStatus === 'Mengundurkan Diri' ? formResignationDate : undefined,
+                        resignationReason: formStatus === 'Mengundurkan Diri' ? formResignationReason : undefined,
                         metadata: {
                           ...u.metadata,
                           address: formAlamatLengkap,
@@ -2154,6 +2341,7 @@ export default function DatabaseUPZ() {
                       activeSKNumber: skPenetapan,
                       skStartYear: formTahunMulai || new Date().getFullYear().toString(),
                       skExpiryDate: formTahunBerakhir || (new Date().getFullYear() + 5).toString(),
+                      status: 'Aktif',
                       metadata: {
                         address: formAlamatLengkap,
                         upzPhone: formNoTelepon,
@@ -2214,6 +2402,74 @@ export default function DatabaseUPZ() {
                   className="px-10 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
                 >
                   Daftarkan UPZ
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Resignation Confirmation Modal */}
+      <AnimatePresence>
+        {isResignModalOpen && resignUPZ && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsResignModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 className="text-sm font-black text-rose-800 uppercase tracking-wider">Form Pengunduran Diri UPZ</h3>
+                <button onClick={() => setIsResignModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl space-y-1">
+                  <p className="text-[10px] font-black text-rose-800 uppercase tracking-wider">UPZ yang Mengundurkan Diri</p>
+                  <p className="text-base font-bold text-slate-900">{resignUPZ.name}</p>
+                  <p className="text-xs text-slate-500 font-mono">Kode: {resignUPZ.code}</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Efektif Mundur</label>
+                  <input 
+                    type="date"
+                    value={resignDate}
+                    onChange={(e) => setResignDate(e.target.value)}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alasan Pengunduran Diri</label>
+                  <textarea 
+                    rows={3}
+                    placeholder="Tuliskan alasan pengunduran diri UPZ secara lengkap..."
+                    value={resignReason}
+                    onChange={(e) => setResignReason(e.target.value)}
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button 
+                  onClick={() => setIsResignModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleConfirmResignation}
+                  className="px-6 py-2 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 shadow-lg shadow-rose-600/20 transition-colors"
+                >
+                  Simpan Status
                 </button>
               </div>
             </motion.div>

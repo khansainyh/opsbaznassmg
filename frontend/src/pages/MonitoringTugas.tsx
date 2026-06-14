@@ -45,6 +45,29 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const asnafOptions = ['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharimin', 'Fisabilillah', 'Ibnu Sabil'];
 
   const [pilars, setPilars] = useState<any[]>([]);
+  const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+  const [surveyors, setSurveyors] = useState<any[]>([]);
+  const [isReassigning, setIsReassigning] = useState(false);
+  const [searchSurveyorQuery, setSearchSurveyorQuery] = useState('');
+  const [isSurveyorDropdownOpen, setIsSurveyorDropdownOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    actionType: 'reassign' | 'release';
+    targetValue?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    actionType: 'reassign'
+  });
+  useEffect(() => {
+    if (!isDetailModalOpen) {
+      setIsSurveyorDropdownOpen(false);
+      setSearchSurveyorQuery('');
+    }
+  }, [isDetailModalOpen]);
 
   const programTipeMap = useMemo(() => {
     const map: { [code: string]: string } = {};
@@ -66,9 +89,33 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
       .catch(err => console.error('Failed to fetch pilars in MonitoringTugas', err));
   }, []);
 
+  const fetchSurveyors = useCallback(async () => {
+    try {
+      const res = await axios.get('/api/users');
+      if (res.data) {
+        // filter by role
+        const relawanList = res.data.filter((u: any) => u.role === 'Relawan' || u.role === 'Relawan_Sementara');
+        setSurveyors(relawanList);
+      }
+    } catch (err) {
+      console.error('Failed to fetch surveyors', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPilars();
-  }, [fetchPilars]);
+    axios.get('/api/parameters/survey_template_individu')
+      .then(res => {
+        if (res.data && res.data.value) {
+          setDynamicQuestions(JSON.parse(res.data.value));
+        }
+      })
+      .catch(err => console.error('Failed to fetch survey template', err));
+
+    if (isKabagPendistribusian || isKabagPendayagunaan || isSuperAdmin) {
+      fetchSurveyors();
+    }
+  }, [fetchPilars, fetchSurveyors, isKabagPendistribusian, isKabagPendayagunaan, isSuperAdmin]);
 
   const realizedProposals = useMemo(() => {
     return data.filter(p => 
@@ -796,23 +843,34 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                                 ]} />
                               </>
                             ) : (
-                              <>
-                                <SurveyDetailSection title="A. Kondisi Rumah" items={[
-                                  { label: 'Luas Bangunan', value: getLabelForScore('luasBangunan', selectedTask.survey_data?.luasBangunan) },
-                                  { label: 'Jenis Lantai', value: getLabelForScore('jenisLantai', selectedTask.survey_data?.jenisLantai) },
-                                  { label: 'Jenis Dinding', value: getLabelForScore('jenisDinding', selectedTask.survey_data?.jenisDinding) },
-                                  { label: 'Status Tinggal', value: getLabelForScore('statusTempatTinggal', selectedTask.survey_data?.statusTempatTinggal) },
-                                ]} />
-                                <SurveyDetailSection title="B. Kondisi Ekonomi" items={[
-                                  { label: 'Pekerjaan KRT', value: getLabelForScore('pekerjaanKepala', selectedTask.survey_data?.pekerjaanKepala) },
-                                  { label: 'Frekuensi Makan', value: getLabelForScore('frekuensiMakan', selectedTask.survey_data?.frekuensiMakan) },
-                                  { label: 'Kemampuan Lauk', value: getLabelForScore('kemampuanLauk', selectedTask.survey_data?.kemampuanLauk) },
-                                ]} />
-                                <SurveyDetailSection title="C. Fisik & Lainnya" items={[
-                                  { label: 'Keadaan Fisik', value: getLabelForScore('keadaanFisik', selectedTask.survey_data?.keadaanFisik) },
-                                  { label: 'Kondisi Hutang', value: getLabelForScore('hutang', selectedTask.survey_data?.hutang) },
-                                  { label: 'BPJS/Kesehatan', value: getLabelForScore('kesehatan', selectedTask.survey_data?.kesehatan) },
-                                ]} />
+                                <>
+                                {[
+                                  { code: 'A', title: 'A. Kondisi Rumah' },
+                                  { code: 'B', title: 'B. Kondisi Ekonomi' },
+                                  { code: 'C', title: 'C. Fisik & Lainnya' }
+                                ].map(sec => {
+                                  const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
+                                    { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
+                                    { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
+                                    { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
+                                    { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
+                                    { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
+                                    { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
+                                    { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
+                                    { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
+                                    { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
+                                    { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
+                                  ]).filter(q => q.section === sec.code);
+
+                                  const items = secQuestions.map(q => ({
+                                    label: q.label,
+                                    value: getLabelForScore(q.id, (selectedTask.survey_data as any)?.[q.id], dynamicQuestions)
+                                  }));
+
+                                  return (
+                                    <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
+                                  );
+                                })}
                               </>
                             )}
                           </div>
@@ -860,6 +918,105 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                           <p className="text-sm font-bold text-slate-400 italic">Belum Ditugaskan</p>
                         )}
                       </div>
+
+                      {/* MANAJEMEN SURVEYOR */}
+                      {((isKabagPendistribusian || isKabagPendayagunaan || isSuperAdmin) && 
+                        getSurveyStatus(selectedTask) !== 'Selesai' && 
+                        getSurveyStatus(selectedTask) !== 'Disetujui') && (
+                        <div className="mt-4 p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 space-y-3">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            Manajemen Penugasan
+                          </p>
+                          
+                          <div className="flex flex-col gap-2">
+                            {/* Alihkan Dropdown Cari */}
+                            <div className="space-y-1 relative">
+                              <label className="text-[9px] font-bold text-slate-405 uppercase tracking-wider">
+                                Alihkan ke Relawan Lain
+                              </label>
+                              
+                              <div className="relative">
+                                {/* Trigger Button */}
+                                <button
+                                  type="button"
+                                  disabled={isReassigning}
+                                  onClick={() => setIsSurveyorDropdownOpen(prev => !prev)}
+                                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-left flex justify-between items-center focus:ring-1 focus:ring-primary outline-none"
+                                >
+                                  <span className="text-slate-700">Pilih Relawan Pengganti...</span>
+                                  <span className="text-[10px] text-slate-400">▼</span>
+                                </button>
+
+                                {/* Dropdown Menu */}
+                                {isSurveyorDropdownOpen && (
+                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-2 space-y-2">
+                                    <input
+                                      type="text"
+                                      value={searchSurveyorQuery}
+                                      onChange={(e) => setSearchSurveyorQuery(e.target.value)}
+                                      placeholder="Cari nama relawan..."
+                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-bold outline-none focus:bg-white focus:border-primary"
+                                      autoFocus
+                                    />
+                                    <div className="max-h-40 overflow-y-auto custom-scrollbar text-xs font-bold text-slate-700 divide-y divide-slate-50">
+                                      {surveyors
+                                        .filter(s => s.name !== selectedTask.surveyorName)
+                                        .filter(s => s.name.toLowerCase().includes(searchSurveyorQuery.toLowerCase()))
+                                        .map(s => (
+                                          <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setIsSurveyorDropdownOpen(false);
+                                              setSearchSurveyorQuery('');
+                                              setConfirmModal({
+                                                isOpen: true,
+                                                title: 'Konfirmasi Pengalihan',
+                                                message: `Apakah Anda yakin ingin mengalihkan tugas survei ini ke ${s.name}?`,
+                                                actionType: 'reassign',
+                                                targetValue: s.name
+                                              });
+                                            }}
+                                            className="w-full text-left p-2 hover:bg-slate-50 transition-colors text-slate-800 rounded-md block"
+                                          >
+                                            {s.name}
+                                          </button>
+                                        ))
+                                      }
+                                      {surveyors
+                                        .filter(s => s.name !== selectedTask.surveyorName)
+                                        .filter(s => s.name.toLowerCase().includes(searchSurveyorQuery.toLowerCase())).length === 0 && (
+                                          <p className="text-center py-2 text-[10px] text-slate-404 italic">Relawan tidak ditemukan</p>
+                                        )
+                                      }
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Batalkan Penugasan */}
+                            {selectedTask.surveyorName && (
+                              <button
+                                type="button"
+                                disabled={isReassigning}
+                                onClick={() => {
+                                  setConfirmModal({
+                                    isOpen: true,
+                                    title: 'Konfirmasi Lepas Penugasan',
+                                    message: `Apakah Anda yakin ingin melepas penugasan dari ${selectedTask.surveyorName}? Tugas ini akan kembali berstatus tersedia untuk diklaim relawan lain.`,
+                                    actionType: 'release'
+                                  });
+                                }}
+                                className="w-full mt-2 py-2 px-3 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-black uppercase rounded-lg transition-all text-center flex items-center justify-center gap-1"
+                              >
+                                <X className="size-3" />
+                                Lepas Penugasan (Reset)
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -961,6 +1118,95 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
           </div>
         )}
       </AnimatePresence>
+
+      {/* CUSTOM CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+              onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3 text-amber-600">
+                <AlertCircle className="size-6" />
+                <h4 className="text-lg font-black text-slate-900">{confirmModal.title}</h4>
+              </div>
+              <p className="text-sm font-bold text-slate-600 leading-relaxed">
+                {confirmModal.message}
+              </p>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-2 text-xs font-black text-slate-500 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  BATAL
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { actionType, targetValue } = confirmModal;
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    if (!selectedTask) return;
+                    
+                    if (actionType === 'reassign' && targetValue) {
+                      setIsReassigning(true);
+                      try {
+                        await axios.put(`/api/proposals/${selectedTask.id}`, {
+                          surveyorName: targetValue,
+                          isBeingSurveyed: false
+                        });
+                        
+                        const updatedTask: ProposalMemo = { ...selectedTask, surveyorName: targetValue, isBeingSurveyed: false };
+                        const updatedList = data.map(d => d.id === selectedTask.id ? updatedTask : d);
+                        onUpdate(updatedList);
+                        setSelectedTask(updatedTask);
+                        alert(`Berhasil mengalihkan tugas survei ke ${targetValue}.`);
+                      } catch (err) {
+                        console.error(err);
+                        alert('Gagal mengalihkan relawan. Silakan coba lagi.');
+                      } finally {
+                        setIsReassigning(false);
+                      }
+                    } else if (actionType === 'release') {
+                      setIsReassigning(true);
+                      try {
+                        await axios.put(`/api/proposals/${selectedTask.id}`, {
+                          surveyorName: "",
+                          isBeingSurveyed: false
+                        });
+                        
+                        const updatedTask: ProposalMemo = { ...selectedTask, surveyorName: "", isBeingSurveyed: false };
+                        const updatedList = data.map(d => d.id === selectedTask.id ? updatedTask : d);
+                        onUpdate(updatedList);
+                        setSelectedTask(updatedTask);
+                        alert('Berhasil melepas penugasan. Tugas ini sekarang tersedia kembali.');
+                      } catch (err) {
+                        console.error(err);
+                        alert('Gagal melepas penugasan. Silakan coba lagi.');
+                      } finally {
+                        setIsReassigning(false);
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 text-xs font-black text-white bg-primary hover:bg-primary/90 rounded-xl transition-all"
+                >
+                  YA, PROSES
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -981,8 +1227,31 @@ function SurveyDetailSection({ title, items }: { title: string; items: { label: 
   );
 }
 
-function getLabelForScore(field: string, score: number | undefined): string {
-  if (score === undefined || score === 0) return '-';
+function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): string {
+  if (score === undefined || score === null || score === 0 || score === '') return '-';
+  
+  if (dynamicQuestions && dynamicQuestions.length > 0) {
+    const question = dynamicQuestions.find(q => q.id === field);
+    if (question) {
+      if (question.type === 'checkbox') {
+        if (Array.isArray(score)) {
+          const selectedLabels = score.map((val: any) => {
+            const option = question.options?.find((opt: any) => opt.val === val);
+            return option ? option.label : val;
+          });
+          return selectedLabels.join(', ') || '-';
+        }
+      } else if (question.type === 'text') {
+        return String(score);
+      } else {
+        if (question.options) {
+          const option = question.options.find((opt: any) => opt.val === score);
+          if (option) return option.label;
+        }
+      }
+    }
+  }
+
   const mapping: Record<string, Record<number, string>> = {
     luasBangunan: { 3: '≤ 8 m²', 2: '8-10 m²', 1: '> 10 m²' },
     jenisLantai: { 3: 'Tanah', 2: 'Semen', 1: 'Keramik' },

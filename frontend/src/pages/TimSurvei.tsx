@@ -22,23 +22,52 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingHistory, setEditingHistory] = useState<ProposalMemo | null>(null);
   const [bpsPovertyLine, setBpsPovertyLine] = useState<number>(709785); // Default value
+  const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
 
   React.useEffect(() => {
-    const fetchBps = async () => {
+    const fetchParams = async () => {
       try {
-        const res = await axios.get('/api/parameters/GARIS_KEMISKINAN_BPS');
-        if (res.data && res.data.value) {
-          setBpsPovertyLine(parseInt(res.data.value));
+        const [bpsRes, templateRes] = await Promise.all([
+          axios.get('/api/parameters/bps_garis_kemiskinan'),
+          axios.get('/api/parameters/survey_template_individu')
+        ]);
+        if (bpsRes.data && bpsRes.data.value) {
+          setBpsPovertyLine(parseInt(bpsRes.data.value));
+        }
+        if (templateRes.data && templateRes.data.value) {
+          setDynamicQuestions(JSON.parse(templateRes.data.value));
         }
       } catch (err) {
-        console.error('Failed to fetch BPS poverty line:', err);
+        console.error('Failed to fetch BPS poverty line or survey template:', err);
       }
     };
-    fetchBps();
+    fetchParams();
   }, []);
 
+  // Default fallback questions in case API is not loaded yet
+  const defaultSurveyTemplateFallback = [
+    { id: 'luasBangunan', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Luas Bangunan', options: [{ val: 3, label: '≤ 8 m² (Sangat sempit)' }, { val: 2, label: '8 m² - 10 m²' }, { val: 1, label: '> 10 m² (Lebih luas)' }] },
+    { id: 'jenisLantai', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Jenis Lantai Tanah', options: [{ val: 3, label: 'Tanah' }, { val: 2, label: 'Plester / Semen' }, { val: 1, label: 'Keramik' }] },
+    { id: 'jenisDinding', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Jenis Dinding Rumah', options: [{ val: 3, label: 'Papan / Tripleks / Bambu' }, { val: 2, label: 'Tembok Bata (Belum diplester/diaci)' }, { val: 1, label: 'Tembok Keramik / Tembok dicat rapi' }] },
+    { id: 'statusTempatTinggal', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Status Tempat Tinggal', options: [{ val: 4, label: 'Kost' }, { val: 3, label: 'Kontrak / Sewa' }, { val: 2, label: 'Menumpang' }, { val: 1, label: 'Milik Sendiri' }] },
+    { id: 'fasilitasMck', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Fasilitas MCK', options: [{ val: 2, label: 'Umum / MCK Bersama' }, { val: 1, label: 'Milik Sendiri (Di dalam rumah)' }] },
+    { id: 'sumberAirMinum', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Sumber Air Minum', options: [{ val: 2, label: 'Bukan Air Bersih (Sumur keruh, dll)' }, { val: 1, label: 'Air Bersih (PDAM, sumur bor layak)' }] },
+    { id: 'jenisPenerangan', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Jenis Penerangan', options: [{ val: 3, label: 'Lampu Minyak / Non-Listrik' }, { val: 2, label: 'Listrik 450 VA (Subsidi) / Numpang' }, { val: 1, label: 'Listrik ≥ 900 VA' }] },
+    { id: 'kondisiDapur', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Kondisi Dapur', options: [{ val: 4, label: 'Kayu Bakar / Arang' }, { val: 3, label: 'Minyak Tanah' }, { val: 2, label: 'Gas 3 kg LPG (Subsidi)' }, { val: 1, label: 'Gas 12 kg / Bright Gas' }] },
+    { id: 'pekerjaanKepala', section: 'B', sectionTitle: 'Bagian B: Kondisi Ekonomi', label: 'Pekerjaan Kepala Rumah Tangga', options: [{ val: 3, label: 'Tidak Bekerja / Pengangguran' }, { val: 2, label: 'Petani Gurem / Nelayan / Buruh Serabutan' }, { val: 1, label: 'Karyawan / Pedagang Mandiri' }] },
+    { id: 'pendidikanKepala', section: 'B', sectionTitle: 'Bagian B: Kondisi Ekonomi', label: 'Pendidikan Kepala Rumah Tangga', options: [{ val: 3, label: 'Tidak Pernah Sekolah' }, { val: 2, label: 'SD - SMP' }, { val: 1, label: 'SMA - S1' }] },
+    { id: 'frekuensiMakan', section: 'B', sectionTitle: 'Bagian B: Kondisi Ekonomi', label: 'Frekuensi Makan Dalam Sehari', options: [{ val: 3, label: '1 Kali sehari' }, { val: 2, label: '2 Kali sehari' }, { val: 1, label: '3 Kali sehari' }] },
+    { id: 'kemampuanLauk', section: 'B', sectionTitle: 'Bagian B: Kondisi Ekonomi', label: 'Kemampuan Beli Lauk Bergizi (Mingguan)', options: [{ val: 3, label: '1 Kali seminggu (atau tidak pernah)' }, { val: 2, label: '2 Kali seminggu' }, { val: 1, label: '≥ 3 Kali seminggu' }] },
+    { id: 'kemampuanPakaian', section: 'B', sectionTitle: 'Bagian B: Kondisi Ekonomi', label: 'Kemampuan Beli Pakaian Baru', options: [{ val: 3, label: '1 Kali setahun (hanya sumbangan)' }, { val: 2, label: '2 Kali setahun' }, { val: 1, label: '≥ 3 Kali setahun' }] },
+    { id: 'asumsiBantuan', section: 'B', sectionTitle: 'Bagian B: Kondisi Ekonomi', label: 'Asumsi Subsidi / Bantuan Lain', options: [{ val: 4, label: 'Tidak Ada bantuan sama sekali' }, { val: 3, label: 'Ada sumbangan rutin < Rp 50.000/bulan' }, { val: 2, label: 'Ada bantuan dari kerabat > Rp 100.000/bulan' }, { val: 1, label: 'Biaya hidup ditanggung anak mandiri' }] },
+    { id: 'keadaanFisik', section: 'C', sectionTitle: 'Bagian C: Kondisi Fisik & Tanggungan', label: 'Keadaan Fisik', options: [{ val: 4, label: 'Manula dan Sakit (Bedridden)' }, { val: 3, label: 'Manula (Sehat tapi tidak kuat kerja)' }, { val: 2, label: 'Cacat Produktif (Masih bisa aktivitas ringan)' }, { val: 1, label: 'Sehat / Produktif (Usia kerja normal)' }] },
+    { id: 'tanggunganKategori', section: 'C', sectionTitle: 'Bagian C: Kondisi Fisik & Tanggungan', label: 'Tanggungan Khusus', options: [{ val: 3, label: 'Anak Masih Sekolah' }, { val: 2, label: 'Keluarga Lainnya (Orang tua sakit)' }, { val: 1, label: 'Tidak Ada Tanggungan (Lajang/Mandiri)' }] },
+    { id: 'hutang', section: 'C', sectionTitle: 'Bagian C: Kondisi Fisik & Tanggungan', label: 'Kondisi Hutang', options: [{ val: 2, label: 'Terjerat Rentenir / Pinjaman Online' }, { val: 1, label: 'Non Rentenir / Bank Ringan / Tidak Ada' }] },
+    { id: 'kesehatan', section: 'C', sectionTitle: 'Bagian C: Kondisi Fisik & Tanggungan', label: 'Kemampuan Penuhi Kebutuhan Kesehatan', options: [{ val: 2, label: 'Tidak Ada Kemampuan (Tidak punya BPJS KIS/PBI)' }, { val: 1, label: 'Ada Kemampuan (BPJS Mandiri / Bayar sendiri)' }] }
+  ];
+
   // Survey Form State
-  const [surveyForm, setSurveyForm] = useState({
+  const [surveyForm, setSurveyForm] = useState<Record<string, any>>({
     // Bagian A
     luasBangunan: 0,
     jenisLantai: 0,
@@ -75,7 +104,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   });
 
   const pendapatanPerKapita = useMemo(() => {
-    const total = parseInt(surveyForm.pendapatanTotal.replace(/\D/g, '')) || 0;
+    const total = parseInt(surveyForm.pendapatanTotal?.replace(/\D/g, '') || '0') || 0;
     const tanggungan = parseInt(surveyForm.jumlahTanggungan) || 1;
     return Math.round(total / tanggungan);
   }, [surveyForm.pendapatanTotal, surveyForm.jumlahTanggungan]);
@@ -91,34 +120,31 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   }, [pendapatanPerKapita, surveyForm.pendapatanTotal, surveyForm.jumlahTanggungan, bpsPovertyLine]);
 
   const asetScore = useMemo(() => {
-    if (surveyForm.aset.length === 0) return 0;
+    if (!surveyForm.aset || surveyForm.aset.length === 0) return 0;
     return Math.min(...surveyForm.aset);
   }, [surveyForm.aset]);
 
-  const isAsetRedFlag = surveyForm.aset.includes(1);
+  const isAsetRedFlag = surveyForm.aset?.includes(1) || false;
 
   const totalScore = useMemo(() => {
-    return surveyForm.luasBangunan +
-      surveyForm.jenisLantai +
-      surveyForm.jenisDinding +
-      surveyForm.statusTempatTinggal +
-      surveyForm.fasilitasMck +
-      surveyForm.sumberAirMinum +
-      surveyForm.jenisPenerangan +
-      surveyForm.kondisiDapur +
-      asetScore +
-      surveyForm.pendidikanKepala +
-      surveyForm.pekerjaanKepala +
-      pendapatanScore +
-      surveyForm.frekuensiMakan +
-      surveyForm.kemampuanLauk +
-      surveyForm.kemampuanPakaian +
-      surveyForm.asumsiBantuan +
-      surveyForm.keadaanFisik +
-      surveyForm.tanggunganKategori +
-      surveyForm.hutang +
-      surveyForm.kesehatan;
-  }, [surveyForm, asetScore, pendapatanScore]);
+    const questions = dynamicQuestions.length > 0 ? dynamicQuestions : defaultSurveyTemplateFallback;
+    let scoreSum = 0;
+    questions.forEach(q => {
+      const val = surveyForm[q.id];
+      if (q.type === 'checkbox') {
+        if (Array.isArray(val)) {
+          scoreSum += val.reduce((acc: number, curr: any) => acc + (Number(curr) || 0), 0);
+        }
+      } else if (q.type === 'text') {
+        // Text inputs do not add to total score
+      } else {
+        scoreSum += Number(val) || 0;
+      }
+    });
+    scoreSum += asetScore;
+    scoreSum += pendapatanScore;
+    return scoreSum;
+  }, [surveyForm, asetScore, pendapatanScore, dynamicQuestions]);
 
   const urgencyLevel = useMemo(() => {
     if (totalScore > 45) return 'Sangat Kritis';
@@ -302,13 +328,68 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const toggleAset = (val: number) => {
     setSurveyForm(prev => {
       const aset = prev.aset.includes(val)
-        ? prev.aset.filter(a => a !== val)
+        ? prev.aset.filter((a: number) => a !== val)
         : [...prev.aset, val];
       return { ...prev, aset };
     });
   };
 
-  const renderRadio = (name: keyof typeof surveyForm, label: string, options: { val: number, label: string }[], editMode = false) => (
+  const toggleCheckboxQuestion = (questionId: string, val: number) => {
+    setSurveyForm(prev => {
+      const currentList = prev[questionId] || [];
+      const updatedList = currentList.includes(val)
+        ? currentList.filter((v: number) => v !== val)
+        : [...currentList, val];
+      return { ...prev, [questionId]: updatedList };
+    });
+  };
+
+  const renderCheckbox = (q: any, editMode = false) => {
+    const selectedValues = surveyForm[q.id] || [];
+    return (
+      <div className="space-y-2">
+        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{q.label}</label>
+        <div className="space-y-2">
+          {q.options?.map((opt: any) => {
+            const isSelected = selectedValues.includes(opt.val);
+            return (
+              <label key={opt.val} className={cn(
+                "flex items-start p-3 border rounded-xl cursor-pointer transition-all",
+                isSelected ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+              )}>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleCheckboxQuestion(q.id, opt.val)}
+                  disabled={editMode}
+                  className="mt-0.5 mr-3 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                />
+                <span className="text-sm font-medium text-slate-700 leading-snug">{opt.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderText = (q: any, editMode = false) => {
+    return (
+      <div className="space-y-2">
+        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{q.label}</label>
+        <textarea
+          value={surveyForm[q.id] || ''}
+          onChange={(e) => setSurveyForm(prev => ({ ...prev, [q.id]: e.target.value }))}
+          disabled={editMode}
+          rows={3}
+          placeholder="Tuliskan isian detail di sini..."
+          className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary outline-none resize-none leading-relaxed transition-all"
+        />
+      </div>
+    );
+  };
+
+  const renderRadio = (name: string, label: string, options: { val: number, label: string }[], editMode = false) => (
     <div className="space-y-2">
       <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{label}</label>
       <div className="space-y-2">
@@ -341,6 +422,16 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       </div>
     </div>
   );
+
+  const renderQuestionField = (q: any, editMode = false) => {
+    if (q.type === 'checkbox') {
+      return renderCheckbox(q, editMode);
+    }
+    if (q.type === 'text') {
+      return renderText(q, editMode);
+    }
+    return renderRadio(q.id, q.label, q.options || [], editMode);
+  };
 
   const formatRupiah = (val: string) => {
     const numberStr = val.replace(/\D/g, '');
@@ -593,217 +684,121 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
             <>
               {/* BAGIAN A: KONDISI RUMAH */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-            <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian A: Kondisi Rumah</h4>
+                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian A: Kondisi Rumah</h4>
+                {(dynamicQuestions.length > 0 ? dynamicQuestions : defaultSurveyTemplateFallback)
+                  .filter(q => q.section === 'A')
+                  .map(q => renderQuestionField(q, isEditMode))
+                }
 
-            {renderRadio('luasBangunan', 'Luas Bangunan', [
-              { val: 3, label: '≤ 8 m² (Sangat sempit)' },
-              { val: 2, label: '8 m² - 10 m²' },
-              { val: 1, label: '> 10 m² (Lebih luas)' }
-            ], isEditMode)}
-
-            {renderRadio('jenisLantai', 'Jenis Lantai Tanah', [
-              { val: 3, label: 'Tanah' },
-              { val: 2, label: 'Plester / Semen' },
-              { val: 1, label: 'Keramik' }
-            ], isEditMode)}
-
-            {renderRadio('jenisDinding', 'Jenis Dinding Rumah', [
-              { val: 3, label: 'Papan / Tripleks / Bambu' },
-              { val: 2, label: 'Tembok Bata (Belum diplester/diaci)' },
-              { val: 1, label: 'Tembok Keramik / Tembok dicat rapi' }
-            ], isEditMode)}
-
-            {renderRadio('statusTempatTinggal', 'Status Tempat Tinggal', [
-              { val: 4, label: 'Kost' },
-              { val: 3, label: 'Kontrak / Sewa' },
-              { val: 2, label: 'Menumpang' },
-              { val: 1, label: 'Milik Sendiri' }
-            ], isEditMode)}
-
-            {renderRadio('fasilitasMck', 'Fasilitas MCK', [
-              { val: 2, label: 'Umum / MCK Bersama' },
-              { val: 1, label: 'Milik Sendiri (Di dalam rumah)' }
-            ], isEditMode)}
-
-            {renderRadio('sumberAirMinum', 'Sumber Air Minum', [
-              { val: 2, label: 'Bukan Air Bersih (Sumur keruh, dll)' },
-              { val: 1, label: 'Air Bersih (PDAM, sumur bor layak)' }
-            ], isEditMode)}
-
-            {renderRadio('jenisPenerangan', 'Jenis Penerangan', [
-              { val: 3, label: 'Lampu Minyak / Non-Listrik' },
-              { val: 2, label: 'Listrik 450 VA (Subsidi) / Numpang' },
-              { val: 1, label: 'Listrik ≥ 900 VA' }
-            ], isEditMode)}
-
-            {renderRadio('kondisiDapur', 'Kondisi Dapur', [
-              { val: 4, label: 'Kayu Bakar / Arang' },
-              { val: 3, label: 'Minyak Tanah' },
-              { val: 2, label: 'Gas 3 kg LPG (Subsidi)' },
-              { val: 1, label: 'Gas 12 kg / Bright Gas' }
-            ], isEditMode)}
-
-            {/* KEPEMILIKAN ASET (MULTI-SELECT) */}
-            <div className="space-y-3">
-              <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
-                Kepemilikan Aset (Pilih semua yang sesuai)
-              </label>
-              {isAsetRedFlag && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl font-bold flex items-start gap-2 animate-pulse">
-                  <AlertCircle className="size-4 shrink-0 mt-0.5" />
-                  Peringatan: Mustahik memiliki aset bernilai tinggi (Skor 1). Pertimbangkan kelayakan pemberian bantuan secara lebih ketat!
-                </div>
-              )}
-              <div className="space-y-2">
-                {[
-                  { val: 1, label: 'Mobil Pribadi / >2 Motor Baru / HP Flagship / Tabungan > 5Jt / Tanah Kosong' },
-                  { val: 2, label: '1-2 Motor Bekas / HP Murah / Tabungan < 1Jt' },
-                  { val: 3, label: 'Tidak punya motor / Tidak punya HP / Tidak ada tabungan' }
-                ].map(opt => (
-                  <label key={opt.val} className={cn(
-                    "flex items-start p-3 border rounded-xl cursor-pointer transition-all",
-                    surveyForm.aset.includes(opt.val)
-                      ? (opt.val === 1 ? 'bg-rose-50 border-rose-300' : 'bg-emerald-50 border-emerald-300')
-                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                  )}>
-                    <input
-                      type="checkbox"
-                      checked={surveyForm.aset.includes(opt.val)}
-                      onChange={() => toggleAset(opt.val)}
-                      className={cn(
-                        "mt-0.5 mr-3 w-4 h-4 rounded",
-                        opt.val === 1 ? "text-rose-600 focus:ring-rose-500" : "text-emerald-600 focus:ring-emerald-500"
-                      )}
-                    />
-                    <span className="text-sm font-medium text-slate-700 leading-snug">{opt.label}</span>
+                {/* KEPEMILIKAN ASET (MULTI-SELECT) */}
+                <div className="space-y-3">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
+                    Kepemilikan Aset (Pilih semua yang sesuai)
                   </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* BAGIAN B: KONDISI EKONOMI */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-            <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian B: Kondisi Ekonomi</h4>
-
-            {renderRadio('pendidikanKepala', 'Pendidikan Kepala Rumah Tangga', [
-              { val: 3, label: 'Tidak Pernah Sekolah' },
-              { val: 2, label: 'SD - SMP' },
-              { val: 1, label: 'SMA - S1' }
-            ], isEditMode)}
-
-            {renderRadio('pekerjaanKepala', 'Pekerjaan Kepala Rumah Tangga', [
-              { val: 3, label: 'Tidak Bekerja / Pengangguran' },
-              { val: 2, label: 'Petani Gurem / Nelayan / Buruh Serabutan' },
-              { val: 1, label: 'Karyawan / Pedagang Mandiri' }
-            ], isEditMode)}
-
-            {/* PENDAPATAN & TANGGUNGAN */}
-            <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Total Pendapatan (Per Bulan)</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">Rp</span>
-                  <input
-                    type="text"
-                    required
-                    value={surveyForm.pendapatanTotal ? formatRupiah(surveyForm.pendapatanTotal).replace('Rp', '').trim() : ''}
-                    onChange={handlePendapatanChange}
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                    placeholder="Contoh: 1.500.000"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Jumlah Tanggungan (Orang)</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={surveyForm.jumlahTanggungan}
-                  onChange={e => setSurveyForm(prev => ({ ...prev, jumlahTanggungan: e.target.value }))}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                  placeholder="Jumlah orang yang ditanggung"
-                />
-              </div>
-
-              {/* Auto Kalkulasi Income */}
-              {surveyForm.pendapatanTotal && surveyForm.jumlahTanggungan && (
-                <div className={cn(
-                  "p-3 rounded-xl border flex items-start gap-2 mt-2",
-                  pendapatanScore === 3 ? "bg-rose-50 border-rose-200 text-rose-800" :
-                    pendapatanScore === 2 ? "bg-amber-50 border-amber-200 text-amber-800" :
-                      "bg-emerald-50 border-emerald-200 text-emerald-800"
-                )}>
-                  <div className="flex-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Pendapatan Per Kapita</p>
-                    <p className="text-sm font-bold">{formatRupiah(pendapatanPerKapita.toString())} / orang</p>
-                    <p className="text-xs mt-1 font-medium">
-                      {pendapatanScore === 3 && "(Di Bawah Garis Kemiskinan)"}
-                      {pendapatanScore === 2 && "(Rentan Miskin / Tepat di Garis)"}
-                      {pendapatanScore === 1 && "(Mandiri / Di Atas Garis Kemiskinan)"}
-                    </p>
-                  </div>
-                  <div className="text-xl font-black opacity-50 text-right">
-                    +{pendapatanScore}
+                  {isAsetRedFlag && (
+                    <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl font-bold flex items-start gap-2 animate-pulse">
+                      <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                      Peringatan: Mustahik memiliki aset bernilai tinggi (Skor 1). Pertimbangkan kelayakan pemberian bantuan secara lebih ketat!
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    {[
+                      { val: 1, label: 'Mobil Pribadi / >2 Motor Baru / HP Flagship / Tabungan > 5Jt / Tanah Kosong' },
+                      { val: 2, label: '1-2 Motor Bekas / HP Murah / Tabungan < 1Jt' },
+                      { val: 3, label: 'Tidak punya motor / Tidak punya HP / Tidak ada tabungan' }
+                    ].map(opt => (
+                      <label key={opt.val} className={cn(
+                        "flex items-start p-3 border rounded-xl cursor-pointer transition-all",
+                        surveyForm.aset?.includes(opt.val)
+                          ? (opt.val === 1 ? 'bg-rose-50 border-rose-300' : 'bg-emerald-50 border-emerald-300')
+                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                      )}>
+                        <input
+                          type="checkbox"
+                          checked={surveyForm.aset?.includes(opt.val) || false}
+                          onChange={() => toggleAset(opt.val)}
+                          className={cn(
+                            "mt-0.5 mr-3 w-4 h-4 rounded",
+                            opt.val === 1 ? "text-rose-600 focus:ring-rose-500" : "text-emerald-600 focus:ring-emerald-500"
+                          )}
+                        />
+                        <span className="text-sm font-medium text-slate-700 leading-snug">{opt.label}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
 
-            {renderRadio('frekuensiMakan', 'Frekuensi Makan Dalam Sehari', [
-              { val: 3, label: '1 Kali sehari' },
-              { val: 2, label: '2 Kali sehari' },
-              { val: 1, label: '3 Kali sehari' }
-            ], isEditMode)}
+              {/* BAGIAN B: KONDISI EKONOMI */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian B: Kondisi Ekonomi</h4>
+                {(dynamicQuestions.length > 0 ? dynamicQuestions : defaultSurveyTemplateFallback)
+                  .filter(q => q.section === 'B')
+                  .map(q => renderQuestionField(q, isEditMode))
+                }
 
-            {renderRadio('kemampuanLauk', 'Kemampuan Beli Lauk Bergizi (Mingguan)', [
-              { val: 3, label: '1 Kali seminggu (atau tidak pernah)' },
-              { val: 2, label: '2 Kali seminggu' },
-              { val: 1, label: '≥ 3 Kali seminggu' }
-            ], isEditMode)}
+                {/* PENDAPATAN & TANGGUNGAN */}
+                <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Total Pendapatan (Per Bulan)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">Rp</span>
+                      <input
+                        type="text"
+                        required
+                        value={surveyForm.pendapatanTotal ? formatRupiah(surveyForm.pendapatanTotal).replace('Rp', '').trim() : ''}
+                        onChange={handlePendapatanChange}
+                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                        placeholder="Contoh: 1.500.000"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Jumlah Tanggungan (Orang)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={surveyForm.jumlahTanggungan || ''}
+                      onChange={e => setSurveyForm(prev => ({ ...prev, jumlahTanggungan: e.target.value }))}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                      placeholder="Jumlah orang yang ditanggung"
+                    />
+                  </div>
 
-            {renderRadio('kemampuanPakaian', 'Kemampuan Beli Pakaian Baru', [
-              { val: 3, label: '1 Kali setahun (hanya sumbangan)' },
-              { val: 2, label: '2 Kali setahun' },
-              { val: 1, label: '≥ 3 Kali setahun' }
-            ], isEditMode)}
+                  {/* Auto Kalkulasi Income */}
+                  {surveyForm.pendapatanTotal && surveyForm.jumlahTanggungan && (
+                    <div className={cn(
+                      "p-3 rounded-xl border flex items-start gap-2 mt-2",
+                      pendapatanScore === 3 ? "bg-rose-50 border-rose-200 text-rose-800" :
+                        pendapatanScore === 2 ? "bg-amber-50 border-amber-200 text-amber-800" :
+                          "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    )}>
+                      <div className="flex-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Pendapatan Per Kapita</p>
+                        <p className="text-sm font-bold">{formatRupiah(pendapatanPerKapita.toString())} / orang</p>
+                        <p className="text-xs mt-1 font-medium">
+                          {pendapatanScore === 3 && "(Di Bawah Garis Kemiskinan)"}
+                          {pendapatanScore === 2 && "(Rentan Miskin / Tepat di Garis)"}
+                          {pendapatanScore === 1 && "(Mandiri / Di Atas Garis Kemiskinan)"}
+                        </p>
+                      </div>
+                      <div className="text-xl font-black opacity-50 text-right">
+                        +{pendapatanScore}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            {renderRadio('asumsiBantuan', 'Asumsi Subsidi / Bantuan Lain', [
-              { val: 4, label: 'Tidak Ada bantuan sama sekali' },
-              { val: 3, label: 'Ada sumbangan rutin < Rp 50.000/bulan' },
-              { val: 2, label: 'Ada bantuan dari kerabat > Rp 100.000/bulan' },
-              { val: 1, label: 'Biaya hidup ditanggung anak mandiri' }
-            ], isEditMode)}
-          </div>
-
-          {/* BAGIAN C: FISIK & TANGGUNGAN */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-            <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian C: Kondisi Fisik & Tanggungan</h4>
-
-            {renderRadio('keadaanFisik', 'Keadaan Fisik', [
-              { val: 4, label: 'Manula dan Sakit (Bedridden)' },
-              { val: 3, label: 'Manula (Sehat tapi tidak kuat kerja)' },
-              { val: 2, label: 'Cacat Produktif (Masih bisa aktivitas ringan)' },
-              { val: 1, label: 'Sehat / Produktif (Usia kerja normal)' }
-            ], isEditMode)}
-
-            {renderRadio('tanggunganKategori', 'Tanggungan Khusus', [
-              { val: 3, label: 'Anak Masih Sekolah' },
-              { val: 2, label: 'Keluarga Lainnya (Orang tua sakit)' },
-              { val: 1, label: 'Tidak Ada Tanggungan (Lajang/Mandiri)' }
-            ], isEditMode)}
-
-            {renderRadio('hutang', 'Kondisi Hutang', [
-              { val: 2, label: 'Terjerat Rentenir / Pinjaman Online' },
-              { val: 1, label: 'Non Rentenir / Bank Ringan / Tidak Ada' }
-            ], isEditMode)}
-
-            {renderRadio('kesehatan', 'Kemampuan Penuhi Kebutuhan Kesehatan', [
-              { val: 2, label: 'Tidak Ada Kemampuan (Tidak punya BPJS KIS/PBI)' },
-              { val: 1, label: 'Ada Kemampuan (BPJS Mandiri / Bayar sendiri)' }
-            ], isEditMode)}
-          </div>
+              {/* BAGIAN C: FISIK & TANGGUNGAN */}
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian C: Kondisi Fisik & Tanggungan</h4>
+                {(dynamicQuestions.length > 0 ? dynamicQuestions : defaultSurveyTemplateFallback)
+                  .filter(q => q.section === 'C')
+                  .map(q => renderQuestionField(q, isEditMode))
+                }
+              </div>
 
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
             <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Hasil Evaluasi Akhir</h4>
