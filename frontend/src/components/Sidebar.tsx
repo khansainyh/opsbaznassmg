@@ -64,14 +64,14 @@ const menuGroups = [
       { name: "Pilar & Program", icon: Network, roles: ["Super_Admin", "Kepala_Pelaksana"] },
       { name: "Database UPZ", icon: Building2, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Administrasi"] },
       { name: "Data Mustahik", icon: Users, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Staf_Distribusi"] },
-      { name: "Data Muzakki", icon: Users, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+      { name: "Data Muzakki", icon: Users, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
     ]
   },
   {
     title: "ADMINISTRASI",
     items: [
       { name: "Input Proposal", icon: FileText, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
-      { name: "Upload Proposal", icon: Upload, roles: ["Super_Admin", "Staf_Administrasi", "Humas"] },
+      { name: "Upload Proposal", icon: Upload, roles: ["Super_Admin", "Humas"] },
       { name: "Input Surat", icon: Newspaper, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },
@@ -122,7 +122,7 @@ const menuGroups = [
   {
     title: "PELAPORAN",
     items: [
-      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Kabag_Administrasi", "Staf_Administrasi", "Ketua", "Staf_Distribusi"] },
+      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi"] },
       { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin", "Staf_Keuangan"] },
       { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan", "Staf_Pelaporan", "Staf_Pengumpulan"] },
       { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin", "Staf_Keuangan", "Staf_Pelaporan", "Staf_Pengumpulan"] },
@@ -172,65 +172,88 @@ export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: S
         </button>
       </div>
 
-      <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto custom-scrollbar">
-        {menuGroups.map((group) => {
-          const visibleItems = group.items.filter(item => item.roles.includes(userRole));
-          if (visibleItems.length === 0) return null;
+      <nav className={cn(
+        "flex-1 px-4 py-4 overflow-y-auto custom-scrollbar",
+        userRole === 'Super_Admin' ? "space-y-6" : "space-y-1"
+      )}>
+        {userRole === 'Super_Admin' ? (
+          menuGroups.map((group) => {
+            const visibleItems = group.items.filter(item => item.roles.includes(userRole));
+            if (visibleItems.length === 0) return null;
 
-          return (
-            <div key={group.title}>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
-                {group.title}
-              </p>
-              <div className="space-y-1">
-                {visibleItems.map((item) => (
-                  <button
-                    key={item.name}
-                    onClick={() => { onMenuChange(item.name); onClose(); }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left",
-                      activeMenu === item.name 
-                        ? "bg-primary text-white shadow-sm shadow-primary/20" 
-                        : "text-slate-600 hover:bg-primary/10 hover:text-primary"
-                    )}
-                  >
-                    <item.icon className={cn("size-[22px]", activeMenu === item.name ? "text-white" : "text-slate-500")} />
-                    <span className={cn("text-sm", activeMenu === item.name ? "font-semibold" : "font-medium")}>
-                      {item.name}
-                    </span>
-                  </button>
-                ))}
+            return (
+              <div key={group.title}>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
+                  {group.title}
+                </p>
+                <div className="space-y-1">
+                  {visibleItems.map((item) => (
+                    <button
+                      key={item.name}
+                      onClick={() => { onMenuChange(item.name); onClose(); }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left",
+                        activeMenu === item.name 
+                          ? "bg-primary text-white shadow-sm shadow-primary/20" 
+                          : "text-slate-600 hover:bg-primary/10 hover:text-primary"
+                      )}
+                    >
+                      <item.icon className={cn("size-[22px]", activeMenu === item.name ? "text-white" : "text-slate-500")} />
+                      <span className={cn("text-sm", activeMenu === item.name ? "font-semibold" : "font-medium")}>
+                        {item.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        ) : (
+          menuGroups.flatMap(g => g.items).filter(item => item.roles.includes(userRole)).map((item) => (
+            <button
+              key={item.name}
+              onClick={() => { onMenuChange(item.name); onClose(); }}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left",
+                activeMenu === item.name 
+                  ? "bg-primary text-white shadow-sm shadow-primary/20" 
+                  : "text-slate-600 hover:bg-primary/10 hover:text-primary"
+              )}
+            >
+              <item.icon className={cn("size-[22px]", activeMenu === item.name ? "text-white" : "text-slate-500")} />
+              <span className={cn("text-sm", activeMenu === item.name ? "font-semibold" : "font-medium")}>
+                {item.name}
+              </span>
+            </button>
+          ))
+        )}
       </nav>
 
       <div className="p-4 mt-auto border-t border-primary/10 shrink-0">
       {settingsGroup.items.filter(item => item.roles.includes(userRole)).length > 0 && (
-        <div className="p-4 mt-auto border-t border-primary/10 shrink-0">
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
-            {settingsGroup.title}
-          </p>
-          <div className="space-y-1">
-            {settingsGroup.items.filter(item => item.roles.includes(userRole)).map((item) => (
-              <button
-                key={item.name}
-                onClick={() => { onMenuChange(item.name); onClose(); }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left",
-                  activeMenu === item.name 
-                    ? "bg-primary text-white shadow-sm shadow-primary/20" 
-                    : "text-slate-600 hover:bg-primary/10 hover:text-primary"
-                )}
-              >
-                <item.icon className={cn("size-[22px]", activeMenu === item.name ? "text-white" : "text-slate-500")} />
-                <span className={cn("text-sm", activeMenu === item.name ? "font-semibold" : "font-medium")}>
-                  {item.name}
-                </span>
-              </button>
-            ))}
-          </div>
+        <div className="space-y-1 mb-4">
+          {userRole === 'Super_Admin' && (
+            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
+              {settingsGroup.title}
+            </p>
+          )}
+          {settingsGroup.items.filter(item => item.roles.includes(userRole)).map((item) => (
+            <button
+              key={item.name}
+              onClick={() => { onMenuChange(item.name); onClose(); }}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left",
+                activeMenu === item.name 
+                  ? "bg-primary text-white shadow-sm shadow-primary/20" 
+                  : "text-slate-600 hover:bg-primary/10 hover:text-primary"
+              )}
+            >
+              <item.icon className={cn("size-[22px]", activeMenu === item.name ? "text-white" : "text-slate-500")} />
+              <span className={cn("text-sm", activeMenu === item.name ? "font-semibold" : "font-medium")}>
+                {item.name}
+              </span>
+            </button>
+          ))}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { uploadToDrive, formatScanFileName } from '../utils/gdrive';
 import path from 'path';
+import { sendNotificationEmail } from '../utils/email';
 
 export const getSurats = async (req: Request, res: Response) => {
   try {
@@ -74,6 +75,75 @@ export const updateSurat = async (req: Request, res: Response) => {
         await prisma.notification.createMany({
           data: notifications
         });
+
+        // Send Email Notifications
+        const users = await prisma.user.findMany({
+          where: { id: { in: addedStaff } },
+          select: { name: true, email: true }
+        });
+
+        for (const staffUser of users) {
+          if (staffUser.email) {
+            const tanggalAcaraStr = surat.tanggal_acara 
+              ? new Date(surat.tanggal_acara).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+              : '-';
+            const jamAcaraStr = surat.jam_acara || '-';
+            
+            const htmlContent = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                <div style="text-align: center; border-bottom: 2px solid #16a34a; padding-bottom: 15px; margin-bottom: 20px;">
+                  <h2 style="color: #16a34a; margin: 0; font-size: 22px;">BAZNAS Operational Hub</h2>
+                  <p style="color: #64748b; margin: 5px 0 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: bold;">Penugasan Undangan Baru</p>
+                </div>
+                
+                <div style="color: #334155; line-height: 1.6; font-size: 14px;">
+                  <p>Halo <strong>${staffUser.name}</strong>,</p>
+                  <p>Anda telah ditugaskan oleh <strong>Kepala Pelaksana</strong> untuk menghadiri undangan resmi berikut:</p>
+                  
+                  <div style="background-color: #f8fafc; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 4px 0; width: 120px; font-weight: bold; color: #475569;">Instansi Pengundang:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${surat.nama_instansi || 'Instansi Terkait'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-weight: bold; color: #475569;">Agenda Acara:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${surat.keperluan || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-weight: bold; color: #475569;">Hari, Tanggal:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${tanggalAcaraStr}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-weight: bold; color: #475569;">Waktu Acara:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${jamAcaraStr} WIB</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <p>Silakan masuk ke dasbor BAZNAS Operational Hub untuk detail lebih lanjut dan menindaklanjuti undangan ini.</p>
+                  
+                  <div style="text-align: center; margin-top: 30px;">
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/tracking-surat" style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Lihat Undangan</a>
+                  </div>
+                </div>
+
+                <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px;">
+                  <p>Ini adalah email otomatis dari BAZNAS Operational Hub. Harap tidak membalas email ini.</p>
+                  <p>&copy; ${new Date().getFullYear()} BAZNAS Kota Semarang. All rights reserved.</p>
+                </div>
+              </div>
+            `;
+
+            sendNotificationEmail({
+              to: staffUser.email,
+              subject: `📢 Penugasan Undangan Baru: ${surat.nama_instansi || 'Instansi Terkait'}`,
+              html: htmlContent
+            }).catch(err => {
+              console.error(`Gagal mengirim email penugasan ke ${staffUser.email}:`, err);
+            });
+          }
+        }
       }
     }
 
