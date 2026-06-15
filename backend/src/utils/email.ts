@@ -25,8 +25,9 @@ export async function sendNotificationEmail({ to, subject, html }: SendEmailPara
   }
 
   try {
+    const sender = process.env.SMTP_SENDER || process.env.SMTP_USER;
     const info = await transporter.sendMail({
-      from: `"BAZNAS Hub Notification" <${process.env.SMTP_USER}>`,
+      from: `"BAZNAS Hub Notification" <${sender}>`,
       to,
       subject,
       html,
