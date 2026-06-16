@@ -156,9 +156,7 @@ export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: S
     )}>
       <div className="p-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-lg bg-primary flex items-center justify-center text-white">
-            <Building2 className="size-6" />
-          </div>
+          <img src="/LogoBAZNASHUB.svg" className="size-14 object-contain" alt="BAZNAS Logo" />
           <div className="flex flex-col">
             <h1 className="text-slate-900 text-lg font-bold leading-none">BAZNAS</h1>
             <p className="text-primary text-[10px] font-bold uppercase tracking-wider">OPERATIONAL HUB</p>

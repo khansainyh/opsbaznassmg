@@ -37,12 +37,29 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
   const [activeTab, setActiveTab] = useState<'proposal' | 'surat'>('proposal');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
-  const [selectedSurat, setSelectedSurat] = useState<Surat | null>(null);
+   const [selectedSurat, setSelectedSurat] = useState<Surat | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [approvedToday, setApprovedToday] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [catatanPimpinan, setCatatanPimpinan] = useState('');
+  const [availability, setAvailability] = useState<any>(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    axios.get('/api/parameters/survey_template_individu')
+      .then(res => {
+        if (res.data && res.data.value) {
+          try {
+            setDynamicQuestions(JSON.parse(res.data.value));
+          } catch (e) {
+            console.error('Failed to parse survey template:', e);
+          }
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const antreanProposal = useMemo(() =>
     data.filter(d => d.status === 'Persetujuan Pimpinan'), [data]);
@@ -77,6 +94,12 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
     setSelectedSurat(null);
     setCatatanPimpinan('');
     setIsModalOpen(true);
+    setLoadingAvailability(true);
+    setAvailability(null);
+    axios.get(`/api/finance/check-availability/${item.id}`)
+      .then(res => setAvailability(res.data))
+      .catch(err => console.error('Gagal fetch availability:', err))
+      .finally(() => setLoadingAvailability(false));
   };
 
   const openSuratModal = (item: Surat) => {
@@ -496,7 +519,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                       <div className="space-y-5">
                         <div>
                           <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4 flex items-center gap-1.5">
-                            <MapPin className="size-3.5" /> Hasil Assessment
+                            <MapPin className="size-3.5" /> Hasil Assessment Lapangan
                           </h4>
                           <div className="grid grid-cols-2 gap-4">
                             <DetailItem label="Relawan Surveyor" value={selectedProposal.surveyorName || '-'} />
@@ -508,6 +531,70 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                               <span className={cn('inline-flex px-3 py-1 rounded-full text-xs font-black border uppercase', urgencyBadge(selectedProposal.urgencyLevel))}>
                                 {selectedProposal.urgencyLevel}
                               </span>
+                            </div>
+                          )}
+
+                          {selectedProposal.survey_data?.catatanLapangan && (
+                            <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                              <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
+                              <p className="text-xs text-slate-700 italic leading-relaxed">"{selectedProposal.survey_data.catatanLapangan}"</p>
+                            </div>
+                          )}
+
+                          {selectedProposal.survey_data && (
+                            <div className="mt-4 space-y-3">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">Rincian Kondisi Lapangan</p>
+                              
+                              {(selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
+                                selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+                                !!selectedProposal.survey_data?.berbadanHukum || 
+                                !!selectedProposal.survey_data?.usiaBerdiri) ? (
+                                <div className="space-y-3">
+                                  <SurveyDetailSection title="A. Profil Lembaga" items={[
+                                    { label: 'Berbadan Hukum', value: selectedProposal.survey_data?.berbadanHukum || '-' },
+                                    { label: 'Usia Berdiri', value: selectedProposal.survey_data?.usiaBerdiri || '-' },
+                                    { label: 'Bidang Garapan', value: selectedProposal.survey_data?.bidangGarapan || '-' },
+                                    { label: 'Daerah Jangkauan', value: selectedProposal.survey_data?.daerahJangkauan || '-' },
+                                  ]} />
+                                  <SurveyDetailSection title="B. Kelayakan" items={[
+                                    { label: 'Jenis Kegiatan', value: selectedProposal.survey_data?.layakJenisKegiatan || '-' },
+                                    { label: 'Jumlah Penerima Manfaat', value: selectedProposal.survey_data?.layakJumlahPenerima || '-' },
+                                  ]} />
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {[
+                                    { code: 'A', title: 'A. Kondisi Rumah' },
+                                    { code: 'B', title: 'B. Kondisi Ekonomi' },
+                                    { code: 'C', title: 'C. Fisik & Lainnya' }
+                                  ].map(sec => {
+                                    const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
+                                      { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
+                                      { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
+                                      { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
+                                      { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
+                                      { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
+                                      { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
+                                      { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
+                                      { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
+                                      { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
+                                      { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
+                                    ]).filter(q => q.section === sec.code);
+
+                                    const items = secQuestions.map(q => ({
+                                      label: q.label,
+                                      value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                                    }));
+
+                                    const hasValues = items.some(item => item.value !== '-');
+                                    if (!hasValues) return null;
+
+                                    return (
+                                      <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -538,6 +625,75 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                         )}
                       </div>
                     </div>
+
+                    {/* RKAT & Kas Info (Read-Only Information for Pimpinan/Ketua) */}
+                    {loadingAvailability ? (
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-3">
+                        <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <p className="text-xs text-slate-500 font-bold">Memeriksa Plafond RKAT &amp; Saldo Kas Riil...</p>
+                      </div>
+                    ) : availability ? (
+                      <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                        <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                          <span className="p-1 bg-primary text-white rounded text-[10px]">INFO</span>
+                          Informasi RKAT &amp; Saldo Kas (Read-Only)
+                        </h4>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           {/* Saldo Kas */}
+                          <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                              Saldo Kas Riil ({(() => {
+                                const kasType = availability.sumber_dana_yang_dipakai || 'ZAKAT';
+                                return kasType === 'ZAKAT' ? 'Zakat' :
+                                       kasType === 'INFAK_TIDAK_TERIKAT' ? 'Infak Tidak Terikat' :
+                                       kasType === 'INFAK_TERIKAT' ? 'Infak Terikat' : kasType;
+                              })()})
+                            </p>
+                            {(() => {
+                              const kasType = availability.sumber_dana_yang_dipakai || 'ZAKAT';
+                              const balance = kasType === 'ZAKAT' ? (availability.kas_riil?.detail?.zakat || 0) :
+                                              kasType === 'INFAK_TIDAK_TERIKAT' ? (availability.kas_riil?.detail?.istt || 0) :
+                                              kasType === 'INFAK_TERIKAT' ? (availability.kas_riil?.detail?.ist || 0) : 0;
+                              
+                              return (
+                                <div className="space-y-1">
+                                  <p className="text-lg font-black text-emerald-600">Rp {balance.toLocaleString('id-ID')}</p>
+                                  <p className="text-[10px] text-slate-400">Total nominal diajukan: <span className="font-extrabold text-slate-700">Rp {(selectedProposal.nominal || 0).toLocaleString('id-ID')}</span></p>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* RKAT */}
+                          <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Plafon RKAT Terkait</p>
+                            {(() => {
+                              const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedProposal.rkatActivityId);
+                              if (!act) {
+                                return (
+                                  <p className="text-xs text-slate-500 font-semibold italic">Tidak ada kegiatan RKAT yang dikaitkan.</p>
+                                );
+                              }
+
+                              const isEnough = act.sisa_pagu >= (selectedProposal.nominal || 0);
+
+                              return (
+                                <div className="space-y-1">
+                                  <p className="text-xs font-bold text-slate-800 line-clamp-1">"{act.name}"</p>
+                                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-50">
+                                    <span className="text-slate-400">Sisa Pagu:</span>
+                                    <span className={cn("font-extrabold", isEnough ? "text-emerald-600" : "text-rose-600")}>
+                                      Rp {act.sisa_pagu.toLocaleString('id-ID')}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -682,4 +838,61 @@ function StatCard({ title, value, icon, color, sub }: {
       </div>
     </div>
   );
+}
+
+function SurveyDetailSection({ title, items }: { title: string; items: { label: string; value: string }[] }) {
+  return (
+    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {items.map((item, i) => (
+          <div key={i} className="flex justify-between items-center text-[10px]">
+            <span className="text-slate-500 font-medium">{item.label}</span>
+            <span className="font-bold text-slate-800 text-right truncate ml-2">{item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): string {
+  if (score === undefined || score === null || score === 0 || score === '') return '-';
+  
+  if (dynamicQuestions && dynamicQuestions.length > 0) {
+    const question = dynamicQuestions.find(q => q.id === field);
+    if (question) {
+      if (question.type === 'checkbox') {
+        if (Array.isArray(score)) {
+          const selectedLabels = score.map((val: any) => {
+            const option = question.options?.find((opt: any) => opt.val === val);
+            return option ? option.label : val;
+          });
+          return selectedLabels.join(', ') || '-';
+        }
+      } else if (question.type === 'text') {
+        return String(score);
+      } else {
+        if (question.options) {
+          const option = question.options.find((opt: any) => opt.val === score);
+          if (option) return option.label;
+        }
+      }
+    }
+  }
+
+  const mapping: Record<string, Record<number, string>> = {
+    luasBangunan: { 3: '≤ 8 m²', 2: '8-10 m²', 1: '> 10 m²' },
+    jenisLantai: { 3: 'Tanah', 2: 'Semen', 1: 'Keramik' },
+    jenisDinding: { 3: 'Kayu/Bambu', 2: 'Bata Polos', 1: 'Tembok Rapi' },
+    statusTempatTinggal: { 4: 'Kost', 3: 'Kontrak', 2: 'Menumpang', 1: 'Milik Sendiri' },
+    pekerjaanKepala: { 3: 'Pengangguran', 2: 'Buruh/Nelayan', 1: 'Karyawan' },
+    frekuensiMakan: { 3: '1x Sehari', 2: '2x Sehari', 1: '3x Sehari' },
+    kemampuanLauk: { 3: 'Jarang', 2: '2x Seminggu', 1: 'Setiap Hari' },
+    keadaanFisik: { 4: 'Manula Sakit', 3: 'Manula Sehat', 2: 'Cacat Produktif', 1: 'Sehat/Produktif' },
+    hutang: { 2: 'Rentenir/Pinjol', 1: 'Bank/Tidak Ada' },
+    kesehatan: { 2: 'Tanah/Non-KIS', 1: 'BPJS/KIS' }
+  };
+
+  return mapping[field]?.[score] || '-';
 }

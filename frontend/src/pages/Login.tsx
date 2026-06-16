@@ -74,8 +74,8 @@ export default function Login() {
 
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden">
         <div className="bg-primary px-8 py-10 text-center">
-          <div className="bg-white/20 size-16 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-            <Building2 className="text-white size-8" />
+          <div className="bg-white size-24 rounded-2xl flex items-center justify-center mx-auto mb-4 p-1 shadow-sm">
+            <img src="/LogoBAZNASHUB.svg" className="w-full h-full object-contain" alt="BAZNAS Logo" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">BAZNAS Operational</h1>
           <p className="text-primary-foreground/80 text-sm">Masuk ke sistem pengelolaan dan distribusi</p>

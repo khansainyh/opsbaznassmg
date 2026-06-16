@@ -231,8 +231,8 @@ function App() {
         {/* Mobile Header */}
         <header className="xl:hidden bg-white border-b border-primary/10 px-4 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <div className="size-8 rounded-md bg-primary flex items-center justify-center text-white font-bold">B</div>
-            <span className="font-bold text-slate-900">BAZNAS HUB</span>
+            <img src="/LogoBAZNASHUB.svg" className="size-10 object-contain" alt="BAZNAS Logo" />
+            <span className="font-bold text-slate-900 text-sm">BAZNAS OPERATIONAL HUB</span>
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />

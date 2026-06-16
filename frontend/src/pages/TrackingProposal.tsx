@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import axios from 'axios';
 import {
   Search, Filter, Calendar, FileText, Clock, CheckCircle2,
   ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, Banknote, History, ExternalLink
@@ -149,6 +150,17 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
   const [selectedMemo, setSelectedMemo] = useState('Semua');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
+  const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    axios.get('/api/parameters/survey_template_individu')
+      .then(res => {
+        if (res.data && res.data.value) {
+          setDynamicQuestions(JSON.parse(res.data.value));
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const years = Array.from(new Set(data.map(d => new Date(d.tanggalMasuk).getFullYear().toString()))).sort().reverse();
   if (!years.includes(selectedYear)) years.push(selectedYear);
@@ -263,7 +275,14 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                   </td>
                   <td className="px-5 py-3">
                     <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                    <p className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</p>
+                    <div className="flex flex-col gap-0.5 mt-0.5">
+                      <span className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</span>
+                      {item.nominal ? (
+                        <span className="text-[10px] font-black text-emerald-600">
+                          Nominal: {formatCurrency(item.nominal)} ({item.tipeBantuan || 'Tunai'})
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-0.5">
@@ -364,6 +383,22 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                   )}
                 </div>
 
+                {/* Nominal Banner */}
+                {selectedProposal.nominal ? (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <Banknote className="size-5 text-emerald-600" />
+                      <div>
+                        <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Nominal Bantuan Disetujui</p>
+                        <p className="text-lg font-black text-emerald-700">{formatCurrency(selectedProposal.nominal)}</p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-lg uppercase">
+                      {selectedProposal.tipeBantuan || 'Tunai'}
+                    </span>
+                  </div>
+                ) : null}
+
                 {/* Info Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
@@ -384,6 +419,85 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     )}
                   </div>
                 </div>
+
+                {/* Hasil Assessment Lapangan / Detail Survei */}
+                {(selectedProposal.surveyorName || selectedProposal.score || selectedProposal.urgencyLevel || selectedProposal.survey_data) && (
+                  <div className="space-y-4 pt-2 border-t border-slate-100">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2 flex items-center gap-1.5">
+                      <MapPin className="size-4 text-slate-400" /> Hasil Assessment Lapangan
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <InfoRow icon={<User className="size-4 text-slate-400"/>} label="Relawan Surveyor" value={selectedProposal.surveyorName || '—'} />
+                      <InfoRow icon={<FileText className="size-4 text-slate-400"/>} label="Skor & Tingkat Urgensi" 
+                        value={`${selectedProposal.score ? selectedProposal.score + ' Poin' : '—'} ${selectedProposal.urgencyLevel ? '(' + selectedProposal.urgencyLevel + ')' : ''}`} />
+                    </div>
+
+                    {selectedProposal.survey_data?.catatanLapangan && (
+                      <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
+                        <p className="text-sm text-slate-700 italic leading-relaxed">"{selectedProposal.survey_data.catatanLapangan}"</p>
+                      </div>
+                    )}
+
+                    {selectedProposal.survey_data && (
+                      <div className="space-y-3 pt-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">Rincian Kondisi Lapangan</p>
+                        
+                        {(selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
+                          selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+                          !!selectedProposal.survey_data?.berbadanHukum || 
+                          !!selectedProposal.survey_data?.usiaBerdiri) ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <SurveyDetailSection title="A. Profil Lembaga" items={[
+                              { label: 'Berbadan Hukum', value: selectedProposal.survey_data?.berbadanHukum || '-' },
+                              { label: 'Usia Berdiri', value: selectedProposal.survey_data?.usiaBerdiri || '-' },
+                              { label: 'Bidang Garapan', value: selectedProposal.survey_data?.bidangGarapan || '-' },
+                              { label: 'Daerah Jangkauan', value: selectedProposal.survey_data?.daerahJangkauan || '-' },
+                            ]} />
+                            <SurveyDetailSection title="B. Kelayakan" items={[
+                              { label: 'Jenis Kegiatan', value: selectedProposal.survey_data?.layakJenisKegiatan || '-' },
+                              { label: 'Jumlah Penerima Manfaat', value: selectedProposal.survey_data?.layakJumlahPenerima || '-' },
+                            ]} />
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {[
+                              { code: 'A', title: 'A. Kondisi Rumah' },
+                              { code: 'B', title: 'B. Kondisi Ekonomi' },
+                              { code: 'C', title: 'C. Fisik & Lainnya' }
+                            ].map(sec => {
+                              const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
+                                { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
+                                { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
+                                { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
+                                { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
+                                { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
+                                { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
+                                { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
+                                { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
+                                { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
+                                { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
+                              ]).filter(q => q.section === sec.code);
+
+                              const items = secQuestions.map(q => ({
+                                label: q.label,
+                                value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                              }));
+
+                              const hasValues = items.some(item => item.value !== '-');
+                              if (!hasValues) return null;
+
+                              return (
+                                <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Preview Dokumen */}
                 <div className="space-y-2">
@@ -506,4 +620,63 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
       </div>
     </div>
   );
+}
+
+// --- HELPER COMPONENTS & FUNCTIONS FOR SURVEY ---
+
+function SurveyDetailSection({ title, items }: { title: string; items: { label: string; value: string }[] }) {
+  return (
+    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {items.map((item, i) => (
+          <div key={i} className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-500">{item.label}</span>
+            <span className="font-bold text-slate-800 text-right max-w-[150px] truncate">{item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): string {
+  if (score === undefined || score === null || score === 0 || score === '') return '-';
+  
+  if (dynamicQuestions && dynamicQuestions.length > 0) {
+    const question = dynamicQuestions.find(q => q.id === field);
+    if (question) {
+      if (question.type === 'checkbox') {
+        if (Array.isArray(score)) {
+          const selectedLabels = score.map((val: any) => {
+            const option = question.options?.find((opt: any) => opt.val === val);
+            return option ? option.label : val;
+          });
+          return selectedLabels.join(', ') || '-';
+        }
+      } else if (question.type === 'text') {
+        return String(score);
+      } else {
+        if (question.options) {
+          const option = question.options.find((opt: any) => opt.val === score);
+          if (option) return option.label;
+        }
+      }
+    }
+  }
+
+  const mapping: Record<string, Record<number, string>> = {
+    luasBangunan: { 3: '≤ 8 m²', 2: '8-10 m²', 1: '> 10 m²' },
+    jenisLantai: { 3: 'Tanah', 2: 'Semen', 1: 'Keramik' },
+    jenisDinding: { 3: 'Kayu/Bambu', 2: 'Bata Polos', 1: 'Tembok Rapi' },
+    statusTempatTinggal: { 4: 'Kost', 3: 'Kontrak', 2: 'Menumpang', 1: 'Milik Sendiri' },
+    pekerjaanKepala: { 3: 'Pengangguran', 2: 'Buruh/Nelayan', 1: 'Karyawan' },
+    frekuensiMakan: { 3: '1x Sehari', 2: '2x Sehari', 1: '3x Sehari' },
+    kemampuanLauk: { 3: 'Jarang', 2: '2x Seminggu', 1: 'Setiap Hari' },
+    keadaanFisik: { 4: 'Manula Sakit', 3: 'Manula Sehat', 2: 'Cacat Produktif', 1: 'Sehat/Produktif' },
+    hutang: { 2: 'Rentenir/Pinjol', 1: 'Bank/Tidak Ada' },
+    kesehatan: { 2: 'Tanah/Non-KIS', 1: 'BPJS/KIS' }
+  };
+
+  return mapping[field]?.[score] || '-';
 }
