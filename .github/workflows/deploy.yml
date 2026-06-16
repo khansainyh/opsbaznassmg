@@ -24,10 +24,20 @@ jobs:
           script: |
             set -e
             echo "==== STARTING DEPLOYMENT ===="
+            
+            echo "0. Loading NVM and Node environment..."
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            # Verify node & npm are loaded
+            echo "Using Node: $(node -v)"
+            echo "Using NPM: $(npm -v)"
+            
             cd /var/www/baznas-app
             
             echo "1. Fetching latest code from GitHub..."
-            git fetch https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/khansainyh/opsbaznassmg.git master
+            # Try fetching using existing origin config first, fallback to token if needed
+            git fetch origin master || git fetch https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/khansainyh/opsbaznassmg.git master
             git reset --hard FETCH_HEAD
             
             echo "2. Setting up Backend..."
@@ -35,7 +45,6 @@ jobs:
             npm install
             
             echo "3. Updating Database Schema (Prisma)..."
-            # Perintah ini akan menyamarkan/mengupdate skema DB otomatis di server
             npx prisma db push
             
             echo "4. Building Backend..."
