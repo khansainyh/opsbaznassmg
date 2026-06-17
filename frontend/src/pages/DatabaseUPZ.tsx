@@ -57,16 +57,23 @@ export default function DatabaseUPZ() {
   // Print Date Modal states
   const [isPrintDateModalOpen, setIsPrintDateModalOpen] = useState(false);
   const [printDateValue, setPrintDateValue] = useState('');
+  const [printRequestDateValue, setPrintRequestDateValue] = useState('');
   const [printHistoryTarget, setPrintHistoryTarget] = useState<SKHistory | null>(null);
   const [printActionType, setPrintActionType] = useState<'print' | 'download' | null>(null);
 
   const openPrintDateModal = (history: SKHistory, action: 'print' | 'download') => {
     setPrintHistoryTarget(history);
     setPrintActionType(action);
-    if (history.startDate) {
+    const isFormatValid = history.startDate && /^\d{4}-\d{2}-\d{2}$/.test(history.startDate);
+    if (isFormatValid) {
       setPrintDateValue(history.startDate);
+      // Default request date is 7 days before start date
+      const d = new Date(history.startDate);
+      d.setDate(d.getDate() - 7);
+      setPrintRequestDateValue(d.toISOString().split('T')[0]);
     } else {
-      setPrintDateValue(new Date().toISOString().split('T')[0]);
+      setPrintDateValue('');
+      setPrintRequestDateValue('');
     }
     setIsPrintDateModalOpen(true);
   };
@@ -75,9 +82,9 @@ export default function DatabaseUPZ() {
     if (!printHistoryTarget || !printActionType) return;
     setIsPrintDateModalOpen(false);
     if (printActionType === 'print') {
-      handlePrintSK(printHistoryTarget, printDateValue);
+      handlePrintSK(printHistoryTarget, printDateValue, printRequestDateValue);
     } else {
-      handleDownloadSKDoc(printHistoryTarget, printDateValue);
+      handleDownloadSKDoc(printHistoryTarget, printDateValue, printRequestDateValue);
     }
     setPrintHistoryTarget(null);
     setPrintActionType(null);
@@ -452,19 +459,21 @@ export default function DatabaseUPZ() {
     alert(`✅ Perubahan pengurus berhasil disimpan. No. SK tetap ${sameSKNumber}. Masa berlaku tetap.`);
   };
 
-  const generateSKHtml = (upz: UPZ, history: SKHistory, customTglDitetapkan?: string) => {
+  const generateSKHtml = (upz: UPZ, history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string) => {
     const isPembentukan = history.skType === 'Baru' || isSKPembentukan(history.skNumber);
     
-    let tipePerubahan = "";
+    let tipePerubahanTeks = "";
     let aksiBentukAtauUsul = "membentuk";
     
     if (!isPembentukan) {
       const { version } = parseSKNumber(history.skNumber);
-      const numbersInWords = ["PERTAMA", "KEDUA", "KETIGA", "KEEMPAT", "KELIMA", "KEENAM"];
-      const versionWord = version > 0 && version <= numbersInWords.length ? numbersInWords[version - 1] : `KE-${version}`;
-      tipePerubahan = `PERUBAHAN ${versionWord}`;
+      const numbersInWords = ["Pertama", "Kedua", "Ketiga", "Keempat", "Kelima", "Keenam"];
+      const versionWord = version > 0 && version <= numbersInWords.length ? numbersInWords[version - 1] : `Ke-${version}`;
+      tipePerubahanTeks = `Perubahan ${versionWord}`;
       aksiBentukAtauUsul = `mengusulkan Perubahan ${versionWord.charAt(0) + versionWord.slice(1).toLowerCase()}`;
     }
+
+    const tipePerubahan = tipePerubahanTeks ? tipePerubahanTeks.toUpperCase() : "";
     
     const startDate = history.startDate ? new Date(history.startDate) : new Date();
     const endDate = history.endDate ? new Date(history.endDate) : new Date(startDate.getFullYear() + 5, 11, 31);
@@ -478,7 +487,16 @@ export default function DatabaseUPZ() {
       return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
     };
     
-    const tglSuratMasuk = formatIndoDate(new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000));
+    let tglSuratMasuk = formatIndoDate(new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000));
+    if (customTglPermohonan) {
+      const parts = customTglPermohonan.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        tglSuratMasuk = formatIndoDate(new Date(year, month, day));
+      }
+    }
     
     let chosenDate = startDate;
     let tglDitetapkan = formatIndoDate(startDate);
@@ -513,7 +531,311 @@ export default function DatabaseUPZ() {
         }
       });
     }
-       return `<!DOCTYPE html>
+
+    if (upz.category === 'Instansi Vertikal' || upz.category === 'OPD' || upz.category === 'BUMD') {
+      return `<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Template SK BAZNAS - OPD/Instansi</title>
+    <style>
+        @page {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+        }
+        @page Section1 {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+            mso-header-margin: 0.5in;
+            mso-footer-margin: 0.5in;
+            mso-paper-source: 0;
+        }
+        div.Section1 {
+            page: Section1;
+        }
+        body, p, ol, ul, li, table, tr, td, th, div, span {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            mso-margin-top-alt: 0pt;
+            mso-margin-bottom-alt: 0pt;
+            mso-padding-top-alt: 0pt;
+            mso-padding-bottom-alt: 0pt;
+            line-height: 1.3;
+            mso-line-height-rule: exactly;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            color: #000;
+            background-color: #fff;
+        }
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+        .uppercase { text-transform: uppercase; }
+        
+        /* Layout untuk bagian Menimbang, Mengingat, Menetapkan */
+        .layout-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            vertical-align: top;
+        }
+        .layout-table td {
+            padding: 4px 0;
+            vertical-align: top;
+        }
+        .col-title { width: 110px; font-weight: bold; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; }
+        .col-content { width: calc(100% - 125px); text-align: justify; }
+
+        /* Tabel Susunan Pengurus */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid black;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 11pt;
+            line-height: 1.3;
+        }
+        .data-table th { text-align: center; font-weight: bold; }
+
+        ol, ul {
+            padding-left: 15px;
+        }
+        li {
+            line-height: 1.3;
+            text-align: justify;
+            margin-bottom: 6px;
+        }
+
+        .tembusan, .tembusan * {
+            line-height: 1.2 !important;
+        }
+        .page-break {
+            page-break-before: always;
+            clear: both;
+        }
+    </style>
+</head>
+<body>
+<div class="Section1">
+
+    <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
+
+    <!-- HALAMAN 1: SURAT KEPUTUSAN -->
+    <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+        <span class="bold">KEPUTUSAN</span><br>
+        <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+
+        <div style="margin: 8px 0;">TENTANG</div>
+
+        <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
+        <span class="bold">${upz.name.toUpperCase()} KOTA SEMARANG</span><br>
+        <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+
+        <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+    </div>
+
+    <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menimbang</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol type="a" style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) Tingkat Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Usulan Kepala ${upz.name} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upz.name} Periode ${periodeTahun};</li>
+                    <li style="margin-bottom: 6px;">bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Periode ${periodeTahun}.</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">Mengingat</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
+                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
+                    <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
+                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
+                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
+                    <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027;</li>
+                    <li style="margin-bottom: 6px;">Instruksi Walikota Semarang Nomor : 451.12/5594 tanggal 22 November 2016 tentang Pembayaran Zakat, Infak dan Sedekah bagi PNS dilingkungan Pemkot Semarang.</li>
+                </ol>
+            </td>
+        </tr>
+    </table>
+
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2) -->
+    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 20px;"></div>
+    <div class="text-center bold" style="margin-top: 15px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menetapkan</td>
+            <td class="col-colon">:</td>
+            <td class="col-content bold uppercase">
+                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upz.name.toUpperCase()} PERIODE ${periodeTahun}.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">PERTAMA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Periode ${periodeTahun} dengan susunan pengurus sebagaimana tercantum dalam lampiran surat keputusan ini.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KEDUA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Pengurus sebagaimana dimaksud pada DIKTUM PERTAMA memiliki tugas dan kewajiban sebagai berikut:
+                <ol type="a" style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Sosialisasi dan edukasi zakat, infak dan sedekah pada institusi UPZ ${upz.name} Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Mengumpulkan Dana Zakat, Infak dan Sedekah di lingkungan ${upz.name} Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Seluruh hasil pengumpulan dana UPZ wajib disetorkan kepada BAZNAS Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Pendataan dan layanan muzakki pada masing-masing institusi UPZ ${upz.name} Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Penyerahan Nomor Pokok Wajib Zakat (NPWZ) dan Bukti Setor Zakat (BSZ) yang diterbitkan oleh BAZNAS Kota Semarang kepada muzakki;</li>
+                    <li style="margin-bottom: 6px;">Penyusunan laporan kegiatan pengumpulan zakat, infak dan sedekah BAZNAS Kota Semarang.</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KETIGA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Masa Kerja Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Kota Semarang sebagaimana dimaksud Diktum KESATU adalah selama 5 (Lima) Tahun.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KEEMPAT</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Segala biaya yang ditimbulkan akibat diterbitkannya Surat Keputusan ini dibebankan pada Anggaran Badan Amil Zakat Nasional (BAZNAS) Kota Semarang melalui Amil sebesar 5 % (Lima persen) dari Perolehan yang dihimpun.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KELIMA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Surat Keputusan ini mulai berlaku sejak tanggal ini ditetapkan and akan ditinjau kembali jika ada kekeliruan didalamnya.
+            </td>
+        </tr>
+    </table>
+
+    <!-- TANDA TANGAN -->
+    <div style="clear: both; margin-top: 40px; width: 100%; page-break-inside: avoid;">
+        <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+            <tr>
+                <td style="width: 100px; border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
+            </tr>
+            <tr>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 85px;">KETUA BAZNAS KOTA SEMARANG,</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+            </tr>
+        </table>
+        <div style="clear: both;"></div>
+    </div>
+
+    <!-- TEMBUSAN -->
+    <div class="tembusan" style="margin-top: 30px; font-size: 9pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+        <div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px;">Salinan disampaikan kepada Yth.:</div>
+        <ol style="margin: 0; padding-left: 15px; list-style-type: decimal;">
+            <li style="margin-bottom: 3px;">Walikota Semarang (sebagai laporan);</li>
+            <li style="margin-bottom: 3px;">Ketua BAZNAS Provinsi Jawa Tengah (sebagai laporan);</li>
+            <li style="margin-bottom: 3px;">Kepala Kantor Kementerian Agama Kota Semarang;</li>
+            <li style="margin-bottom: 3px;">Pengurus UPZ ${upz.name} Kota Semarang dimaksud.</li>
+        </ol>
+    </div>
+
+    <!-- HALAMAN 3: LAMPIRAN -->
+    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 20px;">
+        <table style="width: 100%; font-size: 11pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
+            <tr>
+                <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
+                <td style="width: 15px; border: none; padding: 1px 0; font-weight: bold; text-align: center; vertical-align: top;">:</td>
+                <td style="border: none; padding: 1px 0; vertical-align: top; text-align: justify; line-height: 1.3;">
+                    Keputusan Ketua BAZNAS Kota Semarang<br>
+                    Nomor : ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+                    Tentang<br>
+                    PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
+                    ${upz.name.toUpperCase()} KOTA SEMARANG PERIODE ${periodeTahun}
+                </td>
+            </tr>
+        </table>
+
+        <div class="text-center bold uppercase" style="margin-top: 30px; margin-bottom: 20px; line-height: 1.3;">
+            SUSUNAN PENGURUS<br>
+            UNIT PENGUMPUL ZAKAT (UPZ)<br>
+            ${upz.name.toUpperCase()} KOTA SEMARANG<br>
+            PERIODE ${periodeTahun}
+        </div>
+
+        <!-- TABEL PENGURUS -->
+        <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
+            <thead>
+                <tr>
+                    <th style="width: 8%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">NO</th>
+                    <th style="width: 32%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">NAMA</th>
+                    <th style="width: 30%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">JABATAN DALAM INSTANSI</th>
+                    <th style="width: 30%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">JABATAN DALAM UPZ</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pengurusList.map((item, idx) => `
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; text-align: center;">${idx + 1}.</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.nama}</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.alamat || '-'}</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.jabatan}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+
+        <!-- TANDA TANGAN LAMPIRAN -->
+        <div style="clear: both; margin-top: 30px; width: 100%; page-break-inside: avoid;">
+            <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+                <tr>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-bottom: 85px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                </tr>
+                <tr>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                </tr>
+            </table>
+            <div style="clear: both;"></div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>`;
+    }
+
+    return `<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -631,7 +953,7 @@ export default function DatabaseUPZ() {
             <td class="col-content">
                 <ol type="a" style="margin: 0; padding-left: 15px;">
                     <li style="margin-bottom: 0px;">Bahwa untuk meningkatkan dayaguna dan hasil guna serta akuntabilitas dalam pengelolaan zakat, infak, sedekah dan dana sosial keagamaan lainnya (DSKL), maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) Masjid se-Kota Semarang;</li>
-                    <li style="margin-bottom: 0px;">Surat dari ${upz.name} tanggal ${tglSuratMasuk} tentang permohonan pembentukan pengurus UPZ ${upz.name} BAZNAS Kota Semarang Masa Bhakti ${periodeTahun};</li>
+                    <li style="margin-bottom: 0px;">Surat dari ${upz.name} tanggal ${tglSuratMasuk} tentang Permohonan ${isPembentukan ? 'pembentukan' : `pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}`}pengurus UPZ ${upz.name} BAZNAS Kota Semarang Masa Bhakti ${periodeTahun};</li>
                 </ol>
             </td>
         </tr>
@@ -663,7 +985,7 @@ export default function DatabaseUPZ() {
             <td class="col-title">PERTAMA</td>
             <td class="col-colon">:</td>
             <td class="col-content">
-                Mengangkat ${tipePerubahan ? tipePerubahan + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Masa Bhakti ${periodeTahun} dengan susunan pengurus sebagai berikut:
+                Mengangkat ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Masa Bhakti ${periodeTahun} dengan susunan pengurus sebagai berikut:
                 
                 <table class="data-table">
                     <tr>
@@ -743,9 +1065,9 @@ export default function DatabaseUPZ() {
 </html>`;
   };
 
-  const handlePrintSK = (history: SKHistory, customTglDitetapkan?: string) => {
+  const handlePrintSK = (history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string) => {
     if (!selectedUPZ) return;
-    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan);
+    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan, customTglPermohonan);
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(htmlContent);
@@ -757,9 +1079,9 @@ export default function DatabaseUPZ() {
     }
   };
 
-  const handleDownloadSKDoc = (history: SKHistory, customTglDitetapkan?: string) => {
+  const handleDownloadSKDoc = (history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string) => {
     if (!selectedUPZ) return;
-    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan);
+    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan, customTglPermohonan);
     const blob = new Blob(['\ufeff' + htmlContent], {
       type: 'application/msword'
     });
@@ -1138,7 +1460,7 @@ export default function DatabaseUPZ() {
                           <th className="px-6 py-4">Masa Berlaku</th>
                           <th className="px-6 py-4">Pengurus Utama</th>
                           <th className="px-6 py-4 text-center">Status</th>
-                          {selectedUPZ.category === 'Masjid & Mushola' && (
+                          {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) && (
                             <th className="px-6 py-4 text-right">Draft SK</th>
                           )}
                         </tr>
@@ -1186,7 +1508,7 @@ export default function DatabaseUPZ() {
                                 {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
                               </span>
                             </td>
-                            {selectedUPZ.category === 'Masjid & Mushola' && (
+                            {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) && (
                               <td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <button
@@ -1246,8 +1568,10 @@ export default function DatabaseUPZ() {
                           <input type="text" value={formPengurus[jabatan].nama} onChange={e => updatePengurusField(jabatan, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                          </label>
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -1261,7 +1585,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder="Alamat..." className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -1316,8 +1640,10 @@ export default function DatabaseUPZ() {
                           <input type="text" value={formPengurus[jabatan].nama} onChange={e => updatePengurusField(jabatan, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                          </label>
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -1331,7 +1657,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder="Alamat..." className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -1390,23 +1716,34 @@ export default function DatabaseUPZ() {
               className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Tanggal Penetapan SK</h3>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Parameter Tanggal SK</h3>
                 <button onClick={() => setIsPrintDateModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
               <div className="p-6 space-y-4">
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Silakan masukkan tanggal penetapan SK yang akan tercantum pada dokumen sebelum di-print/unduh.
+                  Silakan masukkan tanggal permohonan dan tanggal penetapan SK yang akan tercantum pada dokumen sebelum di-print/unduh.
                 </p>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Ditetapkan</label>
-                  <input 
-                    type="date"
-                    value={printDateValue}
-                    onChange={(e) => setPrintDateValue(e.target.value)}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Permohonan</label>
+                    <input 
+                      type="date"
+                      value={printRequestDateValue}
+                      onChange={(e) => setPrintRequestDateValue(e.target.value)}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Ditetapkan</label>
+                    <input 
+                      type="date"
+                      value={printDateValue}
+                      onChange={(e) => setPrintDateValue(e.target.value)}
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
@@ -1666,7 +2003,9 @@ export default function DatabaseUPZ() {
                             <MapPin className="size-5" />
                           </div>
                           <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Penasehat</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan Penasehat' : 'Alamat Penasehat'}
+                            </p>
                             <p className={cn(
                               "text-sm font-bold",
                               displayStatus !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
@@ -1979,12 +2318,14 @@ export default function DatabaseUPZ() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
+                          {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                        </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder="Alamat..."
+                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
@@ -2012,8 +2353,10 @@ export default function DatabaseUPZ() {
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="col-span-6 space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                            </label>
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="col-span-1 flex items-end justify-end mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-all">
@@ -2337,12 +2680,14 @@ export default function DatabaseUPZ() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
+                          {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                        </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder="Alamat..."
+                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
@@ -2370,8 +2715,10 @@ export default function DatabaseUPZ() {
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="col-span-6 space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat</label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                            </label>
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="col-span-1 flex items-end justify-end mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-all">
