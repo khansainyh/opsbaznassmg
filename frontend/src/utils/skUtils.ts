@@ -1,4 +1,26 @@
-import { SKHistory } from '../types/upz';
+import { SKHistory, UPZ } from '../types/upz';
+
+/**
+ * Map UPZ category to its respective numbering group
+ */
+export function getSKGroupForCategory(category: string): string {
+  if (['Instansi Vertikal', 'OPD', 'BUMD'].includes(category)) {
+    return 'institutional';
+  }
+  if (['Pemerintah Kecamatan', 'Kecamatan'].includes(category)) {
+    return 'kecamatan';
+  }
+  if (['Perusahaan Swasta', 'Organisasi Profesi', 'Yayasan'].includes(category)) {
+    return 'private_org';
+  }
+  if (['Masjid & Mushola'].includes(category)) {
+    return 'mosque';
+  }
+  if (['Univ/PT/Pendidikan Menengah', 'Pendidikan Dasar'].includes(category)) {
+    return 'education';
+  }
+  return category;
+}
 
 /**
  * Parse SK number string ke object { base, version }
@@ -40,12 +62,30 @@ export function getNextRenewalSKNumber(currentActiveSKNumber: string): string {
 
 /**
  * Hitung nomor SK dasar (base) berikutnya untuk REGISTRASI UPZ BARU
- * Mencari max base dari SELURUH riwayat SK, lalu +1
- * Contoh: max existing base = 1573 → returns 1574
+ * Berdasarkan grup kategori UPZ
  */
-export function getNextBaseSKNumber(allSKHistories: SKHistory[]): number {
-  if (allSKHistories.length === 0) return 1;
-  const bases = allSKHistories.map((sk) => parseSKNumber(sk.skNumber).base);
+export function getNextBaseSKNumber(allSKHistories: SKHistory[], allUPZs: UPZ[], targetCategory: string): number {
+  if (!allSKHistories || allSKHistories.length === 0) return 1;
+  if (!allUPZs || allUPZs.length === 0) return 1;
+
+  const targetGroup = getSKGroupForCategory(targetCategory);
+
+  // Map UPZ ID to Category
+  const upzCategoryMap = new Map<string, string>();
+  for (const upz of allUPZs) {
+    upzCategoryMap.set(upz.id, upz.category);
+  }
+
+  // Filter histories matching the target category group
+  const groupHistories = allSKHistories.filter((sk) => {
+    const category = upzCategoryMap.get(sk.upzId);
+    if (!category) return false;
+    return getSKGroupForCategory(category) === targetGroup;
+  });
+
+  if (groupHistories.length === 0) return 1;
+
+  const bases = groupHistories.map((sk) => parseSKNumber(sk.skNumber).base);
   return Math.max(...bases) + 1;
 }
 

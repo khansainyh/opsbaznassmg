@@ -76,6 +76,7 @@ interface SearchableDropdownSingleProps {
   placeholder?: string;
   allowEmpty?: boolean;
   emptyLabel?: string;
+  disabled?: boolean;
 }
 
 const SearchableDropdownSingle: React.FC<SearchableDropdownSingleProps> = ({
@@ -85,7 +86,8 @@ const SearchableDropdownSingle: React.FC<SearchableDropdownSingleProps> = ({
   options,
   placeholder = "Pilih item...",
   allowEmpty = true,
-  emptyLabel = "-- Kosong / Tidak Dipilih --"
+  emptyLabel = "-- Kosong / Tidak Dipilih --",
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -118,8 +120,11 @@ const SearchableDropdownSingle: React.FC<SearchableDropdownSingleProps> = ({
       
       {/* Selector Trigger */}
       <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all cursor-pointer flex items-center justify-between gap-1.5 pr-8 relative"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={cn(
+          "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all pr-8 relative",
+          disabled ? "cursor-not-allowed bg-slate-100 opacity-60" : "cursor-pointer"
+        )}
       >
         <span className={cn("truncate", !selectedValue && "text-slate-400 font-normal")}>
           {selectedOption ? (
@@ -301,6 +306,7 @@ export default function RekonsiliasiMutasi() {
 
   // Form states - Add Mutation
   const [formTanggal, setFormTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const [formAddType, setFormAddType] = useState<'DEBIT' | 'KREDIT'>('DEBIT');
   const [formBankId, setFormBankId] = useState('');
   const [formKeteranganBank, setFormKeteranganBank] = useState('');
   const [formNominal, setFormNominal] = useState<number | ''>('');
@@ -312,6 +318,7 @@ export default function RekonsiliasiMutasi() {
   const [formSumberDana, setFormSumberDana] = useState('ZAKAT');
   const [formKeteranganRealisasi, setFormKeteranganRealisasi] = useState('');
   const [formRkatId, setFormRkatId] = useState('');
+  const [isOutsideRkat, setIsOutsideRkat] = useState(false);
 
   // Quick register states
   const [showQuickRegister, setShowQuickRegister] = useState(false);
@@ -519,7 +526,8 @@ export default function RekonsiliasiMutasi() {
         tanggal: formTanggal,
         bankAccountId: formBankId,
         keteranganBank: formKeteranganBank.trim(),
-        nominal: Number(formNominal)
+        nominal: Number(formNominal),
+        type: formAddType
       };
 
       const res = await axios.post('/api/mutations', payload);
@@ -529,7 +537,12 @@ export default function RekonsiliasiMutasi() {
       setFormKeteranganBank('');
       setFormNominal('');
       setIsAddModalOpen(false);
-      showToast('Mutasi Kredit Bank berhasil direkam!', 'success');
+      showToast(
+        formAddType === 'DEBIT' 
+          ? 'Mutasi Uang Masuk Bank berhasil direkam!' 
+          : 'Mutasi Uang Keluar Bank berhasil direkam!', 
+        'success'
+      );
     } catch (error: any) {
       console.error(error);
       const errMsg = error.response?.data?.error || 'Gagal menyimpan mutasi';
@@ -547,6 +560,7 @@ export default function RekonsiliasiMutasi() {
     setCoaSearch('');
     setIsCoaDropdownOpen(false);
     setFormRkatId('');
+    setIsOutsideRkat(false);
     setFormCoaCode('');
     setShowQuickRegister(false);
     setQuickNama('');
@@ -631,8 +645,14 @@ export default function RekonsiliasiMutasi() {
       ? (selectedMuzakki?.nama || formCustomMuzakki.trim() || 'Hamba Allah')
       : '-';
 
-    if (!formRkatId || !formCoaCode) {
-      showToast('Kegiatan RKAT dan Akun Buku Besar (COA) wajib diisi!', 'error');
+    const needsRkat = !isOutsideRkat || isDebit;
+    if ((needsRkat && !formRkatId) || !formCoaCode) {
+      showToast(
+        needsRkat
+          ? 'Kegiatan RKAT dan Akun Buku Besar (COA) wajib diisi!'
+          : 'Akun Buku Besar (COA) wajib diisi!',
+        'error'
+      );
       return;
     }
 
@@ -641,7 +661,7 @@ export default function RekonsiliasiMutasi() {
         muzakkiId: isDebit ? (formMuzakkiId || null) : null,
         muzakkiName: donorName,
         coaCode: formCoaCode,
-        rkatId: formRkatId,
+        rkatId: needsRkat ? formRkatId : null,
         sumberDana: isDebit ? formSumberDana : '-',
         keteranganRealisasi: formKeteranganRealisasi.trim(),
         userName: user?.name || user?.role || 'Staff'
@@ -836,9 +856,12 @@ export default function RekonsiliasiMutasi() {
             <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-3 py-1.5 rounded-md border border-slate-200">
               Peran: <span className="text-primary font-black">{user?.role?.replace('_', ' ')}</span>
             </span>
-            {activeTab === 'PENERIMAAN' && (user?.role === 'Super_Admin' || user?.role === 'Staf_Keuangan') && (
+            {(user?.role === 'Super_Admin' || user?.role === 'Staf_Keuangan') && (
               <button 
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => {
+                  setFormAddType(activeTab === 'PENERIMAAN' ? 'DEBIT' : 'KREDIT');
+                  setIsAddModalOpen(true);
+                }}
                 className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all flex items-center gap-2 active:scale-95 uppercase tracking-wider shrink-0"
               >
                 <Plus className="size-4" /> Catat Mutasi
@@ -970,7 +993,7 @@ export default function RekonsiliasiMutasi() {
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <Building className="size-4 text-primary" />
-                  Catat Uang Masuk Mutasi Bank
+                  {formAddType === 'DEBIT' ? 'Catat Uang Masuk Mutasi Bank' : 'Catat Uang Keluar Mutasi Bank'}
                 </h3>
                 <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                   <X className="size-5" />
@@ -992,7 +1015,9 @@ export default function RekonsiliasiMutasi() {
 
                 {/* Bank Account */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pilih Akun Bank Penerima</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    {formAddType === 'DEBIT' ? 'Pilih Akun Bank Penerima' : 'Pilih Akun Bank Pengirim'}
+                  </label>
                   <select
                     value={formBankId}
                     onChange={(e) => setFormBankId(e.target.value)}
@@ -1308,6 +1333,25 @@ export default function RekonsiliasiMutasi() {
                 ) : (
                   // =================== PENYALURAN / KREDIT FLOW ===================
                   <>
+                    {/* Checkbox Tidak Ada di RKAT */}
+                    <div className="flex items-center gap-2 text-left mb-1">
+                      <input 
+                        type="checkbox" 
+                        id="isOutsideRkat"
+                        checked={isOutsideRkat}
+                        onChange={(e) => {
+                          setIsOutsideRkat(e.target.checked);
+                          if (e.target.checked) {
+                            setFormRkatId('');
+                          }
+                        }}
+                        className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <label htmlFor="isOutsideRkat" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                        Tidak ada di RKAT (Pengeluaran di luar RKAT)
+                      </label>
+                    </div>
+
                     {/* 1. Kegiatan (RKAT Penyaluran / Operasional) */}
                     <div className="space-y-1.5 text-left">
                       <SearchableDropdownSingle
@@ -1326,6 +1370,7 @@ export default function RekonsiliasiMutasi() {
                         placeholder="Cari program Penyaluran / Operasional..."
                         allowEmpty={true}
                         emptyLabel="-- Pilih Kegiatan RKAT --"
+                        disabled={isOutsideRkat}
                       />
                     </div>
 

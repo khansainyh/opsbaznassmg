@@ -40,13 +40,35 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
 
   // Filter only proposals with 'Pencairan Dana' or 'Antrean Bantuan' status
   const filteredData = useMemo(() => {
-    return data.filter(item => {
+    const res = data.filter(item => {
       const isPencairan = item.status === 'Pencairan Dana' || item.status === 'Antrean Bantuan';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                          (item.nik || '').includes(searchTerm);
       return isPencairan && searchMatch;
+    });
+
+    const urgencyOrder: Record<string, number> = {
+      'Sangat Kritis': 4,
+      'Kritis': 4,
+      'Tinggi': 3,
+      'Sedang': 2,
+      'Rendah': 1,
+    };
+
+    return [...res].sort((a, b) => {
+      const orderA = urgencyOrder[a.urgencyLevel || ''] || 0;
+      const orderB = urgencyOrder[b.urgencyLevel || ''] || 0;
+      if (orderB !== orderA) {
+        return orderB - orderA;
+      }
+      const scoreA = a.score || 0;
+      const scoreB = b.score || 0;
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      return Number(b.agendaNo) - Number(a.agendaNo);
     });
   }, [data, searchTerm]);
 
@@ -152,6 +174,7 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                 <th className="px-6 py-4">No. Agenda</th>
                 <th className="px-6 py-4">Mustahik</th>
                 <th className="px-6 py-4">Program & Jenis</th>
+                <th className="px-6 py-4">Urgensi &amp; Skor</th>
                 <th className="px-6 py-4">Nominal</th>
                 <th className="px-6 py-4">Tipe</th>
                 <th className="px-6 py-4 text-center">Aksi</th>
@@ -185,6 +208,22 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                     </div>
                   </td>
                   <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      <span className={cn(
+                        "px-2 py-0.5 rounded text-[10px] font-bold border w-fit uppercase",
+                        item.urgencyLevel === 'Sangat Kritis' || item.urgencyLevel === 'Kritis' ? "bg-rose-50 text-rose-600 border-rose-100" :
+                        item.urgencyLevel === 'Tinggi' ? "bg-orange-50 text-orange-600 border-orange-100" :
+                        item.urgencyLevel === 'Sedang' ? "bg-amber-50 text-amber-600 border-amber-100" :
+                        "bg-slate-50 text-slate-400 border-slate-200"
+                      )}>
+                        {item.urgencyLevel || 'Rendah'}
+                      </span>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        Skor: <strong className="font-bold text-slate-700">{item.score || 0}</strong>
+                      </p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
                     <p className="text-sm font-black text-slate-900">{formatCurrency(item.nominal || 0)}</p>
                   </td>
                   <td className="px-6 py-4">
@@ -214,7 +253,7 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <ClipboardList className="size-12 opacity-10" />
                       <p className="text-sm font-medium">Tidak ada antrean pencairan saat ini.</p>
@@ -286,9 +325,29 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                           <p className="text-xl font-black text-slate-900">{formatCurrency(selectedProposal.nominal || 0)}</p>
                         </div>
                       </div>
+                </div>
+              </div>
+            </div>
+
+                {/* Hasil Assessment/Survei Lapangan */}
+                {(selectedProposal.score || selectedProposal.urgencyLevel || selectedProposal.survey_data) && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Hasil Survei &amp; Assessment</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <DetailItem label="Tingkat Urgensi" value={selectedProposal.urgencyLevel || 'Rendah'} />
+                        <DetailItem label="Skor Survei" value={selectedProposal.score ? `${selectedProposal.score} Poin` : '—'} />
+                      </div>
+                      {selectedProposal.survey_data?.catatanLapangan && (
+                        <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                          <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
+                          <p className="text-sm text-slate-700 italic leading-relaxed">"{selectedProposal.survey_data.catatanLapangan}"</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">

@@ -114,6 +114,99 @@ export const createMutation = async (req: Request, res: Response) => {
   }
 };
 
+export const updateMutation = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { tanggal, bankAccountId, keteranganBank, nominal, type } = req.body;
+
+    const mutations = readMutations();
+    const index = mutations.findIndex(m => m.id === id);
+
+    if (index === -1) {
+      res.status(404).json({ error: 'Mutasi bank tidak ditemukan' });
+      return;
+    }
+
+    const mutation = mutations[index];
+    if (mutation.status === 'RECONCILED') {
+      res.status(400).json({ error: 'Mutasi bank yang sudah direkonsiliasi tidak dapat diubah' });
+      return;
+    }
+
+    const account = await prisma.bankAccount.findUnique({
+      where: { account_id: bankAccountId } as any
+    }) as any;
+
+    if (!account) {
+      res.status(404).json({ error: 'Akun Bank tidak ditemukan' });
+      return;
+    }
+
+    mutation.tanggal = tanggal || mutation.tanggal;
+    mutation.bankAccountId = bankAccountId || mutation.bankAccountId;
+    mutation.bankName = account.nama_akun;
+    mutation.keteranganBank = keteranganBank || mutation.keteranganBank;
+    mutation.nominal = nominal !== undefined ? Number(nominal) : mutation.nominal;
+    mutation.type = type === 'KREDIT' ? 'KREDIT' : 'DEBIT';
+
+    mutations[index] = mutation;
+    writeMutations(mutations);
+
+    res.status(200).json(mutation);
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const bulkCreateMutations = async (req: Request, res: Response) => {
+  try {
+    const { bankAccountId, items } = req.body;
+    if (!bankAccountId || !items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'Data bankAccountId dan list items wajib dikirim' });
+      return;
+    }
+
+    const account = await prisma.bankAccount.findUnique({
+      where: { account_id: bankAccountId } as any
+    }) as any;
+
+    if (!account) {
+      res.status(404).json({ error: 'Akun Bank tidak ditemukan' });
+      return;
+    }
+
+    const mutations = readMutations();
+    const created: any[] = [];
+
+    items.forEach((item: any, idx: number) => {
+      const { tanggal, keteranganBank, nominal, type } = item;
+      
+      // Basic check
+      if (!tanggal || !keteranganBank || !nominal) return;
+
+      const newMutation = {
+        id: `mut-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+        tanggal,
+        bankAccountId,
+        bankName: account.nama_akun,
+        keteranganBank,
+        nominal: Number(nominal),
+        type: type === 'KREDIT' ? 'KREDIT' : 'DEBIT',
+        status: 'PENDING'
+      };
+
+      mutations.push(newMutation);
+      created.push(newMutation);
+    });
+
+    writeMutations(mutations);
+
+    res.status(201).json({ success: true, count: created.length, data: created });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+};
+
 export const deleteMutation = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

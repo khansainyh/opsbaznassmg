@@ -102,7 +102,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
   const filteredProposals = useMemo(() => {
     const selectedAcc = allowedAccounts.find(a => a.account_id === selectedAccountId);
 
-    return validProposals.filter(p => {
+    const res = validProposals.filter(p => {
       const searchMatch = p.agendaNo.toString().includes(searchTerm) || 
                          p.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (p.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase());
@@ -116,6 +116,28 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
       // If no source account is selected, fallback to active tab filter
       if (activeFilterTab === 'all') return true;
       return getProposalTag(p) === activeFilterTab;
+    });
+
+    const urgencyOrder: Record<string, number> = {
+      'Sangat Kritis': 4,
+      'Kritis': 4,
+      'Tinggi': 3,
+      'Sedang': 2,
+      'Rendah': 1,
+    };
+
+    return [...res].sort((a, b) => {
+      const orderA = urgencyOrder[a.urgencyLevel || ''] || 0;
+      const orderB = urgencyOrder[b.urgencyLevel || ''] || 0;
+      if (orderB !== orderA) {
+        return orderB - orderA;
+      }
+      const scoreA = a.score || 0;
+      const scoreB = b.score || 0;
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      return Number(b.agendaNo) - Number(a.agendaNo);
     });
   }, [validProposals, selectedAccountId, allowedAccounts, activeFilterTab, searchTerm]);
 
@@ -474,6 +496,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                   <th className="py-3 px-4">Nama Mustahik</th>
                   <th className="py-3 px-4">Tag Dana / Asnaf</th>
                   <th className="py-3 px-4">Bantuan / Program</th>
+                  <th className="py-3 px-4">Poin &amp; Urgensi</th>
                   <th className="py-3 px-4 text-right">Nominal Bantuan</th>
                 </tr>
               </thead>
@@ -525,8 +548,24 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                             </span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-600 truncate max-w-[200px]">
+                        <td className="py-3 px-4 text-slate-600 truncate max-w-[150px]">
                           {item.jenisPermohonan}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-[9px] font-black uppercase border",
+                              item.urgencyLevel === 'Sangat Kritis' || item.urgencyLevel === 'Kritis' ? "bg-rose-50 text-rose-600 border-rose-100" :
+                              item.urgencyLevel === 'Tinggi' ? "bg-orange-50 text-orange-600 border-orange-100" :
+                              item.urgencyLevel === 'Sedang' ? "bg-amber-50 text-amber-600 border-amber-100" :
+                              "bg-slate-50 text-slate-400 border-slate-200"
+                            )}>
+                              {item.urgencyLevel || 'Rendah'}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              ({item.score || 0} pts)
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                           {formatCurrency(item.nominal || 0)}
@@ -536,7 +575,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400 italic">
+                    <td colSpan={7} className="py-8 text-center text-slate-400 italic">
                       Tidak ada antrean pencairan dana yang cocok dengan kriteria filter.
                     </td>
                   </tr>

@@ -160,5 +160,15 @@
     "rkatId": "d0980e41-b62a-4dcf-a78b-8614097ce05c",
     "sumberDana": "-",
     "keteranganRealisasi": "Belanja ATK Pulpen Bulan Juni"
+  },
+  {
+    "id": "mut-1781759219876",
+    "tanggal": "2026-06-18",
+    "bankAccountId": "1700beb2-c7c9-485a-86fa-a447a4bbb946",
+    "bankName": "Bank Syariah Indonesia",
+    "keteranganBank": "Transfer an Khansa Inayah",
+    "nominal": 150000,
+    "type": "DEBIT",
+    "status": "PENDING"
   }
 ]

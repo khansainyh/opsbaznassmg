@@ -94,16 +94,16 @@ const menuGroups = [
   {
     title: "PENGUMPULAN",
     items: [
-      { name: "Penerimaan ZIS", icon: Banknote, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Keuangan", "Staf_Pelaporan"] },
+      { name: "Penerimaan ZIS", icon: Banknote, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Pelaporan"] },
       { name: "Penerimaan Bank Jateng", icon: Building2, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
-      { name: "Identifikasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Keuangan", "Staf_Pelaporan"] },
+      { name: "Identifikasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Pelaporan"] },
     ]
   },
   {
     title: "PENDISTRIBUSIAN & PENDAYAGUNAAN",
     items: [
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Staf_Keuangan", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+      { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
       { name: "Antrean Arsip", icon: Archive, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
       { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi"] },
@@ -116,6 +116,7 @@ const menuGroups = [
       { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Staf_Keuangan"] },
       { name: "Pemindahan Dana", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan"] },
       { name: "Pengeluaran Manual", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan"] },
+      { name: "Catat Mutasi", icon: Upload, roles: ["Super_Admin", "Staf_Keuangan"] },
       { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Staf_Keuangan"] },
     ]
   },
@@ -123,9 +124,9 @@ const menuGroups = [
     title: "PELAPORAN",
     items: [
       { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi"] },
-      { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin", "Staf_Keuangan"] },
-      { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan", "Staf_Pelaporan", "Staf_Pengumpulan"] },
-      { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin", "Staf_Keuangan", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+      { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin"] },
+      { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+      { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
     ]
   }
 ];

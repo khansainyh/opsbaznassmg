@@ -349,7 +349,7 @@ export default function DatabaseUPZ() {
   // Computed: next SK number for selected UPZ (re-evaluated reactively)
   const nextRenewalSK = selectedUPZ ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) : '';
   // Computed: next base SK number for new UPZ registration
-  const nextBaseSK = getNextBaseSKNumber(skHistory);
+  const nextBaseSK = getNextBaseSKNumber(skHistory, data, formCategory);
 
   const handleRenewalSK = () => {
     if (!selectedUPZ || !renewalForm.skNumber || !renewalForm.startYear || !renewalForm.endYear || !formPengurus.penasehat.nama) {
@@ -532,7 +532,619 @@ export default function DatabaseUPZ() {
       });
     }
 
-    if (upz.category === 'Instansi Vertikal' || upz.category === 'OPD' || upz.category === 'BUMD') {
+    if (['Perusahaan Swasta', 'Organisasi Profesi', 'Yayasan'].includes(upz.category)) {
+      const upzTitleName = upz.name.toUpperCase();
+      const upzTextName = upz.name;
+      const usulanPimpinan = ['Perusahaan Swasta'].includes(upz.category) ? `Pimpinan ${upz.name}` : `Ketua ${upz.name}`;
+      const tingkatText = "Tingkat Kota Semarang";
+
+      return `<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Template SK BAZNAS - ${upz.category}</title>
+    <style>
+        @page {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+        }
+        @page Section1 {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+            mso-header-margin: 0.5in;
+            mso-footer-margin: 0.5in;
+            mso-paper-source: 0;
+        }
+        div.Section1 {
+            page: Section1;
+        }
+        body, p, ol, ul, li, table, tr, td, th, div, span {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            mso-margin-top-alt: 0pt;
+            mso-margin-bottom-alt: 0pt;
+            mso-padding-top-alt: 0pt;
+            mso-padding-bottom-alt: 0pt;
+            line-height: 1.3;
+            mso-line-height-rule: exactly;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            color: #000;
+            background-color: #fff;
+        }
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+        .uppercase { text-transform: uppercase; }
+        
+        /* Layout untuk bagian Menimbang, Mengingat, Menetapkan */
+        .layout-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            vertical-align: top;
+        }
+        .layout-table td {
+            padding: 4px 0;
+            vertical-align: top;
+        }
+        .col-title { width: 110px; font-weight: bold; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; }
+        .col-content { width: calc(100% - 125px); text-align: justify; }
+
+        /* Tabel Susunan Pengurus */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid black;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 11pt;
+            line-height: 1.3;
+        }
+        .data-table th { text-align: center; font-weight: bold; }
+
+        ol, ul {
+            padding-left: 15px;
+        }
+        li {
+            line-height: 1.3;
+            text-align: justify;
+            margin-bottom: 6px;
+        }
+
+        .tembusan, .tembusan * {
+            line-height: 1.2 !important;
+        }
+        .page-break {
+            page-break-before: always;
+            clear: both;
+        }
+    </style>
+</head>
+<body>
+<div class="Section1">
+
+    <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
+
+    <!-- HALAMAN 1: SURAT KEPUTUSAN -->
+    <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+        <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+
+        <div style="margin: 8px 0;">TENTANG</div>
+
+        <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName}</span><br>
+        <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+
+        <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+    </div>
+
+    <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menimbang</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol type="a" style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${tingkatText};</li>
+                    <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
+                    <li style="margin-bottom: 6px;">Bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">Mengingat</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
+                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
+                    <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
+                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
+                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
+                    <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027;</li>
+                    <li style="margin-bottom: 6px;">Instruksi Walikota Semarang Nomor : 451.12/5594 tanggal 22 November 2016 tentang Pembayaran Zakat, Infak dan Sedekah bagi PNS dilingkungan Pemkot Semarang.</li>
+                </ol>
+            </td>
+        </tr>
+    </table>
+
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2) -->
+    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 20px;"></div>
+    <div class="text-center bold" style="margin-top: 15px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menetapkan</td>
+            <td class="col-colon">:</td>
+            <td class="col-content bold uppercase">
+                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName} PERIODE ${periodeTahun}.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">PERTAMA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun} dengan susunan pengurus sebagaimana tercantum dalam lampiran surat keputusan ini.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KEDUA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Pengurus sebagaimana dimaksud pada DIKTUM PERTAMA memiliki tugas dan kewajiban sebagai berikut:
+                <ol type="a" style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Sosialisasi dan edukasi zakat, infak dan sedekah pada institusi UPZ ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Mengumpulkan Dana Zakat, Infak dan Sedekah di lingkungan ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Seluruh hasil pengumpulan dana UPZ wajib disetorkan kepada BAZNAS Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Pendataan dan layanan muzakki pada masing-masing institusi UPZ ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Penyerahan Nomor Pokok Wajib Zakat (NPWZ) dan Bukti Setor Zakat (BSZ) yang diterbitkan oleh BAZNAS Kota Semarang kepada muzakki;</li>
+                    <li style="margin-bottom: 6px;">Penyusunan laporan kegiatan pengumpulan zakat, infak dan sedekah BAZNAS Kota Semarang.</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KETIGA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Masa Kerja Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} sebagaimana dimaksud Diktum KESATU adalah selama 5 (Lima) Tahun.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KEEMPAT</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Segala biaya yang ditimbulkan akibat diterbitkannya Surat Keputusan ini dibebankan pada Anggaran Badan Amil Zakat Nasional (BAZNAS) Kota Semarang melalui operasional Amil sebesar 5 % (Lima persen) dari Perolehan yang dihimpun atau sumber dana lain yang halal.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KELIMA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Surat Keputusan ini mulai berlaku sejak tanggal ini ditetapkan dan akan ditinjau kembali jika ada kekeliruan didalamnya.
+            </td>
+        </tr>
+    </table>
+
+    <!-- TANDA TANGAN -->
+    <div style="clear: both; margin-top: 40px; width: 100%; page-break-inside: avoid;">
+        <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+            <tr>
+                <td style="width: 100px; border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
+            </tr>
+            <tr>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 85px;">KETUA BAZNAS KOTA SEMARANG,</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+            </tr>
+        </table>
+        <div style="clear: both;"></div>
+    </div>
+
+    <!-- TEMBUSAN -->
+    <div class="tembusan" style="margin-top: 30px; font-size: 9pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+        <div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px;">Salinan disampaikan kepada Yth.:</div>
+        <ol style="margin: 0; padding-left: 15px; list-style-type: decimal;">
+            <li style="margin-bottom: 3px;">Walikota Semarang (sebagai laporan);</li>
+            <li style="margin-bottom: 3px;">Ketua BAZNAS Provinsi Jawa Tengah (sebagai laporan);</li>
+            <li style="margin-bottom: 3px;">Kepala Kantor Kementerian Agama Kota Semarang;</li>
+            <li style="margin-bottom: 3px;">Pengurus UPZ ${upzTextName} dimaksud.</li>
+        </ol>
+    </div>
+
+    <!-- HALAMAN 3: LAMPIRAN -->
+    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 20px;">
+        <table style="width: 100%; font-size: 11pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
+            <tr>
+                <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
+                <td style="width: 15px; border: none; padding: 1px 0; font-weight: bold; text-align: center; vertical-align: top;">:</td>
+                <td style="border: none; padding: 1px 0; vertical-align: top; text-align: justify; line-height: 1.3;">
+                    Keputusan Ketua BAZNAS Kota Semarang<br>
+                    Nomor : ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+                    Tentang<br>
+                    PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
+                    ${upzTitleName} PERIODE ${periodeTahun}
+                </td>
+            </tr>
+        </table>
+
+        <div class="text-center bold uppercase" style="margin-top: 30px; margin-bottom: 20px; line-height: 1.3;">
+            SUSUNAN PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
+            ${upzTitleName}<br>
+            PERIODE ${periodeTahun}
+        </div>
+
+        <!-- TABEL PENGURUS -->
+        <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
+            <thead>
+                <tr>
+                    <th style="width: 8%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">NO</th>
+                    <th style="width: 32%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">NAMA</th>
+                    <th style="width: 30%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">ALAMAT</th>
+                    <th style="width: 30%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">JABATAN DALAM UPZ</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pengurusList.map((item, idx) => `
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; text-align: center;">${idx + 1}.</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.nama}</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.alamat || '-'}</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.jabatan}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+
+        <!-- TANDA TANGAN LAMPIRAN -->
+        <div style="clear: both; margin-top: 30px; width: 100%; page-break-inside: avoid;">
+            <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+                <tr>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-bottom: 85px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                </tr>
+                <tr>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                </tr>
+            </table>
+            <div style="clear: both;"></div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>`;
+    }
+
+    if (['Univ/PT/Pendidikan Menengah', 'Pendidikan Dasar'].includes(upz.category)) {
+      const upzTitleName = upz.name.toUpperCase();
+      const upzTextName = upz.name;
+      const usulanPimpinan = `Kepala ${upz.name}`;
+
+      return `<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Template SK BAZNAS - ${upz.category}</title>
+    <style>
+        @page {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+        }
+        @page Section1 {
+            size: 8.5in 14.0in; /* US Legal size */
+            margin-top: 1.8in;
+            margin-bottom: 1.0in;
+            margin-left: 0.8in;
+            margin-right: 0.9in;
+            mso-header-margin: 0.5in;
+            mso-footer-margin: 0.5in;
+            mso-paper-source: 0;
+        }
+        div.Section1 {
+            page: Section1;
+        }
+        body, p, ol, ul, li, table, tr, td, th, div, span {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            mso-margin-top-alt: 0pt;
+            mso-margin-bottom-alt: 0pt;
+            mso-padding-top-alt: 0pt;
+            mso-padding-bottom-alt: 0pt;
+            line-height: 1.3;
+            mso-line-height-rule: exactly;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            color: #000;
+            background-color: #fff;
+        }
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+        .uppercase { text-transform: uppercase; }
+        
+        /* Layout untuk bagian Menimbang, Mengingat, Menetapkan */
+        .layout-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            vertical-align: top;
+        }
+        .layout-table td {
+            padding: 4px 0;
+            vertical-align: top;
+        }
+        .col-title { width: 110px; font-weight: bold; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; }
+        .col-content { width: calc(100% - 125px); text-align: justify; }
+
+        /* Tabel Susunan Pengurus */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid black;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 11pt;
+            line-height: 1.3;
+        }
+        .data-table th { text-align: center; font-weight: bold; }
+
+        ol, ul {
+            padding-left: 15px;
+        }
+        li {
+            line-height: 1.3;
+            text-align: justify;
+            margin-bottom: 6px;
+        }
+
+        .tembusan, .tembusan * {
+            line-height: 1.2 !important;
+        }
+        .page-break {
+            page-break-before: always;
+            clear: both;
+        }
+    </style>
+</head>
+<body>
+<div class="Section1">
+
+    <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
+
+    <!-- HALAMAN 1: SURAT KEPUTUSAN -->
+    <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+        <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+
+        <div style="margin: 8px 0;">TENTANG</div>
+
+        <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
+        <span class="bold">${upzTitleName} PERIODE ${periodeTahun}</span><br>
+
+        <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+    </div>
+
+    <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menimbang</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol type="a" style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
+                    <li style="margin-bottom: 6px;">Bahwa berdasarkan huruf a dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun}.</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">Mengingat</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                <ol style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
+                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
+                    <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
+                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
+                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
+                    <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027.</li>
+                </ol>
+            </td>
+        </tr>
+    </table>
+
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2) -->
+    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 20px;"></div>
+    <div class="text-center bold" style="margin-top: 15px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+
+    <table class="layout-table">
+        <tr>
+            <td class="col-title">Menetapkan</td>
+            <td class="col-colon">:</td>
+            <td class="col-content bold uppercase">
+                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UPZ ${upzTitleName} PERIODE ${periodeTahun}.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">PERTAMA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun} dengan susunan pengurus sebagaimana tercantum dalam lampiran surat keputusan ini.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KEDUA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Pengurus sebagaimana dimaksud pada DIKTUM PERTAMA memiliki tugas dan kewajiban sebagai berikut:
+                <ol type="a" style="margin: 0; padding-left: 15px;">
+                    <li style="margin-bottom: 6px;">Sosialisasi dan edukasi zakat, infak dan sedekah pada institusi UPZ ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Mengumpulkan Dana Zakat, Infak dan Sedekah di lingkungan ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Seluruh hasil pengumpulan dana UPZ wajib disetorkan kepada BAZNAS Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Pendataan dan layanan muzakki pada masing-masing institusi UPZ ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Penyerahan Nomor Pokok Wajib Zakat (NPWZ) dan Bukti Setor Zakat (BSZ) yang diterbitkan oleh BAZNAS Kota Semarang kepada muzakki;</li>
+                    <li style="margin-bottom: 6px;">Penyusunan laporan kegiatan pengumpulan zakat, infak dan sedekah BAZNAS Kota Semarang.</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KETIGA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Masa Kerja Pengurus Unit Pengumpul Zakat UPZ ${upzTextName} sebagaimana dimaksud Diktum KESATU adalah selama 5 (Lima) Tahun.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KEEMPAT</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Segala biaya yang ditimbulkan akibat diterbitkannya Surat Keputusan ini dibebankan pada Anggaran Badan Amil Zakat Nasional (BAZNAS) Kota Semarang melalui Amil sebesar 5 % (Lima persen) dari Perolehan yang dihimpun.
+            </td>
+        </tr>
+        <tr>
+            <td class="col-title">KELIMA</td>
+            <td class="col-colon">:</td>
+            <td class="col-content">
+                Surat Keputusan ini mulai berlaku sejak tanggal ini ditetapkan dan akan ditinjau kembali jika ada kekeliruan didalamnya.
+            </td>
+        </tr>
+    </table>
+
+    <!-- TANDA TANGAN -->
+    <div style="clear: both; margin-top: 40px; width: 100%; page-break-inside: avoid;">
+        <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+            <tr>
+                <td style="width: 100px; border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
+            </tr>
+            <tr>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 85px;">KETUA BAZNAS KOTA SEMARANG,</td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+            </tr>
+        </table>
+        <div style="clear: both;"></div>
+    </div>
+
+    <!-- TEMBUSAN -->
+    <div class="tembusan" style="margin-top: 30px; font-size: 9pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+        <div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px;">Salinan disampaikan kepada Yth.:</div>
+        <ol style="margin: 0; padding-left: 15px; list-style-type: decimal;">
+            <li style="margin-bottom: 3px;">Walikota Semarang (sebagai laporan);</li>
+            <li style="margin-bottom: 3px;">Ketua BAZNAS Provinsi Jawa Tengah (sebagai laporan);</li>
+            <li style="margin-bottom: 3px;">Kepala Kantor Kementerian Agama Kota Semarang;</li>
+            <li style="margin-bottom: 3px;">Pengurus UPZ ${upzTextName} dimaksud.</li>
+        </ol>
+    </div>
+
+    <!-- HALAMAN 3: LAMPIRAN -->
+    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 20px;">
+        <table style="width: 100%; font-size: 11pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
+            <tr>
+                <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
+                <td style="width: 15px; border: none; padding: 1px 0; font-weight: bold; text-align: center; vertical-align: top;">:</td>
+                <td style="border: none; padding: 1px 0; vertical-align: top; text-align: justify; line-height: 1.3;">
+                    Keputusan Ketua BAZNAS Kota Semarang<br>
+                    Nomor : ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+                    Tentang<br>
+                    PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
+                    ${upzTitleName} PERIODE ${periodeTahun}
+                </td>
+            </tr>
+        </table>
+
+        <div class="text-center bold uppercase" style="margin-top: 30px; margin-bottom: 20px; line-height: 1.3;">
+            SUSUNAN PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
+            ${upzTitleName}<br>
+            PERIODE ${periodeTahun}
+        </div>
+
+        <!-- TABEL PENGURUS -->
+        <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
+            <thead>
+                <tr>
+                    <th style="width: 10%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">NO</th>
+                    <th style="width: 55%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">NAMA</th>
+                    <th style="width: 35%; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold;">JABATAN DALAM UPZ</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pengurusList.map((item, idx) => `
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; text-align: center;">${idx + 1}</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.nama}</td>
+                    <td style="border: 1px solid black; padding: 8px;">${item.jabatan}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+
+        <!-- TANDA TANGAN LAMPIRAN -->
+        <div style="clear: both; margin-top: 30px; width: 100%; page-break-inside: avoid;">
+            <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+                <tr>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-bottom: 85px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                </tr>
+                <tr>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                </tr>
+            </table>
+            <div style="clear: both;"></div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>`;
+    }
+
+    if (upz.category === 'Instansi Vertikal' || upz.category === 'OPD' || upz.category === 'BUMD' || upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan') {
+      const isKecamatan = upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan';
+      const upzTitleName = isKecamatan ? `KECAMATAN ${upz.kecamatan.toUpperCase()}` : upz.name.toUpperCase();
+      const upzTextName = isKecamatan ? `Kecamatan ${upz.kecamatan}` : upz.name;
+      const usulanPimpinan = isKecamatan ? `Camat ${upz.kecamatan}` : `Kepala ${upz.name}`;
+      const tingkatText = isKecamatan ? "Tingkat Kecamatan se-Kota Semarang" : "Tingkat Kota Semarang";
+
       return `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -643,7 +1255,7 @@ export default function DatabaseUPZ() {
         <div style="margin: 8px 0;">TENTANG</div>
 
         <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
-        <span class="bold">${upz.name.toUpperCase()} KOTA SEMARANG</span><br>
+        <span class="bold">${upzTitleName} KOTA SEMARANG</span><br>
         <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
 
         <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
@@ -656,9 +1268,9 @@ export default function DatabaseUPZ() {
             <td class="col-colon">:</td>
             <td class="col-content">
                 <ol type="a" style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) Tingkat Kota Semarang;</li>
-                    <li style="margin-bottom: 6px;">Usulan Kepala ${upz.name} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upz.name} Periode ${periodeTahun};</li>
-                    <li style="margin-bottom: 6px;">bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Periode ${periodeTahun}.</li>
+                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${tingkatText};</li>
+                    <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
+                    <li style="margin-bottom: 6px;">bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
                 </ol>
             </td>
         </tr>
@@ -689,14 +1301,14 @@ export default function DatabaseUPZ() {
             <td class="col-title">Menetapkan</td>
             <td class="col-colon">:</td>
             <td class="col-content bold uppercase">
-                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upz.name.toUpperCase()} PERIODE ${periodeTahun}.
+                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName} PERIODE ${periodeTahun}.
             </td>
         </tr>
         <tr>
             <td class="col-title">PERTAMA</td>
             <td class="col-colon">:</td>
             <td class="col-content">
-                Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Periode ${periodeTahun} dengan susunan pengurus sebagaimana tercantum dalam lampiran surat keputusan ini.
+                Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun} dengan susunan pengurus sebagaimana tercantum dalam lampiran surat keputusan ini.
             </td>
         </tr>
         <tr>
@@ -705,10 +1317,10 @@ export default function DatabaseUPZ() {
             <td class="col-content">
                 Pengurus sebagaimana dimaksud pada DIKTUM PERTAMA memiliki tugas dan kewajiban sebagai berikut:
                 <ol type="a" style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Sosialisasi dan edukasi zakat, infak dan sedekah pada institusi UPZ ${upz.name} Kota Semarang;</li>
-                    <li style="margin-bottom: 6px;">Mengumpulkan Dana Zakat, Infak dan Sedekah di lingkungan ${upz.name} Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Sosialisasi dan edukasi zakat, infak dan sedekah pada institusi UPZ ${upzTextName} Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Mengumpulkan Dana Zakat, Infak dan Sedekah di ${isKecamatan ? 'Wilayah' : 'lingkungan'} ${upzTextName} Kota Semarang;</li>
                     <li style="margin-bottom: 6px;">Seluruh hasil pengumpulan dana UPZ wajib disetorkan kepada BAZNAS Kota Semarang;</li>
-                    <li style="margin-bottom: 6px;">Pendataan dan layanan muzakki pada masing-masing institusi UPZ ${upz.name} Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Pendataan dan layanan muzakki pada masing-masing institusi UPZ ${upzTextName};</li>
                     <li style="margin-bottom: 6px;">Penyerahan Nomor Pokok Wajib Zakat (NPWZ) dan Bukti Setor Zakat (BSZ) yang diterbitkan oleh BAZNAS Kota Semarang kepada muzakki;</li>
                     <li style="margin-bottom: 6px;">Penyusunan laporan kegiatan pengumpulan zakat, infak dan sedekah BAZNAS Kota Semarang.</li>
                 </ol>
@@ -718,14 +1330,14 @@ export default function DatabaseUPZ() {
             <td class="col-title">KETIGA</td>
             <td class="col-colon">:</td>
             <td class="col-content">
-                Masa Kerja Pengurus Unit Pengumpul Zakat (UPZ) ${upz.name} Kota Semarang sebagaimana dimaksud Diktum KESATU adalah selama 5 (Lima) Tahun.
+                Masa Kerja Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Kota Semarang sebagaimana dimaksud Diktum KESATU adalah selama 5 (Lima) Tahun.
             </td>
         </tr>
         <tr>
             <td class="col-title">KEEMPAT</td>
             <td class="col-colon">:</td>
             <td class="col-content">
-                Segala biaya yang ditimbulkan akibat diterbitkannya Surat Keputusan ini dibebankan pada Anggaran Badan Amil Zakat Nasional (BAZNAS) Kota Semarang melalui Amil sebesar 5 % (Lima persen) dari Perolehan yang dihimpun.
+                Segala biaya yang ditimbulkan akibat diterbitkannya Surat Keputusan ini dibebankan pada Anggaran Badan Amil Zakat Nasional (BAZNAS) Kota Semarang melalui Amil sebesar 5 % (Lima persen) dari Perolehan yang dihimpun dimasing-masing UPZ ${upzTextName}.
             </td>
         </tr>
         <tr>
@@ -767,7 +1379,7 @@ export default function DatabaseUPZ() {
             <li style="margin-bottom: 3px;">Walikota Semarang (sebagai laporan);</li>
             <li style="margin-bottom: 3px;">Ketua BAZNAS Provinsi Jawa Tengah (sebagai laporan);</li>
             <li style="margin-bottom: 3px;">Kepala Kantor Kementerian Agama Kota Semarang;</li>
-            <li style="margin-bottom: 3px;">Pengurus UPZ ${upz.name} Kota Semarang dimaksud.</li>
+            <li style="margin-bottom: 3px;">Pengurus UPZ ${upzTextName} Kota Semarang dimaksud.</li>
         </ol>
     </div>
 
@@ -782,7 +1394,7 @@ export default function DatabaseUPZ() {
                     Nomor : ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
                     Tentang<br>
                     PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
-                    ${upz.name.toUpperCase()} KOTA SEMARANG PERIODE ${periodeTahun}
+                    ${upzTitleName} KOTA SEMARANG PERIODE ${periodeTahun}
                 </td>
             </tr>
         </table>
@@ -790,7 +1402,7 @@ export default function DatabaseUPZ() {
         <div class="text-center bold uppercase" style="margin-top: 30px; margin-bottom: 20px; line-height: 1.3;">
             SUSUNAN PENGURUS<br>
             UNIT PENGUMPUL ZAKAT (UPZ)<br>
-            ${upz.name.toUpperCase()} KOTA SEMARANG<br>
+            ${upzTitleName} KOTA SEMARANG<br>
             PERIODE ${periodeTahun}
         </div>
 
@@ -1460,7 +2072,7 @@ export default function DatabaseUPZ() {
                           <th className="px-6 py-4">Masa Berlaku</th>
                           <th className="px-6 py-4">Pengurus Utama</th>
                           <th className="px-6 py-4 text-center">Status</th>
-                          {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) && (
+                          {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
                             <th className="px-6 py-4 text-right">Draft SK</th>
                           )}
                         </tr>
@@ -1508,7 +2120,7 @@ export default function DatabaseUPZ() {
                                 {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
                               </span>
                             </td>
-                            {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) && (
+                            {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
                               <td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <button
@@ -1569,9 +2181,9 @@ export default function DatabaseUPZ() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
                           </label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -1585,7 +2197,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -1641,9 +2253,9 @@ export default function DatabaseUPZ() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
                           </label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -1657,7 +2269,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -2004,7 +2616,7 @@ export default function DatabaseUPZ() {
                           </div>
                           <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD'].includes(selectedUPZ.category) ? 'Jabatan Penasehat' : 'Alamat Penasehat'}
+                              {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan Penasehat' : 'Alamat Penasehat'}
                             </p>
                             <p className={cn(
                               "text-sm font-bold",
@@ -2319,13 +2931,13 @@ export default function DatabaseUPZ() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
-                          {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                         </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
+                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
@@ -2354,9 +2966,9 @@ export default function DatabaseUPZ() {
                           </div>
                           <div className="col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="col-span-1 flex items-end justify-end mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-all">
@@ -2681,13 +3293,13 @@ export default function DatabaseUPZ() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
-                          {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                         </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
+                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
@@ -2716,9 +3328,9 @@ export default function DatabaseUPZ() {
                           </div>
                           <div className="col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan Dalam Instansi' : 'Alamat'}
+                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="col-span-1 flex items-end justify-end mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-all">

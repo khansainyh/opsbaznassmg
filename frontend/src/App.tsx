@@ -38,6 +38,7 @@ import PengeluaranManual from '@/src/pages/PengeluaranManual';
 import PenerimaanZis from '@/src/pages/PenerimaanZis';
 import IdentifikasiMutasi from '@/src/pages/IdentifikasiMutasi';
 import PenerimaanBankJateng from '@/src/pages/PenerimaanBankJateng';
+import CatatMutasi from '@/src/pages/CatatMutasi';
 
 
 function App() {
@@ -325,6 +326,8 @@ function App() {
 
         ) : activeMenu === 'Jurnal Buku Besar' ? (
           <BukuBesar />
+        ) : activeMenu === 'Catat Mutasi' ? (
+          <CatatMutasi />
         ) : activeMenu === 'Rekonsiliasi Mutasi' ? (
           <RekonsiliasiMutasi />
         ) : activeMenu === 'Antrean SIMBA' ? (
