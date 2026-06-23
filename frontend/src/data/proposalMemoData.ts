@@ -62,6 +62,10 @@ export interface ProposalMemo {
     daerahJangkauan?: string;
     layakJenisKegiatan?: string;
     layakJumlahPenerima?: string;
+    surveyClaimedAt?: string;
+    surveyDeadline?: string;
+    surveyStatus?: string;
+    [key: string]: any;
   };
   catatanKepala?: string;
   catatanPimpinan?: string;

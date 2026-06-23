@@ -314,7 +314,7 @@ export default function UserManagement() {
                       <td className="p-4 text-slate-600">{u.email}</td>
                       <td className="p-4">
                         <span className="bg-primary/10 text-primary px-3 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase">
-                          {u.role.replace(/_/g, ' ')}
+                          {u.role.startsWith('Kabag') && !u.role.includes('Administrasi') ? u.role.replace('Kabag', 'Kabid').replace(/_/g, ' ') : u.role.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="p-4 text-slate-500 text-sm">
@@ -384,7 +384,7 @@ export default function UserManagement() {
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm font-medium"
                   >
-                    {ALL_ROLES.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
+                    {ALL_ROLES.map(r => <option key={r} value={r}>{r.startsWith('Kabag') && !r.includes('Administrasi') ? r.replace('Kabag', 'Kabid').replace(/_/g, ' ') : r.replace(/_/g, ' ')}</option>)}
                   </select>
                 </div>
                 

@@ -13,13 +13,62 @@ import {
   Send,
   CheckCircle,
   ChevronLeft,
-  Home
+  Home,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+
+function toGDriveEmbedUrl(link: string): string | null {
+  if (!link || !link.trim()) return null;
+  const fileMatch = link.match(/\/file\/d\/([^/?#]+)/);
+  if (fileMatch) return `https://drive.google.com/file/d/${fileMatch[1]}/preview`;
+  const openMatch = link.match(/[?&]id=([^&]+)/);
+  if (openMatch) return `https://drive.google.com/file/d/${openMatch[1]}/preview`;
+  if (link.includes('drive.google.com')) {
+    return link.replace(/\/view.*?(\?|$)/, '/preview$1');
+  }
+  return link;
+}
+
+function getSurveyDeadlineInfo(claimedAtStr?: string | null) {
+  if (!claimedAtStr) return null;
+  const claimedAt = new Date(claimedAtStr);
+  const now = new Date();
+  const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+  const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
+  const diffMs = deadline.getTime() - now.getTime();
+  
+  if (diffMs <= 0) {
+    return {
+      remainingText: 'KADALUARSA',
+      isExpired: true,
+      diffMs: 0
+    };
+  }
+  
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+  
+  let remainingText = '';
+  if (diffDays > 0) {
+    remainingText = `${diffDays} Hari ${diffHours} Jam`;
+  } else if (diffHours > 0) {
+    remainingText = `${diffHours} Jam ${diffMinutes} Mnt`;
+  } else {
+    remainingText = `${diffMinutes} Mnt`;
+  }
+  
+  return {
+    remainingText,
+    isExpired: false,
+    diffMs
+  };
+}
 
 type SurveyStatus = 'Antrean Tugas' | 'Pending' | 'On Progress' | 'Selesai' | 'Disetujui';
 
@@ -33,11 +82,14 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [statusFilter, setStatusFilter] = useState<SurveyStatus | 'Semua'>('Semua');
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [availability, setAvailability] = useState<any>(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
   const isKabagPendistribusian = user?.role === 'Kabag_Pendistribusian';
   const isKabagPendayagunaan = user?.role === 'Kabag_Pendayagunaan';
+  const isStafDistribusi = user?.role === 'Staf_Distribusi';
 
   const [rekomendasiKabag, setRekomendasiKabag] = useState<'Zakat' | 'Infak Tidak Terikat' | 'Infak Terikat' | 'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Zakat');
   const [hasilIdentifikasi, setHasilIdentifikasi] = useState('');
@@ -438,6 +490,12 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     setRekomendasiKabag((task.rekomendasi_kabag as any) || 'Zakat');
     setSelectedAsnaf(task.asnaf || 'Fakir');
     setIsDetailModalOpen(true);
+    setLoadingAvailability(true);
+    setAvailability(null);
+    axios.get(`/api/finance/check-availability/${task.id}`)
+      .then(res => setAvailability(res.data))
+      .catch(err => console.error('Gagal fetch availability:', err))
+      .finally(() => setLoadingAvailability(false));
   };
 
 
@@ -509,22 +567,55 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   </span>
                 </td>
                   <td className="px-6 py-4">
-                    <p className="font-bold text-slate-900">{task.namaPemohon}</p>
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <p className="font-bold text-slate-900">{task.namaPemohon}</p>
+                    </div>
                     <p className="text-xs text-slate-500">{task.alamat}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {task.surveyorName ? (
-                        <>
-                          <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-8 h-8 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
-                          <span className="font-medium text-slate-700">{task.surveyorName}</span>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-2 text-slate-400 italic">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
-                            <UserRound className="size-4" />
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        {task.surveyorName ? (
+                          <>
+                            <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-8 h-8 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                            <span className="font-medium text-slate-700">{task.surveyorName}</span>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-400 italic">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+                              <UserRound className="size-4" />
+                            </div>
+                            <span className="text-xs font-medium">Belum Ditugaskan</span>
                           </div>
-                          <span className="text-xs font-medium">Belum Ditugaskan</span>
+                        )}
+                      </div>
+                      {task.surveyorName && task.survey_data?.surveyClaimedAt && (
+                        <div className="text-[10px] text-slate-400 font-semibold pl-10 -mt-1 space-y-0.5">
+                          {(() => {
+                            const claimedAt = new Date(task.survey_data.surveyClaimedAt);
+                            const now = new Date();
+                            const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+                            const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
+                            const diffMs = deadline.getTime() - now.getTime();
+                            
+                            if (diffMs <= 0) {
+                              return <span className="text-rose-600 font-bold block">KADALUARSA</span>;
+                            }
+                            
+                            const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+                            const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                            const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+                            
+                            let text = '';
+                            if (diffDays > 0) {
+                              text = `${diffDays}h ${diffHours}j lagi`;
+                            } else if (diffHours > 0) {
+                              text = `${diffHours}j ${diffMinutes}m lagi`;
+                            } else {
+                              text = `${diffMinutes}m lagi`;
+                            }
+                            return <span className="text-amber-600 font-bold block">Tenggat: {text}</span>;
+                          })()}
                         </div>
                       )}
                     </div>
@@ -724,22 +815,55 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="font-semibold text-slate-900">{task.namaPemohon}</p>
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <p className="font-semibold text-slate-900">{task.namaPemohon}</p>
+                            </div>
                             <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{task.alamat}</p>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              {task.surveyorName ? (
-                                <>
-                                  <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-6 h-6 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
-                                  <span className="text-xs font-medium text-slate-700">{task.surveyorName}</span>
-                                </>
-                              ) : (
-                                <div className="flex items-center gap-2 text-slate-400 italic">
-                                  <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
-                                    <UserRound className="size-3" />
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                {task.surveyorName ? (
+                                  <>
+                                    <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-6 h-6 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                                    <span className="text-xs font-medium text-slate-700">{task.surveyorName}</span>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center gap-2 text-slate-400 italic">
+                                    <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+                                      <UserRound className="size-3" />
+                                    </div>
+                                    <span className="text-[10px] font-medium">Belum Ditugaskan</span>
                                   </div>
-                                  <span className="text-[10px] font-medium">Belum Ditugaskan</span>
+                                )}
+                              </div>
+                              {task.surveyorName && task.survey_data?.surveyClaimedAt && (
+                                <div className="text-[10px] text-slate-400 font-semibold pl-8 -mt-1 space-y-0.5">
+                                  {(() => {
+                                    const claimedAt = new Date(task.survey_data.surveyClaimedAt);
+                                    const now = new Date();
+                                    const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+                                    const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
+                                    const diffMs = deadline.getTime() - now.getTime();
+                                    
+                                    if (diffMs <= 0) {
+                                      return <span className="text-rose-600 font-bold block">KADALUARSA</span>;
+                                    }
+                                    
+                                    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+                                    const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                                    const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+                                    
+                                    let text = '';
+                                    if (diffDays > 0) {
+                                      text = `${diffDays}h ${diffHours}j lagi`;
+                                    } else if (diffHours > 0) {
+                                      text = `${diffHours}j ${diffMinutes}m lagi`;
+                                    } else {
+                                      text = `${diffMinutes}m lagi`;
+                                    }
+                                    return <span className="text-amber-600 font-bold block">Tenggat: {text}</span>;
+                                  })()}
                                 </div>
                               )}
                             </div>
@@ -798,6 +922,53 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
+                    {/* Pratinjau Dokumen Proposal */}
+                    {selectedTask.fileGdriveLink && toGDriveEmbedUrl(selectedTask.fileGdriveLink) ? (
+                      <div className="space-y-3 pb-4 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                            <ExternalLink className="size-3.5 text-primary" />
+                            Pratinjau Dokumen Proposal
+                          </h4>
+                          <a 
+                            href={selectedTask.fileGdriveLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all"
+                          >
+                            <ExternalLink className="size-3" />
+                            Buka di Tab Baru
+                          </a>
+                        </div>
+                        <div className="w-full h-[320px] border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-slate-50 relative">
+                          <iframe 
+                            src={toGDriveEmbedUrl(selectedTask.fileGdriveLink) || ''}
+                            className="w-full h-full border-none"
+                            allow="autoplay"
+                            title="Pratinjau Proposal"
+                          />
+                        </div>
+                      </div>
+                    ) : selectedTask.fileGdriveLink ? (
+                      <div className="space-y-3 pb-4 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                            <ExternalLink className="size-3.5 text-primary" />
+                            Dokumen Proposal
+                          </h4>
+                          <a 
+                            href={selectedTask.fileGdriveLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all"
+                          >
+                            <ExternalLink className="size-3" />
+                            Buka Dokumen Proposal
+                          </a>
+                        </div>
+                      </div>
+                    ) : null}
+
                     {(selectedTask.score !== null || selectedTask.survey_data) && (
                       <div className="space-y-6">
                         {!(selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok')) && (
@@ -807,7 +978,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                                 <AlertCircle className={cn("size-5", selectedTask.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedTask.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")} />
                                 <p className={cn("text-sm font-black uppercase tracking-widest", selectedTask.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedTask.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")}>Hasil Survei: {selectedTask.urgencyLevel}</p>
                               </div>
-                              <span className="text-lg font-black">{selectedTask.score} Pts</span>
+                              <span className="text-lg font-black">{selectedTask.score} Poin</span>
                             </div>
                             <div className="grid grid-cols-2 gap-4 text-xs font-bold">
                               <div>
@@ -918,6 +1089,40 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                           <p className="text-sm font-bold text-slate-400 italic">Belum Ditugaskan</p>
                         )}
                       </div>
+
+                      {selectedTask.surveyorName && selectedTask.survey_data?.surveyClaimedAt && (
+                        <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-200/60 pb-1.5">Informasi Batas Waktu</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tanggal Diambil</p>
+                              <p className="font-extrabold text-slate-700">
+                                {new Date((selectedTask.survey_data as any).surveyClaimedAt).toLocaleDateString('id-ID', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                            <div>
+                              {(() => {
+                                const dl = getSurveyDeadlineInfo((selectedTask.survey_data as any).surveyClaimedAt);
+                                if (!dl) return null;
+                                return (
+                                  <>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tenggat Waktu</p>
+                                    <p className={cn("font-black", dl.isExpired ? "text-rose-600 animate-pulse font-black" : "text-amber-600 font-black")}>
+                                      {dl.remainingText} (s.d. {new Date(new Date((selectedTask.survey_data as any).surveyClaimedAt).getTime() + 3*24*60*60*1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})
+                                    </p>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* MANAJEMEN SURVEYOR */}
                       {((isKabagPendistribusian || isKabagPendayagunaan || isSuperAdmin) && 
@@ -1034,7 +1239,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
                       <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                         <ClipboardList className="size-4 text-primary" />
-                        Identifikasi & Rekomendasi Kepala Bagian
+                        Identifikasi & Rekomendasi Kepala Bidang
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -1055,11 +1260,12 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     getSurveyStatus(selectedTask) === 'Selesai' && 
                     (isSuperAdmin || 
                      (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 
-                     (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif')) && (
+                     (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif') ||
+                     (isStafDistribusi && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif')) && (
                       <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
                         <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                           <ClipboardList className="size-4 text-primary" />
-                          Identifikasi & Rekomendasi Kepala Bagian
+                          Identifikasi & Rekomendasi Kepala Bidang
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -1098,6 +1304,75 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     )
                   )}
                 </div>
+
+                {/* RKAT & Kas Info */}
+                {loadingAvailability ? (
+                  <div className="space-y-4 pt-6 border-t border-slate-100 flex flex-col items-center justify-center py-6">
+                    <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-xs text-slate-500 font-bold">Memeriksa Plafond RKAT & Saldo Kas Riil...</p>
+                  </div>
+                ) : availability ? (
+                  <div className="space-y-4 pt-6 border-t border-slate-100">
+                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                      <span className="p-1 bg-primary text-white rounded text-[10px]">INFO</span>
+                      Informasi RKAT &amp; Saldo Kas (Read-Only)
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Saldo Kas */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                          Saldo Kas Riil ({(() => {
+                            const kasType = availability.sumber_dana_yang_dipakai || 'ZAKAT';
+                            return kasType === 'ZAKAT' ? 'Zakat' :
+                                   kasType === 'INFAK_TIDAK_TERIKAT' ? 'Infak Tidak Terikat' :
+                                   kasType === 'INFAK_TERIKAT' ? 'Infak Terikat' : kasType;
+                          })()})
+                        </p>
+                        {(() => {
+                          const kasType = availability.sumber_dana_yang_dipakai || 'ZAKAT';
+                          const balance = kasType === 'ZAKAT' ? (availability.kas_riil?.detail?.zakat || 0) :
+                                          kasType === 'INFAK_TIDAK_TERIKAT' ? (availability.kas_riil?.detail?.istt || 0) :
+                                          kasType === 'INFAK_TERIKAT' ? (availability.kas_riil?.detail?.ist || 0) : 0;
+                          
+                          return (
+                            <div className="space-y-1">
+                              <p className="text-lg font-black text-emerald-600">Rp {balance.toLocaleString('id-ID')}</p>
+                              <p className="text-[10px] text-slate-400">Total nominal diajukan: <span className="font-extrabold text-slate-700">Rp {(selectedTask.nominal || 0).toLocaleString('id-ID')}</span></p>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* RKAT */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Plafon RKAT Terkait</p>
+                        {(() => {
+                          const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedTask.rkatActivityId);
+                          if (!act) {
+                            return (
+                              <p className="text-xs text-slate-500 font-semibold italic">Tidak ada kegiatan RKAT yang dikaitkan.</p>
+                            );
+                          }
+
+                          const isEnough = act.sisa_pagu >= (selectedTask.nominal || 0);
+
+                          return (
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold text-slate-800 line-clamp-1">"{act.name}"</p>
+                              <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100">
+                                <span className="text-slate-400">Sisa Pagu:</span>
+                                <span className={cn("font-extrabold", isEnough ? "text-emerald-600" : "text-rose-600")}>
+                                  Rp {act.sisa_pagu.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
@@ -1106,9 +1381,10 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   <>
                     {(isSuperAdmin || 
                       (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 
-                      (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif')) ? (
+                      (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif') ||
+                      (isStafDistribusi && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif')) ? (
                       <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Simpan & Approve → Kep. Pelaksana</button>
-                    ) : (!isKabagPendistribusian && !isKabagPendayagunaan) ? (
+                    ) : (!isKabagPendistribusian && !isKabagPendayagunaan && !isStafDistribusi) ? (
                       <button onClick={() => { handleUpdateStatus(selectedTask.id, 'Review Kepala Pelaksana'); setIsDetailModalOpen(false); }} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Approve → Kep. Pelaksana</button>
                     ) : null}
                   </>
@@ -1161,12 +1437,17 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     if (actionType === 'reassign' && targetValue) {
                       setIsReassigning(true);
                       try {
+                        const updatedSurveyData = {
+                          ...(selectedTask.survey_data || {}),
+                          surveyClaimedAt: new Date().toISOString()
+                        } as any;
                         await axios.put(`/api/proposals/${selectedTask.id}`, {
                           surveyorName: targetValue,
-                          isBeingSurveyed: false
+                          isBeingSurveyed: false,
+                          survey_data: updatedSurveyData
                         });
                         
-                        const updatedTask: ProposalMemo = { ...selectedTask, surveyorName: targetValue, isBeingSurveyed: false };
+                        const updatedTask: ProposalMemo = { ...selectedTask, surveyorName: targetValue, isBeingSurveyed: false, survey_data: updatedSurveyData };
                         const updatedList = data.map(d => d.id === selectedTask.id ? updatedTask : d);
                         onUpdate(updatedList);
                         setSelectedTask(updatedTask);
@@ -1180,12 +1461,17 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     } else if (actionType === 'release') {
                       setIsReassigning(true);
                       try {
+                        const updatedSurveyData = {
+                          ...(selectedTask.survey_data || {})
+                        } as any;
+                        delete (updatedSurveyData as any).surveyClaimedAt;
                         await axios.put(`/api/proposals/${selectedTask.id}`, {
                           surveyorName: "",
-                          isBeingSurveyed: false
+                          isBeingSurveyed: false,
+                          survey_data: updatedSurveyData
                         });
                         
-                        const updatedTask: ProposalMemo = { ...selectedTask, surveyorName: "", isBeingSurveyed: false };
+                        const updatedTask: ProposalMemo = { ...selectedTask, surveyorName: "", isBeingSurveyed: false, survey_data: updatedSurveyData };
                         const updatedList = data.map(d => d.id === selectedTask.id ? updatedTask : d);
                         onUpdate(updatedList);
                         setSelectedTask(updatedTask);

@@ -250,7 +250,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           <span className={cn('px-2 py-1 rounded-full text-[10px] font-black border uppercase', urgencyBadge(item.urgencyLevel))}>
                             {item.urgencyLevel}
                           </span>
-                          <p className="text-[10px] text-slate-400">{item.score} Pts</p>
+                          <p className="text-[10px] text-slate-400">{item.score} Poin</p>
                         </div>
                       ) : <span className="text-[11px] text-slate-400 italic">-</span>}
                     </td>
@@ -387,12 +387,12 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           </div>
                         )}
 
-                        {/* Identifikasi & Rekomendasi Kabag */}
+                        {/* Identifikasi & Rekomendasi Kabid */}
                         {selectedProposal.rekomendasi_kabag && (
                           <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200/80 space-y-3 shadow-sm">
                             <div className="flex items-center gap-2 text-emerald-800">
                               <ClipboardList className="size-4" />
-                              <span className="text-xs font-black uppercase tracking-widest">Identifikasi &amp; Rekomendasi Kabag</span>
+                              <span className="text-xs font-black uppercase tracking-widest">Identifikasi &amp; Rekomendasi Kabid</span>
                             </div>
                             <div className="grid grid-cols-2 gap-4 text-xs">
                               <div>
@@ -526,7 +526,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                             Informasi RKAT &amp; Kas
                           </h4>
                           <span className="text-[10px] font-medium text-slate-400">
-                            Rekomendasi Awal Kabag: <span className="font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">{selectedProposal.rekomendasi_kabag || 'Zakat'}</span>
+                            Rekomendasi Awal Kabid: <span className="font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">{selectedProposal.rekomendasi_kabag || 'Zakat'}</span>
                           </span>
                         </div>
 

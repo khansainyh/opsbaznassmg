@@ -2,8 +2,44 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
+
+function getSurveyDeadlineInfo(claimedAtStr?: string | null) {
+  if (!claimedAtStr) return null;
+  const claimedAt = new Date(claimedAtStr);
+  const now = new Date();
+  const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+  const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
+  const diffMs = deadline.getTime() - now.getTime();
+  
+  if (diffMs <= 0) {
+    return {
+      remainingText: 'KADALUARSA',
+      isExpired: true,
+      diffMs: 0
+    };
+  }
+  
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+  
+  let remainingText = '';
+  if (diffDays > 0) {
+    remainingText = `${diffDays} Hari ${diffHours} Jam`;
+  } else if (diffHours > 0) {
+    remainingText = `${diffHours} Jam ${diffMinutes} Mnt`;
+  } else {
+    remainingText = `${diffMinutes} Mnt`;
+  }
+  
+  return {
+    remainingText,
+    isExpired: false,
+    diffMs
+  };
+}
 import {
-  MapPin, Phone, Camera, CheckCircle2, FileText, Navigation, ChevronLeft, X, Send, AlertCircle, Search, Map, Eye, Download, Home, History, FileEdit
+  MapPin, Phone, Camera, CheckCircle2, FileText, Navigation, ChevronLeft, X, Send, AlertCircle, Search, Map, Eye, Download, Home, History, FileEdit, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -23,13 +59,15 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const [editingHistory, setEditingHistory] = useState<ProposalMemo | null>(null);
   const [bpsPovertyLine, setBpsPovertyLine] = useState<number>(709785); // Default value
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+  const [pilars, setPilars] = useState<any[]>([]);
 
   React.useEffect(() => {
     const fetchParams = async () => {
       try {
-        const [bpsRes, templateRes] = await Promise.all([
+        const [bpsRes, templateRes, pilarsRes] = await Promise.all([
           axios.get('/api/parameters/bps_garis_kemiskinan'),
-          axios.get('/api/parameters/survey_template_individu')
+          axios.get('/api/parameters/survey_template_individu'),
+          axios.get('/api/pilars')
         ]);
         if (bpsRes.data && bpsRes.data.value) {
           setBpsPovertyLine(parseInt(bpsRes.data.value));
@@ -37,8 +75,11 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         if (templateRes.data && templateRes.data.value) {
           setDynamicQuestions(JSON.parse(templateRes.data.value));
         }
+        if (pilarsRes.data) {
+          setPilars(pilarsRes.data);
+        }
       } catch (err) {
-        console.error('Failed to fetch BPS poverty line or survey template:', err);
+        console.error('Failed to fetch BPS poverty line, survey template, or pilars:', err);
       }
     };
     fetchParams();
@@ -152,6 +193,31 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     return 'Rendah';
   }, [totalScore]);
 
+
+
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  const getProgramTipe = (task: ProposalMemo) => {
+    const code = task.programCode;
+    if (!code) return 'Konsumtif';
+    const cleanCode = code.trim();
+    if (programTipeMap[cleanCode]) return programTipeMap[cleanCode];
+    const parts = cleanCode.split('.');
+    if (parts.length > 2) {
+      const parentCode = `${parts[0]}.${parts[1]}`;
+      if (programTipeMap[parentCode]) return programTipeMap[parentCode];
+    }
+    return 'Konsumtif';
+  };
+
   const baseTasks = useMemo(() => {
     return data.filter(item => {
       if (item.status !== 'Survei Assessment' && item.status !== 'Proses Disposisi') return false;
@@ -211,12 +277,17 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const handleClaimTask = async (task: ProposalMemo) => {
     try {
       const surveyorName = user?.name || 'Relawan';
+      const updatedSurveyData = {
+        ...(task.survey_data || {}),
+        surveyClaimedAt: new Date().toISOString()
+      } as any;
       await axios.put(`/api/proposals/${task.id}`, {
-        surveyorName
+        surveyorName,
+        survey_data: updatedSurveyData
       });
-      const updated = data.map(d => d.id === task.id ? { ...d, surveyorName } : d);
+      const updated = data.map(d => d.id === task.id ? { ...d, surveyorName, survey_data: updatedSurveyData } : d);
       onUpdate(updated);
-      setSelectedTask({ ...task, surveyorName });
+      setSelectedTask({ ...task, surveyorName, survey_data: updatedSurveyData });
       setActiveTab('tugasSaya');
     } catch (err: any) {
       console.error(err);
@@ -468,6 +539,40 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-32">
+          {selectedTask.survey_data?.surveyClaimedAt && (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Informasi Batas Waktu</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tanggal Diambil</p>
+                  <p className="font-extrabold text-slate-700">
+                    {new Date(selectedTask.survey_data.surveyClaimedAt).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+                <div>
+                  {(() => {
+                    const dl = getSurveyDeadlineInfo(selectedTask.survey_data.surveyClaimedAt);
+                    if (!dl) return null;
+                    return (
+                      <>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tenggat Waktu</p>
+                        <p className={cn("font-black", dl.isExpired ? "text-rose-600 animate-pulse" : "text-amber-600")}>
+                          {dl.remainingText} (s.d. {new Date(new Date(selectedTask.survey_data.surveyClaimedAt).getTime() + 3*24*60*60*1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })})
+                        </p>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2">Lokasi Tujuan</h3>
             <div className="flex items-start gap-3">
@@ -495,6 +600,23 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
               </div>
             </div>
           </div>
+
+          {selectedTask.fileGdriveLink && (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Dokumen Proposal</h3>
+                <a href={selectedTask.fileGdriveLink} target="_blank" rel="noopener noreferrer"
+                  className="text-[10px] font-black text-emerald-600 hover:underline flex items-center gap-1">
+                  Buka di Drive <ExternalLink className="size-3" />
+                </a>
+              </div>
+              <iframe
+                src={selectedTask.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')}
+                className="w-full h-64 rounded-xl border border-slate-200 shadow-sm bg-slate-100"
+                allow="autoplay"
+              />
+            </div>
+          )}
         </div>
 
         <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none flex flex-col justify-end">
@@ -805,7 +927,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-bold text-slate-600">Total Skor:</span>
-                <span className="text-2xl font-black text-emerald-600">{totalScore} Pts</span>
+                <span className="text-2xl font-black text-emerald-600">{totalScore} Poin</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm font-bold text-slate-600">Level Urgensi:</span>
@@ -958,7 +1080,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                     <p className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-60">Hasil Evaluasi</p>
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-black">{task.urgencyLevel || '-'}</p>
-                      <span className="text-lg font-black opacity-70">{task.score || 0} Pts</span>
+                      <span className="text-lg font-black opacity-70">{task.score || 0} Poin</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2">
@@ -994,9 +1116,25 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                     task.isBeingSurveyed ? "border-amber-400/50 bg-amber-50/30" : "border-slate-100 hover:border-emerald-600/30"
                   )}
                 >
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-full uppercase tracking-widest">
-                      NO AGENDA {task.agendaNo}
+                  <div className="flex justify-between items-start gap-2 mb-3 flex-wrap">
+                    <div className="flex flex-wrap gap-1.5">
+                      <div className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-full uppercase tracking-widest">
+                        NO AGENDA {task.agendaNo}
+                      </div>
+                      {(() => {
+                        const tipe = getProgramTipe(task);
+                        const isProduktif = tipe === 'Produktif';
+                        return (
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                            isProduktif 
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                              : "bg-sky-50 text-sky-700 border-sky-200"
+                          )}>
+                            {tipe}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
                       <MapPin className="size-3" /> Lokasi
@@ -1010,10 +1148,27 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                     <span className="text-xs font-semibold">Kec. {task.kecamatan}</span>
                   </div>
 
-                  <div className="bg-slate-50 border-l-[3px] border-l-emerald-600 rounded-r-lg p-3 mb-5 pl-4">
+                  <div className="bg-slate-50 border-l-[3px] border-l-emerald-600 rounded-r-lg p-3 mb-4 pl-4">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Program & Jenis</p>
                     <p className="text-sm font-bold text-slate-800 leading-snug">{task.jenisPermohonan || 'Pendistribusian Zakat'}</p>
                   </div>
+
+                  {(task.survey_data as any)?.surveyClaimedAt && (
+                    <div className="mb-4 text-xs p-3 bg-slate-50 border border-slate-200/60 rounded-xl">
+                      {(() => {
+                        const dl = getSurveyDeadlineInfo((task.survey_data as any).surveyClaimedAt);
+                        if (!dl) return null;
+                        return (
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sisa Waktu Pengerjaan</span>
+                            <span className={cn("font-extrabold", dl.isExpired ? "text-rose-600 animate-pulse font-black" : "text-amber-600")}>
+                              {dl.remainingText}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   <div className="flex gap-3 mt-4">
                     <button

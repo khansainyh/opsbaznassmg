@@ -42,11 +42,56 @@ import CatatMutasi from '@/src/pages/CatatMutasi';
 
 
 function App() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [activeMenu, setActiveMenu] = useState('Input Proposal');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [proposals, setProposals] = useState<ProposalMemo[]>([]);
   const [surats, setSurats] = useState<Surat[]>([]);
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const role = user.role;
+      const allItems = [
+        { name: "Executive", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+        { name: "Monitoring & Evaluasi", roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+        { name: "Database UPZ", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Administrasi"] },
+        { name: "Data Mustahik", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Staf_Distribusi"] },
+        { name: "Data Muzakki", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+        { name: "Input Proposal", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
+        { name: "Upload Proposal", roles: ["Super_Admin", "Humas"] },
+        { name: "Input Surat", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
+        { name: "Tracking Proposal", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan"] },
+        { name: "Tracking Surat", roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
+        { name: "Persetujuan Kepala Bagian", roles: ["Super_Admin", "Kabag_Administrasi"] },
+        { name: "Persetujuan Kepala Pelaksana", roles: ["Super_Admin", "Kepala_Pelaksana"] },
+        { name: "Persetujuan Pimpinan", roles: ["Super_Admin", "Ketua"] },
+        { name: "Penentuan Nominal", roles: ["Super_Admin", "Wakil_Ketua_II", "Kepala_Pelaksana"] },
+        { name: "Penerimaan ZIS", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Pelaporan"] },
+        { name: "Penerimaan Bank Jateng", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
+        { name: "Identifikasi Mutasi", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Pelaporan"] },
+        { name: "Monitoring Tugas", roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+        { name: "Antrean SIMBA", roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+        { name: "Realisasi Bantuan", roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
+        { name: "Antrean Arsip", roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
+        { name: "Tim Survei", roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi"] },
+        { name: "Antrean Pencairan", roles: ["Super_Admin", "Staf_Keuangan"] },
+        { name: "Simulator Pencairan", roles: ["Super_Admin", "Staf_Keuangan"] },
+        { name: "Pemindahan Dana", roles: ["Super_Admin", "Staf_Keuangan"] },
+        { name: "Pengeluaran Manual", roles: ["Super_Admin", "Staf_Keuangan"] },
+        { name: "Catat Mutasi", roles: ["Super_Admin", "Staf_Keuangan"] },
+        { name: "Pengaturan Keuangan", roles: ["Super_Admin", "Staf_Keuangan"] },
+        { name: "Target RKAT", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi"] }
+      ];
+      
+      const currentAllowed = allItems.find(item => item.name === activeMenu && item.roles.includes(role));
+      if (!currentAllowed) {
+        const firstAllowed = allItems.find(item => item.roles.includes(role));
+        if (firstAllowed) {
+          setActiveMenu(firstAllowed.name);
+        }
+      }
+    }
+  }, [isAuthenticated, user, activeMenu]);
 
   useEffect(() => {
     axios.get('/api/pilars')

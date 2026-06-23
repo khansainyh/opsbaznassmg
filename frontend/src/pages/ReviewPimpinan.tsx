@@ -371,7 +371,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                           <span className={cn('px-2 py-1 rounded-full text-[10px] font-black border uppercase', urgencyBadge(item.urgencyLevel))}>
                             {item.urgencyLevel}
                           </span>
-                          <p className="text-[10px] text-slate-400">{item.score} Pts</p>
+                          <p className="text-[10px] text-slate-400">{item.score} Poin</p>
                         </div>
                       ) : <span className="text-[11px] text-slate-400 italic">-</span>}
                     </td>

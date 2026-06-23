@@ -78,7 +78,7 @@ const menuGroups = [
   {
     title: "OPERASIONAL",
     items: [
-      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas"] },
+      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan"] },
       { name: "Tracking Surat", icon: ClipboardCheck, roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },
@@ -261,7 +261,7 @@ export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: S
           <div className="flex items-center justify-between gap-2">
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-slate-800 truncate">{user.name}</span>
-              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">{user.role.replace(/_/g, ' ')}</span>
+              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">{user.role.startsWith('Kabag') && !user.role.includes('Administrasi') ? user.role.replace('Kabag', 'Kabid').replace(/_/g, ' ') : user.role.replace(/_/g, ' ')}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <button

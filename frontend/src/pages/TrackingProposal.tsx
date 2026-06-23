@@ -277,11 +277,6 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
                     <div className="flex flex-col gap-0.5 mt-0.5">
                       <span className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</span>
-                      {item.nominal ? (
-                        <span className="text-[10px] font-black text-emerald-600">
-                          Nominal: {formatCurrency(item.nominal)} ({item.tipeBantuan || 'Tunai'})
-                        </span>
-                      ) : null}
                     </div>
                   </td>
                   <td className="px-5 py-3">

@@ -563,7 +563,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                               {item.urgencyLevel || 'Rendah'}
                             </span>
                             <span className="text-[10px] text-slate-400 font-medium">
-                              ({item.score || 0} pts)
+                              ({item.score || 0} Poin)
                             </span>
                           </div>
                         </td>
