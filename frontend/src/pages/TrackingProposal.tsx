@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import {
-  Search, Filter, Calendar, FileText, Clock, CheckCircle2,
-  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, Banknote, History, ExternalLink
+  Search, Filter, FileText, Clock, CheckCircle2,
+  ChevronLeft, ChevronRight, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -270,22 +270,22 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                 </tr>
               ) : filtered.map(item => (
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo}</span>
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
                     <div className="flex flex-col gap-0.5 mt-0.5">
                       <span className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-0.5">
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-0.5 py-1">
                       {getProgressSteps(item.status).map((step, idx, arr) => (
                         <React.Fragment key={step.id}>
-                          <div className="flex flex-col items-center gap-0.5">
+                          <div className="flex flex-col items-center gap-0.5 shrink-0">
                             <div title={step.full} className={cn(
-                              "size-5 rounded-full flex items-center justify-center text-[8px] font-bold transition-all cursor-default",
+                              "size-5 rounded-full flex items-center justify-center text-[8px] font-black transition-all cursor-default shrink-0",
                               step.completed ? "bg-primary text-white" :
                               step.active ? "bg-white border-2 border-primary text-primary animate-pulse" :
                               step.rejected ? "bg-rose-100 text-rose-400" :
@@ -293,30 +293,30 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                             )}>
                               {step.completed ? <CheckCircle2 className="size-3" /> : step.id.slice(0,2)}
                             </div>
-                            <span className={cn("text-[7px] font-black uppercase", step.completed||step.active?"text-primary":"text-slate-300")}>
+                            <span className={cn("text-[7px] font-black uppercase tracking-tight", step.completed||step.active?"text-primary":"text-slate-400")}>
                               {step.label}
                             </span>
                           </div>
-                          {idx < arr.length-1 && <div className={cn("w-3 h-[2px] mb-3.5", step.completed?"bg-primary":"bg-slate-100")} />}
+                          {idx < arr.length-1 && <div className={cn("w-3 h-[2px] mb-3.5 shrink-0", step.completed?"bg-primary":"bg-slate-100")} />}
                         </React.Fragment>
                       ))}
                     </div>
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-2">
                       <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
                         {item.status}
                       </span>
                       <button onClick={() => setSelectedProposal(item)}
-                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0">
                         <Eye className="size-4" />
                       </button>
                     </div>
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     {item.hasMemo ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-100">
-                        <History className="size-3" />{item.memoSource || 'Ada Memo'}
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-100 whitespace-nowrap">
+                        <History className="size-3 shrink-0" />{item.memoSource || 'Ada Memo'}
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-300 font-medium">—</span>
@@ -346,41 +346,39 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
               onClick={() => setSelectedProposal(null)}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
             <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95, y:20 }}
-              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
               {/* Modal Header */}
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center gap-4">
-                  <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                    <FileText className="size-6" />
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                    <Eye className="size-5" />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900">Detail Proposal</h3>
-                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Agenda #{selectedProposal.agendaNo}</p>
-                  </div>
+                  <h3 className="text-xl font-black text-slate-900">Detail Proposal</h3>
                 </div>
                 <button onClick={() => setSelectedProposal(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                {/* Status Banner */}
-                <div className={cn("p-4 rounded-xl flex items-center justify-between", getStatusColor(selectedProposal.status))}>
-                  <div className="flex items-center gap-3">
-                    <Clock className="size-5" />
-                    <span className="text-sm font-black uppercase tracking-wider">Status: {selectedProposal.status}</span>
+              <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
+                {/* Agenda & Status Row */}
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No. Agenda</p>
+                    <p className="text-2xl font-black text-primary font-mono">{selectedProposal.agendaNo}</p>
                   </div>
-                  {selectedProposal.hasMemo && (
-                    <span className="text-[10px] font-bold bg-white/60 px-2 py-1 rounded-full">
-                      Memo: {selectedProposal.memoSource}
+                  <div className="text-right space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status Saat Ini</p>
+                    <span className={cn("inline-block px-3 py-1 text-xs font-black rounded-full uppercase border border-slate-200/60", getStatusColor(selectedProposal.status))}>
+                      {selectedProposal.status}
                     </span>
-                  )}
+                  </div>
                 </div>
 
-                {/* Nominal Banner */}
+                {/* Nominal (kalau udah ada) */}
                 {selectedProposal.nominal ? (
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
                       <Banknote className="size-5 text-emerald-600" />
                       <div>
@@ -394,190 +392,249 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                   </div>
                 ) : null}
 
-                {/* Info Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Informasi Pemohon</h4>
-                    <InfoRow icon={<User className="size-4 text-slate-400"/>} label="Nama Lengkap" value={selectedProposal.namaPemohon} />
-                    <InfoRow icon={<Tag className="size-4 text-slate-400"/>} label="NIK" value={selectedProposal.nik || '—'} />
-                    <InfoRow icon={<MapPin className="size-4 text-slate-400"/>} label="Alamat"
-                      value={[selectedProposal.alamat, selectedProposal.kelurahan, selectedProposal.kecamatan].filter(Boolean).join(', ')} />
-                  </div>
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Detail Pengajuan</h4>
-                    <InfoRow icon={<FileText className="size-4 text-slate-400"/>} label="Jenis Permohonan" value={selectedProposal.jenisPermohonan} />
-                    <InfoRow icon={<Calendar className="size-4 text-slate-400"/>} label="Tanggal Masuk"
-                      value={`${selectedProposal.tanggalMasuk}${selectedProposal.jamPengajuan ? ' · ' + selectedProposal.jamPengajuan : ''}`} />
-                    {selectedProposal.nominal && (
-                      <InfoRow icon={<Banknote className="size-4 text-slate-400"/>} label="Nominal Bantuan"
-                        value={`${formatCurrency(selectedProposal.nominal)} (${selectedProposal.tipeBantuan || '-'})`} />
-                    )}
-                  </div>
-                </div>
+                {/* 2-Column Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  
+                  {/* Left Column */}
+                  <div className="space-y-6">
+                    {/* Pratinjau Dokumen Proposal */}
+                    {selectedProposal.fileGdriveLink ? (
+                      <div className="space-y-3 pb-4 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                            <ExternalLink className="size-3.5 text-primary" />
+                            Pratinjau Dokumen Proposal
+                          </h4>
+                          <a 
+                            href={selectedProposal.fileGdriveLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all"
+                          >
+                            <ExternalLink className="size-3" />
+                            Buka di Tab Baru
+                          </a>
+                        </div>
+                        <div className="w-full h-[220px] border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-slate-50 relative">
+                          <iframe 
+                            src={selectedProposal.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')}
+                            className="w-full h-full border-none"
+                            allow="autoplay"
+                            title="Pratinjau Proposal"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
 
-                {/* Hasil Assessment Lapangan / Detail Survei */}
-                {(selectedProposal.surveyorName || selectedProposal.score || selectedProposal.urgencyLevel || selectedProposal.survey_data) && (
-                  <div className="space-y-4 pt-2 border-t border-slate-100">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2 flex items-center gap-1.5">
-                      <MapPin className="size-4 text-slate-400" /> Hasil Assessment Lapangan
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <InfoRow icon={<User className="size-4 text-slate-400"/>} label="Relawan Surveyor" value={selectedProposal.surveyorName || '—'} />
-                      <InfoRow icon={<FileText className="size-4 text-slate-400"/>} label="Skor & Tingkat Urgensi" 
-                        value={`${selectedProposal.score ? selectedProposal.score + ' Poin' : '—'} ${selectedProposal.urgencyLevel ? '(' + selectedProposal.urgencyLevel + ')' : ''}`} />
-                    </div>
+                    {/* Hasil Assessment Lapangan */}
+                    {(selectedProposal.score !== null || selectedProposal.survey_data) && (
+                      <div className="space-y-6">
+                        {selectedProposal.urgencyLevel && (
+                          <div className={cn("p-5 rounded-2xl border", selectedProposal.urgencyLevel === 'Sangat Kritis' ? "bg-rose-50 border-rose-100" : selectedProposal.urgencyLevel === 'Tinggi' ? "bg-orange-50 border-orange-100" : "bg-emerald-50 border-emerald-100")}>
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className={cn("size-5", selectedProposal.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedProposal.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")} />
+                                <p className={cn("text-sm font-black uppercase tracking-widest", selectedProposal.urgencyLevel === 'Sangat Kritis' ? "text-rose-600" : selectedProposal.urgencyLevel === 'Tinggi' ? "text-orange-600" : "text-emerald-600")}>Hasil Survei: {selectedProposal.urgencyLevel}</p>
+                              </div>
+                              <span className="text-lg font-black">{selectedProposal.score || 0} Poin</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-xs font-bold">
+                              <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Per Kapita</p>
+                                <p className="text-slate-700">
+                                  {selectedProposal.survey_data?.pendapatanTotal && selectedProposal.survey_data?.jumlahTanggungan 
+                                    ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Math.round(parseInt(selectedProposal.survey_data.pendapatanTotal) / parseInt(selectedProposal.survey_data.jumlahTanggungan)))
+                                    : '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggungan</p>
+                                <p className="text-slate-700">{selectedProposal.survey_data?.jumlahTanggungan || 0} Orang</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-                    {selectedProposal.survey_data?.catatanLapangan && (
-                      <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
-                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
-                        <p className="text-sm text-slate-700 italic leading-relaxed">"{selectedProposal.survey_data.catatanLapangan}"</p>
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 flex items-center gap-2">
+                            <Home className="size-3.5" /> Rincian Lapangan
+                          </h4>
+                          <div className="space-y-2">
+                            {(selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok')) ? (
+                              <>
+                                <SurveyDetailSection title="A. Profil Lembaga" items={[
+                                  { label: 'Berbadan Hukum', value: selectedProposal.survey_data?.berbadanHukum || '-' },
+                                  { label: 'Usia Berdiri', value: selectedProposal.survey_data?.usiaBerdiri || '-' },
+                                  { label: 'Bidang Garapan', value: selectedProposal.survey_data?.bidangGarapan || '-' },
+                                  { label: 'Daerah Jangkauan', value: selectedProposal.survey_data?.daerahJangkauan || '-' },
+                                ]} />
+                                <SurveyDetailSection title="B. Kelayakan" items={[
+                                  { label: 'Jenis Kegiatan', value: selectedProposal.survey_data?.layakJenisKegiatan || '-' },
+                                  { label: 'Jumlah Penerima Manfaat', value: selectedProposal.survey_data?.layakJumlahPenerima || '-' },
+                                ]} />
+                              </>
+                            ) : (
+                              <>
+                                {[
+                                  { code: 'A', title: 'A. Kondisi Rumah' },
+                                  { code: 'B', title: 'B. Kondisi Ekonomi' },
+                                  { code: 'C', title: 'C. Fisik & Lainnya' }
+                                ].map(sec => {
+                                  const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
+                                    { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
+                                    { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
+                                    { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
+                                    { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
+                                    { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
+                                    { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
+                                    { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
+                                    { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
+                                    { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
+                                    { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
+                                  ]).filter(q => q.section === sec.code);
+
+                                  const items = secQuestions.map(q => ({
+                                    label: q.label,
+                                    value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                                  }));
+
+                                  const hasValues = items.some(item => item.value !== '-');
+                                  if (!hasValues) return null;
+
+                                  return (
+                                    <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
+                                  );
+                                })}
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
 
-                    {selectedProposal.survey_data && (
-                      <div className="space-y-3 pt-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">Rincian Kondisi Lapangan</p>
-                        
-                        {(selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
-                          selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
-                          !!selectedProposal.survey_data?.berbadanHukum || 
-                          !!selectedProposal.survey_data?.usiaBerdiri) ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <SurveyDetailSection title="A. Profil Lembaga" items={[
-                              { label: 'Berbadan Hukum', value: selectedProposal.survey_data?.berbadanHukum || '-' },
-                              { label: 'Usia Berdiri', value: selectedProposal.survey_data?.usiaBerdiri || '-' },
-                              { label: 'Bidang Garapan', value: selectedProposal.survey_data?.bidangGarapan || '-' },
-                              { label: 'Daerah Jangkauan', value: selectedProposal.survey_data?.daerahJangkauan || '-' },
-                            ]} />
-                            <SurveyDetailSection title="B. Kelayakan" items={[
-                              { label: 'Jenis Kegiatan', value: selectedProposal.survey_data?.layakJenisKegiatan || '-' },
-                              { label: 'Jumlah Penerima Manfaat', value: selectedProposal.survey_data?.layakJumlahPenerima || '-' },
-                            ]} />
-                          </div>
+                    {/* Mustahik & Bantuan Info Card */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Mustahik / Pemohon</p>
+                        <p className="text-sm font-bold text-slate-900">{selectedProposal.namaPemohon}</p>
+                        {selectedProposal.nik && (
+                          <p className="text-[10px] text-slate-400 font-medium">NIK: {selectedProposal.nik}</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Program / Jenis Permohonan</p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {selectedProposal.programCode ? `[${selectedProposal.programCode}] ` : ''}
+                          {selectedProposal.jenisPermohonan || '-'}
+                        </p>
+                        {selectedProposal.program && (
+                          <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase rounded border border-emerald-100">
+                            {selectedProposal.program}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Alamat</p>
+                        <p className="text-xs font-medium text-slate-700 leading-relaxed">
+                          {[selectedProposal.alamat, selectedProposal.kelurahan, selectedProposal.kecamatan].filter(Boolean).join(', ')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Tanggal Pengajuan</p>
+                        <p className="text-xs font-semibold text-slate-700">
+                          {selectedProposal.tanggalMasuk} {selectedProposal.jamPengajuan ? `· ${selectedProposal.jamPengajuan}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="space-y-6">
+                    {/* Petugas Lapangan card */}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Petugas Lapangan</h4>
+                      <div className="flex items-center gap-4 p-4 rounded-xl border bg-primary/5 border-primary/10">
+                        {selectedProposal.surveyorName ? (
+                          <>
+                            <img src={`https://picsum.photos/seed/${selectedProposal.surveyorName}/100/100`} alt={selectedProposal.surveyorName} className="w-12 h-12 rounded-full border-2 border-white shadow-sm" referrerPolicy="no-referrer" />
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{selectedProposal.surveyorName}</p>
+                              <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">Relawan BAZNAS</p>
+                            </div>
+                          </>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            {[
-                              { code: 'A', title: 'A. Kondisi Rumah' },
-                              { code: 'B', title: 'B. Kondisi Ekonomi' },
-                              { code: 'C', title: 'C. Fisik & Lainnya' }
-                            ].map(sec => {
-                              const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
-                                { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
-                                { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
-                                { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
-                                { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
-                                { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
-                                { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
-                                { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
-                                { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
-                                { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
-                                { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
-                              ]).filter(q => q.section === sec.code);
+                          <p className="text-sm font-bold text-slate-400 italic">Belum Ditugaskan / Tidak Perlu Survei</p>
+                        )}
+                      </div>
+                      
+                      {selectedProposal.survey_data?.catatanLapangan && (
+                        <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                          <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
+                          <p className="text-xs text-slate-700 italic leading-relaxed">"{selectedProposal.survey_data.catatanLapangan}"</p>
+                        </div>
+                      )}
+                    </div>
 
-                              const items = secQuestions.map(q => ({
-                                label: q.label,
-                                value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
-                              }));
-
-                              const hasValues = items.some(item => item.value !== '-');
-                              if (!hasValues) return null;
-
-                              return (
-                                <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
-                              );
-                            })}
+                    {/* Catatan Pimpinan */}
+                    {(selectedProposal.catatanKepala || selectedProposal.catatanPimpinan) && (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-1.5">Catatan Pimpinan</h4>
+                        {selectedProposal.catatanKepala && (
+                          <div className="p-3.5 bg-blue-50 border border-blue-100 rounded-xl">
+                            <p className="text-[10px] font-black text-blue-700 uppercase tracking-wider mb-1">Catatan Kepala Pelaksana</p>
+                            <p className="text-xs text-slate-700 italic">"{selectedProposal.catatanKepala}"</p>
+                          </div>
+                        )}
+                        {selectedProposal.catatanPimpinan && (
+                          <div className="p-3.5 bg-purple-50 border border-purple-100 rounded-xl">
+                            <p className="text-[10px] font-black text-purple-700 uppercase tracking-wider mb-1">Catatan Pimpinan</p>
+                            <p className="text-xs text-slate-700 italic">"{selectedProposal.catatanPimpinan}"</p>
                           </div>
                         )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Preview Dokumen */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText className="size-4 text-primary" />
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dokumen Proposal</h4>
-                    </div>
-                    {selectedProposal.fileGdriveLink && (
-                      <a href={selectedProposal.fileGdriveLink} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
-                        <ExternalLink className="size-3" /> Buka di Drive
-                      </a>
-                    )}
-                  </div>
-                  {selectedProposal.fileGdriveLink ? (
-                    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: '320px' }}>
-                      <iframe
-                        src={selectedProposal.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')}
-                        className="w-full h-full bg-slate-100"
-                        title="Dokumen Proposal"
-                        allow="autoplay"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
-                      <FileText className="size-8 mb-2 opacity-30" />
-                      <p className="text-xs font-medium">Tidak ada dokumen terlampir</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Progress Steps */}
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Riwayat Alur Dokumen</h4>
-                  <div className="space-y-3">
-                    {getProgressSteps(selectedProposal.status).map((step, idx) => (
-                      <div key={step.id} className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className={cn("size-7 rounded-full flex items-center justify-center text-xs font-bold z-10 shrink-0",
-                            step.completed ? "bg-primary text-white" :
-                            step.active ? "bg-white border-2 border-primary text-primary" :
-                            step.rejected ? "bg-rose-100 text-rose-500" :
-                            "bg-slate-100 text-slate-400"
-                          )}>
-                            {step.completed ? <CheckCircle2 className="size-3.5" /> : idx+1}
+                    {/* Riwayat Alur Dokumen */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-1.5 flex items-center gap-1.5">
+                        <History className="size-4 text-primary" /> Riwayat Alur Dokumen
+                      </h4>
+                      <div className="space-y-3 pl-1">
+                        {getProgressSteps(selectedProposal.status).map((step, idx) => (
+                          <div key={step.id} className="flex gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className={cn("size-6 rounded-full flex items-center justify-center text-[10px] font-bold z-10 shrink-0",
+                                step.completed ? "bg-primary text-white" :
+                                step.active ? "bg-white border-2 border-primary text-primary" :
+                                step.rejected ? "bg-rose-100 text-rose-500" :
+                                "bg-slate-100 text-slate-400"
+                              )}>
+                                {step.completed ? <CheckCircle2 className="size-3" /> : idx+1}
+                              </div>
+                              {idx < STEPS.length-1 && <div className={cn("w-[1.5px] flex-1 my-1", step.completed ? "bg-primary" : "bg-slate-100")} style={{ minHeight: 12 }} />}
+                            </div>
+                            <div className="pb-1">
+                              <p className={cn("text-xs font-bold", step.completed||step.active ? "text-slate-900" : "text-slate-400")}>
+                                {step.full}
+                              </p>
+                              <p className="text-[9px] text-slate-400 font-semibold">
+                                {step.completed ? 'Selesai diverifikasi' : step.active ? 'Sedang diproses' : step.rejected ? 'Ditolak' : 'Menunggu'}
+                              </p>
+                            </div>
                           </div>
-                          {idx < STEPS.length-1 && <div className={cn("w-[2px] flex-1 my-1", step.completed ? "bg-primary" : "bg-slate-100")} style={{ minHeight: 16 }} />}
-                        </div>
-                        <div className="pb-2">
-                          <p className={cn("text-sm font-bold", step.completed||step.active ? "text-slate-900" : "text-slate-400")}>
-                            {step.full}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-medium">
-                            {step.completed ? 'Selesai diverifikasi' : step.active ? 'Sedang diproses' : step.rejected ? 'Ditolak' : 'Menunggu'}
-                          </p>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
                   </div>
+
                 </div>
 
-                {/* Catatan */}
-                {(selectedProposal.catatanKepala || selectedProposal.catatanPimpinan) && (
-                  <div className="space-y-3">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Catatan Pejabat</h4>
-                    {selectedProposal.catatanKepala && (
-                      <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
-                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">Catatan Kepala Pelaksana</p>
-                        <p className="text-sm text-slate-700 italic">"{selectedProposal.catatanKepala}"</p>
-                      </div>
-                    )}
-                    {selectedProposal.catatanPimpinan && (
-                      <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl">
-                        <p className="text-[10px] font-black text-purple-600 uppercase tracking-wider mb-1">Catatan Pimpinan</p>
-                        <p className="text-sm text-slate-700 italic">"{selectedProposal.catatanPimpinan}"</p>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
-              <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
                 <button onClick={() => setSelectedProposal(null)}
-                  className="px-6 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
+                  className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
                   Tutup
                 </button>
               </div>
@@ -605,19 +662,9 @@ function StatCard({ title, value, icon, color }: { title: string; value: number;
   );
 }
 
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 shrink-0">{icon}</div>
-      <div>
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{label}</p>
-        <p className="text-sm font-bold text-slate-900">{value || '—'}</p>
-      </div>
-    </div>
-  );
-}
 
 // --- HELPER COMPONENTS & FUNCTIONS FOR SURVEY ---
+
 
 function SurveyDetailSection({ title, items }: { title: string; items: { label: string; value: string }[] }) {
   return (
@@ -625,9 +672,9 @@ function SurveyDetailSection({ title, items }: { title: string; items: { label: 
       <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{title}</p>
       <div className="space-y-1.5">
         {items.map((item, i) => (
-          <div key={i} className="flex justify-between items-center text-[11px]">
-            <span className="text-slate-500">{item.label}</span>
-            <span className="font-bold text-slate-800 text-right max-w-[150px] truncate">{item.value}</span>
+          <div key={i} className="flex justify-between items-center text-[10px]">
+            <span className="text-slate-500 font-medium">{item.label}</span>
+            <span className="font-bold text-slate-800 text-right truncate ml-2">{item.value}</span>
           </div>
         ))}
       </div>

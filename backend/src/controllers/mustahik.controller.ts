@@ -539,7 +539,7 @@ export const cekBantuanNik = async (req: Request, res: Response): Promise<void> 
       status: 'success', 
       mustahik_id: mustahik.id,
       nama: mustahik.nama,
-      message: 'Aman, belum ada histori bantuan dalam 1 tahun terakhir.' 
+      message: 'NIK terverifikasi. Tidak ada riwayat bantuan dalam 1 tahun terakhir.' 
     });
   } catch (error) {
     console.error('Error checking NIK:', error);

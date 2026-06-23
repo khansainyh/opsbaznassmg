@@ -10,6 +10,7 @@ import {
   FileText,
   Newspaper,
   Clock,
+  Calendar,
   X,
   History,
   AlertCircle,
@@ -73,6 +74,9 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   
   const [editingSurat, setEditingSurat] = useState<Surat | null>(null);
   const [selectedKategori, setSelectedKategori] = useState<string>('');
+  const [isKategoriDropdownOpen, setIsKategoriDropdownOpen] = useState(false);
+  const [tanggalAcaraInput, setTanggalAcaraInput] = useState('');
+  const [jamAcaraInput, setJamAcaraInput] = useState('');
 
   // Scan modal state
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -319,6 +323,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   const handleEditClick = (surat: Surat) => {
     setEditingSurat(surat);
     setSelectedKategori(surat.kategori || '');
+    setTanggalAcaraInput(surat.tanggalAcara ? surat.tanggalAcara.split('T')[0] : '');
+    setJamAcaraInput(surat.jamAcara || '');
     setIsModalOpen(true);
   };
 
@@ -402,10 +408,10 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <span className="text-primary font-bold">Input Surat</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-          Administrasi: Input Surat
+          Input Surat
         </h2>
         <p className="text-slate-500 font-medium">
-          Registrasi surat dinas dan permohonan umum masuk. Setelah discan, surat diteruskan ke Kabag.
+          Layanan registrasi berkas surat masuk, baik berupa surat dinas maupun permohonan umum. Setelah terekam, surat akan diproses secara digital (scan) dan diulas oleh Kepala Bagian Administrasi sebelum diserahkan kepada Pimpinan.
         </p>
       </motion.div>
 
@@ -472,6 +478,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               onClick={() => {
                 setEditingSurat(null);
                 setSelectedKategori('');
+                setTanggalAcaraInput('');
+                setJamAcaraInput('');
                 setIsModalOpen(true);
               }}
               className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
@@ -981,31 +989,90 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori Surat</label>
-                      <select 
-                        name="kategori" 
-                        required
-                        value={selectedKategori}
-                        onChange={(e) => setSelectedKategori(e.target.value)}
-                        className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                      >
-                        <option value="" disabled>Pilih Kategori...</option>
-                        <option value="Undangan">Undangan</option>
-                        <option value="Surat Izin Kerja">Surat Izin Kerja</option>
-                        <option value="Surat Izin Penelitian/Magang">Surat Izin Penelitian/Magang</option>
-                        <option value="Surat Permohonan">Surat Permohonan</option>
-                        <option value="Surat Rekomendasi/Pengantar">Surat Rekomendasi/Pengantar</option>
-                      </select>
+                      <div className="relative">
+                        <input type="hidden" name="kategori" value={selectedKategori} required />
+                        <button
+                          type="button"
+                          onClick={() => setIsKategoriDropdownOpen(!isKategoriDropdownOpen)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
+                        >
+                          <span className={selectedKategori ? "text-slate-800 font-medium" : "text-slate-400"}>
+                            {selectedKategori || 'Pilih Kategori...'}
+                          </span>
+                          <span className="text-slate-400">▼</span>
+                        </button>
+
+                        {isKategoriDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setIsKategoriDropdownOpen(false)} />
+                            <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1">
+                              {['Undangan', 'Surat Izin Kerja', 'Surat Izin Penelitian/Magang', 'Surat Permohonan', 'Surat Rekomendasi/Pengantar'].map(kategori => (
+                                <button
+                                  key={kategori}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedKategori(kategori);
+                                    setIsKategoriDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors flex justify-between items-center",
+                                    selectedKategori === kategori
+                                      ? "bg-primary text-white font-bold"
+                                      : "text-slate-700 hover:bg-slate-100"
+                                  )}
+                                >
+                                  {kategori}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     {selectedKategori === 'Undangan' && (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Acara</label>
-                          <input name="tanggalAcara" type="date" required className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingSurat?.tanggalAcara ? editingSurat.tanggalAcara.split('T')[0] : ''} />
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              name="tanggalAcara" 
+                              value={tanggalAcaraInput} 
+                              onChange={(e) => setTanggalAcaraInput(e.target.value)} 
+                              placeholder="YYYY-MM-DD"
+                              required
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            />
+                            <input 
+                              type="date" 
+                              value={tanggalAcaraInput}
+                              onChange={(e) => setTanggalAcaraInput(e.target.value)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 w-6 h-6 cursor-pointer"
+                            />
+                            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 size-4" />
+                          </div>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jam Acara</label>
-                          <input name="jamAcara" type="time" required className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingSurat?.jamAcara || ''} />
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              name="jamAcara" 
+                              value={jamAcaraInput} 
+                              onChange={(e) => setJamAcaraInput(e.target.value)} 
+                              placeholder="HH:MM"
+                              required
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            />
+                            <input 
+                              type="time" 
+                              value={jamAcaraInput}
+                              onChange={(e) => setJamAcaraInput(e.target.value)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 w-6 h-6 cursor-pointer"
+                            />
+                            <Clock className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 size-4" />
+                          </div>
                         </div>
                       </div>
                     )}

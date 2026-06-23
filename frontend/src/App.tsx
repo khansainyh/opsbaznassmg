@@ -62,7 +62,7 @@ function App() {
         { name: "Input Surat", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
         { name: "Tracking Proposal", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan"] },
         { name: "Tracking Surat", roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
-        { name: "Persetujuan Kepala Bagian", roles: ["Super_Admin", "Kabag_Administrasi"] },
+        { name: "Persetujuan Kabag Administrasi", roles: ["Super_Admin", "Kabag_Administrasi"] },
         { name: "Persetujuan Kepala Pelaksana", roles: ["Super_Admin", "Kepala_Pelaksana"] },
         { name: "Persetujuan Pimpinan", roles: ["Super_Admin", "Ketua"] },
         { name: "Penentuan Nominal", roles: ["Super_Admin", "Wakil_Ketua_II", "Kepala_Pelaksana"] },
@@ -302,6 +302,7 @@ function App() {
         ) : activeMenu === 'Upload Proposal' ? (
           <UploadProposalHumas 
             data={registrasiProposals} 
+            allData={proposals}
             onUpdate={handleUpdateProposals} 
           />
         ) : activeMenu === 'Input Surat' ? (
@@ -310,7 +311,7 @@ function App() {
             allData={surats}
             onUpdate={setSurats}
           />
-        ) : activeMenu === 'Persetujuan Kepala Bagian' ? (
+        ) : activeMenu === 'Persetujuan Kabag Administrasi' ? (
           <ReviewKabag
             data={proposals}
             onUpdate={handleUpdateProposals}

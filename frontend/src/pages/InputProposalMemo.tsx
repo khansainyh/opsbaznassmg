@@ -88,6 +88,28 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
   const [tanggalLahirInput, setTanggalLahirInput] = useState('');
 
+  // Styled custom dropdown states
+  const [isMemoDropdownOpen, setIsMemoDropdownOpen] = useState(false);
+  const [selectedMemoSource, setSelectedMemoSource] = useState('');
+  const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
+  const [selectedGender, setSelectedGender] = useState('');
+  const [isKecamatanDropdownOpen, setIsKecamatanDropdownOpen] = useState(false);
+  const [kecamatanSearchQuery, setKecamatanSearchQuery] = useState('');
+  const [isKelurahanDropdownOpen, setIsKelurahanDropdownOpen] = useState(false);
+  const [kelurahanSearchQuery, setKelurahanSearchQuery] = useState('');
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    actionType: 'send_humas' | 'delete_proposal' | '';
+    targetId?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    actionType: '',
+  });
+
   // Report modal state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportType, setReportType] = useState<'harian_pilar' | 'harian_detail' | 'mingguan' | 'bulanan'>('harian_pilar');
@@ -703,6 +725,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     setNikCheckStr(proposal.nik || '');
     setNoKk(proposal.no_kk || '');
     setSelectedProgramCode(proposal.programCode || proposal.jenisPermohonan || '');
+    setSelectedMemoSource(proposal.memoSource || '');
+    setSelectedGender(proposal.jenis_kelamin || '');
     let dob = proposal.tanggal_lahir || '';
     if (dob.includes('-')) {
       const parts = dob.split('-');
@@ -768,15 +792,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   };
 
   const handleDeleteData = async (proposalId: string) => {
-    if (window.confirm('Yakin ingin menghapus proposal ini?')) {
-      try {
-        await axios.delete(`/api/proposals/${proposalId}`);
-        window.location.reload();
-      } catch (err) {
-        console.error(err);
-        alert('Gagal menghapus data');
-      }
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Konfirmasi Hapus',
+      message: 'Apakah Anda yakin ingin menghapus proposal ini? Tindakan ini tidak dapat dibatalkan.',
+      actionType: 'delete_proposal',
+      targetId: proposalId
+    });
   };
 
   const handlePrintBajuSurat = (proposal: ProposalMemo) => {
@@ -800,354 +822,324 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     };
 
     const currentIdx = getStepIndex(proposal.status);
-    const fillRow1 = currentIdx >= 4 ? 92 : (currentIdx / 4) * 92;
-    const fillRow2 = currentIdx < 5 ? 0 : ((currentIdx - 5) / 4) * 92;
 
-    const stepsRow1 = [
-      { id: 'AD', label: 'ADM', idx: 0 },
-      { id: 'HU', label: 'HUM', idx: 1 },
-      { id: 'KD', label: 'KDM', idx: 2 },
-      { id: 'SU', label: 'SURV', idx: 3 },
-      { id: 'KA', label: 'KAPEL', idx: 4 }
-    ];
-
-    const stepsRow2 = [
-      { id: 'DO', label: 'DONE', idx: 9 },
-      { id: 'Ar', label: 'ARSIP', idx: 8 },
-      { id: 'DI', label: 'DIST', idx: 7 },
-      { id: 'KE', label: 'KEU', idx: 6 },
-      { id: 'PI', label: 'PIMP', idx: 5 }
-    ];
-
-    const row1NodesHtml = stepsRow1.map((step) => {
-      let circleClass = 'upcoming';
-      let circleContent = step.id;
-      let labelClass = 'upcoming';
+    const renderNodeHtml = (step: { id: string; label: string; idx: number; short: string }) => {
+      let nodeClass = '';
+      let circleContent = step.short;
 
       if (step.idx < currentIdx) {
-        circleClass = 'completed';
+        nodeClass = 'done';
         circleContent = '✓';
-        labelClass = 'active';
       } else if (step.idx === currentIdx) {
-        circleClass = 'active';
-        labelClass = 'active';
+        nodeClass = 'active';
       }
 
       return `
-        <div class="step-node">
-          <div class="step-circle ${circleClass}">${circleContent}</div>
-          <div class="step-label ${labelClass}">${step.label}</div>
+        <div class="node ${nodeClass}">
+          <div class="circle">${circleContent}</div>
+          <div class="label">${step.label}</div>
         </div>
       `;
-    }).join('');
+    };
 
-    const row2NodesHtml = stepsRow2.map((step) => {
-      let circleClass = 'upcoming';
-      let circleContent = step.id;
-      let labelClass = 'upcoming';
+    const row1NodesHtml = [
+      { id: 'ADM', label: 'ADM', idx: 0, short: 'ADM' },
+      { id: 'HUMAS', label: 'HUMAS', idx: 1, short: 'HUM' },
+      { id: 'KDM', label: 'KDM', idx: 2, short: 'KD' },
+      { id: 'SURV', label: 'SURV', idx: 3, short: 'SU' },
+      { id: 'KAPEL', label: 'KAPEL', idx: 4, short: 'KA' }
+    ].map(renderNodeHtml).join('');
 
-      if (step.idx < currentIdx) {
-        circleClass = 'completed';
-        circleContent = '✓';
-        labelClass = 'active';
-      } else if (step.idx === currentIdx) {
-        circleClass = 'active';
-        labelClass = 'active';
-      }
-
-      return `
-        <div class="step-node">
-          <div class="step-circle ${circleClass}">${circleContent}</div>
-          <div class="step-label ${labelClass}">${step.label}</div>
-        </div>
-      `;
-    }).join('');
+    const row2NodesHtml = [
+      { id: 'PIMP', label: 'PIMP', idx: 5, short: 'PI' },
+      { id: 'KEU', label: 'KEU', idx: 6, short: 'KE' },
+      { id: 'DIST', label: 'DIST', idx: 7, short: 'DI' },
+      { id: 'ARSIP', label: 'ARSIP', idx: 8, short: 'Ar' },
+      { id: 'DONE', label: 'DONE', idx: 9, short: '' }
+    ].map(renderNodeHtml).join('');
 
     printWindow.document.write(`
-      <html>
-        <head>
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Baju Surat - ${proposal.agendaNo}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-            @page {
-              size: A5 landscape;
-              margin: 6mm;
-            }
-            body {
-              font-family: 'Inter', sans-serif;
-              padding: 0;
-              margin: 0;
-              color: #0f172a;
-              font-size: 11px;
-              line-height: 1.4;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 2px solid #0f172a;
-              padding-bottom: 5px;
-              margin-bottom: 12px;
-            }
-            .header h1 {
-              font-size: 15px;
-              font-weight: 900;
-              margin: 0;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            }
-            .header p {
-              margin: 2px 0 0 0;
-              font-size: 9px;
-              color: #475569;
-            }
-            .title {
-              text-align: center;
-              font-size: 12px;
-              font-weight: 900;
-              text-transform: uppercase;
-              text-decoration: underline;
-              margin-bottom: 15px;
-            }
-            .info-box {
-              border: 1px solid #cbd5e1;
-              border-radius: 8px;
-              padding: 10px 14px;
-              margin-top: 10px;
-              margin-bottom: 18px;
-              background-color: #f8fafc;
-            }
-            .info-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 6px 20px;
-            }
-            .info-item {
-              display: flex;
-              align-items: flex-start;
-            }
-            .info-label {
-              font-weight: 700;
-              color: #475569;
-              font-size: 10px;
-              text-transform: uppercase;
-              width: 120px;
-              flex-shrink: 0;
-            }
-            .info-value {
-              font-weight: 700;
-              font-size: 11px;
-            }
-            .steps-title {
-              font-size: 10px;
-              font-weight: 900;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              margin-bottom: 15px;
-              color: #475569;
-              text-align: center;
-            }
-            .stepper-container {
-              position: relative;
-              width: 90%;
-              margin: 15px auto 10px auto;
-              height: 140px;
-            }
-            .nodes-row {
-              position: absolute;
-              left: 0;
-              right: 0;
-              display: flex;
-              justify-content: space-between;
-              z-index: 2;
-            }
-            .nodes-row.row-1 {
-              top: 0;
-            }
-            .nodes-row.row-2 {
-              top: 80px;
-            }
-            
-            /* Horizontal lines for row 1 */
-            .line-row-1 {
-              position: absolute;
-              top: 18px;
-              left: 4%;
-              right: 4%;
-              height: 3px;
-              background-color: #e2e8f0;
-              z-index: 1;
-            }
-            .line-row-1-fill {
-              position: absolute;
-              top: 18px;
-              left: 4%;
-              height: 3px;
-              background-color: #10b981;
-              z-index: 1.5;
-              max-width: 92%;
-            }
-            
-            /* Vertical connector on the right edge */
-            .line-vertical-bg {
-              position: absolute;
-              top: 18px;
-              right: 4%;
-              height: 80px;
-              width: 3px;
-              background-color: #e2e8f0;
-              z-index: 1;
-            }
-            .line-vertical-fill {
-              position: absolute;
-              top: 18px;
-              right: 4%;
-              height: 80px;
-              width: 3px;
-              background-color: #e2e8f0;
-              z-index: 1.5;
-            }
-            .line-vertical-fill.active {
-              background-color: #10b981;
-            }
-            
-            /* Horizontal lines for row 2 */
-            .line-row-2 {
-              position: absolute;
-              top: 98px;
-              left: 4%;
-              right: 4%;
-              height: 3px;
-              background-color: #e2e8f0;
-              z-index: 1;
-            }
-            .line-row-2-fill {
-              position: absolute;
-              top: 98px;
-              right: 4%;
-              height: 3px;
-              background-color: #10b981;
-              z-index: 1.5;
-              max-width: 92%;
-            }
-            
-            .step-node {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              width: 50px;
-            }
-            .step-circle {
-              width: 36px;
-              height: 36px;
-              border: 2px solid #e2e8f0;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 11px;
-              font-weight: 800;
-              color: #94a3b8;
-              background-color: #f8fafc;
-              margin-bottom: 6px;
-              box-shadow: 0 0 0 3px #fff;
-            }
-            .step-circle.completed {
-              border-color: #10b981;
-              background-color: #10b981;
-              color: white;
-            }
-            .step-circle.active {
-              border-color: #10b981;
-              color: #10b981;
-              background-color: #f0fdf4;
-            }
-            .step-circle.upcoming {
-              border-color: #e2e8f0;
-              color: #94a3b8;
-              background-color: #f8fafc;
-            }
-            .step-label {
-              font-size: 9.5px;
-              font-weight: 800;
-              color: #94a3b8;
-              text-align: center;
-              white-space: nowrap;
-            }
-            .step-label.active {
-              color: #10b981;
-            }
-            .step-label.upcoming {
-              color: #94a3b8;
-            }
-            @media print {
-              body { margin: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>BAZNAS KOTA SEMARANG</h1>
-            <p>Jl. Setiabudi No. 123, Semarang - Telp: (024) 1234567</p>
-          </div>
-          <div class="title">LEMBAR KONTROL PROPOSAL (BAJU SURAT)</div>
-          
-          <div class="info-box">
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">No. Agenda</span>
-                <span class="info-value">: ${proposal.agendaNo}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Tanggal Masuk</span>
-                <span class="info-value">: ${proposal.tanggalMasuk} (${proposal.jamPengajuan})</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Nama Pemohon</span>
-                <span class="info-value">: ${proposal.namaPemohon}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Jenis Permohonan</span>
-                <span class="info-value">: ${proposal.jenisPermohonan}</span>
-              </div>
-              ${proposal.namaAnak ? `
-              <div class="info-item">
-                <span class="info-label">Nama Anak</span>
-                <span class="info-value">: ${proposal.namaAnak}</span>
-              </div>
-              ` : ''}
-              <div class="info-item" style="grid-column: span 2;">
-                <span class="info-label">Alamat</span>
-                <span class="info-value">: ${proposal.alamat}</span>
-              </div>
-            </div>
-          </div>
+              /* Setup Print Ukuran A5 */
+              @page {
+                  size: A5 landscape;
+                  margin: 0;
+              }
+              
+              body {
+                  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                  background-color: #f9fafb;
+                  margin: 0;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  height: 100vh;
+              }
 
-          <div class="steps-title">Progress Alur Dokumen</div>
-          <div class="stepper-container">
-            <div class="line-row-1"></div>
-            <div class="line-row-1-fill" style="width: ${fillRow1}%;"></div>
-            
-            <div class="line-vertical-bg"></div>
-            <div class="line-vertical-fill ${currentIdx >= 5 ? 'active' : ''}"></div>
-            
-            <div class="line-row-2"></div>
-            <div class="line-row-2-fill" style="width: ${fillRow2}%;"></div>
-            
-            <div class="nodes-row row-1">
-              ${row1NodesHtml}
-            </div>
-            
-            <div class="nodes-row row-2">
-              ${row2NodesHtml}
-            </div>
+              .a5-container {
+                  width: 210mm;
+                  height: 148mm;
+                  background: white;
+                  padding: 10mm 12mm;
+                  box-sizing: border-box;
+                  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: space-between;
+              }
+
+              /* Mode Print - Hilangkan shadow & background */
+              @media print {
+                  body { background: white; height: auto; display: block; }
+                  .a5-container { box-shadow: none; width: 100%; height: 100%; padding: 10mm; }
+              }
+
+              /* Header / Kop Surat */
+              .header {
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  padding-bottom: 8px;
+                  margin-bottom: 10px;
+              }
+              
+              .logo-img {
+                  height: 100px;
+                  max-width: 100%;
+                  object-fit: contain;
+              }
+
+              /* Judul Dokumen */
+              .title {
+                  text-align: center;
+                  font-weight: 900;
+                  font-size: 11px;
+                  margin-bottom: 12px;
+                  text-decoration: underline;
+                  text-transform: uppercase;
+              }
+
+              /* Box Informasi Proposal */
+              .info-box {
+                  border: 1px solid #d1d5db;
+                  border-radius: 8px;
+                  padding: 10px 12px;
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 8px 15px;
+                  margin-bottom: 20px;
+                  background-color: #fafafa;
+              }
+
+              .info-row {
+                  display: flex;
+                  font-size: 9px;
+              }
+
+              .info-label {
+                  width: 110px;
+                  font-weight: bold;
+                  color: #4b5563;
+              }
+
+              .info-value {
+                  font-weight: bold;
+                  color: #111827;
+              }
+
+              /* Alur Dokumen */
+              .progress-section {
+                  position: relative;
+                  margin-top: 5px;
+              }
+
+              .progress-title {
+                  text-align: center;
+                  font-weight: 800;
+                  font-size: 10px;
+                  color: #374151;
+                  margin-bottom: 20px;
+                  text-transform: uppercase;
+              }
+
+              /* Garis Alur (U-Shape) */
+              .flow-track {
+                  position: absolute;
+                  top: 14px; 
+                  left: 10%; 
+                  right: 10%; 
+                  height: 52px;
+                  border: 2px solid #e5e7eb;
+                  border-left: none; /* Terbuka di kiri */
+                  border-radius: 0 20px 20px 0; /* Sudut melengkung di kanan */
+                  z-index: 1;
+              }
+
+              /* Container Row */
+              .flow-container {
+                  padding: 0 10%; /* Agar Node awal dan akhir pas di garis */
+                  position: relative;
+              }
+
+              .flow-row {
+                  display: flex;
+                  justify-content: space-between;
+                  position: relative;
+                  z-index: 2;
+              }
+
+              .flow-row.top-row {
+                  margin-bottom: 22px;
+              }
+
+              /* Membalik urutan baris bawah agar nyambung (Kanan ke Kiri) */
+              .flow-row.bottom-row {
+                  flex-direction: row-reverse; 
+              }
+
+              /* Desain Bulatan (Nodes) */
+              .node {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  background-color: white; /* Menutupi garis di belakangnya */
+                  padding: 0 5px;
+              }
+
+              .circle {
+                  width: 26px;
+                  height: 26px;
+                  border-radius: 50%;
+                  border: 2px solid #d1d5db;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: bold;
+                  font-size: 9px;
+                  color: #6b7280;
+                  margin-bottom: 6px;
+                  background-color: white;
+                  transition: all 0.3s ease;
+              }
+
+              .label {
+                  font-size: 8px;
+                  font-weight: 800;
+                  text-align: center;
+                  color: #4b5563;
+              }
+
+              /* Status Checklist (Done) */
+              .node.done .circle {
+                  border-color: #10b981;
+                  background-color: #10b981;
+                  color: white;
+              }
+              .node.done .label {
+                  color: #10b981;
+              }
+
+              /* Status Sekarang (Active) */
+              .node.active .circle {
+                  border-color: #10b981;
+                  color: #10b981;
+                  border-width: 3px;
+              }
+              .node.active .label {
+                  color: #10b981;
+              }
+          </style>
+      </head>
+      <body>
+
+          <div class="a5-container">
+              
+              <!-- Header -->
+              <div class="header">
+                  <img class="logo-img" src="/LogoBAZNASSMG.PNG" alt="Logo BAZNAS" />
+              </div>
+
+              <!-- Judul -->
+              <div class="title">LEMBAR KONTROL PROPOSAL</div>
+
+              <!-- Info Proposal -->
+              <div class="info-box">
+                  <!-- Row 1 -->
+                  <div class="info-row">
+                      <div class="info-label">NO. AGENDA</div>
+                      <div class="info-value">: ${proposal.agendaNo}</div>
+                  </div>
+                  <div class="info-row">
+                      <div class="info-label">TANGGAL MASUK</div>
+                      <div class="info-value">: ${proposal.tanggalMasuk} (${proposal.jamPengajuan})</div>
+                  </div>
+
+                  <!-- Row 2 -->
+                  <div class="info-row">
+                      <div class="info-label">NAMA PEMOHON</div>
+                      <div class="info-value">: ${proposal.namaPemohon}</div>
+                  </div>
+                  <div class="info-row">
+                      <div class="info-label">JENIS PERMOHONAN</div>
+                      <div class="info-value">: ${proposal.jenisPermohonan}</div>
+                  </div>
+
+                  ${proposal.namaAnak ? `
+                  <div class="info-row">
+                      <div class="info-label">NAMA ANAK</div>
+                      <div class="info-value">: ${proposal.namaAnak}</div>
+                  </div>
+                  ` : `
+                  <div></div>
+                  `}
+                  <div class="info-row">
+                      <div class="info-label">SUMBER MEMO</div>
+                      <div class="info-value">: ${proposal.hasMemo ? (proposal.memoSource || '-') : '-'}</div>
+                  </div>
+
+                  <!-- Row 4 (Full Width) -->
+                  <div class="info-row" style="grid-column: 1 / -1;">
+                      <div class="info-label">ALAMAT</div>
+                      <div class="info-value">: ${proposal.alamat}</div>
+                  </div>
+              </div>
+
+              <!-- Progress Alur Dokumen -->
+              <div class="progress-section">
+                  <div class="progress-title">PROGRESS ALUR DOKUMEN</div>
+                  
+                  <div class="flow-container">
+                      <!-- Garis U shape untuk menyambungkan baris 1 dan baris 2 -->
+                      <div class="flow-track"></div>
+
+                      <!-- Baris Atas (Alur: Kiri ke Kanan) -->
+                      <div class="flow-row top-row">
+                          ${row1NodesHtml}
+                      </div>
+
+                      <!-- Baris Bawah (Alur berlanjut: Kanan ke Kiri) -->
+                      <div class="flow-row bottom-row">
+                          ${row2NodesHtml}
+                      </div>
+                  </div>
+              </div>
+
           </div>
 
           <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
+              window.onload = function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 500);
+              };
           </script>
-        </body>
+
+      </body>
       </html>
     `);
     printWindow.document.close();
@@ -1186,10 +1178,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           <span className="text-primary font-bold">Input Proposal</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-          Administrasi: Input Proposal
+          Input Proposal
         </h2>
         <p className="text-slate-500 font-medium">
-          Registrasi proposal bantuan masuk. Teruskan ke Humas untuk discan sebelum diproses oleh Kabag Administrasi.
+          Layanan registrasi dan verifikasi berkas proposal permohonan bantuan secara formal. Setelah data terekam, teruskan dokumen ke unit Humas untuk proses pemindaian (scan) dan unggah berkas guna verifikasi lebih lanjut oleh Kepala Bagian Administrasi.
         </p>
       </motion.div>
 
@@ -1270,6 +1262,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                 setSelectedProgramCode('');
                 setProgramSearchQuery('');
                 setTanggalLahirInput('');
+                setSelectedMemoSource('');
+                setSelectedGender('');
                 setIsModalOpen(true);
               }}
               className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
@@ -1360,16 +1354,14 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       {/* Tombol Kirim ke Humas — hanya saat status Registrasi dan bukan untuk Humas */}
                       {item.status.toLowerCase().replace(/_/g, ' ') === 'registrasi' && user?.role !== 'Humas' && (
                         <button 
-                          onClick={async () => {
-                            if (window.confirm('Kirim proposal ini ke bagian Humas untuk proses Scan?')) {
-                              try {
-                                await axios.put(`/api/proposals/${item.id}`, { status: 'Scan_Proposal' });
-                                window.location.reload();
-                              } catch (err) {
-                                console.error(err);
-                                alert('Gagal mengirim proposal ke Humas.');
-                              }
-                            }
+                          onClick={() => {
+                            setConfirmModal({
+                              isOpen: true,
+                              title: 'Kirim ke Humas',
+                              message: 'Apakah Anda yakin ingin mengirim proposal ini ke bagian Humas untuk proses Scan?',
+                              actionType: 'send_humas',
+                              targetId: item.id
+                            });
                           }}
                           className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors" 
                           title="Kirim ke Humas"
@@ -1939,15 +1931,53 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest">Sumber Memo</label>
-                        <select name="memoSource" className="w-full bg-white border-emerald-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-200 outline-none transition-all" defaultValue={editingProposal?.memoSource || ""}>
-                          <option value="">Pilih Sumber...</option>
-                          <option value="Ketua BAZNAS">Ketua BAZNAS</option>
-                          <option value="Wakil Ketua I">Wakil Ketua I</option>
-                          <option value="Wakil Ketua II">Wakil Ketua II</option>
-                          <option value="Wakil Ketua III">Wakil Ketua III</option>
-                          <option value="Wakil Ketua IV">Wakil Ketua IV</option>
-                          <option value="Kepala Pelaksana">Kepala Pelaksana</option>
-                        </select>
+                        <div className="relative">
+                          <input type="hidden" name="memoSource" value={selectedMemoSource} />
+                          <button
+                            type="button"
+                            onClick={() => setIsMemoDropdownOpen(!isMemoDropdownOpen)}
+                            className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-200 outline-none transition-all text-left flex justify-between items-center"
+                          >
+                            <span className={selectedMemoSource ? "text-slate-800 font-medium" : "text-slate-400"}>
+                              {selectedMemoSource || "Pilih Sumber..."}
+                            </span>
+                            <span className="text-emerald-400">▼</span>
+                          </button>
+
+                          {isMemoDropdownOpen && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setIsMemoDropdownOpen(false)} />
+                              <div className="absolute left-0 right-0 mt-1 bg-white border border-emerald-200 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto p-2 space-y-1 custom-scrollbar text-left">
+                                {[
+                                  { value: "", label: "Pilih Sumber..." },
+                                  { value: "Ketua BAZNAS", label: "Ketua BAZNAS" },
+                                  { value: "Wakil Ketua I", label: "Wakil Ketua I" },
+                                  { value: "Wakil Ketua II", label: "Wakil Ketua II" },
+                                  { value: "Wakil Ketua III", label: "Wakil Ketua III" },
+                                  { value: "Wakil Ketua IV", label: "Wakil Ketua IV" },
+                                  { value: "Kepala Pelaksana", label: "Kepala Pelaksana" }
+                                ].map(opt => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedMemoSource(opt.value);
+                                      setIsMemoDropdownOpen(false);
+                                    }}
+                                    className={cn(
+                                      "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                      selectedMemoSource === opt.value
+                                        ? "bg-emerald-600 text-white font-bold"
+                                        : "text-slate-700 hover:bg-emerald-50"
+                                    )}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1995,10 +2025,6 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                             nikStatus === 'pending_nrm' ? 'text-orange-600' :
                             'text-amber-600'
                           )}>
-                            {nikStatus === 'new'         && '🆕 '}
-                            {nikStatus === 'pending_nrm' && '⏳ '}
-                            {nikStatus === 'success'     && '✅ '}
-                            {nikStatus === 'warning'     && '⚠️ '}
                             {nikMessage}
                           </p>
                         )}
@@ -2060,11 +2086,48 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
-                            <select required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={editingProposal?.jenis_kelamin || ""}>
-                              <option value="">Pilih...</option>
-                              <option value="Pria">Pria</option>
-                              <option value="Wanita">Wanita</option>
-                            </select>
+                            <div className="relative">
+                              <input type="hidden" name="jenis_kelamin" value={selectedGender} required />
+                              <button
+                                type="button"
+                                onClick={() => setIsGenderDropdownOpen(!isGenderDropdownOpen)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
+                              >
+                                <span className={selectedGender ? "text-slate-800 font-medium" : "text-slate-400"}>
+                                  {selectedGender || "Pilih..."}
+                                </span>
+                                <span className="text-slate-400">▼</span>
+                              </button>
+
+                              {isGenderDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setIsGenderDropdownOpen(false)} />
+                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 text-left">
+                                    {[
+                                      { value: "Pria", label: "Pria" },
+                                      { value: "Wanita", label: "Wanita" }
+                                    ].map(opt => (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedGender(opt.value);
+                                          setIsGenderDropdownOpen(false);
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                          selectedGender === opt.value
+                                            ? "bg-primary text-white font-bold"
+                                            : "text-slate-700 hover:bg-slate-100"
+                                        )}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -2152,21 +2215,65 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
                           {isKtpSemarang ? (
-                            <select
-                              required
-                              name="kecamatan"
-                              className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                              value={selectedKecamatan}
-                              onChange={e => {
-                                setSelectedKecamatan(e.target.value);
-                                setSelectedKelurahan('');
-                              }}
-                            >
-                              <option value="">Pilih Kecamatan...</option>
-                              {kecamatanKelurahanSemarang.map(k => (
-                                <option key={k.kecamatan} value={k.kecamatan}>{k.kecamatan}</option>
-                              ))}
-                            </select>
+                            <div className="relative">
+                              <input type="hidden" name="kecamatan" value={selectedKecamatan} required />
+                              <button
+                                type="button"
+                                onClick={() => setIsKecamatanDropdownOpen(!isKecamatanDropdownOpen)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
+                              >
+                                <span className={selectedKecamatan ? "text-slate-800 font-medium" : "text-slate-400"}>
+                                  {selectedKecamatan || "Pilih Kecamatan..."}
+                                </span>
+                                <span className="text-slate-400">▼</span>
+                              </button>
+
+                              {isKecamatanDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setIsKecamatanDropdownOpen(false)} />
+                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto p-2 space-y-2 custom-scrollbar text-left">
+                                    <input
+                                      type="text"
+                                      placeholder="Cari kecamatan..."
+                                      value={kecamatanSearchQuery}
+                                      onChange={(e) => setKecamatanSearchQuery(e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary outline-none"
+                                      autoFocus
+                                    />
+                                    <div className="max-h-40 overflow-y-auto space-y-1">
+                                      {kecamatanKelurahanSemarang
+                                        .filter(k => k.kecamatan.toLowerCase().includes(kecamatanSearchQuery.toLowerCase()))
+                                        .map(k => (
+                                          <button
+                                            key={k.kecamatan}
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedKecamatan(k.kecamatan);
+                                              setSelectedKelurahan('');
+                                              setIsKecamatanDropdownOpen(false);
+                                              setKecamatanSearchQuery('');
+                                            }}
+                                            className={cn(
+                                              "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                              selectedKecamatan === k.kecamatan
+                                                ? "bg-primary text-white font-bold"
+                                                : "text-slate-700 hover:bg-slate-100"
+                                            )}
+                                          >
+                                            {k.kecamatan}
+                                          </button>
+                                        ))
+                                      }
+                                      {kecamatanKelurahanSemarang.filter(k => k.kecamatan.toLowerCase().includes(kecamatanSearchQuery.toLowerCase())).length === 0 && (
+                                        <div className="text-center text-xs text-slate-400 py-2">
+                                          Tidak ada kecamatan yang cocok
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           ) : (
                             <input
                               type="text"
@@ -2174,32 +2281,82 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                               placeholder="Kecamatan..."
                               className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                               value={selectedKecamatan}
-                              onChange={e => setSelectedKecamatan(e.target.value)}
+                              onChange={e => {
+                                setSelectedKecamatan(e.target.value);
+                                setSelectedKelurahan('');
+                              }}
                             />
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             Kelurahan
-                            {isKtpSemarang && !selectedKecamatan && <span className="ml-1 text-slate-300">(pilih kecamatan dulu)</span>}
                           </label>
                           {isKtpSemarang ? (
-                            <select
-                              required
-                              name="kelurahan"
-                              className={cn(
-                                "w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all",
-                                !selectedKecamatan && "opacity-50 cursor-not-allowed"
+                            <div className="relative">
+                              <input type="hidden" name="kelurahan" value={selectedKelurahan} required />
+                              <button
+                                type="button"
+                                disabled={!selectedKecamatan}
+                                onClick={() => setIsKelurahanDropdownOpen(!isKelurahanDropdownOpen)}
+                                className={cn(
+                                  "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none transition-all text-left flex justify-between items-center",
+                                  !selectedKecamatan 
+                                    ? "opacity-50 cursor-not-allowed border-slate-200" 
+                                    : "focus:ring-2 focus:ring-primary/20"
+                                )}
+                              >
+                                <span className={selectedKelurahan ? "text-slate-800 font-medium" : "text-slate-400"}>
+                                  {selectedKelurahan || "Pilih Kelurahan..."}
+                                </span>
+                                <span className="text-slate-400">▼</span>
+                              </button>
+
+                              {selectedKecamatan && isKelurahanDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setIsKelurahanDropdownOpen(false)} />
+                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto p-2 space-y-2 custom-scrollbar text-left">
+                                    <input
+                                      type="text"
+                                      placeholder="Cari kelurahan..."
+                                      value={kelurahanSearchQuery}
+                                      onChange={(e) => setKelurahanSearchQuery(e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary outline-none"
+                                      autoFocus
+                                    />
+                                    <div className="max-h-40 overflow-y-auto space-y-1">
+                                      {kelurahanOptions
+                                        .filter(kel => kel.toLowerCase().includes(kelurahanSearchQuery.toLowerCase()))
+                                        .map(kel => (
+                                          <button
+                                            key={kel}
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedKelurahan(kel);
+                                              setIsKelurahanDropdownOpen(false);
+                                              setKelurahanSearchQuery('');
+                                            }}
+                                            className={cn(
+                                              "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                              selectedKelurahan === kel
+                                                ? "bg-primary text-white font-bold"
+                                                : "text-slate-700 hover:bg-slate-100"
+                                            )}
+                                          >
+                                            {kel}
+                                          </button>
+                                        ))
+                                      }
+                                      {kelurahanOptions.filter(kel => kel.toLowerCase().includes(kelurahanSearchQuery.toLowerCase())).length === 0 && (
+                                        <div className="text-center text-xs text-slate-400 py-2">
+                                          Tidak ada kelurahan yang cocok
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </>
                               )}
-                              value={selectedKelurahan}
-                              onChange={e => setSelectedKelurahan(e.target.value)}
-                              disabled={!selectedKecamatan}
-                            >
-                              <option value="">Pilih Kelurahan...</option>
-                              {kelurahanOptions.map(kel => (
-                                <option key={kel} value={kel}>{kel}</option>
-                              ))}
-                            </select>
+                            </div>
                           ) : (
                             <input
                               type="text"
@@ -2636,6 +2793,85 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                 >
                   <ClipboardList className="size-4" />
                   Cetak / Preview
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CUSTOM CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+              onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 text-left z-[120]"
+            >
+              <div className={cn(
+                "flex items-center gap-3",
+                confirmModal.actionType === 'delete_proposal' ? "text-rose-600" : "text-emerald-600"
+              )}>
+                {confirmModal.actionType === 'delete_proposal' ? (
+                  <Trash2 className="size-6 shrink-0" />
+                ) : (
+                  <Send className="size-6 shrink-0" />
+                )}
+                <h4 className="text-lg font-black text-slate-900">{confirmModal.title}</h4>
+              </div>
+              <p className="text-sm font-bold text-slate-600 leading-relaxed">
+                {confirmModal.message}
+              </p>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-2.5 text-xs font-black text-slate-500 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  BATAL
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { actionType, targetId } = confirmModal;
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    if (!targetId) return;
+                    
+                    if (actionType === 'send_humas') {
+                      try {
+                        await axios.put(`/api/proposals/${targetId}`, { status: 'Scan_Proposal' });
+                        window.location.reload();
+                      } catch (err) {
+                        console.error(err);
+                        alert('Gagal mengirim proposal ke Humas.');
+                      }
+                    } else if (actionType === 'delete_proposal') {
+                      try {
+                        await axios.delete(`/api/proposals/${targetId}`);
+                        window.location.reload();
+                      } catch (err) {
+                        console.error(err);
+                        alert('Gagal menghapus data');
+                      }
+                    }
+                  }}
+                  className={cn(
+                    "px-4 py-2.5 text-xs font-black text-white rounded-xl transition-all shadow-lg",
+                    confirmModal.actionType === 'delete_proposal' 
+                      ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200" 
+                      : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
+                  )}
+                >
+                  YA, PROSES
                 </button>
               </div>
             </motion.div>

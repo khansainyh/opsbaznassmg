@@ -120,13 +120,13 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
         <nav className="flex text-sm gap-2 items-center">
           <span className="text-slate-400">Persetujuan</span>
           <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Persetujuan Kepala Bagian</span>
+          <span className="text-primary font-bold">Persetujuan Kepala Bagian Administrasi</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-          Persetujuan Kepala Bagian
+          Persetujuan Kepala Bagian Administrasi
         </h2>
         <p className="text-slate-500 font-medium">
-          Verifikasi dan berikan persetujuan untuk dokumen yang telah diregistrasi oleh Admin.
+          Verifikasi, evaluasi, dan pemberian disposisi atau persetujuan awal untuk berkas proposal dan surat masuk yang didelegasikan oleh staf administrasi sebelum diproses lebih lanjut oleh Kepala Pelaksana.
         </p>
       </motion.div>
 

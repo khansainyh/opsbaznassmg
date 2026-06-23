@@ -34,8 +34,8 @@ const FILTER_STATUSES = [
 
 const STEPS = [
   { id: 'ADM',   label: 'ADM',   full: 'Registrasi & Scan' },
-  { id: 'KABAG', label: 'KABAG', full: 'Review Kabag Admin' },
-  { id: 'KEPEL', label: 'KEPEL', full: 'Kepala Pelaksana' },
+  { id: 'KDM',   label: 'KDM',   full: 'Review Kabag Admin' },
+  { id: 'KAPEL', label: 'KAPEL', full: 'Kepala Pelaksana' },
   { id: 'PIMP',  label: 'PIMP',  full: 'Pimpinan BAZNAS' },
   { id: 'DONE',  label: 'DONE',  full: 'Selesai' },
 ];
@@ -44,7 +44,7 @@ function getProgressSteps(status: string) {
   if (status === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
   const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === status.toLowerCase());
   return STEPS.map((step, i) => {
-    // ADM: 0, KABAG: 1, KEPEL: 2, PIMP: 3, DONE: 4
+    // ADM: 0, KDM: 1, KAPEL: 2, PIMP: 3, DONE: 4
     const ranges = [[0,0],[1,1],[2,2],[3,3],[4,4]];
     const [lo, hi] = ranges[i];
     const active = idx >= lo && idx <= hi;

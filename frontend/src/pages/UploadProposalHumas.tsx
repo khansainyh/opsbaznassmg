@@ -8,7 +8,9 @@ import {
   Link, 
   ExternalLink, 
   Search,
-  ChevronRight
+  ChevronRight,
+  Newspaper,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -17,6 +19,7 @@ import { ProposalMemo } from '../data/proposalMemoData';
 
 interface UploadProposalHumasProps {
   data: ProposalMemo[];
+  allData?: ProposalMemo[];
   onUpdate: (data: ProposalMemo[]) => void;
 }
 
@@ -41,7 +44,7 @@ function DetailItem({ label, value }: { label: string; value: React.ReactNode })
   );
 }
 
-export default function UploadProposalHumas({ data, onUpdate: _onUpdate }: UploadProposalHumasProps) {
+export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate }: UploadProposalHumasProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
@@ -55,6 +58,21 @@ export default function UploadProposalHumas({ data, onUpdate: _onUpdate }: Uploa
   const [isScanning, setIsScanning] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Stat values
+  const now = new Date();
+  const proposalBulanIni = (allData || data).filter(d => {
+    const dt = new Date(d.tanggalMasuk);
+    return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear();
+  }).length;
+  const menungguScan = data.filter(item => {
+    const itemStatus = item.status.toLowerCase().replace(/_/g, ' ');
+    return itemStatus === 'scan proposal';
+  }).length;
+  const memoPimpinan = data.filter(item => {
+    const itemStatus = item.status.toLowerCase().replace(/_/g, ' ');
+    return itemStatus === 'scan proposal' && item.hasMemo;
+  }).length;
 
   // Filter only Scan Proposal status
   const filteredData = data
@@ -132,11 +150,40 @@ export default function UploadProposalHumas({ data, onUpdate: _onUpdate }: Uploa
           <span className="text-primary font-bold">Upload Proposal</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-          Humas: Upload Proposal
+          Upload Proposal
         </h2>
         <p className="text-slate-500 font-medium">
-          Daftar proposal masuk yang menunggu proses scan dan upload dokumen oleh Humas.
+          Layanan pemindaian (scan) dan pengunggahan berkas digital proposal permohonan bantuan. Unggah dokumen fisik yang diterima atau tautan digital untuk memvalidasi proposal sebelum memasuki tahap peninjauan administrasi.
         </p>
+      </motion.div>
+
+      {/* Stats Cards — 3 card */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+      >
+        <StatCard 
+          title="Proposal Masuk"
+          value={proposalBulanIni.toString()}
+          icon={<Newspaper className="size-5" />}
+          color="emerald"
+          subtitle="(Bulan Ini)"
+          trend="Bulan Ini"
+        />
+        <StatCard 
+          title="Menunggu Scan"
+          value={menungguScan.toString()}
+          icon={<Clock className="size-5" />}
+          color="amber"
+        />
+        <StatCard 
+          title="Memo Pimpinan"
+          value={memoPimpinan.toString()}
+          icon={<AlertCircle className="size-5" />}
+          color="blue"
+        />
       </motion.div>
 
       {/* Table Container */}
@@ -543,6 +590,45 @@ export default function UploadProposalHumas({ data, onUpdate: _onUpdate }: Uploa
           </div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function StatCard({ title, value, trend, icon, color, subtitle }: { 
+  title: string, 
+  value: string, 
+  trend?: string, 
+  icon: React.ReactNode,
+  color: 'primary' | 'emerald' | 'amber' | 'blue',
+  subtitle?: string
+}) {
+  const colorClasses = {
+    primary: 'bg-primary/10 text-primary',
+    emerald: 'bg-emerald-50 text-emerald-600',
+    amber: 'bg-amber-50 text-amber-500',
+    blue: 'bg-blue-50 text-blue-500'
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-xl border border-primary/10 shadow-sm relative overflow-hidden group">
+      <div className="absolute -right-4 -bottom-4 size-24 bg-primary/5 rounded-full group-hover:scale-110 transition-transform" />
+      <div className="flex justify-between items-start mb-4 relative z-10">
+        <div className={cn("p-2 rounded-lg", colorClasses[color])}>
+          {icon}
+        </div>
+        {trend && (
+          <span className="text-[10px] font-bold px-2 py-1 rounded text-emerald-600 bg-emerald-50">
+            {trend}
+          </span>
+        )}
+      </div>
+      <div className="relative z-10">
+        <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">{title}</p>
+        <div className="flex items-baseline gap-2 mt-1">
+          <h3 className="text-2xl font-black text-slate-900">{value}</h3>
+          {subtitle && <span className="text-[10px] font-bold text-slate-400 uppercase">{subtitle}</span>}
+        </div>
+      </div>
     </div>
   );
 }
