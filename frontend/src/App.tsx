@@ -54,6 +54,7 @@ function App() {
       const allItems = [
         { name: "Executive", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan"] },
         { name: "Monitoring & Evaluasi", roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+        { name: "Pilar & Program", roles: ["Super_Admin", "Kepala_Pelaksana"] },
         { name: "Database UPZ", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Administrasi"] },
         { name: "Data Mustahik", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Staf_Distribusi"] },
         { name: "Data Muzakki", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
@@ -80,7 +81,18 @@ function App() {
         { name: "Pengeluaran Manual", roles: ["Super_Admin", "Staf_Keuangan"] },
         { name: "Catat Mutasi", roles: ["Super_Admin", "Staf_Keuangan"] },
         { name: "Pengaturan Keuangan", roles: ["Super_Admin", "Staf_Keuangan"] },
-        { name: "Target RKAT", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi"] }
+        { name: "Target RKAT", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi"] },
+        { name: "Jurnal Buku Besar", roles: ["Super_Admin"] },
+        { name: "Rekonsiliasi Mutasi", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+        { name: "Parameter Sistem", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+        { name: "User Management", roles: ["Super_Admin"] },
+        { name: "Audit Logs", roles: ["Super_Admin"] },
+        { name: "Ganti Password", roles: [
+          "Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV",
+          "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan",
+          "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Distribusi", "Staf_Keuangan", "Staf_Pengumpulan",
+          "Staf_Pelaporan", "Relawan", "Relawan_Sementara", "Tim_Monev", "Humas"
+        ] }
       ];
       
       const currentAllowed = allItems.find(item => item.name === activeMenu && item.roles.includes(role));
