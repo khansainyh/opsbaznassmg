@@ -170,5 +170,15 @@
     "nominal": 150000,
     "type": "DEBIT",
     "status": "PENDING"
+  },
+  {
+    "id": "mut-1782283700526",
+    "tanggal": "2026-06-24",
+    "bankAccountId": "1700beb2-c7c9-485a-86fa-a447a4bbb946",
+    "bankName": "Bank Syariah Indonesia",
+    "keteranganBank": "Transfer an Aca",
+    "nominal": 200000,
+    "type": "KREDIT",
+    "status": "PENDING"
   }
 ]

@@ -15,7 +15,8 @@ import {
   UserPlus,
   TrendingUp,
   FileSpreadsheet,
-  Edit3
+  Edit3,
+  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -79,6 +80,9 @@ export default function PenerimaanZis() {
   const [noKuitansi, setNoKuitansi] = useState('');
   const [muzakkiSearch, setMuzakkiSearch] = useState('');
   const [showMuzakkiDropdown, setShowMuzakkiDropdown] = useState(false);
+  const [isOutsideRkat, setIsOutsideRkat] = useState(false);
+  const [coaSearch, setCoaSearch] = useState('');
+  const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
 
   // Quick register muzakki inside modal
   const [showQuickRegister, setShowQuickRegister] = useState(false);
@@ -253,8 +257,13 @@ export default function PenerimaanZis() {
       alert('Mohon pilih Muzakki terlebih dahulu.');
       return;
     }
-    if (!selectedRkatId) {
+    const needsRkat = !isOutsideRkat;
+    if (needsRkat && !selectedRkatId) {
       alert('Mohon pilih program RKAT Pengumpulan.');
+      return;
+    }
+    if (!selectedCoaCode) {
+      alert('Mohon pilih Program Kegiatan (COA) / Akun Buku Besar.');
       return;
     }
     if (!selectedAccountId) {
@@ -271,7 +280,7 @@ export default function PenerimaanZis() {
       const payload = {
         no_kuitansi: noKuitansi,
         muzakki_id: selectedMuzakkiId,
-        rkat_id: selectedRkatId,
+        rkat_id: needsRkat ? selectedRkatId : null,
         bank_account_id: selectedAccountId,
         coa_code: selectedCoaCode,
         nominal: Number(nominal),
@@ -284,7 +293,7 @@ export default function PenerimaanZis() {
         ? await axios.put(`/api/penerimaan-zis/${editingId}`, payload)
         : await axios.post('/api/penerimaan-zis', payload);
 
-      if (res.data?.status === 'success' || res.status === 200 || res.status === 201) {
+      if (res.data?.status === 'success' || res.status === 200 || res.status === 201 || res.data?.success) {
         setIsModalOpen(false);
         resetForm();
         fetchData();
@@ -308,7 +317,7 @@ export default function PenerimaanZis() {
     setEditingId(item.id);
     setSelectedMuzakkiId(item.muzakki_id);
     setMuzakkiSearch(item.muzakki?.nama || '');
-    setSelectedRkatId(item.rkat_id);
+    setSelectedRkatId(item.rkat_id || '');
     setSelectedCoaCode(item.coa_code || '');
     setSelectedAccountId(item.bank_account_id);
     setNominal(String(item.nominal || ''));
@@ -318,6 +327,9 @@ export default function PenerimaanZis() {
     }
     setKeterangan(item.keterangan || '');
     setNoKuitansi(item.no_kuitansi || '');
+    setIsOutsideRkat(!item.rkat_id);
+    setCoaSearch('');
+    setIsCoaDropdownOpen(false);
     setIsModalOpen(true);
   };
 
@@ -394,6 +406,9 @@ export default function PenerimaanZis() {
     setMuzakkiSearch('');
     setShowQuickRegister(false);
     setEditingId(null);
+    setIsOutsideRkat(false);
+    setCoaSearch('');
+    setIsCoaDropdownOpen(false);
   };
 
   // Filtered muzakki list for autocomplete dropdown
@@ -408,6 +423,16 @@ export default function PenerimaanZis() {
       return nama.includes(search) || npwz.includes(search) || nik.includes(search);
     }).slice(0, 10);
   }, [muzakkiList, muzakkiSearch]);
+
+  const filteredCoasForSearch = useMemo(() => {
+    const basePenerimaan = coaList.filter(c => c.klasifikasi === 'Penerimaan' || c.coa_code.startsWith('4'));
+    if (!coaSearch) return basePenerimaan;
+    const term = coaSearch.toLowerCase();
+    return basePenerimaan.filter(coa => 
+      coa.coa_code.toLowerCase().includes(term) || 
+      coa.nama_akun.toLowerCase().includes(term)
+    );
+  }, [coaList, coaSearch]);
 
   const exportToExcel = () => {
     const reportData = filteredData.map(item => ({
@@ -899,50 +924,143 @@ export default function PenerimaanZis() {
                   )}
                 </div>
 
-                 {/* RKAT Program selection */}
-                 <div className="space-y-1">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT) *</label>
-                   <select 
-                     required 
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
-                     value={selectedRkatId}
-                     onChange={(e) => handleRkatChange(e.target.value)}
-                   >
-                     <option value="">Pilih Kegiatan RKAT Pengumpulan...</option>
-                     {rkatList.map(rkat => (
-                       <option key={rkat.id} value={rkat.id}>
-                         [{rkat.kategori}] {rkat.nama_program}
-                       </option>
-                     ))}
-                   </select>
-                 </div>
+                  {/* Checkbox Tidak Ada di RKAT */}
+                  <div className="flex items-center gap-2 text-left mb-1">
+                    <input 
+                      type="checkbox" 
+                      id="isOutsideRkat"
+                      checked={isOutsideRkat}
+                      onChange={(e) => {
+                        setIsOutsideRkat(e.target.checked);
+                        if (e.target.checked) {
+                          setSelectedRkatId('');
+                          setSelectedCoaCode('');
+                        }
+                      }}
+                      className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                    />
+                    <label htmlFor="isOutsideRkat" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                      Tidak ada di RKAT (Penerimaan di luar RKAT)
+                    </label>
+                  </div>
 
-                 {/* Program Kegiatan (COA) matching the selected Kegiatan (RKAT) */}
-                 {selectedRkatId && (
-                   <div className="space-y-1 animate-fade-in">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program Kegiatan (COA) *</label>
-                     <select
-                       required
-                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-700"
-                       value={selectedCoaCode}
-                       onChange={(e) => setSelectedCoaCode(e.target.value)}
-                     >
-                       {(() => {
-                         const rkat = rkatList.find(r => r.id === selectedRkatId);
-                         const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
-                         return codes.map((code: string) => {
-                           const coa = coaList.find(c => c.coa_code === code);
-                           const label = coa ? `${code} - ${coa.nama_akun}` : `${code} - Penerimaan ${rkat?.nama_program || ''}`;
-                           return (
-                             <option key={code} value={code}>
-                               {label}
-                             </option>
-                           );
-                         });
-                       })()}
-                     </select>
-                   </div>
-                 )}
+                  {/* RKAT Program selection */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT) *</label>
+                    <select 
+                      required={!isOutsideRkat} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                      value={selectedRkatId}
+                      onChange={(e) => handleRkatChange(e.target.value)}
+                      disabled={isOutsideRkat}
+                    >
+                      <option value="">Pilih Kegiatan RKAT Pengumpulan...</option>
+                      {rkatList.map(rkat => (
+                        <option key={rkat.id} value={rkat.id}>
+                          [{rkat.kategori}] {rkat.nama_program}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Program Kegiatan (COA) matching the selected Kegiatan (RKAT) */}
+                  {!isOutsideRkat && selectedRkatId && (
+                    <div className="space-y-1 animate-fade-in">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program Kegiatan (COA) *</label>
+                      <select
+                        required
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-700"
+                        value={selectedCoaCode}
+                        onChange={(e) => setSelectedCoaCode(e.target.value)}
+                      >
+                        {(() => {
+                          const rkat = rkatList.find(r => r.id === selectedRkatId);
+                          const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
+                          return codes.map((code: string) => {
+                            const coa = coaList.find(c => c.coa_code === code);
+                            const label = coa ? `${code} - ${coa.nama_akun}` : `${code} - Penerimaan ${rkat?.nama_program || ''}`;
+                            return (
+                              <option key={code} value={code}>
+                                {label}
+                              </option>
+                            );
+                          });
+                        })()}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* 3. Akun Buku Besar (Penerimaan COA) - Outside RKAT search */}
+                  {isOutsideRkat && (
+                    <div className="space-y-1.5 text-left animate-fade-in">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                        Akun Buku Besar (Penerimaan COA) *
+                      </label>
+                      {selectedCoaCode ? (
+                        <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3 py-2 rounded-xl text-xs font-black">
+                          <span className="flex items-center gap-1.5">
+                            <BookOpen className="size-4 shrink-0" />
+                            Terpilih: {selectedCoaCode} - {coaList.find(c => c.coa_code === selectedCoaCode)?.nama_akun || 'Memuat...'}
+                          </span>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setSelectedCoaCode('');
+                              setCoaSearch('');
+                            }} 
+                            className="hover:text-rose-600"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 size-3.5" />
+                            <input 
+                              type="text"
+                              placeholder="Cari kode COA atau nama akun Penerimaan..."
+                              value={coaSearch}
+                              onChange={(e) => setCoaSearch(e.target.value)}
+                              onFocus={() => setIsCoaDropdownOpen(true)}
+                              onBlur={() => setTimeout(() => setIsCoaDropdownOpen(false), 205)}
+                              className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+
+                          {(isCoaDropdownOpen || coaSearch) && (
+                            <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner text-left">
+                              {filteredCoasForSearch.length === 0 ? (
+                                <p className="p-2 text-[10px] text-slate-400 italic">COA tidak ditemukan</p>
+                              ) : (
+                                filteredCoasForSearch.map(coa => (
+                                  <div 
+                                    key={coa.coa_code}
+                                    onClick={() => {
+                                      setSelectedCoaCode(coa.coa_code);
+                                      setCoaSearch('');
+                                      setIsCoaDropdownOpen(false);
+                                    }}
+                                    className="p-2 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5 text-slate-700"
+                                  >
+                                    <span className="font-mono text-primary text-[11px]">{coa.coa_code}</span>
+                                    <span className="text-slate-650 text-[10px]">{coa.nama_akun}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <input 
+                        type="text" 
+                        value={selectedCoaCode} 
+                        required 
+                        onChange={() => {}} 
+                        className="sr-only h-0 w-0" 
+                      />
+                    </div>
+                  )}
 
                  {/* Bank Account / Kas selection */}
                  <div className="space-y-1">
@@ -1014,7 +1132,7 @@ export default function PenerimaanZis() {
                 </div>
 
                 {/* Preview Accounting Entries helper */}
-                {nominal && Number(nominal) > 0 && selectedAccountId && selectedRkatId && (
+                {nominal && Number(nominal) > 0 && selectedAccountId && (selectedRkatId || (isOutsideRkat && selectedCoaCode)) && (
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-[11px]">
                     <span className="font-bold text-slate-500 uppercase tracking-wider block">Preview Entri Jurnal Akuntansi</span>
                     <div className="grid grid-cols-2 gap-2 text-slate-600">
@@ -1025,7 +1143,12 @@ export default function PenerimaanZis() {
                       </div>
                       <div>
                         <span className="font-bold text-blue-600">KREDIT</span>
-                        <p className="font-medium truncate">Pendapatan {rkatList.find(r => r.id === selectedRkatId)?.nama_program || 'Program'}</p>
+                        <p className="font-medium truncate">
+                          {isOutsideRkat 
+                            ? `Penerimaan di luar RKAT (${coaList.find(c => c.coa_code === selectedCoaCode)?.nama_akun || selectedCoaCode || 'COA'})`
+                            : `Pendapatan ${rkatList.find(r => r.id === selectedRkatId)?.nama_program || 'Program'}`
+                          }
+                        </p>
                         <p className="font-mono text-slate-400">Rp {Number(nominal).toLocaleString('id-ID')}</p>
                       </div>
                     </div>

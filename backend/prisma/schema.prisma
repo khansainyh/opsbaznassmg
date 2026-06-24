@@ -337,8 +337,8 @@ model RkatPengumpulan {
 model PenerimaanZis {
   id                 String          @id @default(uuid())
   no_kuitansi        String          @unique
-  muzakki_id         String
-  rkat_id            String
+  muzakki_id         String?
+  rkat_id            String?
   bank_account_id    String
   nominal            Decimal         @db.Decimal(15, 2)
   metode_pembayaran  String
@@ -349,8 +349,8 @@ model PenerimaanZis {
   created_at         DateTime        @default(now())
   updated_at         DateTime        @updatedAt
   bankAccount        BankAccount     @relation(fields: [bank_account_id], references: [account_id])
-  muzakki            Muzakki         @relation(fields: [muzakki_id], references: [id])
-  rkat               RkatPengumpulan @relation(fields: [rkat_id], references: [id])
+  muzakki            Muzakki?        @relation(fields: [muzakki_id], references: [id])
+  rkat               RkatPengumpulan? @relation(fields: [rkat_id], references: [id])
 
   @@index([bank_account_id], map: "PenerimaanZis_bank_account_id_fkey")
   @@index([muzakki_id], map: "PenerimaanZis_muzakki_id_fkey")

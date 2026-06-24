@@ -84,17 +84,24 @@ export const getAccounts = async (req: Request, res: Response) => {
 
 export const createAccount = async (req: Request, res: Response) => {
   try {
-    const { nama_akun, tipe_kas, kelompok_dana, saldo, no_rekening, kode_laci, coa_code } = req.body;
+    const { nama_akun, tipe_kas, kelompok_dana, no_rekening, kode_laci, coa_code } = req.body;
     if (!nama_akun || !tipe_kas || !kelompok_dana || !coa_code) {
       res.status(400).json({ error: 'Nama, tipe kas, kelompok dana, dan COA wajib diisi' });
       return;
     }
+
+    // Ambil saldo awal dari master COA
+    const coa = await prisma.chartOfAccounts.findUnique({
+      where: { coa_code }
+    });
+    const initialSaldo = coa ? Number(coa.saldo_awal || 0) : 0;
+
     const account = await prisma.bankAccount.create({
       data: {
         nama_akun,
         tipe_kas,
         kelompok_dana,
-        saldo: new Prisma.Decimal(saldo || 0),
+        saldo: new Prisma.Decimal(initialSaldo),
         no_rekening,
         kode_laci,
         coa_code
@@ -110,14 +117,28 @@ export const createAccount = async (req: Request, res: Response) => {
 export const updateAccount = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { nama_akun, tipe_kas, kelompok_dana, saldo, no_rekening, kode_laci, coa_code } = req.body;
+    const { nama_akun, tipe_kas, kelompok_dana, no_rekening, kode_laci, coa_code } = req.body;
+
+    const oldAccount = await prisma.bankAccount.findUnique({
+      where: { account_id: id } as any
+    });
+
+    let updatedSaldo = undefined;
+    if (coa_code && coa_code !== oldAccount?.coa_code) {
+      // Jika COA berubah, update saldo kas sesuai saldo awal COA baru
+      const coa = await prisma.chartOfAccounts.findUnique({
+        where: { coa_code }
+      });
+      updatedSaldo = coa ? new Prisma.Decimal(coa.saldo_awal || 0) : undefined;
+    }
+
     const account = await prisma.bankAccount.update({
       where: { account_id: id } as any,
       data: {
         nama_akun,
         tipe_kas,
         kelompok_dana,
-        saldo: saldo !== undefined ? new Prisma.Decimal(saldo) : undefined,
+        saldo: updatedSaldo,
         no_rekening,
         kode_laci,
         coa_code
@@ -1111,6 +1132,107 @@ export const createManualExpense = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error in createManualExpense:', error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+// ==========================================
+// 9. Ledger Balancing & Health Check API
+// ==========================================
+export const checkLedgerHealth = async (req: Request, res: Response) => {
+  try {
+    // 1. Overall ledger totals
+    const entries = await prisma.journalEntry.findMany({
+      include: { realisasi: true }
+    });
+
+    let totalDebit = 0;
+    let totalKredit = 0;
+    const transactionBalances: Record<string, { debit: number; kredit: number; keterangan: string; tanggal: Date }> = {};
+
+    for (const entry of entries) {
+      const valDebit = Number(entry.debit || 0);
+      const valKredit = Number(entry.kredit || 0);
+      
+      totalDebit += valDebit;
+      totalKredit += valKredit;
+
+      const txId = entry.transaksi_id;
+      if (!transactionBalances[txId]) {
+        transactionBalances[txId] = {
+          debit: 0,
+          kredit: 0,
+          keterangan: entry.realisasi?.keterangan || 'Tanpa Keterangan',
+          tanggal: entry.realisasi?.tanggal || new Date()
+        };
+      }
+      transactionBalances[txId].debit += valDebit;
+      transactionBalances[txId].kredit += valKredit;
+    }
+
+    const unbalancedTransactions = [];
+    for (const [txId, bal] of Object.entries(transactionBalances)) {
+      const diff = Math.abs(bal.debit - bal.kredit);
+      if (diff > 0.01) {
+        unbalancedTransactions.push({
+          transaksi_id: txId,
+          keterangan: bal.keterangan,
+          tanggal: bal.tanggal,
+          debit: bal.debit,
+          kredit: bal.kredit,
+          difference: diff
+        });
+      }
+    }
+
+    // 2. Bank reconciliation check
+    const accounts = await prisma.bankAccount.findMany({
+      include: { coa: true }
+    });
+    const bankChecks = [];
+    for (const acc of accounts) {
+      const accEntries = await prisma.journalEntry.findMany({
+        where: { account_id: acc.account_id }
+      });
+      const accDebit = accEntries.reduce((sum, e) => sum + Number(e.debit || 0), 0);
+      const accKredit = accEntries.reduce((sum, e) => sum + Number(e.kredit || 0), 0);
+      const calculatedBalance = Number(acc.coa?.saldo_awal || 0) + accDebit - accKredit;
+      const currentSaldo = Number(acc.saldo || 0);
+      const difference = Math.abs(calculatedBalance - currentSaldo);
+
+      bankChecks.push({
+        account_id: acc.account_id,
+        nama_akun: acc.nama_akun,
+        tipe_kas: acc.tipe_kas,
+        coa_code: acc.coa_code,
+        saldo_awal: Number(acc.coa?.saldo_awal || 0),
+        totalDebit: accDebit,
+        totalKredit: accKredit,
+        calculatedBalance,
+        currentSaldo,
+        difference,
+        isMatch: difference < 0.01
+      });
+    }
+
+    const isSystemHealthy = unbalancedTransactions.length === 0 && bankChecks.every(b => b.isMatch) && Math.abs(totalDebit - totalKredit) < 0.01;
+
+    res.status(200).json({
+      success: true,
+      health: {
+        isSystemHealthy,
+        overall: {
+          totalDebit,
+          totalKredit,
+          difference: Math.abs(totalDebit - totalKredit),
+          isBalanced: Math.abs(totalDebit - totalKredit) < 0.01
+        },
+        unbalancedTransactions,
+        bankChecks
+      }
+    });
+  } catch (error) {
+    console.error('Error checking ledger health:', error);
     res.status(500).json({ error: String(error) });
   }
 };

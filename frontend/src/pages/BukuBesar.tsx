@@ -10,7 +10,12 @@ import {
   ChevronDown,
   Check,
   X,
-  ChevronRight
+  ChevronRight,
+  HeartPulse,
+  ShieldCheck,
+  ShieldAlert,
+  RefreshCw,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -71,6 +76,8 @@ export default function BukuBesar() {
   const [coas, setCoas] = useState<COAItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+  const [healthData, setHealthData] = useState<any>(null);
+  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'jurnal' | 'rekap'>('jurnal');
@@ -135,12 +142,14 @@ export default function BukuBesar() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resLedger, resCoas] = await Promise.all([
+      const [resLedger, resCoas, resHealth] = await Promise.all([
         axios.get('/api/finance/ledger'),
-        axios.get('/api/finance/coa')
+        axios.get('/api/finance/coa'),
+        axios.get('/api/finance/ledger/health-check')
       ]);
       setLedger(resLedger.data);
       setCoas(resCoas.data);
+      setHealthData(resHealth.data.health);
     } catch (e) {
       console.error('Gagal mengambil data buku besar:', e);
     } finally {
@@ -452,6 +461,53 @@ export default function BukuBesar() {
           </p>
         </div>
       </motion.div>
+
+      {/* Balancing & Health Check Banner (No-Print) */}
+      {healthData && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={cn(
+            "p-5 rounded-2xl border no-print flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm",
+            healthData.isSystemHealthy 
+              ? "bg-emerald-50/40 border-emerald-100 text-emerald-950" 
+              : "bg-amber-50/40 border-amber-105 text-amber-950"
+          )}
+        >
+          <div className="flex items-center gap-3.5">
+            <div className={cn(
+              "size-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+              healthData.isSystemHealthy ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
+            )}>
+              <HeartPulse className="size-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black uppercase tracking-wider">
+                Kesehatan Balancing Sistem: {healthData.isSystemHealthy ? "Prima & Seimbang" : "Butuh Penyelarasan"}
+              </h4>
+              <p className="text-xs text-slate-500 mt-1 font-medium">
+                {healthData.isSystemHealthy 
+                  ? "Seluruh jurnal pencatatan umum seimbang sempurna (Total Debit = Total Kredit) dan saldo kas log sinkron."
+                  : `Ditemukan ${healthData.unbalancedTransactions.length} transaksi tidak seimbang atau ketidaksesuaian saldo akun kas.`}
+              </p>
+            </div>
+          </div>
+          
+          <button
+            type="button"
+            onClick={() => setShowDiagnosticsModal(true)}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 uppercase tracking-wider shrink-0 shadow-sm hover:scale-102 active:scale-98",
+              healthData.isSystemHealthy 
+                ? "bg-emerald-600 text-white hover:bg-emerald-700" 
+                : "bg-amber-600 text-white hover:bg-amber-700"
+            )}
+          >
+            <Activity className="size-4" />
+            Buka Diagnostik Jurnal
+          </button>
+        </motion.div>
+      )}
 
       {/* Tab Switcher (No-Print) */}
       <div className="flex border-b border-slate-200 no-print gap-1">
@@ -1093,6 +1149,199 @@ export default function BukuBesar() {
           </div>
         )}
       </motion.div>
+
+      {/* Diagnostics & Balancing Modal (No-Print) */}
+      <AnimatePresence>
+        {showDiagnosticsModal && healthData && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-y-auto custom-scrollbar flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "size-10 rounded-xl flex items-center justify-center text-white shadow-md",
+                    healthData.isSystemHealthy ? "bg-emerald-500" : "bg-amber-500"
+                  )}>
+                    <Activity className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">
+                      Diagnostik & Penyelarasan Jurnal
+                    </h3>
+                    <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                      Pemeriksaan integritas double-entry ledger dan saldo kas secara real-time.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDiagnosticsModal(false)}
+                  className="p-2 text-slate-400 hover:bg-slate-55 hover:text-slate-700 rounded-xl transition-all"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-6 overflow-y-auto">
+                
+                {/* Audit Ringkasan */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Total Debit Ledger</span>
+                    <span className="text-base font-black text-slate-800 mt-1 block">{formatCurrency(healthData.overall.totalDebit)}</span>
+                  </div>
+                  <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Total Kredit Ledger</span>
+                    <span className="text-base font-black text-slate-800 mt-1 block">{formatCurrency(healthData.overall.totalKredit)}</span>
+                  </div>
+                  <div className={cn(
+                    "p-4 rounded-xl border",
+                    healthData.overall.isBalanced ? "bg-emerald-50/30 border-emerald-100" : "bg-rose-50/30 border-rose-100"
+                  )}>
+                    <span className="text-[10px] font-black text-slate-450 uppercase tracking-wider block">Selisih Keseimbangan</span>
+                    <span className={cn(
+                      "text-base font-black mt-1 block",
+                      healthData.overall.isBalanced ? "text-emerald-700" : "text-rose-700"
+                    )}>
+                      {formatCurrency(healthData.overall.difference)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Section 1: Bank Ledger Cross-Reference */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-emerald-600" />
+                    Penyelarasan Saldo Kas & Bank dengan Buku Besar
+                  </h4>
+                  <div className="border border-slate-100 rounded-2xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="px-4 py-3 font-bold text-slate-600">Nama Akun Kas/Bank</th>
+                          <th className="px-4 py-3 font-bold text-slate-600">COA</th>
+                          <th className="px-4 py-3 text-right font-bold text-slate-600">Saldo Awal</th>
+                          <th className="px-4 py-3 text-right font-bold text-slate-600">Saldo Log Jurnal</th>
+                          <th className="px-4 py-3 text-right font-bold text-slate-600">Saldo Akun</th>
+                          <th className="px-4 py-3 text-center font-bold text-slate-600">Status Audit</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {healthData.bankChecks.map((check: any) => (
+                          <tr key={check.account_id} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3 font-bold text-slate-750">{check.nama_akun}</td>
+                            <td className="px-4 py-3 font-mono text-slate-500 font-bold">{check.coa_code}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-600">{formatCurrency(check.saldo_awal)}</td>
+                            <td className="px-4 py-3 text-right font-black text-slate-750">{formatCurrency(check.calculatedBalance)}</td>
+                            <td className="px-4 py-3 text-right font-black text-primary">{formatCurrency(check.currentSaldo)}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={cn(
+                                "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                check.isMatch 
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                                  : "bg-rose-55 text-rose-700 border border-rose-100"
+                              )}>
+                                {check.isMatch ? (
+                                  <>
+                                    <Check className="size-3" /> MATCHING
+                                  </>
+                                ) : (
+                                  <>
+                                    <X className="size-3" /> SELISIH {formatCurrency(check.difference)}
+                                  </>
+                                )}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5 pl-1">
+                    <Info className="size-3.5 shrink-0" />
+                    Catatan: Saldo Log Jurnal dihitung dari Saldo Awal Akun ditambah total Debit Jurnal dikurangi total Kredit Jurnal yang tercatat di Buku Besar.
+                  </p>
+                </div>
+
+                {/* Section 2: Unbalanced Transactions */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                    <ShieldAlert className="size-4 text-amber-600" />
+                    Pendeteksi Transaksi Pincang (Unbalanced)
+                  </h4>
+                  {healthData.unbalancedTransactions.length === 0 ? (
+                    <div className="p-6 rounded-2xl border border-emerald-100 bg-emerald-50/20 text-center flex flex-col items-center justify-center gap-2">
+                      <div className="size-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                        <Check className="size-6" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-emerald-900 uppercase tracking-wide">Semua Transaksi Seimbang Sempurna</p>
+                        <p className="text-[10px] text-slate-500 font-semibold mt-1">Tidak ditemukan transaksi yang pincang di dalam Buku Besar.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100">
+                            <th className="px-4 py-3 font-bold text-slate-600">Tanggal</th>
+                            <th className="px-4 py-3 font-bold text-slate-600">Keterangan Transaksi (ID Realisasi)</th>
+                            <th className="px-4 py-3 text-right font-bold text-slate-600">Total Debit</th>
+                            <th className="px-4 py-3 text-right font-bold text-slate-600">Total Kredit</th>
+                            <th className="px-4 py-3 text-right font-bold text-slate-600">Selisih</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {healthData.unbalancedTransactions.map((tx: any) => (
+                            <tr key={tx.transaksi_id} className="hover:bg-slate-50/50">
+                              <td className="px-4 py-3 text-slate-500 font-mono font-bold">{new Date(tx.tanggal).toLocaleDateString('id-ID')}</td>
+                              <td className="px-4 py-3">
+                                <span className="font-bold text-slate-800 block">{tx.keterangan}</span>
+                                <span className="text-[9px] font-mono text-slate-400 font-semibold">ID: {tx.transaksi_id}</span>
+                              </td>
+                              <td className="px-4 py-3 text-right font-black text-emerald-700">{formatCurrency(tx.debit)}</td>
+                              <td className="px-4 py-3 text-right font-black text-blue-700">{formatCurrency(tx.kredit)}</td>
+                              <td className="px-4 py-3 text-right font-black text-rose-700">{formatCurrency(tx.difference)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchData();
+                  }}
+                  className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-black text-slate-700 transition-all flex items-center gap-2 uppercase tracking-wider"
+                >
+                  <RefreshCw className="size-4" />
+                  Pindai Ulang Ledger
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setShowDiagnosticsModal(false)}
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black transition-all uppercase tracking-wider"
+                >
+                  Selesai
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

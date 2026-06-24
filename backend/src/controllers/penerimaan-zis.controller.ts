@@ -45,11 +45,11 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
   try {
     const { 
       no_kuitansi, muzakki_id, rkat_id, bank_account_id, nominal, 
-      metode_pembayaran, tanggal_pembayaran, keterangan
+      metode_pembayaran, tanggal_pembayaran, keterangan, coa_code
     } = req.body;
 
-    if (!muzakki_id || !rkat_id || !bank_account_id || !nominal || Number(nominal) <= 0) {
-      res.status(400).json({ error: 'Muzakki, program RKAT, rekening penerima, dan nominal harus diisi dengan benar' });
+    if (!muzakki_id || (!rkat_id && !coa_code) || !bank_account_id || !nominal || Number(nominal) <= 0) {
+      res.status(400).json({ error: 'Muzakki, program RKAT (atau COA jika di luar RKAT), rekening penerima, dan nominal harus diisi dengan benar' });
       return;
     }
 
@@ -69,13 +69,20 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       const muzakki = await tx.muzakki.findUnique({ where: { id: muzakki_id } });
       if (!muzakki) throw new Error('Muzakki tidak ditemukan');
 
-      const rkat = await tx.rkatPengumpulan.findUnique({ where: { id: rkat_id } });
-      if (!rkat) throw new Error('Program RKAT Pengumpulan tidak ditemukan');
+      let rkat = null;
+      if (rkat_id) {
+        rkat = await tx.rkatPengumpulan.findUnique({ where: { id: rkat_id } });
+        if (!rkat) throw new Error('Program RKAT Pengumpulan tidak ditemukan');
+      }
 
       const bankAccount = await tx.bankAccount.findUnique({ where: { account_id: bank_account_id } });
       if (!bankAccount) throw new Error('Rekening penerima tidak ditemukan');
 
-      const formattedKeterangan = keterangan || `Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama}`;
+      const formattedKeterangan = keterangan || (
+        rkat 
+          ? `Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama}`
+          : `Penerimaan ZIS di luar RKAT via ${bankAccount.nama_akun} dari ${muzakki.nama}`
+      );
 
       // Update BankAccount balance (increment)
       await tx.bankAccount.update({
@@ -86,15 +93,19 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       });
 
       // Fetch or create credit ChartOfAccounts
-      const creditCoaCode = rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101';
+      let creditCoaCode = coa_code || '41010101';
+      if (rkat) {
+        creditCoaCode = coa_code || (rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101');
+      }
+      
       const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
       if (!coaExists) {
         await tx.chartOfAccounts.create({
           data: {
             coa_code: creditCoaCode,
-            nama_akun: `Penerimaan ${rkat.nama_program}`,
+            nama_akun: rkat ? `Penerimaan ${rkat.nama_program}` : `Penerimaan di luar RKAT (${creditCoaCode})`,
             klasifikasi: 'Penerimaan',
-            tipe_dana: rkat.kategori.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
+            tipe_dana: (rkat && rkat.kategori.toUpperCase() === 'ZAKAT') ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
           }
         });
       }
@@ -102,7 +113,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       // Create Realisasi record
       const realisasiTrx = await tx.realisasi.create({
         data: {
-          rkat_id: rkat_id,
+          rkat_id: rkat_id || null,
           tanggal: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
           keterangan: formattedKeterangan
         }
@@ -135,7 +146,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
         data: {
           no_kuitansi: generatedKuitansi,
           muzakki_id,
-          rkat_id,
+          rkat_id: rkat_id || null,
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
           metode_pembayaran: metode_pembayaran || 'TRANSFER',
@@ -215,8 +226,8 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
     }
 
     const tNominal = Number(nominal || 0);
-    if (!muzakki_id || !rkat_id || !bank_account_id || tNominal <= 0) {
-      res.status(400).json({ error: 'Muzakki, program RKAT, rekening penerima, dan nominal harus diisi dengan benar' });
+    if (!muzakki_id || (!rkat_id && !coa_code) || !bank_account_id || tNominal <= 0) {
+      res.status(400).json({ error: 'Muzakki, program RKAT (atau COA jika di luar RKAT), rekening penerima, dan nominal harus diisi dengan benar' });
       return;
     }
 
@@ -224,13 +235,20 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
       let bankAccount = await tx.bankAccount.findUnique({ where: { account_id: bank_account_id } });
       if (!bankAccount) throw new Error('Rekening penerima tidak ditemukan');
 
-      const rkat = await tx.rkatPengumpulan.findUnique({ where: { id: rkat_id } });
-      if (!rkat) throw new Error('Program RKAT tidak ditemukan');
+      let rkat = null;
+      if (rkat_id) {
+        rkat = await tx.rkatPengumpulan.findUnique({ where: { id: rkat_id } });
+        if (!rkat) throw new Error('Program RKAT tidak ditemukan');
+      }
 
       const muzakki = await tx.muzakki.findUnique({ where: { id: muzakki_id } });
       if (!muzakki) throw new Error('Muzakki tidak ditemukan');
 
-      const formattedKeterangan = keterangan || `Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama}`;
+      const formattedKeterangan = keterangan || (
+        rkat
+          ? `Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama}`
+          : `Penerimaan ZIS di luar RKAT via ${bankAccount.nama_akun} dari ${muzakki.nama}`
+      );
 
       // If already synced, we need to adjust the balance and recreate journal entries
       if (existing.transaksi_id) {
@@ -254,7 +272,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
         await tx.realisasi.update({
           where: { transaksi_id: existing.transaksi_id },
           data: {
-            rkat_id: rkat_id,
+            rkat_id: rkat_id || null,
             tanggal: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
             keterangan: formattedKeterangan
           }
@@ -277,15 +295,18 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
         });
 
         // Determine credit COA code
-        const creditCoaCode = coa_code || (rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101');
+        let creditCoaCode = coa_code || '41010101';
+        if (rkat) {
+          creditCoaCode = coa_code || (rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101');
+        }
         const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
         if (!coaExists) {
           await tx.chartOfAccounts.create({
             data: {
               coa_code: creditCoaCode,
-              nama_akun: `Penerimaan ${rkat.nama_program}`,
+              nama_akun: rkat ? `Penerimaan ${rkat.nama_program}` : `Penerimaan di luar RKAT (${creditCoaCode})`,
               klasifikasi: 'Penerimaan',
-              tipe_dana: rkat.kategori.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
+              tipe_dana: (rkat && rkat.kategori.toUpperCase() === 'ZAKAT') ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
             }
           });
         }
@@ -307,7 +328,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
         where: { id },
         data: {
           muzakki_id,
-          rkat_id,
+          rkat_id: rkat_id || null,
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
           metode_pembayaran: metode_pembayaran || 'TRANSFER',

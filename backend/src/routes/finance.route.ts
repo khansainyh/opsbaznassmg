@@ -1,25 +1,26 @@
 import { Router } from 'express';
 import {
-  getCOAs,
-  createCOA,
-  updateCOA,
-  deleteCOA,
-  getAccounts,
-  createAccount,
-  updateAccount,
-  deleteAccount,
-  getMappingRules,
-  createMappingRule,
-  updateMappingRule,
-  deleteMappingRule,
-  checkAvailability,
-  checkAvailabilityBatch,
-  previewDisbursement,
-  executeDisbursement,
-  executeReplenishment,
-  getJournalEntries,
-  createManualExpense
-} from '../controllers/finance.controller';
+   getCOAs,
+   createCOA,
+   updateCOA,
+   deleteCOA,
+   getAccounts,
+   createAccount,
+   updateAccount,
+   deleteAccount,
+   getMappingRules,
+   createMappingRule,
+   updateMappingRule,
+   deleteMappingRule,
+   checkAvailability,
+   checkAvailabilityBatch,
+   previewDisbursement,
+   executeDisbursement,
+   executeReplenishment,
+   getJournalEntries,
+   createManualExpense,
+   checkLedgerHealth
+ } from '../controllers/finance.controller';
 
 const router = Router();
 
@@ -51,5 +52,6 @@ router.post('/manual-expense', createManualExpense);
 
 // Journal Entries Ledger Route
 router.get('/ledger', getJournalEntries);
+router.get('/ledger/health-check', checkLedgerHealth);
 
 export default router;

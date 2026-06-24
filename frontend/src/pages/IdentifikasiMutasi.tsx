@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { 
-  ArrowRightLeft, 
-  Search, 
-  User, 
+import {
+  ArrowRightLeft,
+  Search,
+  User,
   AlertTriangle,
   Building,
   Check,
@@ -14,7 +14,9 @@ import {
   UserPlus,
   CheckCircle2,
   AlertCircle,
-  Trash2
+  Trash2,
+  BookOpen,
+  Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -58,6 +60,7 @@ export interface BankMutation {
   muzakkiId?: string;
   muzakkiName?: string;
   coaCode?: string;
+  rkatId?: string;
   sumberDana?: string;
   keteranganRealisasi?: string;
 }
@@ -83,13 +86,13 @@ const formatCurrency = (value: number) => {
 
 export default function IdentifikasiMutasi() {
   const { user } = useAuth();
-  
+
   // States
   const [mutations, setMutations] = useState<BankMutation[]>([]);
   const [rkatList, setRkatList] = useState<RkatProgram[]>([]);
   const [coaList, setCoaList] = useState<COAItem[]>([]);
   const [muzakkiList, setMuzakkiList] = useState<Muzakki[]>([]);
-  
+
   const [statusFilter, setStatusFilter] = useState<'SEMUA' | 'PENDING' | 'RECONCILED'>('PENDING');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -104,6 +107,9 @@ export default function IdentifikasiMutasi() {
   const [selectedRkatId, setSelectedRkatId] = useState('');
   const [selectedCoaCode, setSelectedCoaCode] = useState('');
   const [customKeterangan, setCustomKeterangan] = useState('');
+  const [isOutsideRkat, setIsOutsideRkat] = useState(false);
+  const [coaSearch, setCoaSearch] = useState('');
+  const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
 
   // Autocomplete Muzakki search
   const [muzakkiSearch, setMuzakkiSearch] = useState('');
@@ -157,7 +163,7 @@ export default function IdentifikasiMutasi() {
   const filteredMuzakkis = useMemo(() => {
     if (!muzakkiSearch) return [];
     const term = muzakkiSearch.toLowerCase();
-    return muzakkiList.filter(m => 
+    return muzakkiList.filter(m =>
       m.nama.toLowerCase().includes(term) ||
       (m.nik || '').includes(term) ||
       (m.npwz || '').includes(term)
@@ -254,15 +260,37 @@ export default function IdentifikasiMutasi() {
     };
   }, [mutations]);
 
+  const filteredCoasForSearch = useMemo(() => {
+    const basePenerimaan = coaList.filter(c => c.klasifikasi === 'Penerimaan' || c.coa_code.startsWith('4'));
+    if (!coaSearch) return basePenerimaan;
+    const term = coaSearch.toLowerCase();
+    return basePenerimaan.filter(coa =>
+      coa.coa_code.toLowerCase().includes(term) ||
+      coa.nama_akun.toLowerCase().includes(term)
+    );
+  }, [coaList, coaSearch]);
+
   // Open Identification Modal
   const openIdentificationModal = (m: BankMutation) => {
     setSelectedMutation(m);
-    setSelectedMuzakkiId('');
-    setSelectedRkatId('');
-    setSelectedCoaCode('');
-    setMuzakkiSearch('');
-    setCustomKeterangan('');
+    if (m.status === 'RECONCILED') {
+      setSelectedMuzakkiId(m.muzakkiId || '');
+      setMuzakkiSearch(m.muzakkiName || '');
+      setSelectedRkatId(m.rkatId || '');
+      setSelectedCoaCode(m.coaCode || '');
+      setCustomKeterangan(m.keteranganRealisasi || '');
+      setIsOutsideRkat(!m.rkatId);
+    } else {
+      setSelectedMuzakkiId('');
+      setSelectedRkatId('');
+      setSelectedCoaCode('');
+      setMuzakkiSearch('');
+      setCustomKeterangan('');
+      setIsOutsideRkat(false);
+    }
     setShowQuickRegister(false);
+    setCoaSearch('');
+    setIsCoaDropdownOpen(false);
     setIsModalOpen(true);
   };
 
@@ -271,21 +299,28 @@ export default function IdentifikasiMutasi() {
     e.preventDefault();
     if (!selectedMutation) return;
 
-    if (!selectedMuzakkiId || !selectedRkatId || !selectedCoaCode) {
-      showToast('Muzakki, Kegiatan RKAT, dan Program Kegiatan (COA) wajib diisi!', 'error');
+    const needsRkat = !isOutsideRkat;
+    if (!selectedMuzakkiId || (needsRkat && !selectedRkatId) || !selectedCoaCode) {
+      showToast(
+        needsRkat
+          ? 'Muzakki, Kegiatan RKAT, dan Program Kegiatan (COA) wajib diisi!'
+          : 'Muzakki dan Program Kegiatan (COA) wajib diisi!',
+        'error'
+      );
       return;
     }
 
     try {
       const payload = {
         muzakkiId: selectedMuzakkiId,
-        rkatId: selectedRkatId,
+        rkatId: needsRkat ? selectedRkatId : null,
+        coaCode: selectedCoaCode,
         userName: user?.name || user?.role || 'Staff Pengumpulan',
         keterangan: customKeterangan.trim() || undefined
       };
 
       await axios.post(`/api/mutations/${selectedMutation.id}/identify-penerimaan`, payload);
-      
+
       showToast('Mutasi berhasil diidentifikasi & dimasukkan ke Antrean SIMBA!', 'success');
       setIsModalOpen(false);
       fetchData(); // Reload mutations and status
@@ -309,11 +344,11 @@ export default function IdentifikasiMutasi() {
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
-      
+
       {/* Toast Notification */}
       <AnimatePresence>
         {toast && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
@@ -390,7 +425,7 @@ export default function IdentifikasiMutasi() {
 
       {/* Main Table Card */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        
+
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-100 bg-slate-50/50">
           {(['PENDING', 'RECONCILED', 'SEMUA'] as const).map(tab => (
@@ -415,7 +450,7 @@ export default function IdentifikasiMutasi() {
         <div className="p-6 border-b border-slate-50 flex items-center justify-between">
           <div className="relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-            <input 
+            <input
               type="text"
               placeholder="Cari keterangan mutasi bank, nominal..."
               value={searchTerm}
@@ -518,6 +553,14 @@ export default function IdentifikasiMutasi() {
                           </span>
                           <button
                             type="button"
+                            onClick={() => openIdentificationModal(item)}
+                            className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary border border-transparent rounded-lg transition-all"
+                            title="Edit Identifikasi"
+                          >
+                            <Edit3 className="size-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDeleteMutation(item.id)}
                             className="p-1.5 text-rose-600 hover:bg-rose-55 hover:text-rose-700 border border-transparent hover:border-rose-100 rounded-lg transition-all"
                             title="Hapus Mutasi"
@@ -563,13 +606,13 @@ export default function IdentifikasiMutasi() {
               </div>
 
               <form onSubmit={handleIdentify} className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                
+
                 {/* 1. Muzakki Autocomplete Search or Quick Register */}
                 <div className="space-y-1.5 relative">
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Muzakki *</label>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setShowQuickRegister(!showQuickRegister)}
                       className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1"
                     >
@@ -582,36 +625,36 @@ export default function IdentifikasiMutasi() {
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 mt-1">
                       <p className="text-[9px] font-black text-primary uppercase tracking-widest">Registrasi Muzakki Instan</p>
                       <div className="flex gap-2">
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setQuickKategori('Perorangan')}
                           className={cn("flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition-all", quickKategori === 'Perorangan' ? 'bg-primary text-white border-primary' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}
                         >
                           Perorangan
                         </button>
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setQuickKategori('Lembaga')}
                           className={cn("flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition-all", quickKategori === 'Lembaga' ? 'bg-primary text-white border-primary' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}
                         >
                           Lembaga
                         </button>
                       </div>
-                      <input 
-                        type="text" 
-                        placeholder="Nama Lengkap / Lembaga *" 
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none" 
-                        value={quickNama} 
-                        onChange={(e) => setQuickNama(e.target.value)} 
+                      <input
+                        type="text"
+                        placeholder="Nama Lengkap / Lembaga *"
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none"
+                        value={quickNama}
+                        onChange={(e) => setQuickNama(e.target.value)}
                       />
                       {quickKategori === 'Perorangan' && (
                         <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            placeholder="NIK (KTP)" 
-                            className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none" 
-                            value={quickNik} 
-                            onChange={(e) => setQuickNik(e.target.value)} 
+                          <input
+                            type="text"
+                            placeholder="NIK (KTP)"
+                            className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none"
+                            value={quickNik}
+                            onChange={(e) => setQuickNik(e.target.value)}
                           />
                           <select
                             className="bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none text-slate-650"
@@ -623,23 +666,23 @@ export default function IdentifikasiMutasi() {
                           </select>
                         </div>
                       )}
-                      <input 
-                        type="text" 
-                        placeholder="No Handphone *" 
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none" 
-                        value={quickHandphone} 
-                        onChange={(e) => setQuickHandphone(e.target.value)} 
+                      <input
+                        type="text"
+                        placeholder="No Handphone *"
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none"
+                        value={quickHandphone}
+                        onChange={(e) => setQuickHandphone(e.target.value)}
                       />
-                      <textarea 
-                        placeholder="Alamat *" 
-                        rows={2} 
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none" 
-                        value={quickAddress} 
-                        onChange={(e) => setQuickAddress(e.target.value)} 
+                      <textarea
+                        placeholder="Alamat *"
+                        rows={2}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none"
+                        value={quickAddress}
+                        onChange={(e) => setQuickAddress(e.target.value)}
                       />
-                      <button 
-                        type="button" 
-                        onClick={handleQuickRegisterMuzakki} 
+                      <button
+                        type="button"
+                        onClick={handleQuickRegisterMuzakki}
                         className="w-full bg-primary text-white text-xs font-bold py-2 rounded-lg"
                       >
                         Daftarkan &amp; Pilih Muzakki
@@ -647,9 +690,9 @@ export default function IdentifikasiMutasi() {
                     </div>
                   ) : (
                     <>
-                      <input 
-                        type="text" 
-                        placeholder="Ketik nama, NIK, atau NPWZ Muzakki..." 
+                      <input
+                        type="text"
+                        placeholder="Ketik nama, NIK, atau NPWZ Muzakki..."
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                         value={muzakkiSearch}
                         onChange={(e) => {
@@ -697,12 +740,12 @@ export default function IdentifikasiMutasi() {
                             <User className="size-4 shrink-0" />
                             Terhubung: {muzakkiSearch}
                           </span>
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => {
                               setSelectedMuzakkiId('');
                               setMuzakkiSearch('');
-                            }} 
+                            }}
                             className="hover:text-rose-600 transition-colors"
                           >
                             <X className="size-4" />
@@ -711,14 +754,37 @@ export default function IdentifikasiMutasi() {
                       )}
                     </>
                   )}
-                </div>                {/* 2. Kegiatan (RKAT) */}
+                </div>
+
+                {/* Checkbox Tidak Ada di RKAT */}
+                <div className="flex items-center gap-2 text-left mb-1">
+                  <input
+                    type="checkbox"
+                    id="isOutsideRkat"
+                    checked={isOutsideRkat}
+                    onChange={(e) => {
+                      setIsOutsideRkat(e.target.checked);
+                      if (e.target.checked) {
+                        setSelectedRkatId('');
+                        setSelectedCoaCode('');
+                      }
+                    }}
+                    className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                  />
+                  <label htmlFor="isOutsideRkat" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    Tidak ada di RKAT (Penerimaan di luar RKAT)
+                  </label>
+                </div>
+
+                {/* 2. Kegiatan (RKAT) */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT) *</label>
-                  <select 
-                    required 
+                  <select
+                    required={!isOutsideRkat}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
                     value={selectedRkatId}
                     onChange={(e) => handleRkatChange(e.target.value)}
+                    disabled={isOutsideRkat}
                   >
                     <option value="">Pilih Kegiatan RKAT Pengumpulan...</option>
                     {rkatList.map(rkat => (
@@ -729,8 +795,8 @@ export default function IdentifikasiMutasi() {
                   </select>
                 </div>
 
-                {/* 3. Program Kegiatan (COA) */}
-                {selectedRkatId && (
+                {/* 3. Program Kegiatan (COA) - Standard flow */}
+                {!isOutsideRkat && selectedRkatId && (
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program Kegiatan (COA) *</label>
                     <select
@@ -756,12 +822,84 @@ export default function IdentifikasiMutasi() {
                   </div>
                 )}
 
+                {/* 3. Akun Buku Besar (Penerimaan COA) - Outside RKAT search */}
+                {isOutsideRkat && (
+                  <div className="space-y-1.5 text-left animate-fade-in">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                      Akun Buku Besar (Penerimaan COA) *
+                    </label>
+                    {selectedCoaCode ? (
+                      <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3 py-2 rounded-xl text-xs font-black">
+                        <span className="flex items-center gap-1.5">
+                          <BookOpen className="size-4 shrink-0" />
+                          Terpilih: {selectedCoaCode} - {coaList.find(c => c.coa_code === selectedCoaCode)?.nama_akun || 'Memuat...'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCoaCode('');
+                            setCoaSearch('');
+                          }}
+                          className="hover:text-rose-600"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 size-3.5" />
+                          <input
+                            type="text"
+                            placeholder="Cari kode COA atau nama akun Penerimaan..."
+                            value={coaSearch}
+                            onChange={(e) => setCoaSearch(e.target.value)}
+                            onFocus={() => setIsCoaDropdownOpen(true)}
+                            onBlur={() => setTimeout(() => setIsCoaDropdownOpen(false), 205)}
+                            className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+
+                        {(isCoaDropdownOpen || coaSearch) && (
+                          <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner text-left">
+                            {filteredCoasForSearch.length === 0 ? (
+                              <p className="p-2 text-[10px] text-slate-400 italic">COA tidak ditemukan</p>
+                            ) : (
+                              filteredCoasForSearch.map(coa => (
+                                <div
+                                  key={coa.coa_code}
+                                  onClick={() => {
+                                    setSelectedCoaCode(coa.coa_code);
+                                    setCoaSearch('');
+                                    setIsCoaDropdownOpen(false);
+                                  }}
+                                  className="p-2 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5 text-slate-700"
+                                >
+                                  <span className="font-mono text-primary text-[11px]">{coa.coa_code}</span>
+                                  <span className="text-slate-650 text-[10px]">{coa.nama_akun}</span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={selectedCoaCode}
+                      required
+                      onChange={() => { }}
+                      className="sr-only h-0 w-0"
+                    />
+                  </div>
+                )}
+
                 {/* via Kas & Bank */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">via Kas & Bank *</label>
-                  <input 
-                    type="text" 
-                    disabled 
+                  <input
+                    type="text"
+                    disabled
                     className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-500 font-bold outline-none cursor-not-allowed"
                     value={selectedMutation.bankName}
                   />
@@ -770,9 +908,9 @@ export default function IdentifikasiMutasi() {
                 {/* Nominal */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nominal (Rp) *</label>
-                  <input 
-                    type="text" 
-                    disabled 
+                  <input
+                    type="text"
+                    disabled
                     className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-500 font-mono font-bold outline-none cursor-not-allowed"
                     value={formatCurrency(selectedMutation.nominal)}
                   />
@@ -782,8 +920,8 @@ export default function IdentifikasiMutasi() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Pembayaran *</label>
-                    <select 
-                      disabled 
+                    <select
+                      disabled
                       className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-500 font-bold outline-none cursor-not-allowed"
                       value="TRANSFER"
                     >
@@ -792,9 +930,9 @@ export default function IdentifikasiMutasi() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Tanggal Pembayaran *</label>
-                    <input 
-                      type="date" 
-                      disabled 
+                    <input
+                      type="date"
+                      disabled
                       className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-500 font-mono font-bold outline-none cursor-not-allowed"
                       value={new Date(selectedMutation.tanggal).toISOString().split('T')[0]}
                     />
@@ -814,15 +952,15 @@ export default function IdentifikasiMutasi() {
 
                 {/* Action buttons */}
                 <div className="flex gap-3 pt-3 border-t border-slate-100">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setIsModalOpen(false)}
                     className="flex-1 py-3 text-slate-500 hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider"
                   >
                     Batal
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="flex-1 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/20"
                   >
                     Simpan Identifikasi

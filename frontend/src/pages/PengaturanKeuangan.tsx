@@ -319,14 +319,15 @@ export default function PengaturanKeuangan() {
       });
     } else {
       setEditingItem(null);
+      const defaultCoa = coas.find(c => c.klasifikasi === 'Aktiva');
       setAccountForm({
         nama_akun: '',
         tipe_kas: defaultTipe,
         kelompok_dana: 'ZAKAT',
-        saldo: 0,
+        saldo: defaultCoa ? Number(defaultCoa.saldo_awal || 0) : 0,
         no_rekening: '',
         kode_laci: '',
-        coa_code: coas.find(c => c.klasifikasi === 'Aktiva')?.coa_code || ''
+        coa_code: defaultCoa?.coa_code || ''
       });
     }
     setIsAccountModalOpen(true);
@@ -1162,7 +1163,11 @@ export default function PengaturanKeuangan() {
                                   key={c.coa_code}
                                   type="button"
                                   onClick={() => {
-                                    setAccountForm({ ...accountForm, coa_code: c.coa_code });
+                                    setAccountForm({ 
+                                      ...accountForm, 
+                                      coa_code: c.coa_code,
+                                      saldo: Number(c.saldo_awal || 0)
+                                    });
                                     setIsFormCoaDropdownOpen(false);
                                   }}
                                   className={cn(
@@ -1218,11 +1223,13 @@ export default function PengaturanKeuangan() {
                   <input
                     type="number"
                     value={accountForm.saldo || 0}
-                    onChange={(e) => setAccountForm({ ...accountForm, saldo: Number(e.target.value) })}
                     required
-                    disabled={!!editingItem && !isSuperAdmin}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                    disabled={true}
+                    className="w-full bg-slate-100 border-slate-200 rounded-xl px-4 py-3 text-xs outline-none transition-all font-bold cursor-not-allowed text-slate-500"
                   />
+                  <p className="text-[9px] text-slate-400 font-bold leading-normal mt-1">
+                    * Saldo awal ditarik otomatis dari Saldo Awal Chart of Accounts (COA) terpilih.
+                  </p>
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex gap-3">

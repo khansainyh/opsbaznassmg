@@ -229,7 +229,7 @@ export const deleteMutation = async (req: Request, res: Response) => {
 
 export const reconcileMutation = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { muzakkiId, muzakkiName, coaCode, rkatId, sumberDana, keteranganRealisasi, userName } = req.body;
 
     const mutations = readMutations();
@@ -241,16 +241,33 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     }
 
     const mutation = mutations[mutationIndex];
-    if (mutation.status === 'RECONCILED') {
-      res.status(400).json({ error: 'Mutasi/transaksi sudah terekonsiliasi' });
-      return;
-    }
-
+    const isEdit = mutation.status === 'RECONCILED';
     const isDebit = mutation.type !== 'KREDIT';
 
     if (!coaCode || (isDebit && !sumberDana) || !keteranganRealisasi) {
       res.status(400).json({ error: 'Kode COA, Sumber Dana (untuk Penerimaan), dan Keterangan wajib diisi' });
       return;
+    }
+
+    let existingRealisasi: any = null;
+    if (isEdit) {
+      existingRealisasi = await prisma.realisasi.findFirst({
+        where: { nrm: id }
+      });
+      if (!existingRealisasi && isDebit) {
+        const pz = await prisma.penerimaanZis.findUnique({
+          where: { no_kuitansi: `BSZ-MUT-${id}` }
+        });
+        if (pz && pz.transaksi_id) {
+          existingRealisasi = await prisma.realisasi.findUnique({
+            where: { transaksi_id: pz.transaksi_id }
+          });
+        }
+      }
+      if (!existingRealisasi) {
+        res.status(404).json({ error: 'Data realisasi transaksi terekonsiliasi tidak ditemukan di database' });
+        return;
+      }
     }
 
     let bankAccount = await prisma.bankAccount.findUnique({
@@ -270,34 +287,75 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     }
 
     if (!bankAccount) {
-      res.status(404).json({ error: 'Akun bank/kas tidak ditemukan' });
-      return;
+      const kasAccount = await prisma.bankAccount.findUnique({
+        where: { account_id: bankAccount?.account_id || mutation.bankAccountId }
+      });
+      if (!kasAccount) {
+        res.status(404).json({ error: 'Akun bank/kas tidak ditemukan' });
+        return;
+      }
+      bankAccount = kasAccount;
     }
 
-    // If Kredit, verify that there is enough balance
-    if (!isDebit && Number(bankAccount.saldo) < Number(mutation.nominal)) {
+    // If Kredit, verify that there is enough balance (adjusting for old nominal if editing)
+    const nominal = Number(mutation.nominal);
+    const oldNominal = isEdit ? Number(mutation.nominal) : 0;
+    const currentBalance = Number(bankAccount.saldo);
+    if (!isDebit && !isEdit && currentBalance < nominal) {
       res.status(400).json({ 
-        error: `Saldo di ${bankAccount.nama_akun} tidak mencukupi untuk memposting transaksi ini! Tersedia: Rp ${Number(bankAccount.saldo).toLocaleString('id-ID')}, Dibutuhkan: Rp ${Number(mutation.nominal).toLocaleString('id-ID')}` 
+        error: `Saldo di ${bankAccount.nama_akun} tidak mencukupi untuk memposting transaksi ini! Tersedia: Rp ${currentBalance.toLocaleString('id-ID')}, Dibutuhkan: Rp ${nominal.toLocaleString('id-ID')}` 
       });
       return;
     }
 
     // Post to ledger inside database transaction!
     await prisma.$transaction(async (tx) => {
-      const nominal = Number(mutation.nominal);
-
-      // 1. Create Realisasi entry
-      const realisasi = await tx.realisasi.create({
-        data: {
-          rkat_id: rkatId || null,
-          tanggal: new Date(mutation.tanggal),
-          keterangan: isDebit
-            ? `Rekonsiliasi Mutasi - Penerimaan dari ${muzakkiName || 'Hamba Allah'} (${keteranganRealisasi})`
-            : `Rekonsiliasi Mutasi - Penyaluran/Penggunaan (${keteranganRealisasi})`
+      // Revert old bank account balance if edit
+      if (isEdit) {
+        if (isDebit) {
+          await tx.bankAccount.update({
+            where: { account_id: mutation.bankAccountId } as any,
+            data: {
+              saldo: { decrement: new Prisma.Decimal(oldNominal) }
+            }
+          });
+        } else {
+          await tx.bankAccount.update({
+            where: { account_id: mutation.bankAccountId } as any,
+            data: {
+              saldo: { increment: new Prisma.Decimal(oldNominal) }
+            }
+          });
         }
-      });
+      }
 
-      // 2. Update Bank account balance
+      // Update or create Realisasi entry
+      let realisasi;
+      const realisasiKeterangan = isDebit
+        ? `Rekonsiliasi Mutasi - Penerimaan dari ${muzakkiName || 'Hamba Allah'} (${keteranganRealisasi})`
+        : `Rekonsiliasi Mutasi - Penyaluran/Penggunaan (${keteranganRealisasi})`;
+
+      if (isEdit && existingRealisasi) {
+        realisasi = await tx.realisasi.update({
+          where: { transaksi_id: existingRealisasi.transaksi_id },
+          data: {
+            rkat_id: rkatId || null,
+            keterangan: realisasiKeterangan,
+            nrm: id
+          }
+        });
+      } else {
+        realisasi = await tx.realisasi.create({
+          data: {
+            rkat_id: rkatId || null,
+            tanggal: new Date(mutation.tanggal),
+            keterangan: realisasiKeterangan,
+            nrm: id
+          }
+        });
+      }
+
+      // Update Bank account balance with new nominal
       if (isDebit) {
         await tx.bankAccount.update({
           where: { account_id: mutation.bankAccountId } as any,
@@ -311,6 +369,13 @@ export const reconcileMutation = async (req: Request, res: Response) => {
           data: {
             saldo: { decrement: new Prisma.Decimal(nominal) }
           }
+        });
+      }
+
+      // Delete old journal entries if editing
+      if (isEdit && existingRealisasi) {
+        await tx.journalEntry.deleteMany({
+          where: { transaksi_id: existingRealisasi.transaksi_id }
         });
       }
 
@@ -338,9 +403,20 @@ export const reconcileMutation = async (req: Request, res: Response) => {
           }
         });
 
-        // 4. Create synced PenerimaanZis entry
-        if (rkatId) {
-          const noKuitansi = `BSZ-MUT-${mutation.id}`;
+        // Create or update synced PenerimaanZis entry
+        const noKuitansi = `BSZ-MUT-${mutation.id}`;
+        if (isEdit) {
+          await tx.penerimaanZis.update({
+            where: { no_kuitansi: noKuitansi },
+            data: {
+              muzakki_id: muzakkiId || null,
+              rkat_id: rkatId || null,
+              bank_account_id: mutation.bankAccountId,
+              nominal: new Prisma.Decimal(nominal),
+              keterangan: keteranganRealisasi
+            }
+          });
+        } else {
           const existingKuitansi = await tx.penerimaanZis.findUnique({
             where: { no_kuitansi: noKuitansi }
           });
@@ -350,7 +426,7 @@ export const reconcileMutation = async (req: Request, res: Response) => {
               data: {
                 no_kuitansi: noKuitansi,
                 muzakki_id: muzakkiId || null,
-                rkat_id: rkatId,
+                rkat_id: rkatId || null,
                 bank_account_id: mutation.bankAccountId,
                 nominal: new Prisma.Decimal(nominal),
                 metode_pembayaran: 'TRANSFER',
@@ -401,7 +477,7 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     mutations[mutationIndex] = mutation;
     writeMutations(mutations);
 
-    res.status(200).json({ success: true, message: 'Transaksi berhasil direkonsiliasi dan diposting ke Buku Besar!' });
+    res.status(200).json({ success: true, message: isEdit ? 'Rekonsiliasi transaksi berhasil diperbarui dan Jurnal Buku Besar disesuaikan!' : 'Transaksi berhasil direkonsiliasi dan diposting ke Buku Besar!' });
   } catch (error) {
     console.error('Error during bank mutation reconciliation:', error);
     res.status(500).json({ error: String(error) });
@@ -410,8 +486,8 @@ export const reconcileMutation = async (req: Request, res: Response) => {
 
 export const identifyMutationAsPenerimaan = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { muzakkiId, rkatId, userName, keterangan } = req.body;
+    const id = String(req.params.id);
+    const { muzakkiId, rkatId, coaCode, userName, keterangan } = req.body;
 
     const mutations = readMutations();
     const mutationIndex = mutations.findIndex(m => m.id === id);
@@ -422,27 +498,48 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
     }
 
     const mutation = mutations[mutationIndex];
-    if (mutation.status === 'RECONCILED') {
-      res.status(400).json({ error: 'Mutasi bank sudah diidentifikasi/terekonsiliasi' });
+    const isEdit = mutation.status === 'RECONCILED';
+
+    if (!muzakkiId || (!rkatId && !coaCode)) {
+      res.status(400).json({ error: 'Muzakki dan Kegiatan (atau COA jika di luar RKAT) wajib dipilih' });
       return;
     }
 
-    if (!muzakkiId || !rkatId) {
-      res.status(400).json({ error: 'Muzakki dan Kegiatan (RKAT) wajib dipilih' });
-      return;
+    let existingRealisasi: any = null;
+    if (isEdit) {
+      existingRealisasi = await prisma.realisasi.findFirst({
+        where: { nrm: id }
+      });
+      if (!existingRealisasi) {
+        const pz = await prisma.penerimaanZis.findUnique({
+          where: { no_kuitansi: `BSZ-MUT-${id}` }
+        });
+        if (pz && pz.transaksi_id) {
+          existingRealisasi = await prisma.realisasi.findUnique({
+            where: { transaksi_id: pz.transaksi_id }
+          });
+        }
+      }
+      if (!existingRealisasi) {
+        res.status(404).json({ error: 'Data realisasi transaksi terekonsiliasi tidak ditemukan di database' });
+        return;
+      }
     }
 
     // Fetch required database records
     const muzakki = await prisma.muzakki.findUnique({ where: { id: muzakkiId } });
     if (!muzakki) {
-      res.status(450).json({ error: 'Muzakki tidak ditemukan' });
+      res.status(400).json({ error: 'Muzakki tidak ditemukan' });
       return;
     }
 
-    const rkat = await prisma.rkatPengumpulan.findUnique({ where: { id: rkatId } });
-    if (!rkat) {
-      res.status(404).json({ error: 'Program RKAT tidak ditemukan' });
-      return;
+    let rkat = null;
+    if (rkatId) {
+      rkat = await prisma.rkatPengumpulan.findUnique({ where: { id: rkatId } });
+      if (!rkat) {
+        res.status(404).json({ error: 'Program RKAT tidak ditemukan' });
+        return;
+      }
     }
 
     let bankAccount = await prisma.bankAccount.findUnique({ where: { account_id: mutation.bankAccountId } });
@@ -465,20 +562,76 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
     // Generate custom kuitansi
     const noKuitansi = `BSZ-MUT-${mutation.id}`;
 
-    // Verify kuitansi is unique
-    const existingKuitansi = await prisma.penerimaanZis.findUnique({
-      where: { no_kuitansi: noKuitansi }
-    });
-    if (existingKuitansi) {
-      res.status(400).json({ error: 'Mutasi bank ini sudah teridentifikasi sebagai Penerimaan ZIS' });
-      return;
+    // Verify kuitansi is unique (only if not editing)
+    if (!isEdit) {
+      const existingKuitansi = await prisma.penerimaanZis.findUnique({
+        where: { no_kuitansi: noKuitansi }
+      });
+      if (existingKuitansi) {
+        res.status(400).json({ error: 'Mutasi bank ini sudah teridentifikasi sebagai Penerimaan ZIS' });
+        return;
+      }
     }
 
     const nominal = Number(mutation.nominal);
-    const formattedKeterangan = keterangan || `Identifikasi Mutasi: Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama} (Keterangan Bank: ${mutation.keteranganBank})`;
+    const formattedKeterangan = keterangan || (
+      rkat
+        ? `Identifikasi Mutasi: Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama} (Keterangan Bank: ${mutation.keteranganBank})`
+        : `Identifikasi Mutasi: Penerimaan ZIS di luar RKAT via ${bankAccount.nama_akun} dari ${muzakki.nama} (Keterangan Bank: ${mutation.keteranganBank})`
+    );
+
+    let creditCoaCode = coaCode || '41010101';
+    if (rkat) {
+      creditCoaCode = coaCode || (rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101');
+    }
 
     await prisma.$transaction(async (tx) => {
-      // 1. Update Bank account balance
+      // Revert old bank account balance if edit
+      if (isEdit) {
+        await tx.bankAccount.update({
+          where: { account_id: mutation.bankAccountId },
+          data: {
+            saldo: { decrement: new Prisma.Decimal(nominal) }
+          }
+        });
+      }
+
+      // Fetch or create credit COA code
+      const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
+      if (!coaExists) {
+        await tx.chartOfAccounts.create({
+          data: {
+            coa_code: creditCoaCode,
+            nama_akun: rkat ? `Penerimaan ${rkat.nama_program}` : `Penerimaan di luar RKAT (${creditCoaCode})`,
+            klasifikasi: 'Penerimaan',
+            tipe_dana: (rkat && rkat.kategori.toUpperCase() === 'ZAKAT') ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
+          }
+        });
+      }
+
+      // Update or create Realisasi entry
+      let realisasi;
+      if (isEdit && existingRealisasi) {
+        realisasi = await tx.realisasi.update({
+          where: { transaksi_id: existingRealisasi.transaksi_id },
+          data: {
+            rkat_id: rkatId || null,
+            keterangan: formattedKeterangan,
+            nrm: id
+          }
+        });
+      } else {
+        realisasi = await tx.realisasi.create({
+          data: {
+            rkat_id: rkatId || null,
+            tanggal: new Date(mutation.tanggal),
+            keterangan: formattedKeterangan,
+            nrm: id
+          }
+        });
+      }
+
+      // Update Bank account balance (add nominal)
       await tx.bankAccount.update({
         where: { account_id: mutation.bankAccountId },
         data: {
@@ -486,30 +639,14 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
         }
       });
 
-      // 2. Fetch or create credit COA code
-      const creditCoaCode = rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101';
-      const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
-      if (!coaExists) {
-        await tx.chartOfAccounts.create({
-          data: {
-            coa_code: creditCoaCode,
-            nama_akun: `Penerimaan ${rkat.nama_program}`,
-            klasifikasi: 'Penerimaan',
-            tipe_dana: rkat.kategori.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
-          }
+      // Delete old journal entries if editing
+      if (isEdit && existingRealisasi) {
+        await tx.journalEntry.deleteMany({
+          where: { transaksi_id: existingRealisasi.transaksi_id }
         });
       }
 
-      // 3. Create Realisasi entry
-      const realisasi = await tx.realisasi.create({
-        data: {
-          rkat_id: rkatId,
-          tanggal: new Date(mutation.tanggal),
-          keterangan: formattedKeterangan
-        }
-      });
-
-      // 4. Create Debit JournalEntry (Bank Account)
+      // Create Debit JournalEntry (Bank Account)
       await tx.journalEntry.create({
         data: {
           transaksi_id: realisasi.transaksi_id,
@@ -520,7 +657,7 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
         }
       });
 
-      // 5. Create Credit JournalEntry (Revenue COA)
+      // Create Credit JournalEntry (Revenue COA)
       await tx.journalEntry.create({
         data: {
           transaksi_id: realisasi.transaksi_id,
@@ -531,21 +668,34 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
         }
       });
 
-      // 6. Create PenerimaanZis record in PENDING state (but with transaksi_id set)
-      await tx.penerimaanZis.create({
-        data: {
-          no_kuitansi: noKuitansi,
-          muzakki_id: muzakkiId,
-          rkat_id: rkatId,
-          bank_account_id: mutation.bankAccountId,
-          nominal: new Prisma.Decimal(nominal),
-          metode_pembayaran: 'TRANSFER',
-          tanggal_pembayaran: new Date(mutation.tanggal),
-          keterangan: formattedKeterangan,
-          status_simba: 'PENDING',
-          transaksi_id: realisasi.transaksi_id
-        }
-      });
+      // Create or update PenerimaanZis record in PENDING state (but with transaksi_id set)
+      if (isEdit) {
+        await tx.penerimaanZis.update({
+          where: { no_kuitansi: noKuitansi },
+          data: {
+            muzakki_id: muzakkiId,
+            rkat_id: rkatId || null,
+            bank_account_id: mutation.bankAccountId,
+            nominal: new Prisma.Decimal(nominal),
+            keterangan: formattedKeterangan
+          }
+        });
+      } else {
+        await tx.penerimaanZis.create({
+          data: {
+            no_kuitansi: noKuitansi,
+            muzakki_id: muzakkiId,
+            rkat_id: rkatId || null,
+            bank_account_id: mutation.bankAccountId,
+            nominal: new Prisma.Decimal(nominal),
+            metode_pembayaran: 'TRANSFER',
+            tanggal_pembayaran: new Date(mutation.tanggal),
+            keterangan: formattedKeterangan,
+            status_simba: 'PENDING',
+            transaksi_id: realisasi.transaksi_id
+          }
+        });
+      }
     });
 
     // Update JSON mutation state
@@ -554,14 +704,15 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
     mutation.reconciledBy = userName || 'Staff';
     mutation.muzakkiId = muzakkiId;
     mutation.muzakkiName = muzakki.nama;
-    mutation.coaCode = rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101';
-    mutation.sumberDana = rkat.kategori || 'ZAKAT';
+    mutation.coaCode = creditCoaCode;
+    mutation.rkatId = rkatId || null;
+    mutation.sumberDana = rkat ? (rkat.kategori || 'ZAKAT') : 'ZAKAT';
     mutation.keteranganRealisasi = formattedKeterangan;
 
     mutations[mutationIndex] = mutation;
     writeMutations(mutations);
 
-    res.status(200).json({ success: true, message: 'Berhasil mengidentifikasi mutasi bank sebagai Penerimaan ZIS (masuk antrean SIMBA)!' });
+    res.status(200).json({ success: true, message: isEdit ? 'Identifikasi penerimaan mutasi berhasil diperbarui!' : 'Berhasil mengidentifikasi mutasi bank sebagai Penerimaan ZIS (masuk antrean SIMBA)!' });
   } catch (error: any) {
     console.error('Error identifying bank mutation:', error);
     res.status(500).json({ error: error.message || String(error) });
