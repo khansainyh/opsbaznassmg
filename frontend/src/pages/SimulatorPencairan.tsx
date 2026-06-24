@@ -14,7 +14,12 @@ import {
   AlertTriangle,
   Building2,
   Printer,
-  HelpCircle
+  HelpCircle,
+  Eye,
+  ChevronDown,
+  Check,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -39,6 +44,14 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
   const [simExecuting, setSimExecuting] = useState(false);
   const [successData, setSuccessData] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProgram, setSelectedProgram] = useState<string>('all');
+  const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
+  const [programSearchQuery, setProgramSearchQuery] = useState('');
+  const [selectedDetailProposal, setSelectedDetailProposal] = useState<ProposalMemo | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isSumberDanaDropdownOpen, setIsSumberDanaDropdownOpen] = useState(false);
+  const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+  const [pilars, setPilars] = useState<any[]>([]);
 
   // Fetch accounts on mount
   useEffect(() => {
@@ -51,6 +64,12 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
       }
     };
     fetchAccounts();
+
+    axios.get('/api/pilars')
+      .then(res => {
+        if (res.data) setPilars(res.data);
+      })
+      .catch(console.error);
   }, []);
 
   // Filter accounts strictly to ZAKAT, ISTT, IST Kas (TUNAI)
@@ -68,6 +87,55 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
   const validProposals = useMemo(() => {
     return data.filter(p => p.status === 'Pencairan Dana' || p.status === 'Antrean Bantuan');
   }, [data]);
+
+  const uniquePrograms = useMemo(() => {
+    const progs = validProposals.map(p => p.jenisPermohonan || 'Umum');
+    return Array.from(new Set(progs)).filter(Boolean);
+  }, [validProposals]);
+
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  useEffect(() => {
+    if (!selectedDetailProposal) return;
+    
+    const getTemplateKey = () => {
+      let tipe = 'Konsumtif';
+      const p = selectedDetailProposal as any;
+      if (p.programRedirectionCode) {
+        const parts = p.programRedirectionCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      } else if (p.programCode) {
+        const parts = p.programCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      }
+      
+      if (tipe === 'Produktif') return 'survey_template_perorangan_produktif';
+      return 'survey_template_individu';
+    };
+
+    const templateKey = getTemplateKey();
+    axios.get(`/api/parameters/${templateKey}`)
+      .then(res => {
+        if (res.data && res.data.value) {
+          setDynamicQuestions(JSON.parse(res.data.value));
+        }
+      })
+      .catch(console.error);
+  }, [selectedDetailProposal, programTipeMap]);
 
   // Helper to map proposal category to Tag
   const getProposalTag = (proposal: ProposalMemo) => {
@@ -108,6 +176,10 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                          (p.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       if (!searchMatch) return false;
 
+      if (selectedProgram !== 'all' && (p.jenisPermohonan || 'Umum') !== selectedProgram) {
+        return false;
+      }
+
       if (selectedAcc) {
         // If a source account is selected, strictly filter to match its kelompok_dana
         return getProposalTag(p) === selectedAcc.kelompok_dana;
@@ -139,7 +211,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
       }
       return Number(b.agendaNo) - Number(a.agendaNo);
     });
-  }, [validProposals, selectedAccountId, allowedAccounts, activeFilterTab, searchTerm]);
+  }, [validProposals, selectedAccountId, allowedAccounts, activeFilterTab, searchTerm, selectedProgram]);
 
   // Map chosen IDs to Proposal objects
   const selectedProposals = useMemo(() => {
@@ -365,22 +437,63 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
               </label>
               
               <div className="relative">
-                <select
-                  value={selectedAccountId}
-                  onChange={(e) => setSelectedAccountId(e.target.value)}
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-4 pr-10 py-4 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer"
+                <button
+                  type="button"
+                  onClick={() => setIsSumberDanaDropdownOpen(!isSumberDanaDropdownOpen)}
+                  className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800 text-left cursor-pointer"
                 >
-                  <option value="">-- Pilih Rekening Sumber Dana --</option>
-                  {allowedAccounts.map(a => (
-                    <option key={a.account_id} value={a.account_id}>
-                      {a.nama_akun} - (Sisa: {formatCurrency(Number(a.saldo))})
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                  <ChevronRight className="size-4 rotate-90" />
-                </div>
+                  <span className="truncate">
+                    {selectedAccount 
+                      ? `${selectedAccount.nama_akun} - (Sisa: ${formatCurrency(Number(selectedAccount.saldo))})`
+                      : '-- Pilih Rekening Sumber Dana --'
+                    }
+                  </span>
+                  <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSumberDanaDropdownOpen && "rotate-180")} />
+                </button>
+
+                {isSumberDanaDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setIsSumberDanaDropdownOpen(false)} />
+                    <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-2xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
+                      <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAccountId('');
+                            setIsSumberDanaDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                            !selectedAccountId ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                          )}
+                        >
+                          <span>-- Pilih Rekening Sumber Dana --</span>
+                          {!selectedAccountId && <Check className="size-4 text-primary shrink-0" />}
+                        </button>
+                        {allowedAccounts.map(a => (
+                          <button
+                            key={a.account_id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAccountId(a.account_id);
+                              setIsSumberDanaDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                              selectedAccountId === a.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                            )}
+                          >
+                            <span className="font-bold text-slate-800">{a.nama_akun}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-900 font-mono font-bold">{formatCurrency(Number(a.saldo))}</span>
+                              {selectedAccountId === a.account_id && <Check className="size-4 text-primary shrink-0" />}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {selectedAccount && (
@@ -459,8 +572,9 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
             )}
           </div>
 
-          {/* Search bar inside queue card */}
-          <div className="flex gap-4 items-center">
+          {/* Search bar & Program Search Dropdown inside queue card */}
+          <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+            {/* Search Input */}
             <div className="relative flex-1">
               <input
                 type="text"
@@ -470,11 +584,83 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+
+            {/* Custom Searchable Program Dropdown */}
+            <div className="relative w-full md:w-64">
+              <button
+                type="button"
+                onClick={() => setIsProgramDropdownOpen(!isProgramDropdownOpen)}
+                className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800 text-left"
+              >
+                <span className="truncate">
+                  {selectedProgram === 'all' ? 'Semua Program' : selectedProgram}
+                </span>
+                <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isProgramDropdownOpen && "rotate-180")} />
+              </button>
+
+              {isProgramDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setIsProgramDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
+                    <div className="p-1 border-b border-slate-100 mb-1">
+                      <input
+                        type="text"
+                        placeholder="Cari program..."
+                        value={programSearchQuery}
+                        onChange={(e) => setProgramSearchQuery(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-700"
+                      />
+                    </div>
+                    <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedProgram('all');
+                          setIsProgramDropdownOpen(false);
+                          setProgramSearchQuery('');
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                          selectedProgram === 'all' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                        )}
+                      >
+                        <span>Semua Program</span>
+                        {selectedProgram === 'all' && <Check className="size-4 text-primary shrink-0" />}
+                      </button>
+                      {uniquePrograms
+                        .filter(p => p.toLowerCase().includes(programSearchQuery.toLowerCase()))
+                        .map(prog => (
+                          <button
+                            key={prog}
+                            type="button"
+                            onClick={() => {
+                              setSelectedProgram(prog);
+                              setIsProgramDropdownOpen(false);
+                              setProgramSearchQuery('');
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                              selectedProgram === prog ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                            )}
+                          >
+                            <span>{prog}</span>
+                            {selectedProgram === prog && <Check className="size-4 text-primary shrink-0" />}
+                          </button>
+                        ))
+                      }
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Select All Button */}
             {tipePencairan === 'batch' && filteredProposals.length > 0 && (
               <button
                 type="button"
                 onClick={handleToggleSelectAll}
-                className="px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-black text-slate-600 transition-all flex items-center gap-2 shrink-0"
+                className="px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-black text-slate-600 transition-all flex items-center gap-2 shrink-0 justify-center"
               >
                 {checkedProposalIds.length === filteredProposals.length ? (
                   <CheckSquare className="size-4 text-primary" />
@@ -498,6 +684,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                   <th className="py-3 px-4">Bantuan / Program</th>
                   <th className="py-3 px-4">Poin &amp; Urgensi</th>
                   <th className="py-3 px-4 text-right">Nominal Bantuan</th>
+                  <th className="py-3 px-4 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -570,12 +757,27 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                         <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                           {formatCurrency(item.nominal || 0)}
                         </td>
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center">
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setSelectedDetailProposal(item);
+                                setIsDetailModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                              title="Detail"
+                            >
+                              <Eye className="size-4" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                    <td colSpan={8} className="py-8 text-center text-slate-400 italic">
                       Tidak ada antrean pencairan dana yang cocok dengan kriteria filter.
                     </td>
                   </tr>
@@ -943,6 +1145,253 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
         )}
       </AnimatePresence>
 
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {isDetailModalOpen && selectedDetailProposal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsDetailModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Detail Proposal (Simulator)</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">No. Agenda: {selectedDetailProposal.agendaNo}</p>
+                </div>
+                <button type="button" onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* LEFT COLUMN: Data Pemohon, Informasi Bantuan & Hasil Kuesioner */}
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                          <DetailItem label="Nama Lengkap" value={selectedDetailProposal.namaPemohon} />
+                        </div>
+                        <DetailItem label="NIK" value={selectedDetailProposal.nik} />
+                        <DetailItem label="Alamat" value={selectedDetailProposal.alamat} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Bantuan</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailItem label="Program" value={selectedDetailProposal.program || 'Umum'} />
+                        <DetailItem label="Jenis" value={selectedDetailProposal.jenisPermohonan} />
+                        <DetailItem label="Tipe Bantuan" value={selectedDetailProposal.tipeBantuan || '-'} />
+                        <DetailItem label="Asnaf (Golongan Penerima)" value={selectedDetailProposal.asnaf || '—'} />
+                      </div>
+                    </div>
+
+                    {/* Hasil Survei Lapangan Detil */}
+                    {selectedDetailProposal.survey_data && (
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">
+                          Detail Kuesioner Survei
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          {(() => {
+                            const sectionCodes = Array.from(new Set(dynamicQuestions.map(q => q.section))).sort();
+                            return sectionCodes.map(secCode => {
+                              const firstQ = dynamicQuestions.find(q => q.section === secCode);
+                              const sectionTitle = firstQ ? firstQ.sectionName : secCode;
+                              const sectionQuestions = dynamicQuestions.filter(q => q.section === secCode);
+                              
+                              const items = sectionQuestions.map(q => ({
+                                label: q.label,
+                                value: getLabelForScore(q.id, (selectedDetailProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                              }));
+                              
+                              return (
+                                <div key={secCode} className="col-span-2">
+                                  <SurveyDetailSection title={sectionTitle} items={items} />
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RIGHT COLUMN: Hasil Evaluasi, Rekomendasi & Embed Proposal */}
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">
+                        Hasil Evaluasi &amp; Rekomendasi
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailItem label="Skor Survei" value={selectedDetailProposal.score?.toString() || '0'} />
+                        <DetailItem label="Tingkat Urgensi" value={selectedDetailProposal.urgencyLevel || 'Normal'} />
+                        
+                        <div className="col-span-2 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Rekomendasi Kas (Kabag Pendistribusian)</p>
+                          <p className="text-sm font-bold text-slate-900">{selectedDetailProposal.rekomendasi_kabag || 'Zakat'}</p>
+                        </div>
+
+                        <div className="col-span-2 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Nominal Pencairan</p>
+                          <p className="text-xl font-black text-slate-900">{formatCurrency(selectedDetailProposal.nominal || 0)}</p>
+                        </div>
+
+                        {selectedDetailProposal.hasil_identifikasi && (
+                          <div className="col-span-2">
+                            <DetailItem label="Hasil Identifikasi Lapangan" value={selectedDetailProposal.hasil_identifikasi} />
+                          </div>
+                        )}
+
+                        {selectedDetailProposal.survey_data?.catatanLapangan && (
+                          <div className="col-span-2 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                            <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
+                            <p className="text-sm text-slate-700 italic leading-relaxed">"{selectedDetailProposal.survey_data.catatanLapangan}"</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Preview Dokumen */}
+                    <div className="space-y-3">
+                      {selectedDetailProposal.fileGdriveLink ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
+                              <FileText className="size-3.5" /> Dokumen Proposal
+                            </h4>
+                            <a href={selectedDetailProposal.fileGdriveLink} target="_blank" rel="noopener noreferrer"
+                               className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
+                              Buka di tab baru <ExternalLink className="size-3" />
+                            </a>
+                          </div>
+                          {getEmbedUrl(selectedDetailProposal.fileGdriveLink) ? (
+                            <iframe 
+                              src={getEmbedUrl(selectedDetailProposal.fileGdriveLink)!} 
+                              className="w-full h-80 rounded-xl border border-slate-200" 
+                              title="Dokumen Proposal" 
+                            />
+                          ) : (
+                            <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                              <p className="text-xs text-slate-500 font-semibold italic">Link Dokumen: <a href={selectedDetailProposal.fileGdriveLink} target="_blank" rel="noreferrer" className="text-primary underline font-bold">{selectedDetailProposal.fileGdriveLink}</a></p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                          <p className="text-xs text-slate-500 font-semibold italic">File proposal tidak dilampirkan atau tidak ada scan dokumen.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+                <button 
+                  type="button"
+                  onClick={() => setIsDetailModalOpen(false)}
+                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all text-center"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
+}
+
+function DetailItem({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+      <p className="text-sm font-bold text-slate-900 leading-relaxed">{value}</p>
+    </div>
+  );
+}
+
+function SurveyDetailSection({ title, items }: { title: string; items: { label: string; value: string }[] }) {
+  return (
+    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {items.map((item, i) => (
+          <div key={i} className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-500">{item.label}</span>
+            <span className="font-bold text-slate-800 text-right max-w-[150px] truncate">{item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): string {
+  if (score === undefined || score === null || score === 0 || score === '') return '-';
+  
+  if (dynamicQuestions && dynamicQuestions.length > 0) {
+    const question = dynamicQuestions.find(q => q.id === field);
+    if (question) {
+      if (question.type === 'checkbox') {
+        if (Array.isArray(score)) {
+          const selectedLabels = score.map((val: any) => {
+            const option = question.options?.find((opt: any) => opt.val === val || opt.val === Number(val) || opt.label === val);
+            return option ? option.label : val;
+          });
+          return selectedLabels.join(', ') || '-';
+        }
+      } else if (question.type === 'text') {
+        return String(score);
+      } else {
+        if (question.options) {
+          const option = question.options.find((opt: any) => opt.val === score || opt.val === Number(score) || opt.label === score);
+          if (option) return option.label;
+        }
+      }
+    }
+  }
+
+  const mapping: Record<string, Record<number, string>> = {
+    luasBangunan: { 3: '≤ 8 m²', 2: '8-10 m²', 1: '> 10 m²' },
+    jenisLantai: { 3: 'Tanah', 2: 'Semen', 1: 'Keramik' },
+    jenisDinding: { 3: 'Kayu/Bambu', 2: 'Bata Polos', 1: 'Tembok Rapi' },
+    statusTempatTinggal: { 4: 'Kost', 3: 'Kontrak', 2: 'Menumpang', 1: 'Milik Sendiri' },
+    pekerjaanKepala: { 3: 'Pengangguran', 2: 'Buruh/Nelayan', 1: 'Karyawan' },
+    frekuensiMakan: { 3: '1x Sehari', 2: '2x Sehari', 1: '3x Sehari' },
+    kemampuanLauk: { 3: 'Jarang', 2: '2x Seminggu', 1: 'Setiap Hari' },
+    keadaanFisik: { 4: 'Manula Sakit', 3: 'Manula Sehat', 2: 'Cacat Produktif', 1: 'Sehat/Produktif' },
+    hutang: { 2: 'Rentenir/Pinjol', 1: 'Bank/Tidak Ada' },
+    kesehatan: { 2: 'Tanah/Non-KIS', 1: 'BPJS/KIS' }
+  };
+
+  return mapping[field]?.[score] || '-';
+}
+
+function getEmbedUrl(link: string): string | null {
+  if (!link || !link.trim()) return null;
+  
+  if (link.includes('drive.google.com')) {
+    const fileMatch = link.match(/\/file\/d\/([^/?#]+)/);
+    if (fileMatch) return `https://drive.google.com/file/d/${fileMatch[1]}/preview`;
+    const openMatch = link.match(/[?&]id=([^&]+)/);
+    if (openMatch) return `https://drive.google.com/file/d/${openMatch[1]}/preview`;
+    return link.replace(/\/view.*?(\?|$)/, '/preview$1');
+  }
+  
+  return link;
 }

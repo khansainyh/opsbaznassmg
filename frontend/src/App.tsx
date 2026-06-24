@@ -43,7 +43,13 @@ import CatatMutasi from '@/src/pages/CatatMutasi';
 
 function App() {
   const { isAuthenticated, user } = useAuth();
-  const [activeMenu, setActiveMenu] = useState('Input Proposal');
+  const [activeMenu, setActiveMenu] = useState(() => {
+    return localStorage.getItem('activeMenu') || 'Input Proposal';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('activeMenu', activeMenu);
+  }, [activeMenu]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [proposals, setProposals] = useState<ProposalMemo[]>([]);
   const [surats, setSurats] = useState<Surat[]>([]);

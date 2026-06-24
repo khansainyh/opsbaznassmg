@@ -9,7 +9,9 @@ import {
   Banknote,
   ArrowUpRight,
   Coins,
-  Info
+  Info,
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -25,6 +27,8 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+  const [pilars, setPilars] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -36,7 +40,57 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
       }
     };
     fetchAccounts();
+
+    axios.get('/api/pilars')
+      .then(res => {
+        if (res.data) setPilars(res.data);
+      })
+      .catch(console.error);
   }, []);
+
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  useEffect(() => {
+    if (!selectedProposal) return;
+    
+    const getTemplateKey = () => {
+      let tipe = 'Konsumtif';
+      const p = selectedProposal as any;
+      if (p.programRedirectionCode) {
+        const parts = p.programRedirectionCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      } else if (p.programCode) {
+        const parts = p.programCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      }
+      
+      if (tipe === 'Produktif') return 'survey_template_perorangan_produktif';
+      return 'survey_template_individu';
+    };
+
+    const templateKey = getTemplateKey();
+    axios.get(`/api/parameters/${templateKey}`)
+      .then(res => {
+        if (res.data && res.data.value) {
+          setDynamicQuestions(JSON.parse(res.data.value));
+        }
+      })
+      .catch(console.error);
+  }, [selectedProposal, programTipeMap]);
 
   // Filter only proposals with 'Pencairan Dana' or 'Antrean Bantuan' status
   const filteredData = useMemo(() => {
@@ -281,7 +335,7 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
                 <div>
@@ -293,61 +347,130 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                 </button>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* LEFT COLUMN: Data Pemohon, Informasi Bantuan & Hasil Kuesioner */}
                   <div className="space-y-6">
                     <div>
                       <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
-                      <div className="space-y-4">
-                        <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                          <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
+                        </div>
                         <DetailItem label="NIK" value={selectedProposal.nik} />
                         <DetailItem label="Alamat" value={selectedProposal.alamat} />
                       </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-6">
                     <div>
                       <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Bantuan</h4>
-                      <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <DetailItem label="Program" value={selectedProposal.program || 'Umum'} />
                         <DetailItem label="Jenis" value={selectedProposal.jenisPermohonan} />
-                        <DetailItem label="Tipe" value={selectedProposal.tipeBantuan || '-'} />
+                        <DetailItem label="Tipe Bantuan" value={selectedProposal.tipeBantuan || '-'} />
                         <DetailItem label="Asnaf (Golongan Penerima)" value={selectedProposal.asnaf || '—'} />
+                      </div>
+                    </div>
+
+                    {/* Hasil Survei Lapangan Detil */}
+                    {selectedProposal.survey_data && (
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">
+                          Detail Kuesioner Survei
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          {(() => {
+                            const sectionCodes = Array.from(new Set(dynamicQuestions.map(q => q.section))).sort();
+                            return sectionCodes.map(secCode => {
+                              const firstQ = dynamicQuestions.find(q => q.section === secCode);
+                              const sectionTitle = firstQ ? firstQ.sectionName : secCode;
+                              const sectionQuestions = dynamicQuestions.filter(q => q.section === secCode);
+                              
+                              const items = sectionQuestions.map(q => ({
+                                label: q.label,
+                                value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                              }));
+                              
+                              return (
+                                <div key={secCode} className="col-span-2">
+                                  <SurveyDetailSection title={sectionTitle} items={items} />
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RIGHT COLUMN: Hasil Evaluasi, Rekomendasi & Embed Proposal */}
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">
+                        Hasil Evaluasi &amp; Rekomendasi
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailItem label="Skor Survei" value={selectedProposal.score?.toString() || '0'} />
+                        <DetailItem label="Tingkat Urgensi" value={selectedProposal.urgencyLevel || 'Normal'} />
                         
-                        <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                        <div className="col-span-2 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Rekomendasi Kas (Kabag Pendistribusian)</p>
                           <p className="text-sm font-bold text-slate-900">{selectedProposal.rekomendasi_kabag || 'Zakat'}</p>
                         </div>
 
-                        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div className="col-span-2 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Nominal Pencairan</p>
                           <p className="text-xl font-black text-slate-900">{formatCurrency(selectedProposal.nominal || 0)}</p>
                         </div>
-                      </div>
-                </div>
-              </div>
-            </div>
 
-                {/* Hasil Assessment/Survei Lapangan */}
-                {(selectedProposal.score || selectedProposal.urgencyLevel || selectedProposal.survey_data) && (
-                  <div className="space-y-4 pt-4 border-t border-slate-100">
-                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Hasil Survei &amp; Assessment</h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <DetailItem label="Tingkat Urgensi" value={selectedProposal.urgencyLevel || 'Rendah'} />
-                        <DetailItem label="Skor Survei" value={selectedProposal.score ? `${selectedProposal.score} Poin` : '—'} />
+                        {selectedProposal.hasil_identifikasi && (
+                          <div className="col-span-2">
+                            <DetailItem label="Hasil Identifikasi Lapangan" value={selectedProposal.hasil_identifikasi} />
+                          </div>
+                        )}
+
+                        {selectedProposal.survey_data?.catatanLapangan && (
+                          <div className="col-span-2 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                            <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
+                            <p className="text-sm text-slate-700 italic leading-relaxed">"{selectedProposal.survey_data.catatanLapangan}"</p>
+                          </div>
+                        )}
                       </div>
-                      {selectedProposal.survey_data?.catatanLapangan && (
-                        <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                          <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-1">Catatan Relawan di Lapangan</p>
-                          <p className="text-sm text-slate-700 italic leading-relaxed">"{selectedProposal.survey_data.catatanLapangan}"</p>
+                    </div>
+
+                    {/* Preview Dokumen */}
+                    <div className="space-y-3">
+                      {selectedProposal.fileGdriveLink ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
+                              <FileText className="size-3.5" /> Dokumen Proposal
+                            </h4>
+                            <a href={selectedProposal.fileGdriveLink} target="_blank" rel="noopener noreferrer"
+                               className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
+                              Buka di tab baru <ExternalLink className="size-3" />
+                            </a>
+                          </div>
+                          {getEmbedUrl(selectedProposal.fileGdriveLink) ? (
+                            <iframe 
+                              src={getEmbedUrl(selectedProposal.fileGdriveLink)!} 
+                              className="w-full h-80 rounded-xl border border-slate-200" 
+                              title="Dokumen Proposal" 
+                            />
+                          ) : (
+                            <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                              <p className="text-xs text-slate-500 font-semibold italic">Link Dokumen: <a href={selectedProposal.fileGdriveLink} target="_blank" rel="noreferrer" className="text-primary underline font-bold">{selectedProposal.fileGdriveLink}</a></p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                          <p className="text-xs text-slate-500 font-semibold italic">File proposal tidak dilampirkan atau tidak ada scan dokumen.</p>
                         </div>
                       )}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
@@ -410,4 +533,75 @@ function StatCard({ title, value, icon, color, subtitle }: {
       </div>
     </div>
   );
+}
+
+function SurveyDetailSection({ title, items }: { title: string; items: { label: string; value: string }[] }) {
+  return (
+    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {items.map((item, i) => (
+          <div key={i} className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-500">{item.label}</span>
+            <span className="font-bold text-slate-800 text-right max-w-[150px] truncate">{item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): string {
+  if (score === undefined || score === null || score === 0 || score === '') return '-';
+  
+  if (dynamicQuestions && dynamicQuestions.length > 0) {
+    const question = dynamicQuestions.find(q => q.id === field);
+    if (question) {
+      if (question.type === 'checkbox') {
+        if (Array.isArray(score)) {
+          const selectedLabels = score.map((val: any) => {
+            const option = question.options?.find((opt: any) => opt.val === val || opt.val === Number(val) || opt.label === val);
+            return option ? option.label : val;
+          });
+          return selectedLabels.join(', ') || '-';
+        }
+      } else if (question.type === 'text') {
+        return String(score);
+      } else {
+        if (question.options) {
+          const option = question.options.find((opt: any) => opt.val === score || opt.val === Number(score) || opt.label === score);
+          if (option) return option.label;
+        }
+      }
+    }
+  }
+
+  const mapping: Record<string, Record<number, string>> = {
+    luasBangunan: { 3: '≤ 8 m²', 2: '8-10 m²', 1: '> 10 m²' },
+    jenisLantai: { 3: 'Tanah', 2: 'Semen', 1: 'Keramik' },
+    jenisDinding: { 3: 'Kayu/Bambu', 2: 'Bata Polos', 1: 'Tembok Rapi' },
+    statusTempatTinggal: { 4: 'Kost', 3: 'Kontrak', 2: 'Menumpang', 1: 'Milik Sendiri' },
+    pekerjaanKepala: { 3: 'Pengangguran', 2: 'Buruh/Nelayan', 1: 'Karyawan' },
+    frekuensiMakan: { 3: '1x Sehari', 2: '2x Sehari', 1: '3x Sehari' },
+    kemampuanLauk: { 3: 'Jarang', 2: '2x Seminggu', 1: 'Setiap Hari' },
+    keadaanFisik: { 4: 'Manula Sakit', 3: 'Manula Sehat', 2: 'Cacat Produktif', 1: 'Sehat/Produktif' },
+    hutang: { 2: 'Rentenir/Pinjol', 1: 'Bank/Tidak Ada' },
+    kesehatan: { 2: 'Tanah/Non-KIS', 1: 'BPJS/KIS' }
+  };
+
+  return mapping[field]?.[score] || '-';
+}
+
+function getEmbedUrl(link: string): string | null {
+  if (!link || !link.trim()) return null;
+  
+  if (link.includes('drive.google.com')) {
+    const fileMatch = link.match(/\/file\/d\/([^/?#]+)/);
+    if (fileMatch) return `https://drive.google.com/file/d/${fileMatch[1]}/preview`;
+    const openMatch = link.match(/[?&]id=([^&]+)/);
+    if (openMatch) return `https://drive.google.com/file/d/${openMatch[1]}/preview`;
+    return link.replace(/\/view.*?(\?|$)/, '/preview$1');
+  }
+  
+  return link;
 }
