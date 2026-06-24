@@ -9,7 +9,9 @@ import {
   Calendar,
   BookOpen,
   Coins,
-  Filter
+  Filter,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -51,6 +53,10 @@ export default function PengeluaranManual() {
 
   // History Filter State
   const [filterAccountId, setFilterAccountId] = useState('ALL');
+
+  // Custom Dropdown Open States
+  const [isSourceAccountDropdownOpen, setIsSourceAccountDropdownOpen] = useState(false);
+  const [isFilterAccountDropdownOpen, setIsFilterAccountDropdownOpen] = useState(false);
 
   // Status & Messages
   const [isLoading, setIsLoading] = useState(false);
@@ -243,18 +249,49 @@ export default function PengeluaranManual() {
                   <Coins className="size-4 text-slate-400" />
                   Sumber Kas (Sumber Dana Kas)
                 </label>
-                <select
-                  value={sourceAccountId}
-                  onChange={(e) => setSourceAccountId(e.target.value)}
-                  className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-bold text-slate-700"
-                  required
-                >
-                  {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
-                    <option key={acc.account_id} value={acc.account_id}>
-                      {acc.nama_akun} - (Rp {Number(acc.saldo).toLocaleString('id-ID')})
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsSourceAccountDropdownOpen(!isSourceAccountDropdownOpen)}
+                    className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-bold text-slate-700 flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="truncate">
+                      {selectedAccount 
+                        ? `${selectedAccount.nama_akun} - (Rp ${Number(selectedAccount.saldo).toLocaleString('id-ID')})`
+                        : '-- Pilih Sumber Kas --'
+                      }
+                    </span>
+                    <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSourceAccountDropdownOpen && "rotate-180")} />
+                  </button>
+
+                  {isSourceAccountDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setIsSourceAccountDropdownOpen(false)} />
+                      <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                        {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+                          <button
+                            key={acc.account_id}
+                            type="button"
+                            onClick={() => {
+                              setSourceAccountId(acc.account_id);
+                              setIsSourceAccountDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                              sourceAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                            )}
+                          >
+                            <span className="font-bold">{acc.nama_akun}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-900 font-mono font-bold">Rp {Number(acc.saldo).toLocaleString('id-ID')}</span>
+                              {sourceAccountId === acc.account_id && <Check className="size-4 text-primary shrink-0" />}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Nominal & Format Help */}
@@ -381,19 +418,61 @@ export default function PengeluaranManual() {
           </div>
           
           {/* Table Filter by Account */}
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10">
-            <Filter className="size-3.5 text-slate-400" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter Akun Kas:</span>
-            <select
-              value={filterAccountId}
-              onChange={(e) => setFilterAccountId(e.target.value)}
-              className="text-xs font-bold text-slate-700 outline-none border-none cursor-pointer bg-transparent"
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsFilterAccountDropdownOpen(!isFilterAccountDropdownOpen)}
+              className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer"
             >
-              <option value="ALL">Semua Akun Kas</option>
-              {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
-                <option key={acc.account_id} value={acc.account_id}>{acc.nama_akun}</option>
-              ))}
-            </select>
+              <Filter className="size-3.5 text-slate-400" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter Akun Kas:</span>
+              <span>
+                {filterAccountId === 'ALL' 
+                  ? 'Semua Akun Kas' 
+                  : accounts.find(a => a.account_id === filterAccountId)?.nama_akun || 'Semua Akun Kas'
+                }
+              </span>
+              <ChevronDown className="size-3 text-slate-400 shrink-0" />
+            </button>
+
+            {isFilterAccountDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setIsFilterAccountDropdownOpen(false)} />
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterAccountId('ALL');
+                      setIsFilterAccountDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      filterAccountId === 'ALL' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                    )}
+                  >
+                    <span>Semua Akun Kas</span>
+                    {filterAccountId === 'ALL' && <Check className="size-4 text-primary shrink-0" />}
+                  </button>
+                  {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+                    <button
+                      key={acc.account_id}
+                      type="button"
+                      onClick={() => {
+                        setFilterAccountId(acc.account_id);
+                        setIsFilterAccountDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                        filterAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{acc.nama_akun}</span>
+                      {filterAccountId === acc.account_id && <Check className="size-4 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
         

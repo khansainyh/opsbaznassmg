@@ -18,7 +18,9 @@ import {
   Download,
   FileSpreadsheet,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -94,6 +96,24 @@ export default function PengaturanKeuangan() {
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isMigrationCOAModalOpen, setIsMigrationCOAModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
+
+  // Custom Dropdown & Search States
+  const [isFormKelompokDanaDropdownOpen, setIsFormKelompokDanaDropdownOpen] = useState(false);
+  const [isFormCoaDropdownOpen, setIsFormCoaDropdownOpen] = useState(false);
+  const [formCoaSearchQuery, setFormCoaSearchQuery] = useState('');
+
+  const [isRuleProgramDropdownOpen, setIsRuleProgramDropdownOpen] = useState(false);
+  const [ruleProgramSearchQuery, setRuleProgramSearchQuery] = useState('');
+  const [isRuleAsnafDropdownOpen, setIsRuleAsnafDropdownOpen] = useState(false);
+  const [isRuleMetodeKasDropdownOpen, setIsRuleMetodeKasDropdownOpen] = useState(false);
+  const [isRuleKelompokDanaDropdownOpen, setIsRuleKelompokDanaDropdownOpen] = useState(false);
+  const [isRuleDebitCoaDropdownOpen, setIsRuleDebitCoaDropdownOpen] = useState(false);
+  const [ruleDebitCoaSearchQuery, setRuleDebitCoaSearchQuery] = useState('');
+  const [isRuleKreditCoaDropdownOpen, setIsRuleKreditCoaDropdownOpen] = useState(false);
+  const [ruleKreditCoaSearchQuery, setRuleKreditCoaSearchQuery] = useState('');
+
+  const [isCoaKlasifikasiDropdownOpen, setIsCoaKlasifikasiDropdownOpen] = useState(false);
+  const [isCoaTipeDanaDropdownOpen, setIsCoaTipeDanaDropdownOpen] = useState(false);
 
   // Toast notifications state
   const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
@@ -283,6 +303,9 @@ export default function PengaturanKeuangan() {
   // Account Actions
   // ==========================================
   const handleOpenAccountModal = (item: any = null, defaultTipe: 'TUNAI' | 'BANK' = 'TUNAI') => {
+    setIsFormKelompokDanaDropdownOpen(false);
+    setIsFormCoaDropdownOpen(false);
+    setFormCoaSearchQuery('');
     if (item) {
       setEditingItem(item);
       setAccountForm({
@@ -342,6 +365,8 @@ export default function PengaturanKeuangan() {
   // COA Actions
   // ==========================================
   const handleOpenCOAModal = (item: any = null) => {
+    setIsCoaKlasifikasiDropdownOpen(false);
+    setIsCoaTipeDanaDropdownOpen(false);
     if (item) {
       setEditingItem(item);
       setCoaForm({
@@ -398,6 +423,15 @@ export default function PengaturanKeuangan() {
   // Rule Actions
   // ==========================================
   const handleOpenRuleModal = (item: any = null) => {
+    setIsRuleProgramDropdownOpen(false);
+    setRuleProgramSearchQuery('');
+    setIsRuleAsnafDropdownOpen(false);
+    setIsRuleMetodeKasDropdownOpen(false);
+    setIsRuleKelompokDanaDropdownOpen(false);
+    setIsRuleDebitCoaDropdownOpen(false);
+    setRuleDebitCoaSearchQuery('');
+    setIsRuleKreditCoaDropdownOpen(false);
+    setRuleKreditCoaSearchQuery('');
     if (item) {
       setEditingItem(item);
       setRuleForm({
@@ -998,11 +1032,13 @@ export default function PengaturanKeuangan() {
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
               onClick={() => setIsAccountModalOpen(false)}
             />
+
+
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-visible flex flex-col z-50"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                 <h3 className="text-lg font-black text-slate-900">
@@ -1029,51 +1065,127 @@ export default function PengaturanKeuangan() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className={cn(accountForm.tipe_kas === 'BANK' ? "col-span-2" : "col-span-1", "space-y-1")}>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Kas</label>
-                    <select
-                      value={accountForm.tipe_kas}
-                      onChange={(e) => setAccountForm({ ...accountForm, tipe_kas: e.target.value as any })}
+                    <button
+                      type="button"
                       disabled
-                      className="w-full bg-slate-100 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold cursor-not-allowed text-slate-500"
+                      className="w-full flex items-center justify-between text-xs bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-bold cursor-not-allowed text-slate-500 text-left"
                     >
-                      <option value="TUNAI">TUNAI</option>
-                      <option value="BANK">BANK</option>
-                    </select>
+                      <span>{accountForm.tipe_kas}</span>
+                    </button>
                   </div>
 
                   {accountForm.tipe_kas !== 'BANK' && (
                     <div className="space-y-1 col-span-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</label>
-                      <select
-                        value={accountForm.kelompok_dana}
-                        onChange={(e) => setAccountForm({ ...accountForm, kelompok_dana: e.target.value as any })}
-                        className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                      >
-                        <option value="ZAKAT">ZAKAT</option>
-                        <option value="INFAK_TERIKAT">INFAK_TERIKAT</option>
-                        <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT</option>
-                        <option value="AMIL">AMIL</option>
-                        <option value="APBD">APBD</option>
-                        <option value="NON-HALAL">NON-HALAL</option>
-                      </select>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsFormKelompokDanaDropdownOpen(!isFormKelompokDanaDropdownOpen)}
+                          className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                        >
+                          <span>{accountForm.kelompok_dana}</span>
+                          <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isFormKelompokDanaDropdownOpen && "rotate-180")} />
+                        </button>
+
+                        {isFormKelompokDanaDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setIsFormKelompokDanaDropdownOpen(false)} />
+                            <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                              {['ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT', 'AMIL', 'APBD', 'NON-HALAL'].map((kd) => (
+                                <button
+                                  key={kd}
+                                  type="button"
+                                  onClick={() => {
+                                    setAccountForm({ ...accountForm, kelompok_dana: kd as any });
+                                    setIsFormKelompokDanaDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    accountForm.kelompok_dana === kd ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{kd}</span>
+                                  {accountForm.kelompok_dana === kd && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</label>
-                  <select
-                    value={accountForm.coa_code}
-                    onChange={(e) => setAccountForm({ ...accountForm, coa_code: e.target.value })}
-                    required
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                  >
-                    <option value="">-- Pilih Kode COA --</option>
-                    {coas.filter(c => c.klasifikasi === 'Aktiva').map(c => (
-                      <option key={c.coa_code} value={c.coa_code}>
-                        {c.coa_code} - {c.nama_akun}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsFormCoaDropdownOpen(!isFormCoaDropdownOpen);
+                        setFormCoaSearchQuery('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {coas.find(c => c.coa_code === accountForm.coa_code)
+                          ? `${accountForm.coa_code} - ${coas.find(c => c.coa_code === accountForm.coa_code)?.nama_akun}`
+                          : '-- Pilih Kode COA --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isFormCoaDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isFormCoaDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsFormCoaDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari COA..."
+                              value={formCoaSearchQuery}
+                              onChange={(e) => setFormCoaSearchQuery(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
+                            {coas
+                              .filter(c => c.klasifikasi === 'Aktiva')
+                              .filter(c => 
+                                c.coa_code.toLowerCase().includes(formCoaSearchQuery.toLowerCase()) || 
+                                c.nama_akun.toLowerCase().includes(formCoaSearchQuery.toLowerCase())
+                              )
+                              .map(c => (
+                                <button
+                                  key={c.coa_code}
+                                  type="button"
+                                  onClick={() => {
+                                    setAccountForm({ ...accountForm, coa_code: c.coa_code });
+                                    setIsFormCoaDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    accountForm.coa_code === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{c.coa_code} - {c.nama_akun}</span>
+                                  {accountForm.coa_code === c.coa_code && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            }
+                            {coas.filter(c => c.klasifikasi === 'Aktiva').filter(c => 
+                              c.coa_code.toLowerCase().includes(formCoaSearchQuery.toLowerCase()) || 
+                              c.nama_akun.toLowerCase().includes(formCoaSearchQuery.toLowerCase())
+                            ).length === 0 && (
+                              <p className="text-[11px] text-slate-400 italic text-center py-4">COA tidak ditemukan</p>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {accountForm.tipe_kas === 'BANK' ? (
@@ -1149,7 +1261,7 @@ export default function PengaturanKeuangan() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-visible flex flex-col z-50"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                 <h3 className="text-lg font-black text-slate-900">
@@ -1186,37 +1298,88 @@ export default function PengaturanKeuangan() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Klasifikasi</label>
-                    <select
-                      value={coaForm.klasifikasi}
-                      onChange={(e) => setCoaForm({ ...coaForm, klasifikasi: e.target.value })}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Klasifikasi</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsCoaKlasifikasiDropdownOpen(!isCoaKlasifikasiDropdownOpen)}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
                     >
-                      <option value="Aktiva">Aktiva</option>
-                      <option value="Penyaluran">Penyaluran</option>
-                      <option value="Penerimaan">Penerimaan</option>
-                      <option value="Penggunaan">Penggunaan</option>
-                      <option value="Saldo">Saldo</option>
-                      <option value="Kewajiban">Kewajiban</option>
-                    </select>
-                  </div>
+                      <span>{coaForm.klasifikasi}</span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isCoaKlasifikasiDropdownOpen && "rotate-180")} />
+                    </button>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana (Opsional)</label>
-                    <select
-                      value={coaForm.tipe_dana || ''}
-                      onChange={(e) => setCoaForm({ ...coaForm, tipe_dana: e.target.value })}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                    {isCoaKlasifikasiDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsCoaKlasifikasiDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                          {['Aktiva', 'Penyaluran', 'Penerimaan', 'Penggunaan', 'Saldo', 'Kewajiban'].map((k) => (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => {
+                                setCoaForm({ ...coaForm, klasifikasi: k });
+                                setIsCoaKlasifikasiDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                coaForm.klasifikasi === k ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>{k}</span>
+                              {coaForm.klasifikasi === k && <Check className="size-4 text-primary shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana (Opsional)</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsCoaTipeDanaDropdownOpen(!isCoaTipeDanaDropdownOpen)}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
                     >
-                      <option value="">-- Tanpa Tipe Dana --</option>
-                      <option value="ZAKAT">ZAKAT</option>
-                      <option value="INFAK_TERIKAT">INFAK_TERIKAT</option>
-                      <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT</option>
-                      <option value="AMIL">AMIL</option>
-                      <option value="APBD">APBD</option>
-                    </select>
+                      <span>{coaForm.tipe_dana || '-- Tanpa Tipe Dana --'}</span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isCoaTipeDanaDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isCoaTipeDanaDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsCoaTipeDanaDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                          {[
+                            { value: '', label: '-- Tanpa Tipe Dana --' },
+                            { value: 'ZAKAT', label: 'ZAKAT' },
+                            { value: 'INFAK_TERIKAT', label: 'INFAK_TERIKAT' },
+                            { value: 'INFAK_TIDAK_TERIKAT', label: 'INFAK_TIDAK_TERIKAT' },
+                            { value: 'AMIL', label: 'AMIL' },
+                            { value: 'APBD', label: 'APBD' }
+                          ].map((td) => (
+                            <button
+                              key={td.value}
+                              type="button"
+                              onClick={() => {
+                                setCoaForm({ ...coaForm, tipe_dana: td.value });
+                                setIsCoaTipeDanaDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                coaForm.tipe_dana === td.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>{td.label}</span>
+                              {coaForm.tipe_dana === td.value && <Check className="size-4 text-primary shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1264,11 +1427,11 @@ export default function PengaturanKeuangan() {
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
               onClick={() => setIsRuleModalOpen(false)}
             />
-            <motion.div 
+             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-visible flex flex-col z-50"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                 <h3 className="text-lg font-black text-slate-900">
@@ -1282,101 +1445,349 @@ export default function PengaturanKeuangan() {
               <form onSubmit={handleSaveRule} className="p-6 space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program SIMBA</label>
-                  <select
-                    value={ruleForm.program_code}
-                    onChange={(e) => setRuleForm({ ...ruleForm, program_code: e.target.value })}
-                    required
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                  >
-                    <option value="">-- Pilih Program --</option>
-                    {programs.map(p => (
-                      <option key={p.code} value={p.code}>
-                        {p.code} - {p.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRuleProgramDropdownOpen(!isRuleProgramDropdownOpen);
+                        setRuleProgramSearchQuery('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {ruleForm.program_code
+                          ? `${ruleForm.program_code} - ${programs.find(p => p.code === ruleForm.program_code)?.name}`
+                          : '-- Pilih Program --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isRuleProgramDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isRuleProgramDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsRuleProgramDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari Program..."
+                              value={ruleProgramSearchQuery}
+                              onChange={(e) => setRuleProgramSearchQuery(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
+                            {programs
+                              .filter(p => 
+                                p.code.toLowerCase().includes(ruleProgramSearchQuery.toLowerCase()) || 
+                                p.name.toLowerCase().includes(ruleProgramSearchQuery.toLowerCase())
+                              )
+                              .map(p => (
+                                <button
+                                  key={p.code}
+                                  type="button"
+                                  onClick={() => {
+                                    setRuleForm({ ...ruleForm, program_code: p.code });
+                                    setIsRuleProgramDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    ruleForm.program_code === p.code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{p.code} - {p.name}</span>
+                                  {ruleForm.program_code === p.code && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            }
+                            {programs.filter(p => 
+                              p.code.toLowerCase().includes(ruleProgramSearchQuery.toLowerCase()) || 
+                              p.name.toLowerCase().includes(ruleProgramSearchQuery.toLowerCase())
+                            ).length === 0 && (
+                              <p className="text-[11px] text-slate-400 italic text-center py-4">Program tidak ditemukan</p>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Asnaf Target (Opsional)</label>
-                    <select
-                      value={ruleForm.asnaf_id}
-                      onChange={(e) => setRuleForm({ ...ruleForm, asnaf_id: e.target.value })}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                    >
-                      <option value="">-- Kosong (Umum / Non-Asnaf) --</option>
-                      <option value="Fakir">Fakir</option>
-                      <option value="Miskin">Miskin</option>
-                      <option value="Amil">Amil</option>
-                      <option value="Mualaf">Mualaf</option>
-                      <option value="Riqab">Riqab (Hamba Sahaya)</option>
-                      <option value="Gharimin">Gharimin (Orang Berhutang)</option>
-                      <option value="Fisabilillah">Fisabilillah</option>
-                      <option value="Ibnu Sabil">Ibnu Sabil</option>
-                    </select>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsRuleAsnafDropdownOpen(!isRuleAsnafDropdownOpen)}
+                        className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                      >
+                        <span>{ruleForm.asnaf_id || '-- Kosong (Umum) --'}</span>
+                        <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isRuleAsnafDropdownOpen && "rotate-180")} />
+                      </button>
+
+                      {isRuleAsnafDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setIsRuleAsnafDropdownOpen(false)} />
+                          <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                            {[
+                              { value: '', label: '-- Kosong (Umum / Non-Asnaf) --' },
+                              { value: 'Fakir', label: 'Fakir' },
+                              { value: 'Miskin', label: 'Miskin' },
+                              { value: 'Amil', label: 'Amil' },
+                              { value: 'Mualaf', label: 'Mualaf' },
+                              { value: 'Riqab', label: 'Riqab (Hamba Sahaya)' },
+                              { value: 'Gharimin', label: 'Gharimin' },
+                              { value: 'Fisabilillah', label: 'Fisabilillah' },
+                              { value: 'Ibnu Sabil', label: 'Ibnu Sabil' }
+                            ].map((asn) => (
+                              <button
+                                key={asn.value}
+                                type="button"
+                                onClick={() => {
+                                  setRuleForm({ ...ruleForm, asnaf_id: asn.value });
+                                  setIsRuleAsnafDropdownOpen(false);
+                                }}
+                                className={cn(
+                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                  ruleForm.asnaf_id === asn.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                )}
+                              >
+                                <span>{asn.label}</span>
+                                {ruleForm.asnaf_id === asn.value && <Check className="size-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Kas</label>
-                    <select
-                      value={ruleForm.tipe_kas}
-                      onChange={(e) => setRuleForm({ ...ruleForm, tipe_kas: e.target.value as any })}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                    >
-                      <option value="TUNAI">Laci Tunai</option>
-                      <option value="BANK">Transfer Bank</option>
-                    </select>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsRuleMetodeKasDropdownOpen(!isRuleMetodeKasDropdownOpen)}
+                        className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                      >
+                        <span>{ruleForm.tipe_kas === 'TUNAI' ? 'Laci Tunai' : 'Transfer Bank'}</span>
+                        <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isRuleMetodeKasDropdownOpen && "rotate-180")} />
+                      </button>
+
+                      {isRuleMetodeKasDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setIsRuleMetodeKasDropdownOpen(false)} />
+                          <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                            {[
+                              { value: 'TUNAI', label: 'Laci Tunai' },
+                              { value: 'BANK', label: 'Transfer Bank' }
+                            ].map((mk) => (
+                              <button
+                                key={mk.value}
+                                type="button"
+                                onClick={() => {
+                                  setRuleForm({ ...ruleForm, tipe_kas: mk.value as any });
+                                  setIsRuleMetodeKasDropdownOpen(false);
+                                }}
+                                className={cn(
+                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                  ruleForm.tipe_kas === mk.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                )}
+                              >
+                                <span>{mk.label}</span>
+                                {ruleForm.tipe_kas === mk.value && <Check className="size-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelompok Dana</label>
-                  <select
-                    value={ruleForm.sumber_dana_tag}
-                    onChange={(e) => setRuleForm({ ...ruleForm, sumber_dana_tag: e.target.value as any })}
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                  >
-                    <option value="ZAKAT">ZAKAT</option>
-                    <option value="INFAK_TERIKAT">INFAK_TERIKAT (IST)</option>
-                    <option value="INFAK_TIDAK_TERIKAT">INFAK_TIDAK_TERIKAT (ISTT)</option>
-                    <option value="AMIL">AMIL</option>
-                    <option value="APBD">APBD</option>
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsRuleKelompokDanaDropdownOpen(!isRuleKelompokDanaDropdownOpen)}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span>{ruleForm.sumber_dana_tag}</span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isRuleKelompokDanaDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isRuleKelompokDanaDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsRuleKelompokDanaDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                          {['ZAKAT', 'INFAK_TERIKAT', 'INFAK_TIDAK_TERIKAT', 'AMIL', 'APBD'].map((sd) => (
+                            <button
+                              key={sd}
+                              type="button"
+                              onClick={() => {
+                                setRuleForm({ ...ruleForm, sumber_dana_tag: sd as any });
+                                setIsRuleKelompokDanaDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                ruleForm.sumber_dana_tag === sd ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>{sd}</span>
+                              {ruleForm.sumber_dana_tag === sd && <Check className="size-4 text-primary shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">Akun Penyaluran/Belanja (Debit COA)</label>
-                  <select
-                    value={ruleForm.debit_coa_code}
-                    onChange={(e) => setRuleForm({ ...ruleForm, debit_coa_code: e.target.value })}
-                    required
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                  >
-                    <option value="">-- Pilih COA Debit --</option>
-                    {coas.filter(c => c.klasifikasi === 'Penyaluran' || c.klasifikasi === 'Penggunaan').map(c => (
-                      <option key={c.coa_code} value={c.coa_code}>
-                        {c.coa_code} - {c.nama_akun}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRuleDebitCoaDropdownOpen(!isRuleDebitCoaDropdownOpen);
+                        setRuleDebitCoaSearchQuery('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {ruleForm.debit_coa_code
+                          ? `${ruleForm.debit_coa_code} - ${coas.find(c => c.coa_code === ruleForm.debit_coa_code)?.nama_akun}`
+                          : '-- Pilih COA Debit --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isRuleDebitCoaDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isRuleDebitCoaDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsRuleDebitCoaDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari COA..."
+                              value={ruleDebitCoaSearchQuery}
+                              onChange={(e) => setRuleDebitCoaSearchQuery(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
+                            {coas
+                              .filter(c => c.klasifikasi === 'Penyaluran' || c.klasifikasi === 'Penggunaan')
+                              .filter(c => 
+                                c.coa_code.toLowerCase().includes(ruleDebitCoaSearchQuery.toLowerCase()) || 
+                                c.nama_akun.toLowerCase().includes(ruleDebitCoaSearchQuery.toLowerCase())
+                              )
+                              .map(c => (
+                                <button
+                                  key={c.coa_code}
+                                  type="button"
+                                  onClick={() => {
+                                    setRuleForm({ ...ruleForm, debit_coa_code: c.coa_code });
+                                    setIsRuleDebitCoaDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    ruleForm.debit_coa_code === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{c.coa_code} - {c.nama_akun}</span>
+                                  {ruleForm.debit_coa_code === c.coa_code && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            }
+                            {coas.filter(c => c.klasifikasi === 'Penyaluran' || c.klasifikasi === 'Penggunaan').filter(c => 
+                              c.coa_code.toLowerCase().includes(ruleDebitCoaSearchQuery.toLowerCase()) || 
+                              c.nama_akun.toLowerCase().includes(ruleDebitCoaSearchQuery.toLowerCase())
+                            ).length === 0 && (
+                              <p className="text-[11px] text-slate-400 italic text-center py-4">COA tidak ditemukan</p>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">Akun Kas/Bank Default (Kredit COA)</label>
-                  <select
-                    value={ruleForm.kredit_coa_code}
-                    onChange={(e) => setRuleForm({ ...ruleForm, kredit_coa_code: e.target.value })}
-                    required
-                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                  >
-                    <option value="">-- Pilih COA Kredit --</option>
-                    {coas.filter(c => c.klasifikasi === 'Aktiva').map(c => (
-                      <option key={c.coa_code} value={c.coa_code}>
-                        {c.coa_code} - {c.nama_akun}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRuleKreditCoaDropdownOpen(!isRuleKreditCoaDropdownOpen);
+                        setRuleKreditCoaSearchQuery('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {ruleForm.kredit_coa_code
+                          ? `${ruleForm.kredit_coa_code} - ${coas.find(c => c.coa_code === ruleForm.kredit_coa_code)?.nama_akun}`
+                          : '-- Pilih COA Kredit --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isRuleKreditCoaDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isRuleKreditCoaDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsRuleKreditCoaDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari COA..."
+                              value={ruleKreditCoaSearchQuery}
+                              onChange={(e) => setRuleKreditCoaSearchQuery(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
+                            {coas
+                              .filter(c => c.klasifikasi === 'Aktiva')
+                              .filter(c => 
+                                c.coa_code.toLowerCase().includes(ruleKreditCoaSearchQuery.toLowerCase()) || 
+                                c.nama_akun.toLowerCase().includes(ruleKreditCoaSearchQuery.toLowerCase())
+                              )
+                              .map(c => (
+                                <button
+                                  key={c.coa_code}
+                                  type="button"
+                                  onClick={() => {
+                                    setRuleForm({ ...ruleForm, kredit_coa_code: c.coa_code });
+                                    setIsRuleKreditCoaDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    ruleForm.kredit_coa_code === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{c.coa_code} - {c.nama_akun}</span>
+                                  {ruleForm.kredit_coa_code === c.coa_code && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            }
+                            {coas.filter(c => c.klasifikasi === 'Aktiva').filter(c => 
+                              c.coa_code.toLowerCase().includes(ruleKreditCoaSearchQuery.toLowerCase()) || 
+                              c.nama_akun.toLowerCase().includes(ruleKreditCoaSearchQuery.toLowerCase())
+                            ).length === 0 && (
+                              <p className="text-[11px] text-slate-400 italic text-center py-4">COA tidak ditemukan</p>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 flex gap-3">

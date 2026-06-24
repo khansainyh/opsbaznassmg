@@ -5,9 +5,12 @@ import {
   Trash2, 
   CheckCircle2, 
   HelpCircle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
 
 // Helper for formatting IDR currency
 const formatCurrency = (value: number) => {
@@ -28,6 +31,8 @@ export default function PemindahanDana() {
   const [replenishAllocations, setReplenishAllocations] = useState<Array<{ targetAccountId: string, nominal: number }>>([
     { targetAccountId: '', nominal: 0 }
   ]);
+  const [isSourceBankDropdownOpen, setIsSourceBankDropdownOpen] = useState(false);
+  const [openTargetDropdownIdx, setOpenTargetDropdownIdx] = useState<number | null>(null);
 
   // Fetch accounts on mount
   const fetchAccounts = async () => {
@@ -133,19 +138,63 @@ export default function PemindahanDana() {
           <form onSubmit={handleExecuteReplenish} className="space-y-5">
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Rekening Bank Sumber (Kredit)</label>
-              <select
-                value={replenishBank}
-                onChange={(e) => setReplenishBank(e.target.value)}
-                required
-                className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
-              >
-                <option value="">-- Pilih Bank Sumber --</option>
-                {accounts.filter(a => a.tipe_kas === 'BANK').map(a => (
-                  <option key={a.account_id} value={a.account_id}>
-                    {a.nama_akun} - (Saldo: {formatCurrency(Number(a.saldo))})
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsSourceBankDropdownOpen(!isSourceBankDropdownOpen)}
+                  className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800 text-left cursor-pointer"
+                >
+                  <span className="truncate">
+                    {accounts.find(a => a.account_id === replenishBank) 
+                      ? `${accounts.find(a => a.account_id === replenishBank).nama_akun} - (Saldo: ${formatCurrency(Number(accounts.find(a => a.account_id === replenishBank).saldo))})`
+                      : '-- Pilih Bank Sumber --'
+                    }
+                  </span>
+                  <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSourceBankDropdownOpen && "rotate-180")} />
+                </button>
+
+                {isSourceBankDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setIsSourceBankDropdownOpen(false)} />
+                    <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplenishBank('');
+                          setIsSourceBankDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                          !replenishBank ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                        )}
+                      >
+                        <span>-- Pilih Bank Sumber --</span>
+                        {!replenishBank && <Check className="size-4 text-primary shrink-0" />}
+                      </button>
+                      {accounts.filter(a => a.tipe_kas === 'BANK').map(a => (
+                        <button
+                          key={a.account_id}
+                          type="button"
+                          onClick={() => {
+                            setReplenishBank(a.account_id);
+                            setIsSourceBankDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                            replenishBank === a.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                          )}
+                        >
+                          <span className="font-bold">{a.nama_akun}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-900 font-mono font-bold">{formatCurrency(Number(a.saldo))}</span>
+                            {replenishBank === a.account_id && <Check className="size-4 text-primary shrink-0" />}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -162,19 +211,63 @@ export default function PemindahanDana() {
 
               {replenishAllocations.map((alloc, idx) => (
                 <div key={idx} className="flex gap-3 items-center">
-                  <select
-                    value={alloc.targetAccountId}
-                    onChange={(e) => handleReplenishAllocationChange(idx, 'targetAccountId', e.target.value)}
-                    required
-                    className="flex-1 bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold"
-                  >
-                    <option value="">-- Pilih Laci Kas --</option>
-                    {accounts.filter(a => a.tipe_kas === 'TUNAI').map(a => (
-                      <option key={a.account_id} value={a.account_id}>
-                        {a.nama_akun} (Saldo: {formatCurrency(Number(a.saldo))})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex-1 relative">
+                    <button
+                      type="button"
+                      onClick={() => setOpenTargetDropdownIdx(openTargetDropdownIdx === idx ? null : idx)}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {accounts.find(a => a.account_id === alloc.targetAccountId)
+                          ? `${accounts.find(a => a.account_id === alloc.targetAccountId).nama_akun} - (Saldo: ${formatCurrency(Number(accounts.find(a => a.account_id === alloc.targetAccountId).saldo))})`
+                          : '-- Pilih Laci Kas --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", openTargetDropdownIdx === idx && "rotate-180")} />
+                    </button>
+
+                    {openTargetDropdownIdx === idx && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setOpenTargetDropdownIdx(null)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleReplenishAllocationChange(idx, 'targetAccountId', '');
+                              setOpenTargetDropdownIdx(null);
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                              !alloc.targetAccountId ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                            )}
+                          >
+                            <span>-- Pilih Laci Kas --</span>
+                            {!alloc.targetAccountId && <Check className="size-4 text-primary shrink-0" />}
+                          </button>
+                          {accounts.filter(a => a.tipe_kas === 'TUNAI').map(a => (
+                            <button
+                              key={a.account_id}
+                              type="button"
+                              onClick={() => {
+                                handleReplenishAllocationChange(idx, 'targetAccountId', a.account_id);
+                                setOpenTargetDropdownIdx(null);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                alloc.targetAccountId === a.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span className="font-bold">{a.nama_akun}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-900 font-mono font-bold">{formatCurrency(Number(a.saldo))}</span>
+                                {alloc.targetAccountId === a.account_id && <Check className="size-4 text-primary shrink-0" />}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <input
                     type="number"
                     placeholder="Nominal alokasi..."

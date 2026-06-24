@@ -17,7 +17,8 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
-  Layers
+  Layers,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -79,6 +80,13 @@ export default function CatatMutasi() {
   const [migrationBankId, setMigrationBankId] = useState('');
   const [parsedMutations, setParsedMutations] = useState<ParsedMutation[]>([]);
   const [fileName, setFileName] = useState('');
+
+  // Custom Dropdown Open States
+  const [isFilterBankDropdownOpen, setIsFilterBankDropdownOpen] = useState(false);
+  const [isFilterTypeDropdownOpen, setIsFilterTypeDropdownOpen] = useState(false);
+  const [isFormBankDropdownOpen, setIsFormBankDropdownOpen] = useState(false);
+  const [isFormTypeDropdownOpen, setIsFormTypeDropdownOpen] = useState(false);
+  const [isMigrationBankDropdownOpen, setIsMigrationBankDropdownOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -541,32 +549,127 @@ export default function CatatMutasi() {
           />
         </div>
 
-        <div className="flex gap-3 w-full sm:w-auto shrink-0">
-          <div className="flex items-center gap-2">
-            <Filter className="size-3.5 text-slate-400" />
-            <select 
-              value={filterBankId}
-              onChange={(e) => setFilterBankId(e.target.value)}
-              className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+        <div className="flex gap-3 w-full sm:w-auto shrink-0 items-center justify-end">
+          {/* Custom Bank Filter Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsFilterBankDropdownOpen(!isFilterBankDropdownOpen)}
+              className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 cursor-pointer"
             >
-              <option value="">Semua Bank</option>
-              {bankAccounts.map(ba => (
-                <option key={ba.account_id} value={ba.account_id}>
-                  {ba.nama_akun}
-                </option>
-              ))}
-            </select>
+              <Filter className="size-3.5 text-slate-400" />
+              <span>
+                {filterBankId 
+                  ? bankAccounts.find(ba => ba.account_id === filterBankId)?.nama_akun || 'Semua Bank'
+                  : 'Semua Bank'
+                }
+              </span>
+              <ChevronDown className="size-3 text-slate-400 shrink-0" />
+            </button>
+
+            {isFilterBankDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setIsFilterBankDropdownOpen(false)} />
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterBankId('');
+                      setIsFilterBankDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      !filterBankId ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                    )}
+                  >
+                    <span>Semua Bank</span>
+                    {!filterBankId && <Check className="size-4 text-primary shrink-0" />}
+                  </button>
+                  {bankAccounts.map(ba => (
+                    <button
+                      key={ba.account_id}
+                      type="button"
+                      onClick={() => {
+                        setFilterBankId(ba.account_id);
+                        setIsFilterBankDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                        filterBankId === ba.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{ba.nama_akun}</span>
+                      {filterBankId === ba.account_id && <Check className="size-4 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
-          <select 
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
-          >
-            <option value="">Semua Tipe</option>
-            <option value="DEBIT">DEBIT</option>
-            <option value="KREDIT">KREDIT</option>
-          </select>
+          {/* Custom Type Filter Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsFilterTypeDropdownOpen(!isFilterTypeDropdownOpen)}
+              className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 cursor-pointer"
+            >
+              <span>
+                {filterType === 'DEBIT' ? 'DEBIT' : filterType === 'KREDIT' ? 'KREDIT' : 'Semua Tipe'}
+              </span>
+              <ChevronDown className="size-3 text-slate-400 shrink-0" />
+            </button>
+
+            {isFilterTypeDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setIsFilterTypeDropdownOpen(false)} />
+                <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterType('');
+                      setIsFilterTypeDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      !filterType ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                    )}
+                  >
+                    <span>Semua Tipe</span>
+                    {!filterType && <Check className="size-4 text-primary shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterType('DEBIT');
+                      setIsFilterTypeDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      filterType === 'DEBIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                    )}
+                  >
+                    <span>DEBIT</span>
+                    {filterType === 'DEBIT' && <Check className="size-4 text-primary shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterType('KREDIT');
+                      setIsFilterTypeDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      filterType === 'KREDIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                    )}
+                  >
+                    <span>KREDIT</span>
+                    {filterType === 'KREDIT' && <Check className="size-4 text-primary shrink-0" />}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -687,19 +790,46 @@ export default function CatatMutasi() {
                 {/* Bank Account Selection */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Rekening Bank *</label>
-                  <select 
-                    value={formBankId}
-                    onChange={(e) => setFormBankId(e.target.value)}
-                    required
-                    className="w-full text-xs font-bold border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
-                  >
-                    <option value="">-- Pilih Rekening --</option>
-                    {bankAccounts.map(ba => (
-                      <option key={ba.account_id} value={ba.account_id}>
-                        {ba.nama_akun} - {ba.nomor_rekening}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsFormBankDropdownOpen(!isFormBankDropdownOpen)}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {bankAccounts.find(ba => ba.account_id === formBankId)
+                          ? `${bankAccounts.find(ba => ba.account_id === formBankId)?.nama_akun} - ${bankAccounts.find(ba => ba.account_id === formBankId)?.nomor_rekening}`
+                          : '-- Pilih Rekening --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isFormBankDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isFormBankDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsFormBankDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                          {bankAccounts.map(ba => (
+                            <button
+                              key={ba.account_id}
+                              type="button"
+                              onClick={() => {
+                                setFormBankId(ba.account_id);
+                                setIsFormBankDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                formBankId === ba.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>{ba.nama_akun} - {ba.nomor_rekening}</span>
+                              {formBankId === ba.account_id && <Check className="size-4 text-primary shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -718,14 +848,52 @@ export default function CatatMutasi() {
                   {/* Jenis Mutasi */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipe Mutasi *</label>
-                    <select 
-                      value={formType}
-                      onChange={(e) => setFormType(e.target.value as 'DEBIT' | 'KREDIT')}
-                      className="w-full text-xs font-bold border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
-                    >
-                      <option value="DEBIT">DEBIT (Uang Masuk)</option>
-                      <option value="KREDIT">KREDIT (Uang Keluar)</option>
-                    </select>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsFormTypeDropdownOpen(!isFormTypeDropdownOpen)}
+                        className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                      >
+                        <span>{formType === 'DEBIT' ? 'DEBIT (Uang Masuk)' : 'KREDIT (Uang Keluar)'}</span>
+                        <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isFormTypeDropdownOpen && "rotate-180")} />
+                      </button>
+
+                      {isFormTypeDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setIsFormTypeDropdownOpen(false)} />
+                          <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 overflow-y-auto custom-scrollbar">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormType('DEBIT');
+                                setIsFormTypeDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                formType === 'DEBIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>DEBIT (Uang Masuk)</span>
+                              {formType === 'DEBIT' && <Check className="size-4 text-primary shrink-0" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormType('KREDIT');
+                                setIsFormTypeDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                formType === 'KREDIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>KREDIT (Uang Keluar)</span>
+                              {formType === 'KREDIT' && <Check className="size-4 text-primary shrink-0" />}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -803,23 +971,48 @@ export default function CatatMutasi() {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                     PILIH REKENING BANK TUJUAN *
                   </label>
-                  <select 
-                    value={migrationBankId}
-                    onChange={(e) => {
-                      setMigrationBankId(e.target.value);
-                      setParsedMutations([]);
-                      setFileName('');
-                    }}
-                    required
-                    className="w-full text-xs font-bold border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
-                  >
-                    <option value="">-- Pilih Rekening Bank --</option>
-                    {bankAccounts.map(ba => (
-                      <option key={ba.account_id} value={ba.account_id}>
-                        {ba.nama_akun} - {ba.nomor_rekening}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsMigrationBankDropdownOpen(!isMigrationBankDropdownOpen)}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {bankAccounts.find(ba => ba.account_id === migrationBankId)
+                          ? `${bankAccounts.find(ba => ba.account_id === migrationBankId)?.nama_akun} - ${bankAccounts.find(ba => ba.account_id === migrationBankId)?.nomor_rekening}`
+                          : '-- Pilih Rekening Bank --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isMigrationBankDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isMigrationBankDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsMigrationBankDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                          {bankAccounts.map(ba => (
+                            <button
+                              key={ba.account_id}
+                              type="button"
+                              onClick={() => {
+                                setMigrationBankId(ba.account_id);
+                                setParsedMutations([]);
+                                setFileName('');
+                                setIsMigrationBankDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                migrationBankId === ba.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>{ba.nama_akun} - {ba.nomor_rekening}</span>
+                              {migrationBankId === ba.account_id && <Check className="size-4 text-primary shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* 2. Download / Upload Action Panel */}
