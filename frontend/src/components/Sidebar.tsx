@@ -54,7 +54,7 @@ const menuGroups = [
   {
     title: "MENU UTAMA",
     items: [
-      { name: "Executive", icon: LayoutDashboard, active: true, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+      { name: "Executive", icon: LayoutDashboard, active: true, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Monitoring & Evaluasi", icon: LineChart, roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
     ]
   },
@@ -63,7 +63,7 @@ const menuGroups = [
     items: [
       { name: "Pilar & Program", icon: Network, roles: ["Super_Admin", "Kepala_Pelaksana"] },
       { name: "Database UPZ", icon: Building2, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Administrasi"] },
-      { name: "Data Mustahik", icon: Users, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Staf_Distribusi"] },
+      { name: "Data Mustahik", icon: Users, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Data Muzakki", icon: Users, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
     ]
   },
@@ -78,7 +78,7 @@ const menuGroups = [
   {
     title: "OPERASIONAL",
     items: [
-      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan"] },
+      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Distribusi"] },
       { name: "Tracking Surat", icon: ClipboardCheck, roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },
@@ -104,9 +104,9 @@ const menuGroups = [
     items: [
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
+      { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Antrean Arsip", icon: Archive, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
-      { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi"] },
+      { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
     ]
   },
   {
@@ -123,7 +123,7 @@ const menuGroups = [
   {
     title: "PELAPORAN",
     items: [
-      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi"] },
+      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin"] },
       { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
       { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },

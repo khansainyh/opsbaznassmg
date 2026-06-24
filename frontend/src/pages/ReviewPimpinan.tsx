@@ -46,9 +46,52 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
   const [availability, setAvailability] = useState<any>(null);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+  const [pilars, setPilars] = useState<any[]>([]);
 
   React.useEffect(() => {
-    axios.get('/api/parameters/survey_template_individu')
+    axios.get('/api/pilars')
+      .then(res => {
+        if (res.data) setPilars(res.data);
+      })
+      .catch(console.error);
+  }, []);
+
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  React.useEffect(() => {
+    const getTemplateKey = () => {
+      if (!selectedProposal) return 'survey_template_individu';
+      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok');
+      if (isLembaga) return 'survey_template_lembaga';
+      
+      const code = selectedProposal.programCode;
+      if (!code) return 'survey_template_individu';
+      const cleanCode = code.trim();
+      let tipe = 'Konsumtif';
+      if (programTipeMap[cleanCode]) {
+        tipe = programTipeMap[cleanCode];
+      } else {
+        const parts = cleanCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      }
+      
+      if (tipe === 'Produktif') return 'survey_template_perorangan_produktif';
+      return 'survey_template_individu';
+    };
+
+    const templateKey = getTemplateKey();
+    axios.get(`/api/parameters/${templateKey}`)
       .then(res => {
         if (res.data && res.data.value) {
           try {
@@ -59,7 +102,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
         }
       })
       .catch(console.error);
-  }, []);
+  }, [selectedProposal, programTipeMap]);
 
   const antreanProposal = useMemo(() =>
     data.filter(d => d.status === 'Persetujuan Pimpinan'), [data]);
@@ -545,56 +588,33 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                             <div className="mt-4 space-y-3">
                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">Rincian Kondisi Lapangan</p>
                               
-                              {(selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
-                                selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
-                                !!selectedProposal.survey_data?.berbadanHukum || 
-                                !!selectedProposal.survey_data?.usiaBerdiri) ? (
-                                <div className="space-y-3">
-                                  <SurveyDetailSection title="A. Profil Lembaga" items={[
-                                    { label: 'Berbadan Hukum', value: selectedProposal.survey_data?.berbadanHukum || '-' },
-                                    { label: 'Usia Berdiri', value: selectedProposal.survey_data?.usiaBerdiri || '-' },
-                                    { label: 'Bidang Garapan', value: selectedProposal.survey_data?.bidangGarapan || '-' },
-                                    { label: 'Daerah Jangkauan', value: selectedProposal.survey_data?.daerahJangkauan || '-' },
-                                  ]} />
-                                  <SurveyDetailSection title="B. Kelayakan" items={[
-                                    { label: 'Jenis Kegiatan', value: selectedProposal.survey_data?.layakJenisKegiatan || '-' },
-                                    { label: 'Jumlah Penerima Manfaat', value: selectedProposal.survey_data?.layakJumlahPenerima || '-' },
-                                  ]} />
-                                </div>
-                              ) : (
-                                <div className="space-y-3">
-                                  {[
-                                    { code: 'A', title: 'A. Kondisi Rumah' },
-                                    { code: 'B', title: 'B. Kondisi Ekonomi' },
-                                    { code: 'C', title: 'C. Fisik & Lainnya' }
-                                  ].map(sec => {
-                                    const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
-                                      { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
-                                      { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
-                                      { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
-                                      { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
-                                      { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
-                                      { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
-                                      { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
-                                      { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
-                                      { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
-                                      { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
-                                    ]).filter(q => q.section === sec.code);
+                               {(() => {
+                                const sectionCodes = Array.from(new Set(dynamicQuestions.map(q => q.section))).sort();
+                                if (sectionCodes.length === 0) {
+                                  return (
+                                    <div className="text-xs font-semibold text-slate-405 italic py-2">
+                                      Memuat data rincian...
+                                    </div>
+                                  );
+                                }
+                                return sectionCodes.map(secCode => {
+                                  const sectionQuestions = dynamicQuestions.filter(q => q.section === secCode);
+                                  if (sectionQuestions.length === 0) return null;
+                                  
+                                  const sectionTitle = sectionQuestions[0].sectionTitle || `Bagian ${secCode}`;
+                                  const items = sectionQuestions.map(q => ({
+                                    label: q.label,
+                                    value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                                  }));
+                                  
+                                  const hasValues = items.some(item => item.value !== '-');
+                                  if (!hasValues) return null;
 
-                                    const items = secQuestions.map(q => ({
-                                      label: q.label,
-                                      value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
-                                    }));
-
-                                    const hasValues = items.some(item => item.value !== '-');
-                                    if (!hasValues) return null;
-
-                                    return (
-                                      <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
-                                    );
-                                  })}
-                                </div>
-                              )}
+                                  return (
+                                    <SurveyDetailSection key={secCode} title={sectionTitle} items={items} />
+                                  );
+                                });
+                              })()}
                             </div>
                           )}
                         </div>
@@ -865,7 +885,7 @@ function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): 
       if (question.type === 'checkbox') {
         if (Array.isArray(score)) {
           const selectedLabels = score.map((val: any) => {
-            const option = question.options?.find((opt: any) => opt.val === val);
+            const option = question.options?.find((opt: any) => opt.val === val || opt.val === Number(val) || opt.label === val);
             return option ? option.label : val;
           });
           return selectedLabels.join(', ') || '-';
@@ -874,7 +894,7 @@ function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): 
         return String(score);
       } else {
         if (question.options) {
-          const option = question.options.find((opt: any) => opt.val === score);
+          const option = question.options.find((opt: any) => opt.val === score || opt.val === Number(score) || opt.label === score);
           if (option) return option.label;
         }
       }

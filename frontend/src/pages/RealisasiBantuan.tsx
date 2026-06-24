@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Search, 
@@ -32,18 +32,99 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState('');
+  
+  const [pilars, setPilars] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'Semua' | 'Konsumtif' | 'Produktif'>('Semua');
+  const [selectedProgramFilter, setSelectedProgramFilter] = useState<string>('');
+  const [searchProgramQuery, setSearchProgramQuery] = useState('');
+  const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
+  const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('');
+  const [isPilarDropdownOpen, setIsPilarDropdownOpen] = useState(false);
 
-  // Filter only proposals with 'Realisasi Bantuan' status
+  const pilarNames = useMemo(() => {
+    return (pilars || []).map(p => p.name);
+  }, [pilars]);
+
+  useEffect(() => {
+    axios.get('/api/pilars')
+      .then(res => setPilars(res.data))
+      .catch(console.error);
+  }, []);
+
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  const getParentProgramCode = (code?: string) => {
+    if (!code) return '';
+    const clean = code.trim();
+    const parts = clean.split('.');
+    if (parts.length > 2) {
+      return `${parts[0]}.${parts[1]}`;
+    }
+    return clean;
+  };
+
+  const allPrograms = useMemo(() => {
+    const progs: { code: string; name: string; pilarName: string }[] = [];
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        progs.push({
+          code: prog.code,
+          name: prog.name,
+          pilarName: pilar.name
+        });
+      });
+    });
+    return progs;
+  }, [pilars]);
+
+  const handlePilarChange = (pilarName: string) => {
+    setSelectedPilarFilter(pilarName);
+    if (pilarName) {
+      const belongs = allPrograms.find(p => p.code === selectedProgramFilter && p.pilarName === pilarName);
+      if (!belongs) {
+        setSelectedProgramFilter('');
+      }
+    }
+  };
   const filteredData = useMemo(() => {
     return data.filter(item => {
       const isRealisasi = item.status === 'Realisasi Bantuan';
+      if (!isRealisasi) return false;
+
+      // Grouping filter (Konsumtif vs Produktif)
+      if (activeTab !== 'Semua') {
+        const cleanCode = getParentProgramCode(item.programCode);
+        const tipe = programTipeMap[cleanCode] || 'Konsumtif';
+        if (tipe !== activeTab) return false;
+      }
+
+      // Pilar filter
+      if (selectedPilarFilter) {
+        if (item.program !== selectedPilarFilter) return false;
+      }
+
+      // Program filter
+      if (selectedProgramFilter) {
+        const cleanCode = getParentProgramCode(item.programCode);
+        const filterCleanCode = getParentProgramCode(selectedProgramFilter);
+        if (cleanCode !== filterCleanCode) return false;
+      }
+
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         item.nik.includes(searchTerm);
-      return isRealisasi && searchMatch;
+                         (item.nik || '').includes(searchTerm);
+      return searchMatch;
     });
-  }, [data, searchTerm]);
+  }, [data, searchTerm, activeTab, selectedProgramFilter, selectedPilarFilter, programTipeMap]);
 
   const stats = useMemo(() => {
     const realisasiData = data.filter(d => d.status === 'Realisasi Bantuan');
@@ -190,6 +271,41 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         transition={{ delay: 0.2 }}
         className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden"
       >
+        {/* Tabs Grouping */}
+        <div className="flex gap-2 border-b border-slate-100 px-4 pt-3 bg-slate-50/50">
+          {(['Semua', 'Konsumtif', 'Produktif'] as const).map(tab => {
+            const count = data.filter(d => {
+              const isRealisasi = d.status === 'Realisasi Bantuan';
+              if (!isRealisasi) return false;
+              if (tab === 'Semua') return true;
+              const cleanCode = getParentProgramCode(d.programCode);
+              const tipe = programTipeMap[cleanCode] || 'Konsumtif';
+              return tipe === tab;
+            }).length;
+
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  "pb-3 px-4 text-xs font-bold border-b-2 transition-all relative",
+                  activeTab === tab 
+                    ? "border-primary text-primary" 
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                )}
+              >
+                {tab === 'Semua' ? 'Semua Bantuan' : tab === 'Konsumtif' ? 'Bantuan Konsumtif' : 'Bantuan Produktif'}
+                <span className={cn(
+                  "ml-2 px-1.5 py-0.5 text-[9px] font-black rounded-full",
+                  activeTab === tab ? "bg-primary/10 text-primary" : "bg-slate-200/60 text-slate-500"
+                )}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Filter Bar */}
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-4">
@@ -215,20 +331,170 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {selectedIds.length > 0 && (
               <motion.button 
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all mr-2"
               >
                 <DownloadCloud className="size-4" />
                 EXPORT LAPORAN ({selectedIds.length})
               </motion.button>
             )}
-            <button className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-slate-200">
-              <Filter className="size-4" />
-            </button>
+
+            {/* Search Dropdown for Pilar */}
+            <div className="relative">
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => setIsPilarDropdownOpen(!isPilarDropdownOpen)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border",
+                    selectedPilarFilter 
+                      ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
+                      : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <Filter className={cn("size-4", selectedPilarFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                  <span className="max-w-[150px] truncate">
+                    {selectedPilarFilter ? `Pilar: ${selectedPilarFilter}` : "Pilih Pilar Bantuan"}
+                  </span>
+                </button>
+                {selectedPilarFilter && (
+                  <button 
+                    onClick={() => {
+                      handlePilarChange('');
+                    }}
+                    className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm"
+                    title="Hapus Filter Pilar"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {isPilarDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsPilarDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
+                    <button 
+                      onClick={() => {
+                        handlePilarChange('');
+                        setIsPilarDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold",
+                        !selectedPilarFilter && "bg-primary/5 text-primary font-bold"
+                      )}
+                    >
+                      Semua Pilar
+                    </button>
+                    {pilarNames.map(name => (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          handlePilarChange(name);
+                          setIsPilarDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold mt-0.5",
+                          selectedPilarFilter === name && "bg-primary/5 text-primary font-bold"
+                        )}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Search Dropdown for Program */}
+            <div className="relative">
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => setIsProgramDropdownOpen(!isProgramDropdownOpen)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border",
+                    selectedProgramFilter 
+                      ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
+                      : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <Filter className={cn("size-4", selectedProgramFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                  <span className="max-w-[200px] truncate">
+                    {selectedProgramFilter ? (
+                      <span>Program: {allPrograms.find(p => p.code === selectedProgramFilter)?.name || selectedProgramFilter}</span>
+                    ) : (
+                      <span>Pilih Program Bantuan</span>
+                    )}
+                  </span>
+                </button>
+                {selectedProgramFilter && (
+                  <button 
+                    onClick={() => {
+                      setSelectedProgramFilter('');
+                      setSearchProgramQuery('');
+                    }}
+                    className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm"
+                    title="Hapus Filter Program"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {isProgramDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsProgramDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-96 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-2">
+                    <input 
+                      type="text"
+                      placeholder="Cari program..."
+                      className="w-full text-xs bg-slate-50 border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-primary focus:border-primary outline-none font-semibold text-slate-800"
+                      value={searchProgramQuery}
+                      onChange={(e) => setSearchProgramQuery(e.target.value)}
+                    />
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar text-xs font-semibold text-slate-700">
+                      <button 
+                        onClick={() => {
+                          setSelectedProgramFilter('');
+                          setIsProgramDropdownOpen(false);
+                          setSearchProgramQuery('');
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors",
+                          !selectedProgramFilter && "bg-primary/5 text-primary font-bold"
+                        )}
+                      >
+                        Semua Program
+                      </button>
+                      {allPrograms
+                        .filter(p => !selectedPilarFilter || p.pilarName === selectedPilarFilter)
+                        .filter(p => p.name.toLowerCase().includes(searchProgramQuery.toLowerCase()) || p.pilarName.toLowerCase().includes(searchProgramQuery.toLowerCase()))
+                        .map(prog => (
+                          <button
+                            key={prog.code}
+                            onClick={() => {
+                              setSelectedProgramFilter(prog.code);
+                              setIsProgramDropdownOpen(false);
+                              setSearchProgramQuery('');
+                            }}
+                            className={cn(
+                              "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors mt-0.5 flex flex-col gap-0.5",
+                              selectedProgramFilter === prog.code && "bg-primary/5 text-primary font-bold"
+                            )}
+                          >
+                            <span className="block text-[10px] text-slate-400 uppercase font-black">{prog.pilarName}</span>
+                            <span className="block whitespace-normal break-words leading-tight">{prog.name} ({prog.code})</span>
+                          </button>
+                        ))
+                      }
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -281,16 +547,26 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        <span className={cn(
-                          "px-2 py-1 rounded text-[10px] font-black uppercase w-fit",
-                          item.program === 'Semarang Sehat' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
-                          item.program === 'Semarang Taqwa' ? "bg-indigo-50 text-indigo-600 border border-indigo-100" :
-                          item.program === 'Semarang Cerdas' ? "bg-blue-50 text-blue-600 border border-blue-100" :
-                          item.program === 'Semarang Makmur' ? "bg-amber-50 text-amber-600 border border-amber-100" :
-                          "bg-slate-50 text-slate-600 border border-slate-100"
-                        )}>
-                          {item.program || 'Umum'}
-                        </span>
+                        <div className="flex gap-1.5 items-center flex-wrap">
+                          <span className={cn(
+                            "px-2 py-1 rounded text-[10px] font-black uppercase w-fit",
+                            item.program === 'Semarang Sehat' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                            item.program === 'Semarang Taqwa' ? "bg-indigo-50 text-indigo-600 border border-indigo-100" :
+                            item.program === 'Semarang Cerdas' ? "bg-blue-50 text-blue-600 border border-blue-100" :
+                            item.program === 'Semarang Makmur' ? "bg-amber-50 text-amber-600 border border-amber-100" :
+                            "bg-slate-50 text-slate-600 border border-slate-100"
+                          )}>
+                            {item.program || 'Umum'}
+                          </span>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[9px] font-bold border",
+                            (programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif') === 'Produktif'
+                              ? "bg-purple-50 text-purple-600 border-purple-100"
+                              : "bg-blue-50/50 text-blue-500 border-blue-100/50"
+                          )}>
+                            {programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif'}
+                          </span>
+                        </div>
                         <p className="text-xs text-slate-500 font-medium truncate max-w-[150px]">
                           {item.jenisPermohonan}
                         </p>

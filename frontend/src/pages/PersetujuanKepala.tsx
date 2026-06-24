@@ -4,7 +4,7 @@ import {
   Search, Eye, CheckCircle2, ChevronRight, X,
   ClipboardList, AlertTriangle, MessageSquare, Send, Flame,
   FileText, Newspaper, ExternalLink, History, User, Building2,
-  MapPin, Briefcase, Calendar, Home
+  MapPin, Briefcase, Calendar, Home, ChevronDown, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -37,22 +37,76 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const [selectedRkatId, setSelectedRkatId] = useState<string>('');
   const [selectedSumberKas, setSelectedSumberKas] = useState<string>('Zakat');
   const [rekomendasiNominal, setRekomendasiNominal] = useState<number>(0);
+  const [isRkatDropdownOpen, setIsRkatDropdownOpen] = useState(false);
+  const [rkatSearchQuery, setRkatSearchQuery] = useState('');
+  const [isSumberKasDropdownOpen, setIsSumberKasDropdownOpen] = useState(false);
 
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
+  const [pilars, setPilars] = useState<any[]>([]);
 
   useEffect(() => {
     axios.get('/api/users')
       .then(res => setUsers(res.data.filter((u: any) => u.role.startsWith('Staf') || u.role === 'Relawan')))
       .catch(console.error);
 
-    axios.get('/api/parameters/survey_template_individu')
+    axios.get('/api/pilars')
+      .then(res => {
+        if (res.data) setPilars(res.data);
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      setIsRkatDropdownOpen(false);
+      setRkatSearchQuery('');
+      setIsSumberKasDropdownOpen(false);
+    }
+  }, [isModalOpen]);
+
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  useEffect(() => {
+    const getTemplateKey = () => {
+      if (!selectedProposal) return 'survey_template_individu';
+      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok');
+      if (isLembaga) return 'survey_template_lembaga';
+      
+      const code = selectedProposal.programCode;
+      if (!code) return 'survey_template_individu';
+      const cleanCode = code.trim();
+      let tipe = 'Konsumtif';
+      if (programTipeMap[cleanCode]) {
+        tipe = programTipeMap[cleanCode];
+      } else {
+        const parts = cleanCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      }
+      
+      if (tipe === 'Produktif') return 'survey_template_perorangan_produktif';
+      return 'survey_template_individu';
+    };
+
+    const templateKey = getTemplateKey();
+    axios.get(`/api/parameters/${templateKey}`)
       .then(res => {
         if (res.data && res.data.value) {
           setDynamicQuestions(JSON.parse(res.data.value));
         }
       })
       .catch(console.error);
-  }, []);
+  }, [selectedProposal, programTipeMap]);
 
   const antreanProposal = useMemo(() =>
     data.filter(d => d.status === 'Review Kepala Pelaksana'), [data]);
@@ -454,34 +508,31 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                             <Home className="size-3.5" /> Rincian Kondisi Lapangan
                           </h4>
                           
-                          <div className="grid grid-cols-1 gap-3">
-                            {[
-                              { code: 'A', title: 'A. Kondisi Rumah' },
-                              { code: 'B', title: 'B. Kondisi Ekonomi' },
-                              { code: 'C', title: 'C. Fisik & Lainnya' }
-                            ].map(sec => {
-                              const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
-                                { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
-                                { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
-                                { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
-                                { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
-                                { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
-                                { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
-                                { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
-                                { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
-                                { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
-                                { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
-                              ]).filter(q => q.section === sec.code);
-
-                              const items = secQuestions.map(q => ({
-                                label: q.label,
-                                value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
-                              }));
-
-                              return (
-                                <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
-                              );
-                            })}
+                           <div className="grid grid-cols-1 gap-3">
+                            {(() => {
+                              const sectionCodes = Array.from(new Set(dynamicQuestions.map(q => q.section))).sort();
+                              if (sectionCodes.length === 0) {
+                                return (
+                                  <div className="text-xs font-semibold text-slate-405 italic py-2">
+                                    Memuat data rincian...
+                                  </div>
+                                );
+                              }
+                              return sectionCodes.map(secCode => {
+                                const sectionQuestions = dynamicQuestions.filter(q => q.section === secCode);
+                                if (sectionQuestions.length === 0) return null;
+                                
+                                const sectionTitle = sectionQuestions[0].sectionTitle || `Bagian ${secCode}`;
+                                const items = sectionQuestions.map(q => ({
+                                  label: q.label,
+                                  value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                                }));
+                                
+                                return (
+                                  <SurveyDetailSection key={secCode} title={sectionTitle} items={items} />
+                                );
+                              });
+                            })()}
                           </div>
                         </div>
 
@@ -566,24 +617,99 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
                               Pilih Kegiatan RKAT Yang Akan Dipotong:
                             </label>
-                            <select
-                              value={selectedRkatId}
-                              onChange={e => {
-                                setSelectedRkatId(e.target.value);
-                                const act = (availability.rkat_activities || []).find((a: any) => a.id === e.target.value);
-                                if (act && act.nominal) {
-                                  setRekomendasiNominal(act.nominal);
-                                }
-                              }}
-                              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
-                            >
-                              <option value="">-- Pilih Kegiatan RKAT --</option>
-                              {(availability.rkat_activities || []).map((act: any) => (
-                                <option key={act.id} value={act.id}>
-                                  {act.name} (Asnaf: {act.asnaf || 'Semua'}, Sisa: Rp {act.sisa_pagu.toLocaleString('id-ID')})
-                                </option>
-                              ))}
-                            </select>
+                            <div className="relative">
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setIsRkatDropdownOpen(!isRkatDropdownOpen);
+                                  setIsSumberKasDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center justify-between text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
+                              >
+                                <span className="truncate max-w-[90%]">
+                                  {selectedRkatId 
+                                    ? (() => {
+                                        const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedRkatId);
+                                        return act 
+                                          ? `${act.name} (Asnaf: ${act.asnaf || 'Semua'}, Sisa: Rp ${act.sisa_pagu.toLocaleString('id-ID')})`
+                                          : selectedRkatId;
+                                      })()
+                                    : '-- Pilih Kegiatan RKAT --'
+                                  }
+                                </span>
+                                <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isRkatDropdownOpen && "rotate-180")} />
+                              </button>
+
+                              {isRkatDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setIsRkatDropdownOpen(false)} />
+                                  <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
+                                    <div className="p-1 border-b border-slate-100 mb-1">
+                                      <input
+                                        type="text"
+                                        placeholder="Cari kegiatan RKAT..."
+                                        value={rkatSearchQuery}
+                                        onChange={(e) => setRkatSearchQuery(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-700"
+                                      />
+                                    </div>
+                                    <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedRkatId('');
+                                          setIsRkatDropdownOpen(false);
+                                          setRkatSearchQuery('');
+                                        }}
+                                        className={cn(
+                                          "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                          !selectedRkatId ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                        )}
+                                      >
+                                        <span>-- Pilih Kegiatan RKAT --</span>
+                                        {!selectedRkatId && <Check className="size-4 text-primary shrink-0" />}
+                                      </button>
+                                      {(availability.rkat_activities || [])
+                                        .filter((act: any) => 
+                                          act.name.toLowerCase().includes(rkatSearchQuery.toLowerCase()) ||
+                                          (act.asnaf || '').toLowerCase().includes(rkatSearchQuery.toLowerCase())
+                                        )
+                                        .map((act: any) => (
+                                          <button
+                                            key={act.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedRkatId(act.id);
+                                              setIsRkatDropdownOpen(false);
+                                              setRkatSearchQuery('');
+                                              if (act.nominal) {
+                                                setRekomendasiNominal(act.nominal);
+                                              }
+                                            }}
+                                            className={cn(
+                                              "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                              selectedRkatId === act.id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                            )}
+                                          >
+                                            <span className="truncate">
+                                              {act.name} (Asnaf: {act.asnaf || 'Semua'}, Sisa: Rp {act.sisa_pagu.toLocaleString('id-ID')})
+                                            </span>
+                                            {selectedRkatId === act.id && <Check className="size-4 text-primary shrink-0" />}
+                                          </button>
+                                        ))}
+                                      {(availability.rkat_activities || [])
+                                        .filter((act: any) => 
+                                          act.name.toLowerCase().includes(rkatSearchQuery.toLowerCase()) ||
+                                          (act.asnaf || '').toLowerCase().includes(rkatSearchQuery.toLowerCase())
+                                        ).length === 0 && (
+                                          <p className="text-center py-3 text-[10px] text-slate-400 italic font-medium">Kegiatan tidak ditemukan</p>
+                                        )}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
 
                           {(() => {
@@ -651,15 +777,52 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
                                 Ubah Sumber Kas:
                               </label>
-                              <select
-                                value={selectedSumberKas}
-                                onChange={e => setSelectedSumberKas(e.target.value)}
-                                className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
+                            <div className="relative">
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setIsSumberKasDropdownOpen(!isSumberKasDropdownOpen);
+                                  setIsRkatDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center justify-between text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
                               >
-                                <option value="Zakat">Dana Zakat</option>
-                                <option value="Infak Tidak Terikat">Dana ISTT (Infak Tidak Terikat)</option>
-                                <option value="Infak Terikat">Dana IST (Infak Terikat)</option>
-                              </select>
+                                <span>
+                                  {selectedSumberKas === 'Zakat' ? 'Dana Zakat' :
+                                   selectedSumberKas === 'Infak Tidak Terikat' ? 'Dana ISTT (Infak Tidak Terikat)' :
+                                   selectedSumberKas === 'Infak Terikat' ? 'Dana IST (Infak Terikat)' : selectedSumberKas}
+                                </span>
+                                <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSumberKasDropdownOpen && "rotate-180")} />
+                              </button>
+
+                              {isSumberKasDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setIsSumberKasDropdownOpen(false)} />
+                                  <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-45 p-1.5 overflow-y-auto custom-scrollbar">
+                                    {[
+                                      { value: 'Zakat', label: 'Dana Zakat' },
+                                      { value: 'Infak Tidak Terikat', label: 'Dana ISTT (Infak Tidak Terikat)' },
+                                      { value: 'Infak Terikat', label: 'Dana IST (Infak Terikat)' }
+                                    ].map(opt => (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedSumberKas(opt.value);
+                                          setIsSumberKasDropdownOpen(false);
+                                        }}
+                                        className={cn(
+                                          "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                          selectedSumberKas === opt.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                        )}
+                                      >
+                                        <span>{opt.label}</span>
+                                        {selectedSumberKas === opt.value && <Check className="size-4 text-primary shrink-0" />}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                             </div>
 
                             <div className="space-y-1.5">
@@ -950,7 +1113,7 @@ function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): 
       if (question.type === 'checkbox') {
         if (Array.isArray(score)) {
           const selectedLabels = score.map((val: any) => {
-            const option = question.options?.find((opt: any) => opt.val === val);
+            const option = question.options?.find((opt: any) => opt.val === val || opt.val === Number(val) || opt.label === val);
             return option ? option.label : val;
           });
           return selectedLabels.join(', ') || '-';
@@ -959,7 +1122,7 @@ function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): 
         return String(score);
       } else {
         if (question.options) {
-          const option = question.options.find((opt: any) => opt.val === score);
+          const option = question.options.find((opt: any) => opt.val === score || opt.val === Number(score) || opt.label === score);
           if (option) return option.label;
         }
       }

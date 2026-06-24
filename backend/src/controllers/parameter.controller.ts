@@ -22,13 +22,24 @@ const defaultSurveyTemplate = JSON.stringify([
   { id: 'kesehatan', section: 'C', sectionTitle: 'Bagian C: Kondisi Fisik & Tanggungan', label: 'Kemampuan Penuhi Kebutuhan Kesehatan', options: [{ val: 2, label: 'Tidak Ada Kemampuan (Tidak punya BPJS KIS/PBI)' }, { val: 1, label: 'Ada Kemampuan (BPJS Mandiri / Bayar sendiri)' }] }
 ]);
 
+const defaultLembagaSurveyTemplate = JSON.stringify([
+  { id: 'berbadanHukum', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Berbadan Hukum', options: [{ val: 3, label: 'Yayasan' }, { val: 2, label: 'Pemerintah' }, { val: 1, label: 'Tidak Berbadan Hukum' }] },
+  { id: 'usiaBerdiri', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Usia Berdiri', options: [{ val: 5, label: '8-10 th' }, { val: 4, label: '6-8 th' }, { val: 3, label: '4-6 th' }, { val: 2, label: '2-4 th' }, { val: 1, label: '0-2 th' }] },
+  { id: 'bidangGarapan', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Bidang Garapan', options: [{ val: 5, label: 'Pendidikan' }, { val: 4, label: 'Sosial' }, { val: 3, label: 'Jasa' }, { val: 2, label: 'Dakwah' }, { val: 1, label: 'Lainnya' }] },
+  { id: 'daerahJangkauan', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Daerah Jangkauan', options: [{ val: 5, label: 'Nasional' }, { val: 4, label: 'Provinsi' }, { val: 3, label: 'Kabupaten/Kota' }, { val: 2, label: 'Kecamatan' }, { val: 1, label: 'Kelurahan' }] },
+  { id: 'layakJenisKegiatan', section: 'B', sectionTitle: 'Bagian B: Kelayakan', label: 'Kelayakan Jenis Kegiatan', options: [{ val: 2, label: 'Layak' }, { val: 1, label: 'Tidak Layak' }] },
+  { id: 'layakJumlahPenerima', section: 'B', sectionTitle: 'Bagian B: Kelayakan', label: 'Kelayakan Jumlah Penerima Manfaat', options: [{ val: 2, label: 'Layak' }, { val: 1, label: 'Tidak Layak' }] }
+]);
+
 const defaultParams = [
   { key: 'hak_amil_zakat_maal', value: '12.5', description: 'Hak Amil Zakat Maal (%)' },
   { key: 'hak_amil_infak_sedekah', value: '20.0', description: 'Hak Amil Infak/Sedekah (%)' },
   { key: 'hak_amil_zakat_fitrah', value: '0', description: 'Hak Amil Zakat Fitrah (UPZ) (%)' },
   { key: 'bps_garis_kemiskinan', value: '709000', description: 'Garis Kemiskinan BPS (Rupiah per Kapita)' },
   { key: 'upz_hak_salur_persentase', value: '30', description: 'Persentase Hak Salur UPZ (%)' },
-  { key: 'survey_template_individu', value: defaultSurveyTemplate, description: 'Template Form Asesmen Individu (JSON)' }
+  { key: 'survey_template_individu', value: defaultSurveyTemplate, description: 'Template Form Asesmen Individu / Perorangan Konsumtif (JSON)' },
+  { key: 'survey_template_perorangan_produktif', value: defaultSurveyTemplate, description: 'Template Form Asesmen Perorangan Produktif (JSON)' },
+  { key: 'survey_template_lembaga', value: defaultLembagaSurveyTemplate, description: 'Template Form Asesmen Lembaga (JSON)' }
 ];
 
 export const getParameters = async (req: Request, res: Response) => {

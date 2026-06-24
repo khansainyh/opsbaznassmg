@@ -14,7 +14,10 @@ import {
   CheckCircle,
   ChevronLeft,
   Home,
-  ExternalLink
+  ExternalLink,
+  Calendar,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -82,8 +85,30 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [statusFilter, setStatusFilter] = useState<SurveyStatus | 'Semua'>('Semua');
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [availability, setAvailability] = useState<any>(null);
-  const [loadingAvailability, setLoadingAvailability] = useState(false);
+
+  const currentMonthValue = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthValue);
+
+  const monthOptions = useMemo(() => {
+    const options = [{ value: 'Semua', label: 'Semua Bulan' }];
+    const date = new Date();
+    const monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(date.getFullYear(), date.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = (d.getMonth() + 1).toString().padStart(2, '0');
+      const label = `${monthNames[d.getMonth()]} ${y}`;
+      options.push({ value: `${y}-${m}`, label });
+    }
+    return options;
+  }, []);
 
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
@@ -94,6 +119,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [rekomendasiKabag, setRekomendasiKabag] = useState<'Zakat' | 'Infak Tidak Terikat' | 'Infak Terikat' | 'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Zakat');
   const [hasilIdentifikasi, setHasilIdentifikasi] = useState('');
   const [selectedAsnaf, setSelectedAsnaf] = useState('Fakir');
+  const [changedProgramCode, setChangedProgramCode] = useState<string>('');
   const asnafOptions = ['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharimin', 'Fisabilillah', 'Ibnu Sabil'];
 
   const [pilars, setPilars] = useState<any[]>([]);
@@ -101,7 +127,12 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [surveyors, setSurveyors] = useState<any[]>([]);
   const [isReassigning, setIsReassigning] = useState(false);
   const [searchSurveyorQuery, setSearchSurveyorQuery] = useState('');
+  const [alurSearchQuery, setAlurSearchQuery] = useState('');
   const [isSurveyorDropdownOpen, setIsSurveyorDropdownOpen] = useState(false);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const [isAsnafDropdownOpen, setIsAsnafDropdownOpen] = useState(false);
+  const [isRekomendasiDropdownOpen, setIsRekomendasiDropdownOpen] = useState(false);
+  const [isAlurDropdownOpen, setIsAlurDropdownOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -118,6 +149,10 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     if (!isDetailModalOpen) {
       setIsSurveyorDropdownOpen(false);
       setSearchSurveyorQuery('');
+      setAlurSearchQuery('');
+      setIsAsnafDropdownOpen(false);
+      setIsRekomendasiDropdownOpen(false);
+      setIsAlurDropdownOpen(false);
     }
   }, [isDetailModalOpen]);
 
@@ -129,6 +164,23 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
       });
     });
     return map;
+  }, [pilars]);
+
+  const consumptivePrograms = useMemo(() => {
+    const list: { code: string; name: string; pilarName: string }[] = [];
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        const tipe = prog.tipe || 'Konsumtif';
+        if (tipe === 'Konsumtif') {
+          list.push({
+            code: prog.code,
+            name: prog.name,
+            pilarName: pilar.name
+          });
+        }
+      });
+    });
+    return list;
   }, [pilars]);
 
   const fetchPilars = useCallback(() => {
@@ -156,18 +208,44 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
   useEffect(() => {
     fetchPilars();
-    axios.get('/api/parameters/survey_template_individu')
+    if (isKabagPendistribusian || isKabagPendayagunaan || isSuperAdmin) {
+      fetchSurveyors();
+    }
+  }, [fetchPilars, fetchSurveyors, isKabagPendistribusian, isKabagPendayagunaan, isSuperAdmin]);
+
+  useEffect(() => {
+    const getTemplateKey = () => {
+      if (!selectedTask) return 'survey_template_individu';
+      const isLembaga = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
+      if (isLembaga) return 'survey_template_lembaga';
+      
+      const code = selectedTask.programCode;
+      if (!code) return 'survey_template_individu';
+      const cleanCode = code.trim();
+      let tipe = 'Konsumtif';
+      if (programTipeMap[cleanCode]) {
+        tipe = programTipeMap[cleanCode];
+      } else {
+        const parts = cleanCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      }
+      
+      if (tipe === 'Produktif') return 'survey_template_perorangan_produktif';
+      return 'survey_template_individu';
+    };
+
+    const templateKey = getTemplateKey();
+    axios.get(`/api/parameters/${templateKey}`)
       .then(res => {
         if (res.data && res.data.value) {
           setDynamicQuestions(JSON.parse(res.data.value));
         }
       })
       .catch(err => console.error('Failed to fetch survey template', err));
-
-    if (isKabagPendistribusian || isKabagPendayagunaan || isSuperAdmin) {
-      fetchSurveyors();
-    }
-  }, [fetchPilars, fetchSurveyors, isKabagPendistribusian, isKabagPendayagunaan, isSuperAdmin]);
+  }, [selectedTask, programTipeMap]);
 
   const realizedProposals = useMemo(() => {
     return data.filter(p => 
@@ -421,10 +499,17 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   };
 
   const tasks = useMemo(() => {
-    return data.filter(item => 
-      ['Monitoring Tugas', 'Proses Disposisi', 'Survei Assessment', 'Survei Selesai', 'Selesai', 'Antrean Bantuan', 'Review Kepala Pelaksana', 'Persetujuan Pimpinan', 'Penentuan Nominal', 'Pencairan Dana', 'Arsip'].includes(item.status)
-    );
-  }, [data]);
+    return data.filter(item => {
+      const isTaskStatus = ['Monitoring Tugas', 'Proses Disposisi', 'Survei Assessment', 'Survei Selesai', 'Selesai', 'Antrean Bantuan', 'Review Kepala Pelaksana', 'Persetujuan Pimpinan', 'Penentuan Nominal', 'Pencairan Dana', 'Arsip'].includes(item.status);
+      if (!isTaskStatus) return false;
+
+      if (selectedMonth !== 'Semua' && item.tanggalMasuk) {
+        const [y, m] = item.tanggalMasuk.split('-');
+        if (`${y}-${m}` !== selectedMonth) return false;
+      }
+      return true;
+    });
+  }, [data, selectedMonth]);
 
   const stats = useMemo(() => {
     return [
@@ -443,6 +528,13 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   ];
 
   const handleUpdateStatus = async (id: string, newStatus: ProposalMemo['status']) => {
+    if (newStatus === 'Review Kepala Pelaksana') {
+      const task = data.find(t => t.id === id);
+      if (task && (!task.asnaf || !task.hasil_identifikasi?.trim())) {
+        alert('Gagal: Tugas Survei tidak dapat disetujui tanpa melakukan identifikasi asnaf dan mengisi hasil identifikasi.');
+        return;
+      }
+    }
     try {
       const backendStatus = newStatus.replace(/ /g, '_');
       await axios.put(`/api/proposals/${id}`, { status: backendStatus });
@@ -455,26 +547,40 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   };
 
   const handleApproveKabag = async (task: ProposalMemo) => {
+    if (!selectedAsnaf) {
+      alert('Harap pilih asnaf terlebih dahulu.');
+      return;
+    }
     if (!hasilIdentifikasi.trim()) {
       alert('Harap isi hasil identifikasi terlebih dahulu.');
       return;
     }
     try {
-      const payload = {
+      const payload: any = {
         status: 'Review_Kepala_Pelaksana',
         asnaf: selectedAsnaf,
         rekomendasi_kabag: rekomendasiKabag,
         hasil_identifikasi: hasilIdentifikasi,
         approval_kabag: true
       };
+      if (changedProgramCode) {
+        payload.jenis_permohonan = changedProgramCode;
+      }
       await axios.put(`/api/proposals/${task.id}`, payload);
+      
+      const newProg = consumptivePrograms.find(p => p.code === changedProgramCode);
       const updatedData = data.map(item => item.id === task.id ? { 
         ...item, 
         status: 'Review Kepala Pelaksana',
         asnaf: selectedAsnaf,
         rekomendasi_kabag: rekomendasiKabag,
         hasil_identifikasi: hasilIdentifikasi,
-        approval_kabag: true
+        approval_kabag: true,
+        ...(changedProgramCode && newProg ? {
+          programCode: changedProgramCode,
+          jenisPermohonan: newProg.name,
+          program: newProg.pilarName
+        } : {})
       } : item);
       onUpdate(updatedData);
       setIsDetailModalOpen(false);
@@ -489,13 +595,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     setHasilIdentifikasi(task.hasil_identifikasi || '');
     setRekomendasiKabag((task.rekomendasi_kabag as any) || 'Zakat');
     setSelectedAsnaf(task.asnaf || 'Fakir');
+    setChangedProgramCode('');
     setIsDetailModalOpen(true);
-    setLoadingAvailability(true);
-    setAvailability(null);
-    axios.get(`/api/finance/check-availability/${task.id}`)
-      .then(res => setAvailability(res.data))
-      .catch(err => console.error('Gagal fetch availability:', err))
-      .finally(() => setLoadingAvailability(false));
   };
 
 
@@ -519,7 +620,19 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   };
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
+    const statusOrder: { [key: string]: number } = {
+      'Antrean Tugas': 1,
+      'Pending': 2,
+      'On Progress': 3,
+      'Selesai': 4,
+      'Disetujui': 5
+    };
+    const list = tasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
+    return [...list].sort((a, b) => {
+      const orderA = statusOrder[getSurveyStatus(a)] || 99;
+      const orderB = statusOrder[getSurveyStatus(b)] || 99;
+      return orderA - orderB;
+    });
   }, [tasks, statusFilter, getSurveyStatus]);
 
   const konsumtifTasks = filteredTasks.filter(t => {
@@ -654,7 +767,13 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                       )}
                       {status === 'Selesai' && !isKabagPendistribusian && !isKabagPendayagunaan && (
                         <button 
-                          onClick={() => handleUpdateStatus(task.id, 'Review Kepala Pelaksana')}
+                          onClick={() => {
+                            if (!task.asnaf || !task.hasil_identifikasi?.trim()) {
+                              handleViewDetail(task);
+                              return;
+                            }
+                            handleUpdateStatus(task.id, 'Review Kepala Pelaksana');
+                          }}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-all"
                         >
                           <CheckCircle className="size-3.5" />
@@ -678,6 +797,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     );
   };
 
+  const activeMonthLabel = monthOptions.find(opt => opt.value === selectedMonth)?.label || 'Pilih Periode';
+
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden">
       {viewMode === 'all-tasks' ? (
@@ -692,12 +813,51 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 <p className="text-xs text-slate-500 font-medium mt-1">Total {tasks.length} data dalam antrean</p>
               </div>
             </div>
-            <button 
-              onClick={() => setViewMode('dashboard')} 
-              className="px-4 py-2 hover:bg-slate-100 rounded-lg transition-colors flex font-bold text-sm items-center gap-2 text-slate-500 hover:text-slate-800"
-            >
-              <ChevronLeft className="size-4 text-slate-400" /> Kembali
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Periode:</span>
+                  <button 
+                    onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border text-slate-700 bg-white hover:bg-slate-50 border-slate-200 shadow-sm"
+                  >
+                    <Calendar className="size-4 text-primary" />
+                    <span>{activeMonthLabel}</span>
+                    <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", isMonthDropdownOpen && "rotate-180")} />
+                  </button>
+                </div>
+
+                {isMonthDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setIsMonthDropdownOpen(false)} />
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-64 overflow-y-auto custom-scrollbar">
+                      {monthOptions.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            setSelectedMonth(opt.value);
+                            setIsMonthDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                            selectedMonth === opt.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                          )}
+                        >
+                          <span>{opt.label}</span>
+                          {selectedMonth === opt.value && <Check className="size-3.5 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <button 
+                onClick={() => setViewMode('dashboard')} 
+                className="px-4 py-2 hover:bg-slate-100 rounded-lg transition-colors flex font-bold text-sm items-center gap-2 text-slate-500 hover:text-slate-800"
+              >
+                <ChevronLeft className="size-4 text-slate-400" /> Kembali
+              </button>
+            </div>
           </div>
 
           <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0 shadow-sm z-10">
@@ -733,8 +893,49 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
               <ChevronRight className="size-3" />
               <span className="text-primary font-bold">Monitoring Tugas</span>
             </nav>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Monitoring Tugas Survei</h2>
-            <p className="text-slate-500 font-medium max-w-2xl">Kelola antrean tugas, pantau progres relawan, dan verifikasi hasil survei lapangan.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Monitoring Tugas Survei</h2>
+                <p className="text-slate-500 font-medium max-w-2xl">Kelola antrean tugas, pantau progres relawan, dan verifikasi hasil survei lapangan.</p>
+              </div>
+              <div className="relative shrink-0 self-start md:self-center">
+                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Periode:</span>
+                  <button 
+                    onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg transition-all border text-slate-700 bg-slate-50 hover:bg-slate-100 border-slate-200 shadow-sm"
+                  >
+                    <Calendar className="size-4 text-primary" />
+                    <span>{activeMonthLabel}</span>
+                    <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", isMonthDropdownOpen && "rotate-180")} />
+                  </button>
+                </div>
+
+                {isMonthDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setIsMonthDropdownOpen(false)} />
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-64 overflow-y-auto custom-scrollbar">
+                      {monthOptions.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            setSelectedMonth(opt.value);
+                            setIsMonthDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                            selectedMonth === opt.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                          )}
+                        >
+                          <span>{opt.label}</span>
+                          {selectedMonth === opt.value && <Check className="size-3.5 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </motion.div>
 
           {/* Stats Cards */}
@@ -1000,50 +1201,30 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                         <div className="space-y-4">
                           <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 flex items-center gap-2"><Home className="size-3.5" /> Rincian Lapangan</h4>
                           <div className="space-y-2">
-                            {(selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok')) ? (
-                              <>
-                                <SurveyDetailSection title="A. Profil Lembaga" items={[
-                                  { label: 'Berbadan Hukum', value: selectedTask.survey_data?.berbadanHukum || '-' },
-                                  { label: 'Usia Berdiri', value: selectedTask.survey_data?.usiaBerdiri || '-' },
-                                  { label: 'Bidang Garapan', value: selectedTask.survey_data?.bidangGarapan || '-' },
-                                  { label: 'Daerah Jangkauan', value: selectedTask.survey_data?.daerahJangkauan || '-' },
-                                ]} />
-                                <SurveyDetailSection title="B. Kelayakan" items={[
-                                  { label: 'Jenis Kegiatan', value: selectedTask.survey_data?.layakJenisKegiatan || '-' },
-                                  { label: 'Jumlah Penerima Manfaat', value: selectedTask.survey_data?.layakJumlahPenerima || '-' },
-                                ]} />
-                              </>
-                            ) : (
-                                <>
-                                {[
-                                  { code: 'A', title: 'A. Kondisi Rumah' },
-                                  { code: 'B', title: 'B. Kondisi Ekonomi' },
-                                  { code: 'C', title: 'C. Fisik & Lainnya' }
-                                ].map(sec => {
-                                  const secQuestions = (dynamicQuestions.length > 0 ? dynamicQuestions : [
-                                    { id: 'luasBangunan', section: 'A', label: 'Luas Bangunan' },
-                                    { id: 'jenisLantai', section: 'A', label: 'Jenis Lantai' },
-                                    { id: 'jenisDinding', section: 'A', label: 'Jenis Dinding' },
-                                    { id: 'statusTempatTinggal', section: 'A', label: 'Status Tinggal' },
-                                    { id: 'pekerjaanKepala', section: 'B', label: 'Pekerjaan KRT' },
-                                    { id: 'frekuensiMakan', section: 'B', label: 'Frekuensi Makan' },
-                                    { id: 'kemampuanLauk', section: 'B', label: 'Kemampuan Lauk' },
-                                    { id: 'keadaanFisik', section: 'C', label: 'Keadaan Fisik' },
-                                    { id: 'hutang', section: 'C', label: 'Kondisi Hutang' },
-                                    { id: 'kesehatan', section: 'C', label: 'BPJS/Kesehatan' }
-                                  ]).filter(q => q.section === sec.code);
-
-                                  const items = secQuestions.map(q => ({
-                                    label: q.label,
-                                    value: getLabelForScore(q.id, (selectedTask.survey_data as any)?.[q.id], dynamicQuestions)
-                                  }));
-
-                                  return (
-                                    <SurveyDetailSection key={sec.code} title={sec.title} items={items} />
-                                  );
-                                })}
-                              </>
-                            )}
+                            {(() => {
+                              const sectionCodes = Array.from(new Set(dynamicQuestions.map(q => q.section))).sort();
+                              if (sectionCodes.length === 0) {
+                                return (
+                                  <div className="text-xs font-semibold text-slate-405 italic py-2">
+                                    Memuat data rincian...
+                                  </div>
+                                );
+                              }
+                              return sectionCodes.map(secCode => {
+                                const sectionQuestions = dynamicQuestions.filter(q => q.section === secCode);
+                                if (sectionQuestions.length === 0) return null;
+                                
+                                const sectionTitle = sectionQuestions[0].sectionTitle || `Bagian ${secCode}`;
+                                const items = sectionQuestions.map(q => ({
+                                  label: q.label,
+                                  value: getLabelForScore(q.id, (selectedTask.survey_data as any)?.[q.id], dynamicQuestions)
+                                }));
+                                
+                                return (
+                                  <SurveyDetailSection key={secCode} title={sectionTitle} items={items} />
+                                );
+                              });
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1268,28 +1449,187 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                           Identifikasi & Rekomendasi Kepala Bidang
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Asnaf</label>
-                            <select 
-                              value={selectedAsnaf} 
-                              onChange={(e) => setSelectedAsnaf(e.target.value)}
-                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
+                          <div className="space-y-2 relative">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Pilih Asnaf</label>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setIsAsnafDropdownOpen(!isAsnafDropdownOpen);
+                                setIsRekomendasiDropdownOpen(false);
+                                setIsAlurDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100/50 transition-all outline-none"
                             >
-                              {asnafOptions.map(asnaf => <option key={asnaf} value={asnaf}>{asnaf}</option>)}
-                            </select>
+                              <span>{selectedAsnaf || 'Pilih Asnaf'}</span>
+                              <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isAsnafDropdownOpen && "rotate-180")} />
+                            </button>
+
+                            {isAsnafDropdownOpen && (
+                              <>
+                                <div className="fixed inset-0 z-30" onClick={() => setIsAsnafDropdownOpen(false)} />
+                                <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 max-h-56 overflow-y-auto custom-scrollbar">
+                                  {asnafOptions.map(asnaf => (
+                                    <button
+                                      key={asnaf}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedAsnaf(asnaf);
+                                        setIsAsnafDropdownOpen(false);
+                                      }}
+                                      className={cn(
+                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                        selectedAsnaf === asnaf ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                      )}
+                                    >
+                                      <span>{asnaf}</span>
+                                      {selectedAsnaf === asnaf && <Check className="size-4 text-primary" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rekomendasi Dana</label>
-                            <select 
-                              value={rekomendasiKabag} 
-                              onChange={(e) => setRekomendasiKabag(e.target.value as any)}
-                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
+                          <div className="space-y-2 relative">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Rekomendasi Dana</label>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setIsRekomendasiDropdownOpen(!isRekomendasiDropdownOpen);
+                                setIsAsnafDropdownOpen(false);
+                                setIsAlurDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100/50 transition-all outline-none"
                             >
-                              <option value="Zakat">Zakat</option>
-                              <option value="Infak Tidak Terikat">Infak Tidak Terikat</option>
-                              <option value="Infak Terikat">Infak Terikat</option>
-                            </select>
+                              <span>{rekomendasiKabag || 'Pilih Rekomendasi'}</span>
+                              <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isRekomendasiDropdownOpen && "rotate-180")} />
+                            </button>
+
+                            {isRekomendasiDropdownOpen && (
+                              <>
+                                <div className="fixed inset-0 z-30" onClick={() => setIsRekomendasiDropdownOpen(false)} />
+                                <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 overflow-y-auto custom-scrollbar">
+                                  {['Zakat', 'Infak Tidak Terikat', 'Infak Terikat'].map(opt => (
+                                    <button
+                                      key={opt}
+                                      type="button"
+                                      onClick={() => {
+                                        setRekomendasiKabag(opt as any);
+                                        setIsRekomendasiDropdownOpen(false);
+                                      }}
+                                      className={cn(
+                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                        rekomendasiKabag === opt ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                      )}
+                                    >
+                                      <span>{opt}</span>
+                                      {rekomendasiKabag === opt && <Check className="size-4 text-primary" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
+                          {programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif' && (
+                            <div className="col-span-full space-y-2 bg-amber-50/50 p-4 rounded-xl border border-amber-200/60 my-2">
+                              <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block">
+                                Perubahan Alur Bantuan (Produktif → Konsumtif)
+                              </label>
+                              <p className="text-xs text-slate-600 leading-relaxed">
+                                Jika mustahik dinilai tidak sanggup menjalankan program produktif setelah survei, Anda dapat mengalihkan bantuannya ke program konsumtif di bawah ini.
+                              </p>
+                              <div className="relative">
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    setIsAlurDropdownOpen(!isAlurDropdownOpen);
+                                    setIsAsnafDropdownOpen(false);
+                                    setIsRekomendasiDropdownOpen(false);
+                                  }}
+                                  className="w-full flex items-center justify-between p-2.5 bg-white border border-amber-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all outline-none"
+                                >
+                                  <span className="truncate max-w-[90%]">
+                                    {changedProgramCode 
+                                      ? (() => {
+                                          const selectedProg = consumptivePrograms.find(p => p.code === changedProgramCode);
+                                          return selectedProg 
+                                            ? `[${selectedProg.pilarName}] ${selectedProg.name} (${selectedProg.code})` 
+                                            : changedProgramCode;
+                                        })()
+                                      : `-- Tetap Gunakan Bantuan Produktif (${selectedTask.jenisPermohonan}) --`
+                                    }
+                                  </span>
+                                  <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isAlurDropdownOpen && "rotate-180")} />
+                                </button>
+
+                                {isAlurDropdownOpen && (
+                                  <>
+                                    <div className="fixed inset-0 z-30" onClick={() => setIsAlurDropdownOpen(false)} />
+                                    <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
+                                      <div className="p-1 border-b border-slate-100 mb-1">
+                                        <input
+                                          type="text"
+                                          placeholder="Cari program konsumtif..."
+                                          value={alurSearchQuery}
+                                          onChange={(e) => setAlurSearchQuery(e.target.value)}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-700"
+                                        />
+                                      </div>
+                                      <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setChangedProgramCode('');
+                                            setIsAlurDropdownOpen(false);
+                                            setAlurSearchQuery('');
+                                          }}
+                                          className={cn(
+                                            "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                            !changedProgramCode ? "bg-amber-50 text-amber-800 font-bold" : "text-slate-700"
+                                          )}
+                                        >
+                                          <span className="truncate">-- Tetap Gunakan Bantuan Produktif ({selectedTask.jenisPermohonan}) --</span>
+                                          {!changedProgramCode && <Check className="size-4 text-amber-700 shrink-0" />}
+                                        </button>
+                                        {consumptivePrograms
+                                          .filter(prog => 
+                                            prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                            prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                            prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
+                                          )
+                                          .map(prog => (
+                                            <button
+                                              key={prog.code}
+                                              type="button"
+                                              onClick={() => {
+                                                setChangedProgramCode(prog.code);
+                                                setIsAlurDropdownOpen(false);
+                                                setAlurSearchQuery('');
+                                              }}
+                                              className={cn(
+                                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                                changedProgramCode === prog.code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                              )}
+                                            >
+                                              <span className="truncate">[{prog.pilarName}] {prog.name} ({prog.code})</span>
+                                              {changedProgramCode === prog.code && <Check className="size-4 text-primary shrink-0" />}
+                                            </button>
+                                          ))}
+                                        {consumptivePrograms
+                                          .filter(prog => 
+                                            prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                            prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                            prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
+                                          ).length === 0 && (
+                                            <p className="text-center py-3 text-[10px] text-slate-400 italic font-medium">Program tidak ditemukan</p>
+                                          )}
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           <div className="col-span-full space-y-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hasil Identifikasi</label>
                             <textarea 
@@ -1304,75 +1644,6 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     )
                   )}
                 </div>
-
-                {/* RKAT & Kas Info */}
-                {loadingAvailability ? (
-                  <div className="space-y-4 pt-6 border-t border-slate-100 flex flex-col items-center justify-center py-6">
-                    <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                    <p className="text-xs text-slate-500 font-bold">Memeriksa Plafond RKAT & Saldo Kas Riil...</p>
-                  </div>
-                ) : availability ? (
-                  <div className="space-y-4 pt-6 border-t border-slate-100">
-                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
-                      <span className="p-1 bg-primary text-white rounded text-[10px]">INFO</span>
-                      Informasi RKAT &amp; Saldo Kas (Read-Only)
-                    </h4>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Saldo Kas */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                          Saldo Kas Riil ({(() => {
-                            const kasType = availability.sumber_dana_yang_dipakai || 'ZAKAT';
-                            return kasType === 'ZAKAT' ? 'Zakat' :
-                                   kasType === 'INFAK_TIDAK_TERIKAT' ? 'Infak Tidak Terikat' :
-                                   kasType === 'INFAK_TERIKAT' ? 'Infak Terikat' : kasType;
-                          })()})
-                        </p>
-                        {(() => {
-                          const kasType = availability.sumber_dana_yang_dipakai || 'ZAKAT';
-                          const balance = kasType === 'ZAKAT' ? (availability.kas_riil?.detail?.zakat || 0) :
-                                          kasType === 'INFAK_TIDAK_TERIKAT' ? (availability.kas_riil?.detail?.istt || 0) :
-                                          kasType === 'INFAK_TERIKAT' ? (availability.kas_riil?.detail?.ist || 0) : 0;
-                          
-                          return (
-                            <div className="space-y-1">
-                              <p className="text-lg font-black text-emerald-600">Rp {balance.toLocaleString('id-ID')}</p>
-                              <p className="text-[10px] text-slate-400">Total nominal diajukan: <span className="font-extrabold text-slate-700">Rp {(selectedTask.nominal || 0).toLocaleString('id-ID')}</span></p>
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* RKAT */}
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Plafon RKAT Terkait</p>
-                        {(() => {
-                          const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedTask.rkatActivityId);
-                          if (!act) {
-                            return (
-                              <p className="text-xs text-slate-500 font-semibold italic">Tidak ada kegiatan RKAT yang dikaitkan.</p>
-                            );
-                          }
-
-                          const isEnough = act.sisa_pagu >= (selectedTask.nominal || 0);
-
-                          return (
-                            <div className="space-y-1">
-                              <p className="text-xs font-bold text-slate-800 line-clamp-1">"{act.name}"</p>
-                              <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100">
-                                <span className="text-slate-400">Sisa Pagu:</span>
-                                <span className={cn("font-extrabold", isEnough ? "text-emerald-600" : "text-rose-600")}>
-                                  Rp {act.sisa_pagu.toLocaleString('id-ID')}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
@@ -1385,7 +1656,19 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                       (isStafDistribusi && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif')) ? (
                       <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Simpan & Approve → Kep. Pelaksana</button>
                     ) : (!isKabagPendistribusian && !isKabagPendayagunaan && !isStafDistribusi) ? (
-                      <button onClick={() => { handleUpdateStatus(selectedTask.id, 'Review Kepala Pelaksana'); setIsDetailModalOpen(false); }} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Approve → Kep. Pelaksana</button>
+                      <button 
+                        onClick={() => { 
+                          if (!selectedTask.asnaf || !selectedTask.hasil_identifikasi?.trim()) {
+                            alert('Gagal: Tugas Survei tidak dapat disetujui tanpa melakukan identifikasi asnaf dan mengisi hasil identifikasi.');
+                            return;
+                          }
+                          handleUpdateStatus(selectedTask.id, 'Review Kepala Pelaksana'); 
+                          setIsDetailModalOpen(false); 
+                        }} 
+                        className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all"
+                      >
+                        Approve → Kep. Pelaksana
+                      </button>
                     ) : null}
                   </>
                 )}
@@ -1522,7 +1805,7 @@ function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): 
       if (question.type === 'checkbox') {
         if (Array.isArray(score)) {
           const selectedLabels = score.map((val: any) => {
-            const option = question.options?.find((opt: any) => opt.val === val);
+            const option = question.options?.find((opt: any) => opt.val === val || opt.val === Number(val) || opt.label === val);
             return option ? option.label : val;
           });
           return selectedLabels.join(', ') || '-';
@@ -1531,7 +1814,7 @@ function getLabelForScore(field: string, score: any, dynamicQuestions?: any[]): 
         return String(score);
       } else {
         if (question.options) {
-          const option = question.options.find((opt: any) => opt.val === score);
+          const option = question.options.find((opt: any) => opt.val === score || opt.val === Number(score) || opt.label === score);
           if (option) return option.label;
         }
       }

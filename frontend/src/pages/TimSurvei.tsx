@@ -61,29 +61,85 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
   const [pilars, setPilars] = useState<any[]>([]);
 
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  const defaultLembagaSurveyTemplateFallback = [
+    { id: 'berbadanHukum', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Berbadan Hukum', options: [{ val: 3, label: 'Yayasan' }, { val: 2, label: 'Pemerintah' }, { val: 1, label: 'Tidak Berbadan Hukum' }] },
+    { id: 'usiaBerdiri', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Usia Berdiri', options: [{ val: 5, label: '8-10 th' }, { val: 4, label: '6-8 th' }, { val: 3, label: '4-6 th' }, { val: 2, label: '2-4 th' }, { val: 1, label: '0-2 th' }] },
+    { id: 'bidangGarapan', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Bidang Garapan', options: [{ val: 5, label: 'Pendidikan' }, { val: 4, label: 'Sosial' }, { val: 3, label: 'Jasa' }, { val: 2, label: 'Dakwah' }, { val: 1, label: 'Lainnya' }] },
+    { id: 'daerahJangkauan', section: 'A', sectionTitle: 'Bagian A: Profil Lembaga', label: 'Daerah Jangkauan', options: [{ val: 5, label: 'Nasional' }, { val: 4, label: 'Provinsi' }, { val: 3, label: 'Kabupaten/Kota' }, { val: 2, label: 'Kecamatan' }, { val: 1, label: 'Kelurahan' }] },
+    { id: 'layakJenisKegiatan', section: 'B', sectionTitle: 'Bagian B: Kelayakan', label: 'Kelayakan Jenis Kegiatan', options: [{ val: 2, label: 'Layak' }, { val: 1, label: 'Tidak Layak' }] },
+    { id: 'layakJumlahPenerima', section: 'B', sectionTitle: 'Bagian B: Kelayakan', label: 'Kelayakan Jumlah Penerima Manfaat', options: [{ val: 2, label: 'Layak' }, { val: 1, label: 'Tidak Layak' }] }
+  ];
+
   React.useEffect(() => {
     const fetchParams = async () => {
       try {
-        const [bpsRes, templateRes, pilarsRes] = await Promise.all([
+        const [bpsRes, pilarsRes] = await Promise.all([
           axios.get('/api/parameters/bps_garis_kemiskinan'),
-          axios.get('/api/parameters/survey_template_individu'),
           axios.get('/api/pilars')
         ]);
         if (bpsRes.data && bpsRes.data.value) {
           setBpsPovertyLine(parseInt(bpsRes.data.value));
         }
-        if (templateRes.data && templateRes.data.value) {
-          setDynamicQuestions(JSON.parse(templateRes.data.value));
-        }
         if (pilarsRes.data) {
           setPilars(pilarsRes.data);
         }
       } catch (err) {
-        console.error('Failed to fetch BPS poverty line, survey template, or pilars:', err);
+        console.error('Failed to fetch BPS poverty line or pilars:', err);
       }
     };
     fetchParams();
   }, []);
+
+  React.useEffect(() => {
+    if (!selectedTask) {
+      setDynamicQuestions([]);
+      return;
+    }
+    
+    // Determine the template key dynamically
+    const getTemplateKey = () => {
+      const isLembaga = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
+      if (isLembaga) return 'survey_template_lembaga';
+      
+      const code = selectedTask.programCode;
+      if (!code) return 'survey_template_individu';
+      const cleanCode = code.trim();
+      let tipe = 'Konsumtif';
+      if (programTipeMap[cleanCode]) {
+        tipe = programTipeMap[cleanCode];
+      } else {
+        const parts = cleanCode.split('.');
+        if (parts.length > 2) {
+          const parentCode = `${parts[0]}.${parts[1]}`;
+          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
+        }
+      }
+      
+      if (tipe === 'Produktif') return 'survey_template_perorangan_produktif';
+      return 'survey_template_individu';
+    };
+
+    const templateKey = getTemplateKey();
+    axios.get(`/api/parameters/${templateKey}`)
+      .then(res => {
+        if (res.data && res.data.value) {
+          setDynamicQuestions(JSON.parse(res.data.value));
+        }
+      })
+      .catch(err => {
+        console.error(`Failed to fetch survey template (${templateKey}):`, err);
+      });
+  }, [selectedTask, programTipeMap]);
 
   // Default fallback questions in case API is not loaded yet
   const defaultSurveyTemplateFallback = [
@@ -193,17 +249,6 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     return 'Rendah';
   }, [totalScore]);
 
-
-
-  const programTipeMap = useMemo(() => {
-    const map: { [code: string]: string } = {};
-    (pilars || []).forEach(pilar => {
-      (pilar.programs || []).forEach((prog: any) => {
-        map[prog.code] = prog.tipe || 'Konsumtif';
-      });
-    });
-    return map;
-  }, [pilars]);
 
   const getProgramTipe = (task: ProposalMemo) => {
     const code = task.programCode;
@@ -689,106 +734,22 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
 
           {isLembaga ? (
             <div className="space-y-6">
+              {/* BAGIAN A: PROFIL LEMBAGA */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Profil Pemohon (Lembaga)</h4>
-                
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Berbadan Hukum</label>
-                  <select 
-                    value={surveyForm.berbadanHukum} 
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, berbadanHukum: e.target.value }))}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  >
-                    <option value="">Pilih Kondisi...</option>
-                    <option value="Yayasan">Yayasan</option>
-                    <option value="Pemerintah">Pemerintah</option>
-                    <option value="Tidak Berbadan Hukum">Tidak Berbadan Hukum</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Usia Berdiri</label>
-                  <select 
-                    value={surveyForm.usiaBerdiri} 
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, usiaBerdiri: e.target.value }))}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  >
-                    <option value="">Pilih Usia Berdiri...</option>
-                    <option value="8-10 th">8-10 th</option>
-                    <option value="6-8 th">6-8 th</option>
-                    <option value="4-6 th">4-6 th</option>
-                    <option value="2-4 th">2-4 th</option>
-                    <option value="0-2 th">0-2 th</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Bidang Garapan</label>
-                  <select 
-                    value={surveyForm.bidangGarapan} 
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, bidangGarapan: e.target.value }))}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  >
-                    <option value="">Pilih Bidang Garapan...</option>
-                    <option value="Pendidikan">Pendidikan</option>
-                    <option value="Sosial">Sosial</option>
-                    <option value="Jasa">Jasa</option>
-                    <option value="Dakwah">Dakwah</option>
-                    <option value="Lainnya">Lainnya</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Daerah Jangkauan</label>
-                  <select 
-                    value={surveyForm.daerahJangkauan} 
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, daerahJangkauan: e.target.value }))}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  >
-                    <option value="">Pilih Daerah Jangkauan...</option>
-                    <option value="Nasional">Nasional</option>
-                    <option value="Provinsi">Provinsi</option>
-                    <option value="Kabupaten/Kota">Kabupaten/Kota</option>
-                    <option value="Kecamatan">Kecamatan</option>
-                    <option value="Kelurahan">Kelurahan</option>
-                  </select>
-                </div>
+                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian A: Profil Lembaga</h4>
+                {(dynamicQuestions.length > 0 ? dynamicQuestions : defaultLembagaSurveyTemplateFallback)
+                  .filter(q => q.section === 'A')
+                  .map(q => renderQuestionField(q, isEditMode))
+                }
               </div>
 
+              {/* BAGIAN B: KELAYAKAN */}
               <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Jenis Bantuan & Kelayakan</h4>
-                
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Kelayakan Jenis Kegiatan</label>
-                  <select 
-                    value={surveyForm.layakJenisKegiatan} 
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, layakJenisKegiatan: e.target.value }))}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  >
-                    <option value="">Pilih Kelayakan...</option>
-                    <option value="Layak">Layak</option>
-                    <option value="Tidak Layak">Tidak Layak</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Kelayakan Jumlah Penerima Manfaat</label>
-                  <select 
-                    value={surveyForm.layakJumlahPenerima} 
-                    onChange={(e) => setSurveyForm(prev => ({ ...prev, layakJumlahPenerima: e.target.value }))}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  >
-                    <option value="">Pilih Kelayakan...</option>
-                    <option value="Layak">Layak</option>
-                    <option value="Tidak Layak">Tidak Layak</option>
-                  </select>
-                </div>
+                <h4 className="text-lg font-black text-emerald-700 border-b pb-2">Bagian B: Kelayakan</h4>
+                {(dynamicQuestions.length > 0 ? dynamicQuestions : defaultLembagaSurveyTemplateFallback)
+                  .filter(q => q.section === 'B')
+                  .map(q => renderQuestionField(q, isEditMode))
+                }
 
                 <div className="space-y-3 pt-2">
                   <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Catatan Lapangan Tambahan (Opsional)</label>

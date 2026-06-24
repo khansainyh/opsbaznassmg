@@ -28,6 +28,7 @@ export default function ParameterSistem() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'utama' | 'survei'>('utama');
+  const [selectedSurveyType, setSelectedSurveyType] = useState<'perorangan_konsumtif' | 'perorangan_produktif' | 'lembaga'>('perorangan_konsumtif');
   const [surveyTemplate, setSurveyTemplate] = useState<any[]>([]);
 
   // Form values state mapped by parameter key
@@ -38,6 +39,25 @@ export default function ParameterSistem() {
     bps_garis_kemiskinan: '709000',
     upz_hak_salur_persentase: '30'
   });
+
+  // Load active template whenever survey type selection or loaded formValues change
+  useEffect(() => {
+    const activeKey = selectedSurveyType === 'perorangan_konsumtif' 
+      ? 'survey_template_individu' 
+      : selectedSurveyType === 'perorangan_produktif' 
+        ? 'survey_template_perorangan_produktif' 
+        : 'survey_template_lembaga';
+    
+    if (formValues[activeKey]) {
+      try {
+        setSurveyTemplate(JSON.parse(formValues[activeKey]));
+      } catch (e) {
+        console.error('Failed to parse survey template JSON', e);
+      }
+    } else {
+      setSurveyTemplate([]);
+    }
+  }, [selectedSurveyType, formValues]);
 
   // Fetch parameters from backend API
   const fetchParameters = async () => {
@@ -50,13 +70,6 @@ export default function ParameterSistem() {
       const valuesMap: Record<string, string> = {};
       res.data.forEach((p: ParameterItem) => {
         valuesMap[p.key] = p.value;
-        if (p.key === 'survey_template_individu') {
-          try {
-            setSurveyTemplate(JSON.parse(p.value));
-          } catch (e) {
-            console.error('Failed to parse survey template JSON', e);
-          }
-        }
       });
       setFormValues(prev => ({ ...prev, ...valuesMap }));
     } catch (error) {
@@ -151,9 +164,10 @@ export default function ParameterSistem() {
     e.preventDefault();
     setSaving(true);
     try {
-      // Exclude survey_template_individu as it is saved separately
+      // Exclude survey templates as they are saved separately
+      const excludedKeys = ['survey_template_individu', 'survey_template_perorangan_produktif', 'survey_template_lembaga'];
       const updatePromises = Object.entries(formValues)
-        .filter(([key]) => key !== 'survey_template_individu')
+        .filter(([key]) => !excludedKeys.includes(key))
         .map(([key, value]) => {
           const matchingParam = params.find(p => p.key === key);
           return axios.post('/api/parameters', {
@@ -177,11 +191,24 @@ export default function ParameterSistem() {
   const handleSaveSurveyTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    
+    const activeKey = selectedSurveyType === 'perorangan_konsumtif' 
+      ? 'survey_template_individu' 
+      : selectedSurveyType === 'perorangan_produktif' 
+        ? 'survey_template_perorangan_produktif' 
+        : 'survey_template_lembaga';
+    
+    const activeDescription = selectedSurveyType === 'perorangan_konsumtif' 
+      ? 'Template Form Asesmen Individu / Perorangan Konsumtif (JSON)' 
+      : selectedSurveyType === 'perorangan_produktif' 
+        ? 'Template Form Asesmen Perorangan Produktif (JSON)' 
+        : 'Template Form Asesmen Lembaga (JSON)';
+
     try {
       await axios.post('/api/parameters', {
-        key: 'survey_template_individu',
+        key: activeKey,
         value: JSON.stringify(surveyTemplate),
-        description: 'Template Form Asesmen Individu (JSON)'
+        description: activeDescription
       });
       showToast('Format formulir survei berhasil diperbarui!', 'success');
       fetchParameters();
@@ -450,21 +477,51 @@ export default function ParameterSistem() {
 
         </form>
       ) : (
-        <form onSubmit={handleSaveSurveyTemplate} className="space-y-8 max-w-4xl">
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs font-semibold text-amber-850 flex items-start gap-2.5">
-            <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-amber-900 mb-0.5">Perhatian Pengubahan Format Survei:</p>
-              <p>Mengubah format atau opsi di sini akan langsung mempengaruhi tampilan pengisian formulir survei oleh Relawan Lapangan. Nilai skor pada opsi digunakan untuk menentukan tingkat urgensi mustahik secara otomatis.</p>
-            </div>
+        <div className="space-y-8 max-w-4xl">
+          {/* Sub-tabs for Survey Types */}
+          <div className="flex bg-slate-100 p-1.5 rounded-xl w-fit gap-1 border border-slate-200">
+            {[
+              { id: 'perorangan_konsumtif', name: 'Perorangan Konsumtif' },
+              { id: 'perorangan_produktif', name: 'Perorangan Produktif' },
+              { id: 'lembaga', name: 'Lembaga' }
+            ].map(type => (
+              <button
+                key={type.id}
+                type="button"
+                onClick={() => setSelectedSurveyType(type.id as any)}
+                className={cn(
+                  "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+                  selectedSurveyType === type.id
+                    ? "bg-white text-primary shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                )}
+              >
+                {type.name}
+              </button>
+            ))}
           </div>
 
-          <div className="space-y-8">
-            {[
-              { code: 'A', title: 'Bagian A: Kondisi Rumah' },
-              { code: 'B', title: 'Bagian B: Kondisi Ekonomi' },
-              { code: 'C', title: 'Bagian C: Kondisi Fisik & Tanggungan' }
-            ].map(section => {
+          <form onSubmit={handleSaveSurveyTemplate} className="space-y-8">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs font-semibold text-amber-850 flex items-start gap-2.5">
+              <AlertCircle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-900 mb-0.5">Perhatian Pengubahan Format Survei:</p>
+                <p>Mengubah format atau opsi di sini akan langsung mempengaruhi tampilan pengisian formulir survei oleh Relawan Lapangan. Nilai skor pada opsi digunakan untuk menentukan tingkat urgensi mustahik secara otomatis.</p>
+              </div>
+            </div>
+
+            <div className="space-y-8">
+              {(selectedSurveyType === 'lembaga'
+                ? [
+                    { code: 'A', title: 'Bagian A: Profil Lembaga' },
+                    { code: 'B', title: 'Bagian B: Kelayakan' }
+                  ]
+                : [
+                    { code: 'A', title: 'Bagian A: Kondisi Rumah' },
+                    { code: 'B', title: 'Bagian B: Kondisi Ekonomi' },
+                    { code: 'C', title: 'Bagian C: Kondisi Fisik & Tanggungan' }
+                  ]
+              ).map(section => {
               const sectionQuestions = surveyTemplate.filter(q => q.section === section.code);
               
               return (
@@ -650,6 +707,7 @@ export default function ParameterSistem() {
             </button>
           </motion.div>
         </form>
+        </div>
       )}
 
       {/* Toast Notification */}
