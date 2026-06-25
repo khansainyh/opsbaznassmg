@@ -68,10 +68,20 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
     // Process all in a transaction
     const results = await prisma.$transaction(async (tx) => {
+      const paramRkatZakatNo = await tx.systemParameter.findUnique({ where: { key: 'rkat_pengumpulan_no_zakat' } });
+      const paramRkatInfakNo = await tx.systemParameter.findUnique({ where: { key: 'rkat_pengumpulan_no_infak' } });
+      const paramCoaZakat = await tx.systemParameter.findUnique({ where: { key: 'coa_penerimaan_zakat' } });
+      const paramCoaInfak = await tx.systemParameter.findUnique({ where: { key: 'coa_penerimaan_infak' } });
+
+      const rkatZakatNo = paramRkatZakatNo?.value || '3';
+      const rkatInfakNo = paramRkatInfakNo?.value || '8';
+      const coaZakatCode = paramCoaZakat?.value || '41020201';
+      const coaInfakCode = paramCoaInfak?.value || '42020101';
+
       const rkatZakat = await tx.rkatPengumpulan.findFirst({
         where: {
           OR: [
-            { no: "3" },
+            { no: rkatZakatNo },
             { nama_program: { contains: "Zakat Maal Perorangan via UPZ Pengumpulan" } }
           ]
         }
@@ -79,7 +89,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
       const rkatInfak = await tx.rkatPengumpulan.findFirst({
         where: {
           OR: [
-            { no: "8" },
+            { no: rkatInfakNo },
             { nama_program: { contains: "Infak/Sedekah Tidak Terikat via UPZ Pengumpulan" } }
           ]
         }
@@ -147,10 +157,10 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         const isZakat = nominalVal >= 100000;
         const targetRkat = isZakat ? rkatZakat : rkatInfak;
         if (!targetRkat) {
-          throw new Error(`RKAT target untuk ${isZakat ? 'Zakat (no. 3)' : 'Infak (no. 8)'} tidak ditemukan di database.`);
+          throw new Error(`RKAT target untuk ${isZakat ? `Zakat (no. ${rkatZakatNo})` : `Infak (no. ${rkatInfakNo})`} tidak ditemukan di database.`);
         }
         const rkat_id = targetRkat.id;
-        const creditCoaCode = isZakat ? '41020201' : '42020101';
+        const creditCoaCode = isZakat ? coaZakatCode : coaInfakCode;
 
         // Ensure credit COA exists
         const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });

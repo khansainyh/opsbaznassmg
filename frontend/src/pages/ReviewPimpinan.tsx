@@ -297,7 +297,9 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
           <span className="text-primary font-bold">Persetujuan Pimpinan</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Persetujuan Pimpinan</h2>
-        <p className="text-slate-500 font-medium">Otorisasi akhir oleh Ketua atau Wakil Ketua untuk realisasi bantuan.</p>
+        <p className="text-slate-500 font-medium">
+          Layanan otorisasi dan persetujuan akhir oleh Ketua atau Wakil Ketua atas permohonan bantuan serta surat masuk. Setelah disetujui, proposal diteruskan ke tahap penentuan nominal dan surat ditandai selesai.
+        </p>
       </motion.div>
 
       {/* Stats - 3 Cards like PersetujuanKepala */}

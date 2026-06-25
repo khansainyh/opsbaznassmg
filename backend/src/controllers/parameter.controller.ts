@@ -32,18 +32,38 @@ const defaultLembagaSurveyTemplate = JSON.stringify([
 ]);
 
 const defaultParams = [
-  { key: 'hak_amil_zakat_maal', value: '12.5', description: 'Hak Amil Zakat Maal (%)' },
-  { key: 'hak_amil_infak_sedekah', value: '20.0', description: 'Hak Amil Infak/Sedekah (%)' },
-  { key: 'hak_amil_zakat_fitrah', value: '0', description: 'Hak Amil Zakat Fitrah (UPZ) (%)' },
   { key: 'bps_garis_kemiskinan', value: '709000', description: 'Garis Kemiskinan BPS (Rupiah per Kapita)' },
   { key: 'upz_hak_salur_persentase', value: '30', description: 'Persentase Hak Salur UPZ (%)' },
+  { key: 'upz_hak_salur_pengumpulan', value: '30', description: 'Persentase Hak Salur UPZ Pengumpulan (%)' },
+  { key: 'upz_hak_salur_pembantuan', value: '70', description: 'Persentase Hak Salur UPZ Pembantuan Pendistribusian & Pendayagunaan (%)' },
   { key: 'survey_template_individu', value: defaultSurveyTemplate, description: 'Template Form Asesmen Individu / Perorangan Konsumtif (JSON)' },
   { key: 'survey_template_perorangan_produktif', value: defaultSurveyTemplate, description: 'Template Form Asesmen Perorangan Produktif (JSON)' },
-  { key: 'survey_template_lembaga', value: defaultLembagaSurveyTemplate, description: 'Template Form Asesmen Lembaga (JSON)' }
+  { key: 'survey_template_lembaga', value: defaultLembagaSurveyTemplate, description: 'Template Form Asesmen Lembaga (JSON)' },
+  { key: 'rkat_pengumpulan_no_zakat', value: '3', description: 'Nomor Urut RKAT Zakat Maal UPZ Pengumpulan' },
+  { key: 'rkat_pengumpulan_no_infak', value: '8', description: 'Nomor Urut RKAT Infak/Sedekah UPZ Pengumpulan' },
+  { key: 'coa_penerimaan_zakat', value: '41020201', description: 'Kode Akun (COA) Kredit Zakat Maal UPZ Pengumpulan' },
+  { key: 'coa_penerimaan_infak', value: '42020101', description: 'Kode Akun (COA) Kredit Infak/Sedekah UPZ Pengumpulan' }
 ];
 
 export const getParameters = async (req: Request, res: Response) => {
   try {
+    const deprecatedKeys = [
+      'hak_amil_zakat_maal',
+      'hak_amil_infak_sedekah',
+      'hak_amil_zakat_fitrah',
+      'coa_debit_beban_amil_zakat',
+      'coa_kredit_pendapatan_amil_zakat',
+      'coa_kredit_utang_upz',
+      'hak_amil_zakat_upz_pengumpulan',
+      'hak_amil_upz_bagian',
+      'hak_amil_baznas_bagian'
+    ];
+    await prisma.systemParameter.deleteMany({
+      where: {
+        key: { in: deprecatedKeys }
+      }
+    });
+
     let params = await prisma.systemParameter.findMany();
     
     // Check if each default parameter exists, otherwise insert it

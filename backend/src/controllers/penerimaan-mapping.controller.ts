@@ -1,0 +1,132 @@
+import { Request, Response } from 'express';
+import prisma from '../utils/prisma';
+import { Prisma } from '@prisma/client';
+
+const defaultMappings = [
+  {
+    kategori: 'Zakat Maal',
+    persentase_amil: new Prisma.Decimal(12.50),
+    persentase_upz: new Prisma.Decimal(5.00),
+    persentase_baznas: new Prisma.Decimal(7.50),
+    persentase_salur_pembantuan: new Prisma.Decimal(70.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  },
+  {
+    kategori: 'Zakat Fitrah',
+    persentase_amil: new Prisma.Decimal(0.00),
+    persentase_upz: new Prisma.Decimal(0.00),
+    persentase_baznas: new Prisma.Decimal(0.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(0.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  },
+  {
+    kategori: 'Infak',
+    persentase_amil: new Prisma.Decimal(20.00),
+    persentase_upz: new Prisma.Decimal(0.00),
+    persentase_baznas: new Prisma.Decimal(20.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(70.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  },
+  {
+    kategori: 'Sedekah',
+    persentase_amil: new Prisma.Decimal(20.00),
+    persentase_upz: new Prisma.Decimal(0.00),
+    persentase_baznas: new Prisma.Decimal(20.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(70.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  }
+];
+
+export const getPenerimaanMappings = async (req: Request, res: Response) => {
+  try {
+    let list = await prisma.penerimaanMapping.findMany();
+    
+    // Auto-seed if empty
+    if (list.length === 0) {
+      for (const item of defaultMappings) {
+        await prisma.penerimaanMapping.create({ data: item });
+      }
+      list = await prisma.penerimaanMapping.findMany();
+    }
+    
+    res.json({ status: 'success', data: list });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const createPenerimaanMapping = async (req: Request, res: Response) => {
+  try {
+    const {
+      kategori, persentase_amil, persentase_upz, persentase_baznas,
+      persentase_salur_pembantuan, coa_debit_beban, coa_kredit_amil, coa_kredit_utang
+    } = req.body;
+
+    const newRule = await prisma.penerimaanMapping.create({
+      data: {
+        kategori,
+        persentase_amil: new Prisma.Decimal(Number(persentase_amil || 0)),
+        persentase_upz: new Prisma.Decimal(Number(persentase_upz || 0)),
+        persentase_baznas: new Prisma.Decimal(Number(persentase_baznas || 0)),
+        persentase_salur_pembantuan: new Prisma.Decimal(Number(persentase_salur_pembantuan || 0)),
+        coa_debit_beban,
+        coa_kredit_amil,
+        coa_kredit_utang
+      }
+    });
+
+    res.json({ status: 'success', data: newRule });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const updatePenerimaanMapping = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const {
+      kategori, persentase_amil, persentase_upz, persentase_baznas,
+      persentase_salur_pembantuan, coa_debit_beban, coa_kredit_amil, coa_kredit_utang
+    } = req.body;
+
+    const updated = await prisma.penerimaanMapping.update({
+      where: { id },
+      data: {
+        kategori,
+        persentase_amil: new Prisma.Decimal(Number(persentase_amil || 0)),
+        persentase_upz: new Prisma.Decimal(Number(persentase_upz || 0)),
+        persentase_baznas: new Prisma.Decimal(Number(persentase_baznas || 0)),
+        persentase_salur_pembantuan: new Prisma.Decimal(Number(persentase_salur_pembantuan || 0)),
+        coa_debit_beban,
+        coa_kredit_amil,
+        coa_kredit_utang
+      }
+    });
+
+    res.json({ status: 'success', data: updated });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const deletePenerimaanMapping = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.penerimaanMapping.delete({ where: { id } });
+    res.json({ status: 'success', message: 'Mapping rule deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: String(error) });
+  }
+};

@@ -10,7 +10,6 @@ import {
   Wallet, 
   Building2, 
   X, 
-  AlertTriangle, 
   Activity, 
   RefreshCw, 
   SlidersHorizontal,
@@ -86,6 +85,26 @@ export default function PengaturanKeuangan() {
   const [accounts, setAccounts] = useState<BankAccountItem[]>([]);
   const [rules, setRules] = useState<CoaMappingRuleItem[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
+  const [penerimaanMappings, setPenerimaanMappings] = useState<any[]>([]);
+  const [isPenerimaanModalOpen, setIsPenerimaanModalOpen] = useState(false);
+  const [penerimaanForm, setPenerimaanForm] = useState({
+    kategori: '',
+    persentase_amil: 12.5,
+    persentase_upz: 5.0,
+    persentase_baznas: 7.5,
+    persentase_salur_pembantuan: 70.0,
+    coa_debit_beban: '',
+    coa_kredit_amil: '',
+    coa_kredit_utang: ''
+  });
+
+  const [isPenerimaanDebitDropdownOpen, setIsPenerimaanDebitDropdownOpen] = useState(false);
+  const [penerimaanDebitSearch, setPenerimaanDebitSearch] = useState('');
+  const [isPenerimaanKreditAmilDropdownOpen, setIsPenerimaanKreditAmilDropdownOpen] = useState(false);
+  const [penerimaanKreditAmilSearch, setPenerimaanKreditAmilSearch] = useState('');
+  const [isPenerimaanKreditUtangDropdownOpen, setIsPenerimaanKreditUtangDropdownOpen] = useState(false);
+  const [penerimaanKreditUtangSearch, setPenerimaanKreditUtangSearch] = useState('');
+
 
   // Loading indicator
   const [loading, setLoading] = useState(false);
@@ -232,23 +251,26 @@ export default function PengaturanKeuangan() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resCoas, resAccounts, resRules, resPrograms] = await Promise.all([
+      const [resCoas, resAccounts, resRules, resPrograms, resPenerimaan] = await Promise.all([
         axios.get('/api/finance/coa'),
         axios.get('/api/finance/accounts'),
         axios.get('/api/finance/mapping-rules'),
-        axios.get('/api/programs')
+        axios.get('/api/programs'),
+        axios.get('/api/penerimaan-mapping')
       ]);
 
       setCoas(resCoas.data);
       setAccounts(resAccounts.data);
       setRules(resRules.data);
       setPrograms(resPrograms.data);
+      setPenerimaanMappings(resPenerimaan.data.data || []);
     } catch (error) {
       console.error('Gagal mengambil data keuangan:', error);
     } finally {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     fetchData();
@@ -481,6 +503,67 @@ export default function PengaturanKeuangan() {
       alert('Gagal menghapus: ' + e.message);
     }
   };
+
+  const handleOpenPenerimaanModal = (item: any = null) => {
+    setIsPenerimaanDebitDropdownOpen(false);
+    setPenerimaanDebitSearch('');
+    setIsPenerimaanKreditAmilDropdownOpen(false);
+    setPenerimaanKreditAmilSearch('');
+    setIsPenerimaanKreditUtangDropdownOpen(false);
+    setPenerimaanKreditUtangSearch('');
+    if (item) {
+      setEditingItem(item);
+      setPenerimaanForm({
+        kategori: item.kategori,
+        persentase_amil: Number(item.persentase_amil),
+        persentase_upz: Number(item.persentase_upz),
+        persentase_baznas: Number(item.persentase_baznas),
+        persentase_salur_pembantuan: Number(item.persentase_salur_pembantuan),
+        coa_debit_beban: item.coa_debit_beban,
+        coa_kredit_amil: item.coa_kredit_amil,
+        coa_kredit_utang: item.coa_kredit_utang
+      });
+    } else {
+      setEditingItem(null);
+      setPenerimaanForm({
+        kategori: '',
+        persentase_amil: 12.5,
+        persentase_upz: 5.0,
+        persentase_baznas: 7.5,
+        persentase_salur_pembantuan: 70.0,
+        coa_debit_beban: '51020101',
+        coa_kredit_amil: '43010101',
+        coa_kredit_utang: '21040101'
+      });
+    }
+    setIsPenerimaanModalOpen(true);
+  };
+
+  const handleSavePenerimaan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingItem) {
+        await axios.put(`/api/penerimaan-mapping/${editingItem.id}`, penerimaanForm);
+      } else {
+        await axios.post('/api/penerimaan-mapping', penerimaanForm);
+      }
+      setIsPenerimaanModalOpen(false);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menyimpan aturan: ' + (e.response?.data?.error || e.message));
+    }
+  };
+
+  const handleDeletePenerimaan = async (id: string) => {
+    if (!window.confirm('Yakin ingin menghapus aturan mapping penerimaan ini?')) return;
+    try {
+      await axios.delete(`/api/penerimaan-mapping/${id}`);
+      fetchData();
+    } catch (e: any) {
+      alert('Gagal menghapus: ' + e.message);
+    }
+  };
+
 
 
 
@@ -805,101 +888,185 @@ export default function PengaturanKeuangan() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="space-y-6"
+            className="space-y-8"
           >
-            <div className="p-5 bg-amber-50 border border-amber-200/60 rounded-2xl text-amber-700 text-xs font-semibold leading-relaxed flex gap-3 items-start">
-              <AlertTriangle className="size-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold">Informasi Kebijakan Accounting Engine</p>
-                <p className="mt-1 opacity-90">Aturan Pemetaan COA otomatis digunakan oleh backend untuk memetakan pencairan transaksi proposal staf lapangan langsung menjadi entitas double-entry jurnal penyeimbang (Debit Penyaluran Program/Belanja vs Kredit Akun Kas Setara) di kasir.</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/40">
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                  <input 
-                    type="text"
-                    placeholder="Cari program/asnaf..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm bg-white border border-slate-200 rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                  />
+            {/* Section 1: Penyaluran */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-slate-50/40 p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Aturan Pemetaan COA Penyaluran (Pencairan Proposal)
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium mt-1">Pemetaan otomatis untuk menjurnal proposal mustahik/penyaluran.</p>
                 </div>
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenRuleModal()}
-                    className="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                    className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider"
                   >
-                    <Plus className="size-3.5" /> Tambah Rule
+                    <Plus className="size-3.5" /> Tambah Rule Penyaluran
                   </button>
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kombinasi Kondisi Aturan</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Kas</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sumber Tag Dana</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">Entri Debit (Penyaluran)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">Entri Kredit (Kas/Bank)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredRules.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Belum ada aturan mapping COA terdaftar</td>
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/50">
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kondisi Aturan</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Kas</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tag Sumber Dana</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">Entri Debit (Beban/Penyaluran)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">Entri Kredit (Kas/Bank)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                       </tr>
-                    ) : filteredRules.map((item) => (
-                      <tr key={item.rule_id} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-6 py-5">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs font-black text-primary font-mono">
-                              {item.program_code} - {programs.find(p => p.code === item.program_code)?.name || 'Program'}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {filteredRules.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Belum ada aturan mapping penyaluran terdaftar</td>
+                        </tr>
+                      ) : filteredRules.map((item) => (
+                        <tr key={item.rule_id} className="hover:bg-slate-50/30 transition-colors group">
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-black text-primary font-mono">
+                                {item.program_code} - {programs.find(p => p.code === item.program_code)?.name || 'Program'}
+                              </span>
+                              <span className="text-xs font-bold text-slate-900">
+                                Asnaf: <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold text-slate-600">{item.asnaf_id || 'Global/Non-Asnaf'}</span>
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 font-bold text-slate-700">{item.tipe_kas}</td>
+                          <td className="px-6 py-5 font-bold text-slate-700">{item.sumber_dana_tag}</td>
+                          <td className="px-6 py-5">
+                            <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                              {item.debit_coa_code}
                             </span>
-                            <span className="text-xs font-bold text-slate-900">
-                              Asnaf: <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold text-slate-600">{item.asnaf_id || 'Global/Non-Asnaf'}</span>
+                            <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.debitCoa?.nama_akun || 'Akun Penyaluran'}</span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
+                              {item.kredit_coa_code}
                             </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 font-bold text-slate-700">{item.tipe_kas}</td>
-                        <td className="px-6 py-5 font-bold text-slate-700">{item.sumber_dana_tag}</td>
-                        <td className="px-6 py-5">
-                          <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
-                            {item.debit_coa_code}
-                          </span>
-                          <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.debitCoa?.nama_akun || 'Akun Penyaluran'}</span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
-                            {item.kredit_coa_code}
-                          </span>
-                          <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.kreditCoa?.nama_akun || 'Akun Kas'}</span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button 
-                              onClick={() => handleOpenRuleModal(item)}
-                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                            >
-                              <Edit className="size-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteRule(item.rule_id)}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                        </td>
+                            <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.kreditCoa?.nama_akun || 'Akun Kas'}</span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button 
+                                onClick={() => handleOpenRuleModal(item)}
+                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                              >
+                                <Edit className="size-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteRule(item.rule_id)}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Penerimaan */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-slate-50/40 p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
+                    Aturan Pemetaan COA Penerimaan (ZIS & Hak Amil)
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium mt-1">Pemetaan otomatis potongan porsi amil BAZNAS dan UPZ saat penerimaan zakat/infak.</p>
+                </div>
+                {isSuperAdmin && (
+                  <button 
+                    onClick={() => handleOpenPenerimaanModal()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/10 hover:bg-blue-700 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider"
+                  >
+                    <Plus className="size-3.5" /> Tambah Rule Penerimaan
+                  </button>
+                )}
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/50">
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori Penerimaan</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi Amil (%)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-indigo-700">Porsi UPZ / BAZNAS (%)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">COA Debit (Beban Amil)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">COA Kredit Amil BAZNAS</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-amber-700">COA Kredit Utang UPZ</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {penerimaanMappings.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic font-medium">Belum ada aturan mapping penerimaan terdaftar</td>
+                        </tr>
+                      ) : penerimaanMappings.map((item: any) => (
+                        <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
+                          <td className="px-6 py-5 font-black text-slate-900">{item.kategori}</td>
+                          <td className="px-6 py-5 font-bold text-slate-700">{Number(item.persentase_amil)}%</td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-bold text-indigo-700">UPZ: {Number(item.persentase_upz)}%</span>
+                              <span className="text-xs font-bold text-emerald-700">BAZNAS: {Number(item.persentase_baznas)}%</span>
+                              <span className="text-[10px] text-slate-400">Salur Pembantuan: {Number(item.persentase_salur_pembantuan)}%</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                              {item.coa_debit_beban}
+                            </span>
+                            <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{coas.find(c => c.coa_code === item.coa_debit_beban)?.nama_akun || 'Beban Hak Amil'}</span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
+                              {item.coa_kredit_amil}
+                            </span>
+                            <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{coas.find(c => c.coa_code === item.coa_kredit_amil)?.nama_akun || 'Pendapatan Hak Amil'}</span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <span className="font-mono text-xs font-black text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                              {item.coa_kredit_utang}
+                            </span>
+                            <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{coas.find(c => c.coa_code === item.coa_kredit_utang)?.nama_akun || 'Utang Hak Amil UPZ'}</span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button 
+                                onClick={() => handleOpenPenerimaanModal(item)}
+                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                              >
+                                <Edit className="size-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeletePenerimaan(item.id)}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -1808,6 +1975,312 @@ export default function PengaturanKeuangan() {
                   <button
                     type="submit"
                     className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
+                  >
+                    Simpan Rule
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isPenerimaanModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsPenerimaanModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl flex flex-col z-50 max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-lg font-black text-slate-900">
+                  {editingItem ? 'Ubah Aturan Penerimaan' : 'Tambah Aturan Penerimaan Baru'}
+                </h3>
+                <button onClick={() => setIsPenerimaanModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePenerimaan} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori Penerimaan</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: Zakat Maal, Infak, dll."
+                    value={penerimaanForm.kategori}
+                    onChange={(e) => setPenerimaanForm({ ...penerimaanForm, kategori: e.target.value })}
+                    className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi Amil (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={penerimaanForm.persentase_amil}
+                      onChange={(e) => setPenerimaanForm({ ...penerimaanForm, persentase_amil: Number(e.target.value) })}
+                      className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi UPZ (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={penerimaanForm.persentase_upz}
+                      onChange={(e) => setPenerimaanForm({ ...penerimaanForm, persentase_upz: Number(e.target.value) })}
+                      className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi BAZNAS (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={penerimaanForm.persentase_baznas}
+                      onChange={(e) => setPenerimaanForm({ ...penerimaanForm, persentase_baznas: Number(e.target.value) })}
+                      className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Salur Pembantuan (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={penerimaanForm.persentase_salur_pembantuan}
+                      onChange={(e) => setPenerimaanForm({ ...penerimaanForm, persentase_salur_pembantuan: Number(e.target.value) })}
+                      className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Debit (Beban Amil)</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPenerimaanDebitDropdownOpen(!isPenerimaanDebitDropdownOpen);
+                        setPenerimaanDebitSearch('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {penerimaanForm.coa_debit_beban
+                          ? `${penerimaanForm.coa_debit_beban} - ${coas.find(c => c.coa_code === penerimaanForm.coa_debit_beban)?.nama_akun}`
+                          : '-- Pilih Akun --'
+                        }
+                      </span>
+                      <ChevronDown className="size-4 text-slate-400 transition-transform shrink-0" />
+                    </button>
+
+                    {isPenerimaanDebitDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsPenerimaanDebitDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari COA..."
+                              value={penerimaanDebitSearch}
+                              onChange={(e) => setPenerimaanDebitSearch(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
+                            {coas
+                              .filter(c => 
+                                c.coa_code.includes(penerimaanDebitSearch) || 
+                                c.nama_akun.toLowerCase().includes(penerimaanDebitSearch.toLowerCase())
+                              )
+                              .map(c => (
+                                <button
+                                  key={c.coa_code}
+                                  type="button"
+                                  onClick={() => {
+                                    setPenerimaanForm({ ...penerimaanForm, coa_debit_beban: c.coa_code });
+                                    setIsPenerimaanDebitDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    penerimaanForm.coa_debit_beban === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{c.coa_code} - {c.nama_akun}</span>
+                                  {penerimaanForm.coa_debit_beban === c.coa_code && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            }
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Kredit (Pendapatan Amil BAZNAS)</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPenerimaanKreditAmilDropdownOpen(!isPenerimaanKreditAmilDropdownOpen);
+                        setPenerimaanKreditAmilSearch('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {penerimaanForm.coa_kredit_amil
+                          ? `${penerimaanForm.coa_kredit_amil} - ${coas.find(c => c.coa_code === penerimaanForm.coa_kredit_amil)?.nama_akun}`
+                          : '-- Pilih Akun --'
+                        }
+                      </span>
+                      <ChevronDown className="size-4 text-slate-400 transition-transform shrink-0" />
+                    </button>
+
+                    {isPenerimaanKreditAmilDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsPenerimaanKreditAmilDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari COA..."
+                              value={penerimaanKreditAmilSearch}
+                              onChange={(e) => setPenerimaanKreditAmilSearch(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
+                            {coas
+                              .filter(c => 
+                                c.coa_code.includes(penerimaanKreditAmilSearch) || 
+                                c.nama_akun.toLowerCase().includes(penerimaanKreditAmilSearch.toLowerCase())
+                              )
+                              .map(c => (
+                                <button
+                                  key={c.coa_code}
+                                  type="button"
+                                  onClick={() => {
+                                    setPenerimaanForm({ ...penerimaanForm, coa_kredit_amil: c.coa_code });
+                                    setIsPenerimaanKreditAmilDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    penerimaanForm.coa_kredit_amil === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{c.coa_code} - {c.nama_akun}</span>
+                                  {penerimaanForm.coa_kredit_amil === c.coa_code && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            }
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Kredit (Utang Hak Amil UPZ)</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPenerimaanKreditUtangDropdownOpen(!isPenerimaanKreditUtangDropdownOpen);
+                        setPenerimaanKreditUtangSearch('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {penerimaanForm.coa_kredit_utang
+                          ? `${penerimaanForm.coa_kredit_utang} - ${coas.find(c => c.coa_code === penerimaanForm.coa_kredit_utang)?.nama_akun}`
+                          : '-- Pilih Akun --'
+                        }
+                      </span>
+                      <ChevronDown className="size-4 text-slate-400 transition-transform shrink-0" />
+                    </button>
+
+                    {isPenerimaanKreditUtangDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsPenerimaanKreditUtangDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari COA..."
+                              value={penerimaanKreditUtangSearch}
+                              onChange={(e) => setPenerimaanKreditUtangSearch(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
+                            {coas
+                              .filter(c => 
+                                c.coa_code.includes(penerimaanKreditUtangSearch) || 
+                                c.nama_akun.toLowerCase().includes(penerimaanKreditUtangSearch.toLowerCase())
+                              )
+                              .map(c => (
+                                <button
+                                  key={c.coa_code}
+                                  type="button"
+                                  onClick={() => {
+                                    setPenerimaanForm({ ...penerimaanForm, coa_kredit_utang: c.coa_code });
+                                    setIsPenerimaanKreditUtangDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    penerimaanForm.coa_kredit_utang === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                  )}
+                                >
+                                  <span>{c.coa_code} - {c.nama_akun}</span>
+                                  {penerimaanForm.coa_kredit_utang === c.coa_code && <Check className="size-4 text-primary shrink-0" />}
+                                </button>
+                              ))
+                            }
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsPenerimaanModalOpen(false)}
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20"
                   >
                     Simpan Rule
                   </button>

@@ -5,7 +5,6 @@ import {
   RotateCcw,
   CheckCircle2, 
   AlertCircle,
-  Coins,
   Scale,
   ChevronRight,
   Plus,
@@ -33,11 +32,14 @@ export default function ParameterSistem() {
 
   // Form values state mapped by parameter key
   const [formValues, setFormValues] = useState<Record<string, string>>({
-    hak_amil_zakat_maal: '12.5',
-    hak_amil_infak_sedekah: '20.0',
-    hak_amil_zakat_fitrah: '0',
     bps_garis_kemiskinan: '709000',
-    upz_hak_salur_persentase: '30'
+    upz_hak_salur_persentase: '30',
+    upz_hak_salur_pengumpulan: '30',
+    upz_hak_salur_pembantuan: '70',
+    rkat_pengumpulan_no_zakat: '3',
+    rkat_pengumpulan_no_infak: '8',
+    coa_penerimaan_zakat: '41020201',
+    coa_penerimaan_infak: '42020101'
   });
 
   // Load active template whenever survey type selection or loaded formValues change
@@ -63,12 +65,12 @@ export default function ParameterSistem() {
   const fetchParameters = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/parameters');
-      setParams(res.data);
+      const resParams = await axios.get('/api/parameters');
+      setParams(resParams.data);
       
       // Map API array to form state dictionary
       const valuesMap: Record<string, string> = {};
-      res.data.forEach((p: ParameterItem) => {
+      resParams.data.forEach((p: ParameterItem) => {
         valuesMap[p.key] = p.value;
       });
       setFormValues(prev => ({ ...prev, ...valuesMap }));
@@ -282,100 +284,11 @@ export default function ParameterSistem() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
-            {/* Left Card: HAK AMIL */}
+            {/* Card 1: PENDISTRIBUSIAN */}
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden flex flex-col"
-            >
-              <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
-                <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                  <Coins className="size-5" />
-                </div>
-                <div>
-                  <h3 className="text-md font-black text-slate-900">Parameter Hak Amil</h3>
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Persentase (%)</p>
-                </div>
-              </div>
-
-              <div className="p-8 space-y-6 flex-1">
-                {/* Hak Amil Zakat Maal */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Hak Amil Zakat Maal
-                    </label>
-                    <span className="text-[10px] bg-indigo-50 text-primary font-black px-2 py-0.5 rounded">Standard BAZNAS: 12.5%</span>
-                  </div>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      min="0" 
-                      max="100"
-                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
-                      value={formValues.hak_amil_zakat_maal}
-                      onChange={(e) => handleInputChange('hak_amil_zakat_maal', e.target.value)}
-                      required
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-450">%</span>
-                  </div>
-                </div>
-
-                {/* Hak Amil Infak/Sedekah */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Hak Amil Infak/Sedekah
-                    </label>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-600 font-black px-2 py-0.5 rounded">Standard BAZNAS: 20.0%</span>
-                  </div>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      min="0" 
-                      max="100"
-                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
-                      value={formValues.hak_amil_infak_sedekah}
-                      onChange={(e) => handleInputChange('hak_amil_infak_sedekah', e.target.value)}
-                      required
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-455">%</span>
-                  </div>
-                </div>
-
-                {/* Hak Amil Zakat Fitrah (UPZ) */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Hak Amil Zakat Fitrah (UPZ)
-                    </label>
-                    <span className="text-[10px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded">Standard BAZNAS: 0%</span>
-                  </div>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      min="0" 
-                      max="100"
-                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
-                      value={formValues.hak_amil_zakat_fitrah}
-                      onChange={(e) => handleInputChange('hak_amil_zakat_fitrah', e.target.value)}
-                      required
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-455">%</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Right Card: PENDISTRIBUSIAN */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
               className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden flex flex-col"
             >
               <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
@@ -413,13 +326,13 @@ export default function ParameterSistem() {
                   </p>
                 </div>
 
-                {/* Persentase Hak Salur UPZ */}
+                 {/* Persentase Hak Salur UPZ Pengumpulan */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Persentase Hak Salur UPZ
+                      Hak Salur UPZ Pengumpulan
                     </label>
-                    <span className="text-[10px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded">Standard UPZ: 30%</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded">Standard: 30%</span>
                   </div>
                   <div className="relative">
                     <input 
@@ -428,12 +341,111 @@ export default function ParameterSistem() {
                       min="0" 
                       max="100"
                       className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
-                      value={formValues.upz_hak_salur_persentase}
-                      onChange={(e) => handleInputChange('upz_hak_salur_persentase', e.target.value)}
+                      value={formValues.upz_hak_salur_pengumpulan}
+                      onChange={(e) => handleInputChange('upz_hak_salur_pengumpulan', e.target.value)}
                       required
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-455">%</span>
                   </div>
+                </div>
+
+                {/* Persentase Hak Salur UPZ Pembantuan */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Hak Salur UPZ Pembantuan Pendistribusian &amp; Pendayagunaan
+                    </label>
+                    <span className="text-[10px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded">Standard: 70%</span>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="number" 
+                      step="0.1" 
+                      min="0" 
+                      max="100"
+                      className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl pr-12 pl-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                      value={formValues.upz_hak_salur_pembantuan}
+                      onChange={(e) => handleInputChange('upz_hak_salur_pembantuan', e.target.value)}
+                      required
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-455">%</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 2: INTEGRASI BANK JATENG & RKAT/COA */}
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+                <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                  <Settings className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-md font-black text-slate-900">Parameter Integrasi &amp; COA Bank Jateng</h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Pemetaan RKAT &amp; Kode Akun (COA) Penerimaan UPZ Pengumpulan</p>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-6 flex-1">
+                {/* RKAT No Zakat */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">
+                    Nomor RKAT Zakat Maal UPZ
+                  </label>
+                  <input 
+                    type="text" 
+                    className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                    value={formValues.rkat_pengumpulan_no_zakat || '3'}
+                    onChange={(e) => handleInputChange('rkat_pengumpulan_no_zakat', e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* RKAT No Infak */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">
+                    Nomor RKAT Infak/Sedekah UPZ
+                  </label>
+                  <input 
+                    type="text" 
+                    className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                    value={formValues.rkat_pengumpulan_no_infak || '8'}
+                    onChange={(e) => handleInputChange('rkat_pengumpulan_no_infak', e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* COA Zakat */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">
+                    Kode COA Kredit Zakat Maal
+                  </label>
+                  <input 
+                    type="text" 
+                    className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                    value={formValues.coa_penerimaan_zakat || '41020201'}
+                    onChange={(e) => handleInputChange('coa_penerimaan_zakat', e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* COA Infak */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">
+                    Kode COA Kredit Infak/Sedekah
+                  </label>
+                  <input 
+                    type="text" 
+                    className="w-full text-sm font-bold bg-slate-55 border-slate-200 rounded-xl px-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all"
+                    value={formValues.coa_penerimaan_infak || '42020101'}
+                    onChange={(e) => handleInputChange('coa_penerimaan_infak', e.target.value)}
+                    required
+                  />
                 </div>
               </div>
             </motion.div>

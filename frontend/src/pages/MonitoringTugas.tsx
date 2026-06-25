@@ -896,7 +896,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">Monitoring Tugas Survei</h2>
-                <p className="text-slate-500 font-medium max-w-2xl">Kelola antrean tugas, pantau progres relawan, dan verifikasi hasil survei lapangan.</p>
+                <p className="text-slate-500 font-medium max-w-2xl">Layanan pemantauan, penugasan, dan verifikasi survei lapangan bagi para mustahik. Setelah survei selesai, lakukan penentuan klasifikasi asnaf sebelum diteruskan ke Kepala Pelaksana.</p>
               </div>
               <div className="relative shrink-0 self-start md:self-center">
                 <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">

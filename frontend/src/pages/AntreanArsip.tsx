@@ -214,7 +214,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
               Antrean Arsip &amp; Dokumentasi
             </h2>
             <p className="text-slate-500 font-medium">
-              Upload foto penyerahan bantuan dan kuitansi bertanda tangan sebagai pertanggungjawaban penyaluran dana.
+              Layanan pengarsipan digital atas bantuan yang telah direalisasikan. Unggah bukti foto penyerahan bantuan dan kuitansi resmi bertanda tangan sebelum proposal ditandai selesai.
             </p>
           </div>
         </div>

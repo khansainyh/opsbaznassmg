@@ -136,7 +136,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Antrean Sinkronisasi SIMBA</h2>
         <p className="text-slate-500 font-medium">
-          Sinkronisasikan data proposal yang telah dicairkan bank ke sistem SIMBA Pusat BAZNAS untuk penerbitan kuitansi resmi.
+          Layanan integrasi dan sinkronisasi data mustahik penerima pencairan ke sistem SIMBA Pusat BAZNAS. Setelah data tersinkronisasi, rekam Nomor Register Mustahik (NRM) untuk finalisasi kuitansi.
         </p>
       </motion.div>
 

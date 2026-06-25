@@ -236,7 +236,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
           <span className="text-primary font-bold">Persetujuan Kepala Pelaksana</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Persetujuan Kepala Pelaksana</h2>
-        <p className="text-slate-500 font-medium">Tinjau dan berikan catatan sebelum diteruskan ke Ketua.</p>
+        <p className="text-slate-500 font-medium">
+          Layanan peninjauan kelayakan dan verifikasi ketersediaan pagu anggaran RKAT atas permohonan bantuan. Berikan rekomendasi nominal serta catatan evaluasi sebelum diteruskan ke tahap persetujuan Pimpinan.
+        </p>
       </motion.div>
 
       {/* Stats */}

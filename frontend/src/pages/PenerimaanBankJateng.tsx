@@ -17,7 +17,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
-import { upzData as initialUpzData } from '@/src/data/upzData';
 import { UPZ } from '@/src/types/upz';
 
 interface RawRow {
@@ -79,6 +78,8 @@ export default function PenerimaanBankJateng() {
   const [registerUpz, setRegisterUpz] = useState('');
 
   const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
+  const [batchActiveTab, setBatchActiveTab] = useState<Record<string, 'upz' | 'pegawai'>>({});
+  const [historyUpzSearch, setHistoryUpzSearch] = useState<Record<string, string>>({});
 
   const toggleBatchExpand = (batchName: string) => {
     setExpandedBatches(prev => ({
@@ -91,18 +92,22 @@ export default function PenerimaanBankJateng() {
   const [openSearchDropdown, setOpenSearchDropdown] = useState<string | null>(null);
   const [upzSearchQuery, setUpzSearchQuery] = useState('');
 
-  // Load UPZ list from localStorage or fallback to initialUpzData
-  const upzList = useMemo<UPZ[]>(() => {
-    const local = localStorage.getItem('baznas_upz_data');
-    if (local) {
+  const [upzList, setUpzList] = useState<UPZ[]>([]);
+
+  useEffect(() => {
+    const fetchUpzList = async () => {
       try {
-        return JSON.parse(local);
-      } catch (e) {
-        console.error(e);
+        const res = await axios.get('/api/upz');
+        if (res.data.status === 'success') {
+          setUpzList(res.data.data);
+        }
+      } catch (err) {
+        console.error('Error fetching UPZ list:', err);
       }
-    }
-    return initialUpzData;
+    };
+    fetchUpzList();
   }, []);
+
 
   const findMatchingUpzName = (rawOpd: string) => {
     const cleanRaw = rawOpd.toLowerCase().replace(/upz/gi, '').trim();
@@ -1214,71 +1219,200 @@ export default function PenerimaanBankJateng() {
                           </div>
                         </td>
                       </tr>
-                      {isExpanded && (
-                        <tr className="bg-slate-50/30">
-                          <td colSpan={7} className="px-8 py-4 border-b border-slate-150">
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
-                              <table className="w-full text-left">
-                                <thead>
-                                  <tr className="bg-slate-50 text-slate-500 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
-                                    <th className="px-4 py-2 text-center w-12">No</th>
-                                    <th className="px-4 py-2">Muzakki (NPWZ)</th>
-                                    <th className="px-4 py-2">Dinas / OPD</th>
-                                    <th className="px-4 py-2 text-center">Jenis Dana</th>
-                                    <th className="px-4 py-2 text-right">Nominal</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
-                                  {batch.items.map((item, itemIdx) => {
-                                    const isZakat = Number(item.nominal) >= 100000;
-                                    
-                                    // Extract OPD from keterangan
-                                    let opdName = '-';
-                                    if (item.keterangan) {
-                                      const match = item.keterangan.match(/\(([^)]+)\)$/) || item.keterangan.match(/\(([^)]+)\)[^()]*$/);
-                                      if (match) {
-                                        opdName = match[1].trim();
-                                      } else {
-                                        const parts = item.keterangan.split('OPD');
-                                        if (parts.length > 1) {
-                                          opdName = parts[1].split('-')[0].trim();
-                                        }
-                                      }
-                                    }
-                                    
-                                    return (
-                                      <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
-                                        <td className="px-4 py-2 text-center font-medium text-slate-400">{itemIdx + 1}</td>
-                                        <td className="px-4 py-2">
-                                          <p className="font-bold text-slate-900">{item.muzakki?.nama || '-'}</p>
-                                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">{item.muzakki?.npwz || '-'}</p>
-                                        </td>
-                                        <td className="px-4 py-2">
-                                          <p className="font-medium text-slate-750">{opdName}</p>
-                                        </td>
-                                        <td className="px-4 py-2 text-center">
-                                          {isZakat ? (
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
-                                              Zakat
-                                            </span>
+                      {isExpanded && (() => {
+                        const currentTab = batchActiveTab[batch.batchName] || 'upz';
+                        
+                        // Group items by UPZ/OPD name
+                        const upzMap: Record<string, { upzName: string; count: number; total: number; items: any[] }> = {};
+                        batch.items.forEach((item: any) => {
+                          let opdName = 'Umum / Tanpa UPZ';
+                          if (item.keterangan) {
+                            const match = item.keterangan.match(/\(([^)]+)\)$/) || item.keterangan.match(/\(([^)]+)\)[^()]*$/);
+                            if (match) {
+                              opdName = match[1].trim();
+                            } else {
+                              const parts = item.keterangan.split('OPD');
+                              if (parts.length > 1) {
+                                opdName = parts[1].split('-')[0].trim();
+                              }
+                            }
+                          }
+                          if (!upzMap[opdName]) {
+                            upzMap[opdName] = { upzName: opdName, count: 0, total: 0, items: [] };
+                          }
+                          upzMap[opdName].count += 1;
+                          upzMap[opdName].total += Number(item.nominal);
+                          upzMap[opdName].items.push(item);
+                        });
+                        const batchUpzList = Object.values(upzMap).sort((a, b) => b.total - a.total);
+                        const searchVal = historyUpzSearch[batch.batchName] || '';
+                        const filteredUpzList = batchUpzList.filter((upz: any) => 
+                          upz.upzName.toLowerCase().includes(searchVal.toLowerCase())
+                        );
+
+                        return (
+                          <tr className="bg-slate-50/30">
+                            <td colSpan={7} className="px-8 py-4 border-b border-slate-150">
+                              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in space-y-4 p-4">
+                                
+                                {/* Tab Header */}
+                                <div className="flex border-b border-slate-150 pb-2 gap-4">
+                                  <button
+                                    onClick={() => setBatchActiveTab(prev => ({ ...prev, [batch.batchName]: 'upz' }))}
+                                    className={cn(
+                                      "pb-2 text-xs font-bold transition-all border-b-2 px-1 focus:outline-none",
+                                      currentTab === 'upz' 
+                                        ? "text-primary border-primary" 
+                                        : "text-slate-400 border-transparent hover:text-slate-700"
+                                    )}
+                                  >
+                                    Rekapitulasi per UPZ ({batchUpzList.length})
+                                  </button>
+                                  <button
+                                    onClick={() => setBatchActiveTab(prev => ({ ...prev, [batch.batchName]: 'pegawai' }))}
+                                    className={cn(
+                                      "pb-2 text-xs font-bold transition-all border-b-2 px-1 focus:outline-none",
+                                      currentTab === 'pegawai' 
+                                        ? "text-primary border-primary" 
+                                        : "text-slate-400 border-transparent hover:text-slate-700"
+                                    )}
+                                  >
+                                    Detail Rincian Pegawai ({batch.items.length})
+                                  </button>
+                                </div>
+
+                                {currentTab === 'upz' ? (
+                                  /* Rekap per UPZ Table */
+                                  <div className="space-y-3">
+                                    <div className="flex justify-between items-center gap-4">
+                                      <div className="relative flex-1 max-w-xs">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                                        <input
+                                          type="text"
+                                          placeholder="Cari UPZ / OPD..."
+                                          value={searchVal}
+                                          onChange={(e) => setHistoryUpzSearch(prev => ({
+                                            ...prev,
+                                            [batch.batchName]: e.target.value
+                                          }))}
+                                          className="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all font-semibold"
+                                        />
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-bold">
+                                        Menampilkan {filteredUpzList.length} dari {batchUpzList.length} UPZ
+                                      </span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-left">
+                                        <thead>
+                                          <tr className="bg-slate-50 text-slate-500 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
+                                            <th className="px-4 py-2 text-center w-12">No</th>
+                                            <th className="px-4 py-2">Nama UPZ / OPD</th>
+                                            <th className="px-4 py-2 text-center">Jumlah Pegawai</th>
+                                            <th className="px-4 py-2 text-right">Total Nominal</th>
+                                            <th className="px-4 py-2 text-center w-32">Aksi</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
+                                          {filteredUpzList.length === 0 ? (
+                                            <tr>
+                                              <td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic">
+                                                Tidak ada UPZ yang cocok dengan pencarian.
+                                              </td>
+                                            </tr>
                                           ) : (
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
-                                              Infak
-                                            </span>
+                                            filteredUpzList.map((upz, upzIdx) => (
+                                              <tr key={upz.upzName} className="hover:bg-slate-50/30 transition-colors">
+                                                <td className="px-4 py-2.5 text-center font-medium text-slate-400">{upzIdx + 1}</td>
+                                                <td className="px-4 py-2.5 font-bold text-slate-800">{upz.upzName}</td>
+                                                <td className="px-4 py-2.5 text-center font-semibold text-slate-700">{upz.count} orang</td>
+                                                <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
+                                                  Rp {upz.total.toLocaleString('id-ID')}
+                                                </td>
+                                                <td className="px-4 py-2.5 text-center">
+                                                  <button
+                                                    onClick={() => exportHistoryToSimba(upz.items, `${batch.batchName}_${upz.upzName}`)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-55 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/50 rounded-lg text-[10px] font-black transition-all active:scale-95 shadow-sm"
+                                                    title={`Unduh Template SIMBA untuk ${upz.upzName}`}
+                                                  >
+                                                    <FileSpreadsheet className="size-3.5" />
+                                                    Format SIMBA
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            ))
                                           )}
-                                        </td>
-                                        <td className="px-4 py-2 text-right font-semibold text-emerald-600">
-                                          Rp {Number(item.nominal).toLocaleString('id-ID')}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* Rincian Pegawai Table */
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                      <thead>
+                                        <tr className="bg-slate-50 text-slate-500 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
+                                          <th className="px-4 py-2 text-center w-12">No</th>
+                                          <th className="px-4 py-2">Muzakki (NPWZ)</th>
+                                          <th className="px-4 py-2">Dinas / OPD</th>
+                                          <th className="px-4 py-2 text-center">Jenis Dana</th>
+                                          <th className="px-4 py-2 text-right">Nominal</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
+                                        {batch.items.map((item: any, itemIdx: number) => {
+                                          const isZakat = Number(item.nominal) >= 100000;
+                                          
+                                          // Extract OPD from keterangan
+                                          let opdName = '-';
+                                          if (item.keterangan) {
+                                            const match = item.keterangan.match(/\(([^)]+)\)$/) || item.keterangan.match(/\(([^)]+)\)[^()]*$/);
+                                            if (match) {
+                                              opdName = match[1].trim();
+                                            } else {
+                                              const parts = item.keterangan.split('OPD');
+                                              if (parts.length > 1) {
+                                                opdName = parts[1].split('-')[0].trim();
+                                              }
+                                            }
+                                          }
+                                          
+                                          return (
+                                            <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
+                                              <td className="px-4 py-2 text-center font-medium text-slate-400">{itemIdx + 1}</td>
+                                              <td className="px-4 py-2">
+                                                <p className="font-bold text-slate-900">{item.muzakki?.nama || '-'}</p>
+                                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">{item.muzakki?.npwz || '-'}</p>
+                                              </td>
+                                              <td className="px-4 py-2">
+                                                <p className="font-medium text-slate-750">{opdName}</p>
+                                              </td>
+                                              <td className="px-4 py-2 text-center">
+                                                {isZakat ? (
+                                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
+                                                    Zakat
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
+                                                    Infak
+                                                  </span>
+                                                )}
+                                              </td>
+                                              <td className="px-4 py-2 text-right font-semibold text-emerald-600">
+                                                Rp {Number(item.nominal).toLocaleString('id-ID')}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })()}
                     </React.Fragment>
                   );
                 })

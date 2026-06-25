@@ -118,7 +118,6 @@ model Proposal {
   nama_pemohon             String
   nama_anak                String?
   nik                      String?
-  no_kk                    String?
   tempat_lahir             String?
   tanggal_lahir            String?
   jenis_kelamin            String?
@@ -158,6 +157,7 @@ model Proposal {
   hasil_identifikasi       String?   @db.Text
   rekomendasi_kabag        String?
   rkat_activity_id         String?
+  no_kk                    String?
   program                  Program?  @relation(fields: [jenis_permohonan], references: [code])
   mustahik                 Mustahik? @relation(fields: [mustahik_id], references: [id])
 
@@ -335,21 +335,21 @@ model RkatPengumpulan {
 }
 
 model PenerimaanZis {
-  id                 String          @id @default(uuid())
-  no_kuitansi        String          @unique
+  id                 String           @id @default(uuid())
+  no_kuitansi        String           @unique
   muzakki_id         String?
   rkat_id            String?
   bank_account_id    String
-  nominal            Decimal         @db.Decimal(15, 2)
+  nominal            Decimal          @db.Decimal(15, 2)
   metode_pembayaran  String
-  tanggal_pembayaran DateTime        @default(now())
-  keterangan         String?         @db.Text
-  status_simba       String          @default("PENDING")
+  tanggal_pembayaran DateTime         @default(now())
+  keterangan         String?          @db.Text
+  status_simba       String           @default("PENDING")
   transaksi_id       String?
-  created_at         DateTime        @default(now())
-  updated_at         DateTime        @updatedAt
-  bankAccount        BankAccount     @relation(fields: [bank_account_id], references: [account_id])
-  muzakki            Muzakki?        @relation(fields: [muzakki_id], references: [id])
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  bankAccount        BankAccount      @relation(fields: [bank_account_id], references: [account_id])
+  muzakki            Muzakki?         @relation(fields: [muzakki_id], references: [id])
   rkat               RkatPengumpulan? @relation(fields: [rkat_id], references: [id])
 
   @@index([bank_account_id], map: "PenerimaanZis_bank_account_id_fkey")
@@ -413,3 +413,16 @@ enum KategoriUPZ {
   Sekolah
   OPD
 }
+
+model PenerimaanMapping {
+  id                            String   @id @default(uuid())
+  kategori                      String   @unique @db.VarChar(50)
+  persentase_amil               Decimal  @default(12.50) @db.Decimal(5, 2)
+  persentase_upz                Decimal  @default(5.00) @db.Decimal(5, 2)
+  persentase_baznas             Decimal  @default(7.50) @db.Decimal(5, 2)
+  persentase_salur_pembantuan   Decimal  @default(70.00) @db.Decimal(5, 2)
+  coa_debit_beban               String   @db.VarChar(20)
+  coa_kredit_amil               String   @db.VarChar(20)
+  coa_kredit_utang              String   @db.VarChar(20)
+}
+

@@ -72,6 +72,32 @@ export const deleteCOA = async (req: Request, res: Response) => {
 
 export const getAccounts = async (req: Request, res: Response) => {
   try {
+    // Ensure "Non Kas" virtual account exists in the database
+    const nonKasAccount = await prisma.bankAccount.findUnique({ where: { account_id: 'non_kas' } });
+    if (!nonKasAccount) {
+      const nonKasCoaCode = '11010199';
+      await prisma.chartOfAccounts.upsert({
+        where: { coa_code: nonKasCoaCode },
+        update: {},
+        create: {
+          coa_code: nonKasCoaCode,
+          nama_akun: 'Penerimaan Non-Kas / Barang',
+          klasifikasi: 'Aset',
+          tipe_dana: 'ZAKAT'
+        }
+      });
+      await prisma.bankAccount.create({
+        data: {
+          account_id: 'non_kas',
+          nama_akun: 'Non Kas',
+          tipe_kas: 'NON_KAS',
+          kelompok_dana: 'ZAKAT',
+          saldo: new Prisma.Decimal(0.00),
+          coa_code: nonKasCoaCode
+        }
+      });
+    }
+
     const accounts = await prisma.bankAccount.findMany({
       include: { coa: true },
       orderBy: { tipe_kas: 'asc' }

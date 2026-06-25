@@ -120,7 +120,7 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
         tanggal_lahir: currentKategori === 'Perorangan' && tanggal_lahir ? String(tanggal_lahir) : null,
         jenis_kelamin: currentKategori === 'Perorangan' && jenis_kelamin ? String(jenis_kelamin) : null,
         pekerjaan: currentKategori === 'Perorangan' && pekerjaan ? String(pekerjaan) : null,
-        upz: currentKategori === 'Perorangan' && upz ? String(upz) : null,
+        upz: upz ? String(upz) : null,
         alamat_kantor: currentKategori === 'Perorangan' && alamat_kantor ? String(alamat_kantor) : null,
         handphone: currentKategori === 'Perorangan' && handphone ? String(handphone) : null,
 
@@ -272,7 +272,7 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
         tanggal_lahir: currentKategori === 'Perorangan' ? (tanggal_lahir !== undefined ? (tanggal_lahir ? String(tanggal_lahir) : null) : existing.tanggal_lahir) : null,
         jenis_kelamin: currentKategori === 'Perorangan' ? (jenis_kelamin !== undefined ? (jenis_kelamin ? String(jenis_kelamin) : null) : existing.jenis_kelamin) : null,
         pekerjaan: currentKategori === 'Perorangan' ? (pekerjaan !== undefined ? (pekerjaan ? String(pekerjaan) : null) : existing.pekerjaan) : null,
-        upz: currentKategori === 'Perorangan' ? (upz !== undefined ? (upz ? String(upz) : null) : existing.upz) : null,
+        upz: upz !== undefined ? (upz ? String(upz) : null) : existing.upz,
         alamat_kantor: currentKategori === 'Perorangan' ? (alamat_kantor !== undefined ? (alamat_kantor ? String(alamat_kantor) : null) : existing.alamat_kantor) : null,
         handphone: currentKategori === 'Perorangan' ? (handphone ? String(handphone) : existing.handphone) : null,
 

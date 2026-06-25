@@ -945,11 +945,11 @@ export default function PenerimaanZis() {
                   </div>
 
                   {/* RKAT Program selection */}
-                  <div className="space-y-1">
+                  <div className={`space-y-1 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT) *</label>
                     <select 
                       required={!isOutsideRkat} 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
                       value={selectedRkatId}
                       onChange={(e) => handleRkatChange(e.target.value)}
                       disabled={isOutsideRkat}
@@ -1071,13 +1071,19 @@ export default function PenerimaanZis() {
                      value={selectedAccountId}
                      onChange={(e) => setSelectedAccountId(e.target.value)}
                    >
-                     <option value="">Pilih Rekening Tujuan...</option>
-                     {accountsList.map(acc => (
-                       <option key={acc.account_id} value={acc.account_id}>
-                         {acc.nama_akun} (Saldo: Rp {Number(acc.saldo).toLocaleString('id-ID')})
-                       </option>
-                     ))}
-                   </select>
+                      <option value="">Pilih Rekening Tujuan...</option>
+                      {!accountsList.some(acc => acc.account_id === 'non_kas') && (
+                        <option value="non_kas">Non Kas</option>
+                      )}
+                      {accountsList.map(acc => {
+                        const isNonKas = acc.account_id === 'non_kas';
+                        return (
+                          <option key={acc.account_id} value={acc.account_id}>
+                            {acc.nama_akun} {!isNonKas ? `(Saldo: Rp ${Number(acc.saldo).toLocaleString('id-ID')})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
                  </div>
 
                  {/* Nominal */}

@@ -777,11 +777,11 @@ export default function IdentifikasiMutasi() {
                 </div>
 
                 {/* 2. Kegiatan (RKAT) */}
-                <div className="space-y-1.5">
+                <div className={`space-y-1.5 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT) *</label>
                   <select
                     required={!isOutsideRkat}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
                     value={selectedRkatId}
                     onChange={(e) => handleRkatChange(e.target.value)}
                     disabled={isOutsideRkat}

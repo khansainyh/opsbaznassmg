@@ -243,7 +243,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           <span className="text-primary font-bold">Tracking Proposal</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Tracking Proposal</h2>
-        <p className="text-slate-500 font-medium">Pantau alur dan status pengajuan proposal secara real-time.</p>
+        <p className="text-slate-500 font-medium">Layanan monitoring dan penelusuran alur disposisi berkas proposal secara real-time. Setelah data terekam, pantau status verifikasi dan hasil assessment lapangan secara berkala untuk mempermudah proses evaluasi kelayakan bantuan.</p>
       </motion.div>
 
       {/* Stats */}

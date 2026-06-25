@@ -41,6 +41,33 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
 
+  // Load UPZ list from localStorage
+  const [upzList, setUpzList] = useState<any[]>([]);
+  useEffect(() => {
+    const loadUpzList = async () => {
+      try {
+        const res = await axios.get('/api/upz');
+        if (res.data.status === 'success') {
+          setUpzList(res.data.data);
+        }
+      } catch (err) {
+        console.error('Error loading UPZ list:', err);
+      }
+    };
+    loadUpzList();
+  }, []);
+
+
+  // UPZ states for Add Modal
+  const [addUpzSearch, setAddUpzSearch] = useState('');
+  const [addSelectedUpz, setAddSelectedUpz] = useState<any>(null);
+  const [isAddUpzDropdownOpen, setIsAddUpzDropdownOpen] = useState(false);
+
+  // UPZ states for Edit Modal
+  const [editUpzSearch, setEditUpzSearch] = useState('');
+  const [editSelectedUpz, setEditSelectedUpz] = useState<any>(null);
+  const [isEditUpzDropdownOpen, setIsEditUpzDropdownOpen] = useState(false);
+
   const handleTerimaZis = (muzakki: any) => {
     localStorage.setItem('selected_muzakki_penerimaan', JSON.stringify({
       id: muzakki.id,
@@ -61,6 +88,40 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
   
   const [selectedData, setSelectedData] = useState<any>(null);
   const [modalCategory, setModalCategory] = useState<'Perorangan' | 'Lembaga'>('Perorangan');
+
+  // Reset Add modal UPZ selection when closed/opened
+  useEffect(() => {
+    if (!isModalOpen) {
+      setAddSelectedUpz(null);
+      setAddUpzSearch('');
+      setIsAddUpzDropdownOpen(false);
+    }
+  }, [isModalOpen]);
+
+  // Synchronize edit selected UPZ when selectedData or isEditModalOpen changes
+  useEffect(() => {
+    if (selectedData && isEditModalOpen) {
+      const matched = upzList.find(u => u.code === selectedData.upz || u.name === selectedData.upz);
+      if (matched) {
+        setEditSelectedUpz(matched);
+        setEditUpzSearch(`${matched.code} - ${matched.name}`);
+      } else {
+        setEditSelectedUpz(null);
+        setEditUpzSearch('');
+      }
+    } else {
+      setEditSelectedUpz(null);
+      setEditUpzSearch('');
+    }
+    setIsEditUpzDropdownOpen(false);
+  }, [selectedData, isEditModalOpen, upzList]);
+
+  // Helper to resolve display string for UPZ
+  const getUpzDisplay = (upzCodeOrName: string) => {
+    if (!upzCodeOrName) return '';
+    const matched = upzList.find(u => u.code === upzCodeOrName || u.name === upzCodeOrName);
+    return matched ? `${matched.code} - ${matched.name}` : upzCodeOrName;
+  };
 
   // NIK reveal state
   const [revealedNIKs, setRevealedNIKs] = useState<Set<string>>(new Set());
@@ -171,7 +232,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
         "Tanggal Lahir": "1985-05-15", 
         "Jenis Kelamin": "Pria", 
         Pekerjaan: "PNS", 
-        UPZ: "Masjid Agung",
+        UPZ: "UPZ-1",
         "Zakat Per Bulan": 500000,
         "Alamat Rumah": "Jl. Gajah Mada No. 100", 
         "Alamat Kantor": "Jl. Pahlawan No. 2",
@@ -229,6 +290,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       telepon: formData.get('telepon') || '',
       email: formData.get('email') || '',
       status: formData.get('status') || 'Aktif',
+      upz: addSelectedUpz ? addSelectedUpz.code : '',
     };
 
     if (modalCategory === 'Perorangan') {
@@ -237,7 +299,6 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       data.tanggal_lahir = formData.get('tanggal_lahir') || '';
       data.jenis_kelamin = formData.get('jenis_kelamin');
       data.pekerjaan = formData.get('pekerjaan') || '';
-      data.upz = formData.get('upz') || '';
       data.alamat_kantor = formData.get('alamat_kantor') || '';
       data.handphone = formData.get('handphone');
     } else {
@@ -286,6 +347,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       telepon: formData.get('telepon') || '',
       email: formData.get('email') || '',
       status: formData.get('status') || 'Aktif',
+      upz: editSelectedUpz ? editSelectedUpz.code : '',
     };
 
     if (modalCategory === 'Perorangan') {
@@ -294,7 +356,6 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       data.tanggal_lahir = formData.get('tanggal_lahir') || '';
       data.jenis_kelamin = formData.get('jenis_kelamin');
       data.pekerjaan = formData.get('pekerjaan') || '';
-      data.upz = formData.get('upz') || '';
       data.alamat_kantor = formData.get('alamat_kantor') || '';
       data.handphone = formData.get('handphone');
     } else {
@@ -677,7 +738,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
                         <select required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer">
@@ -688,10 +749,6 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan</label>
                         <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Pekerjaan..." />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ</label>
-                        <input name="upz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="UPZ..." />
                       </div>
                     </div>
 
@@ -725,6 +782,77 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Kantor</label>
                       <textarea name="alamat_kantor" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Alamat kantor..." />
+                    </div>
+
+                    <div className="space-y-1 relative">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ (Opsional)</label>
+                      {addSelectedUpz ? (
+                        <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
+                          <span className="font-semibold text-primary">{addSelectedUpz.code} - {addSelectedUpz.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddSelectedUpz(null);
+                              setAddUpzSearch('');
+                            }}
+                            className="p-1 hover:bg-primary/10 rounded-full transition-colors text-primary"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={addUpzSearch}
+                              onChange={(e) => {
+                                setAddUpzSearch(e.target.value);
+                                setIsAddUpzDropdownOpen(true);
+                              }}
+                              onFocus={() => setIsAddUpzDropdownOpen(true)}
+                              placeholder="Cari UPZ berdasarkan nama atau kode..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            />
+                            <Search className="absolute left-3.5 top-3.5 size-4 text-slate-400" />
+                          </div>
+                          {isAddUpzDropdownOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setIsAddUpzDropdownOpen(false)}
+                              />
+                              <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 py-1">
+                                {upzList.filter(u => 
+                                  u.name.toLowerCase().includes(addUpzSearch.toLowerCase()) ||
+                                  u.code.toLowerCase().includes(addUpzSearch.toLowerCase())
+                                ).length > 0 ? (
+                                  upzList.filter(u => 
+                                    u.name.toLowerCase().includes(addUpzSearch.toLowerCase()) ||
+                                    u.code.toLowerCase().includes(addUpzSearch.toLowerCase())
+                                  ).map((u) => (
+                                    <button
+                                      key={u.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setAddSelectedUpz(u);
+                                        setAddUpzSearch(`${u.code} - ${u.name}`);
+                                        setIsAddUpzDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"
+                                    >
+                                      <span className="font-semibold text-slate-700">{u.name}</span>
+                                      <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">{u.code}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-2 text-sm text-slate-400 text-center">UPZ tidak ditemukan</div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -799,6 +927,77 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Lembaga *</label>
                       <textarea required name="address" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Alamat..." />
+                    </div>
+
+                    <div className="space-y-1 relative">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ (Opsional)</label>
+                      {addSelectedUpz ? (
+                        <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
+                          <span className="font-semibold text-primary">{addSelectedUpz.code} - {addSelectedUpz.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddSelectedUpz(null);
+                              setAddUpzSearch('');
+                            }}
+                            className="p-1 hover:bg-primary/10 rounded-full transition-colors text-primary"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={addUpzSearch}
+                              onChange={(e) => {
+                                setAddUpzSearch(e.target.value);
+                                setIsAddUpzDropdownOpen(true);
+                              }}
+                              onFocus={() => setIsAddUpzDropdownOpen(true)}
+                              placeholder="Cari UPZ berdasarkan nama atau kode..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            />
+                            <Search className="absolute left-3.5 top-3.5 size-4 text-slate-400" />
+                          </div>
+                          {isAddUpzDropdownOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setIsAddUpzDropdownOpen(false)}
+                              />
+                              <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 py-1">
+                                {upzList.filter(u => 
+                                  u.name.toLowerCase().includes(addUpzSearch.toLowerCase()) ||
+                                  u.code.toLowerCase().includes(addUpzSearch.toLowerCase())
+                                ).length > 0 ? (
+                                  upzList.filter(u => 
+                                    u.name.toLowerCase().includes(addUpzSearch.toLowerCase()) ||
+                                    u.code.toLowerCase().includes(addUpzSearch.toLowerCase())
+                                  ).map((u) => (
+                                    <button
+                                      key={u.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setAddSelectedUpz(u);
+                                        setAddUpzSearch(`${u.code} - ${u.name}`);
+                                        setIsAddUpzDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"
+                                    >
+                                      <span className="font-semibold text-slate-700">{u.name}</span>
+                                      <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">{u.code}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-2 text-sm text-slate-400 text-center">UPZ tidak ditemukan</div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -890,7 +1089,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
                         <select defaultValue={selectedData.jenis_kelamin || 'Pria'} required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer">
@@ -901,10 +1100,6 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan</label>
                         <input defaultValue={selectedData.pekerjaan || ''} name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ</label>
-                        <input defaultValue={selectedData.upz || ''} name="upz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
                       </div>
                     </div>
 
@@ -938,6 +1133,77 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Kantor</label>
                       <textarea defaultValue={selectedData.alamat_kantor || ''} name="alamat_kantor" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                    </div>
+
+                    <div className="space-y-1 relative">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ (Opsional)</label>
+                      {editSelectedUpz ? (
+                        <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
+                          <span className="font-semibold text-primary">{editSelectedUpz.code} - {editSelectedUpz.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditSelectedUpz(null);
+                              setEditUpzSearch('');
+                            }}
+                            className="p-1 hover:bg-primary/10 rounded-full transition-colors text-primary"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={editUpzSearch}
+                              onChange={(e) => {
+                                setEditUpzSearch(e.target.value);
+                                setIsEditUpzDropdownOpen(true);
+                              }}
+                              onFocus={() => setIsEditUpzDropdownOpen(true)}
+                              placeholder="Cari UPZ berdasarkan nama atau kode..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            />
+                            <Search className="absolute left-3.5 top-3.5 size-4 text-slate-400" />
+                          </div>
+                          {isEditUpzDropdownOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setIsEditUpzDropdownOpen(false)}
+                              />
+                              <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 py-1">
+                                {upzList.filter(u => 
+                                  u.name.toLowerCase().includes(editUpzSearch.toLowerCase()) ||
+                                  u.code.toLowerCase().includes(editUpzSearch.toLowerCase())
+                                ).length > 0 ? (
+                                  upzList.filter(u => 
+                                    u.name.toLowerCase().includes(editUpzSearch.toLowerCase()) ||
+                                    u.code.toLowerCase().includes(editUpzSearch.toLowerCase())
+                                  ).map((u) => (
+                                    <button
+                                      key={u.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setEditSelectedUpz(u);
+                                        setEditUpzSearch(`${u.code} - ${u.name}`);
+                                        setIsEditUpzDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"
+                                    >
+                                      <span className="font-semibold text-slate-700">{u.name}</span>
+                                      <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">{u.code}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-2 text-sm text-slate-400 text-center">UPZ tidak ditemukan</div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -1012,6 +1278,77 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Lembaga *</label>
                       <textarea defaultValue={selectedData.alamat || ''} required name="address" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                    </div>
+
+                    <div className="space-y-1 relative">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ (Opsional)</label>
+                      {editSelectedUpz ? (
+                        <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
+                          <span className="font-semibold text-primary">{editSelectedUpz.code} - {editSelectedUpz.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditSelectedUpz(null);
+                              setEditUpzSearch('');
+                            }}
+                            className="p-1 hover:bg-primary/10 rounded-full transition-colors text-primary"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={editUpzSearch}
+                              onChange={(e) => {
+                                setEditUpzSearch(e.target.value);
+                                setIsEditUpzDropdownOpen(true);
+                              }}
+                              onFocus={() => setIsEditUpzDropdownOpen(true)}
+                              placeholder="Cari UPZ berdasarkan nama atau kode..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            />
+                            <Search className="absolute left-3.5 top-3.5 size-4 text-slate-400" />
+                          </div>
+                          {isEditUpzDropdownOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setIsEditUpzDropdownOpen(false)}
+                              />
+                              <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 py-1">
+                                {upzList.filter(u => 
+                                  u.name.toLowerCase().includes(editUpzSearch.toLowerCase()) ||
+                                  u.code.toLowerCase().includes(editUpzSearch.toLowerCase())
+                                ).length > 0 ? (
+                                  upzList.filter(u => 
+                                    u.name.toLowerCase().includes(editUpzSearch.toLowerCase()) ||
+                                    u.code.toLowerCase().includes(editUpzSearch.toLowerCase())
+                                  ).map((u) => (
+                                    <button
+                                      key={u.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setEditSelectedUpz(u);
+                                        setEditUpzSearch(`${u.code} - ${u.name}`);
+                                        setIsEditUpzDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"
+                                    >
+                                      <span className="font-semibold text-slate-700">{u.name}</span>
+                                      <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono">{u.code}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-2 text-sm text-slate-400 text-center">UPZ tidak ditemukan</div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -1147,7 +1484,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                           <Layers className="size-3.5" /> Pekerjaan &amp; UPZ
                         </p>
                         <p className="text-sm font-semibold text-slate-800 mt-1">
-                          {selectedData.pekerjaan || '-'}{selectedData.upz ? ` (UPZ: ${selectedData.upz})` : ''}
+                          {selectedData.pekerjaan || '-'}{selectedData.upz ? ` (UPZ: ${getUpzDisplay(selectedData.upz)})` : ''}
                         </p>
                       </div>
                       <div>
@@ -1201,9 +1538,11 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                          <Layers className="size-3.5" /> Jenis Lembaga
+                          <Layers className="size-3.5" /> Jenis Lembaga &amp; UPZ
                         </p>
-                        <p className="text-sm font-semibold text-slate-800 mt-1">{selectedData.jenis_lembaga || '-'}</p>
+                        <p className="text-sm font-semibold text-slate-800 mt-1">
+                          {selectedData.jenis_lembaga || '-'}{selectedData.upz ? ` (UPZ: ${getUpzDisplay(selectedData.upz)})` : ''}
+                        </p>
                       </div>
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">

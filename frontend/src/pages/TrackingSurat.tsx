@@ -123,7 +123,7 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
           <span className="text-primary font-bold">Tracking Surat</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Tracking Surat</h2>
-        <p className="text-slate-500 font-medium">Pantau alur disposisi dan status surat dinas secara real-time.</p>
+        <p className="text-slate-500 font-medium">Layanan monitoring dan penelusuran alur disposisi berkas surat masuk secara real-time. Setelah data terekam, pantau status ulasan dan penugasan staf secara berkala untuk mempermudah proses koordinasi tindak lanjut undangan.</p>
       </motion.div>
 
       {/* Stats */}

@@ -20,6 +20,9 @@ import rkatPengumpulanRoutes from './routes/rkat-pengumpulan.route';
 import rkatOperasionalRoutes from './routes/rkat-operasional.route';
 import penerimaanZisRoutes from './routes/penerimaan-zis.route';
 import bankJatengRoutes from './routes/bank-jateng.route';
+import upzRoutes from './routes/upz.route';
+import penerimaanMappingRoutes from './routes/penerimaan-mapping.route';
+
 
 dotenv.config();
 
@@ -62,6 +65,9 @@ app.use('/api/rkat-pengumpulan', rkatPengumpulanRoutes);
 app.use('/api/rkat-operasional', rkatOperasionalRoutes);
 app.use('/api/penerimaan-zis', penerimaanZisRoutes);
 app.use('/api/bank-jateng', bankJatengRoutes);
+app.use('/api/upz', upzRoutes);
+app.use('/api/penerimaan-mapping', penerimaanMappingRoutes);
+
 
 
 

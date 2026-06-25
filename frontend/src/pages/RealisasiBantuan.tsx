@@ -231,7 +231,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
               Realisasi Bantuan
             </h2>
             <p className="text-slate-500 font-medium">
-              Proses akhir penyerahan bantuan kepada mustahik yang telah disetujui.
+              Layanan penyerahan dana atau barang bantuan secara langsung kepada mustahik yang telah disetujui. Setelah bantuan diserahkan, teruskan dokumen bukti penyaluran ke bagian Antrean Arsip.
             </p>
           </div>
         </div>

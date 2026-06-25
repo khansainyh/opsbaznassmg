@@ -19,31 +19,76 @@ import {
   Upload,
   FileSpreadsheet,
   Edit2,
-  Trash2
+  Trash2,
+  Coins
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { upzData as initialUpzData, skHistoryData as initialSkHistoryData } from '@/src/data/upzData';
+import axios from 'axios';
+import { skHistoryData as initialSkHistoryData } from '@/src/data/upzData';
 import { UPZ, SKHistory } from '@/src/types/upz';
 import { getNextRenewalSKNumber, getNextBaseSKNumber, isSKPembentukan, parseSKNumber } from '@/src/utils/skUtils';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 
 export default function DatabaseUPZ() {
-  const [data, setData] = useState<UPZ[]>(() => {
-    const local = localStorage.getItem('baznas_upz_data');
-    if (local) {
-      try {
-        return JSON.parse(local);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return initialUpzData;
-  });
+  const [data, setData] = useState<UPZ[]>([]);
 
-  useEffect(() => {
-    localStorage.setItem('baznas_upz_data', JSON.stringify(data));
-  }, [data]);
+  const fetchUPZList = async () => {
+    try {
+      const res = await axios.get('/api/upz');
+      if (res.data.status === 'success') {
+        setData(res.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching UPZ list:', err);
+    }
+  };
+
+  const getUPZAccumulation = (item: UPZ) => {
+    if (item.type !== 'On-Balance') return { total: 0, hak: 0, pct: 0 };
+    const isPembantuan = item.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
+    const pctVal = isPembantuan ? upzHakPembantuan : upzHakPengumpulan;
+    const pct = pctVal / 100;
+
+    const upzName = item.name;
+    const targetUpz = upzName.toLowerCase().trim();
+    const cleanTargetUpz = targetUpz.replace(/^upz\s+/i, '');
+    const upzCode = item.code?.toLowerCase().trim();
+
+    const upzHistory = bankJatengHistory.filter(tx => {
+      if (!tx) return false;
+      const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
+      if (upzCode && muzakkiUpz === upzCode) return true;
+      if (muzakkiUpz === targetUpz) return true;
+      const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
+      if (cleanMuzakkiUpz === cleanTargetUpz) return true;
+      const keterangan = tx.keterangan?.toLowerCase() || '';
+      if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) return true;
+      if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) return true;
+      return false;
+    });
+
+    const upzZisHistory = zisHistory.filter(tx => {
+      if (!tx) return false;
+      const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
+      if (upzCode && muzakkiUpz === upzCode) return true;
+      if (muzakkiUpz === targetUpz) return true;
+      const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
+      if (cleanMuzakkiUpz === cleanTargetUpz) return true;
+      const keterangan = tx.keterangan?.toLowerCase() || '';
+      if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) return true;
+      if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) return true;
+      return false;
+    });
+
+    const totalBankJateng = upzHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const totalZis = upzZisHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const total = totalBankJateng + totalZis;
+    const hak = total * pct;
+    return { total, hak, pct: pctVal };
+  };
+
+
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
   const [kecamatanFilter, setKecamatanFilter] = useState('Semua');
@@ -53,6 +98,41 @@ export default function DatabaseUPZ() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  const [bankJatengHistory, setBankJatengHistory] = useState<any[]>([]);
+  const [zisHistory, setZisHistory] = useState<any[]>([]);
+  const [upzHakPengumpulan, setUpzHakPengumpulan] = useState(30);
+  const [upzHakPembantuan, setUpzHakPembantuan] = useState(70);
+
+  useEffect(() => {
+    const fetchHistories = async () => {
+      try {
+        const [resJateng, resZis, resPengumpulanParam, resPembantuanParam] = await Promise.all([
+          axios.get('/api/bank-jateng/history'),
+          axios.get('/api/penerimaan-zis'),
+          axios.get('/api/parameters/upz_hak_salur_pengumpulan').catch(() => null),
+          axios.get('/api/parameters/upz_hak_salur_pembantuan').catch(() => null)
+        ]);
+        if (resJateng.data.status === 'success') {
+          setBankJatengHistory(resJateng.data.data);
+        }
+        if (resZis.data.status === 'success') {
+          setZisHistory(resZis.data.data);
+        }
+        if (resPengumpulanParam && resPengumpulanParam.data) {
+          setUpzHakPengumpulan(Number(resPengumpulanParam.data.value || 30));
+        }
+        if (resPembantuanParam && resPembantuanParam.data) {
+          setUpzHakPembantuan(Number(resPembantuanParam.data.value || 70));
+        }
+      } catch (err) {
+        console.error('Error fetching history data:', err);
+      }
+    };
+    fetchHistories();
+    fetchUPZList();
+  }, []);
+
 
   // Print Date Modal states
   const [isPrintDateModalOpen, setIsPrintDateModalOpen] = useState(false);
@@ -305,38 +385,44 @@ export default function DatabaseUPZ() {
     setIsResignModalOpen(true);
   };
 
-  const handleConfirmResignation = () => {
+  const handleConfirmResignation = async () => {
     if (!resignUPZ) return;
-    setData(prev => prev.map(u => u.id === resignUPZ.id ? {
-      ...u,
+    const updatedUpz: UPZ = {
+      ...resignUPZ,
       status: 'Mengundurkan Diri',
       resignationDate: resignDate,
       resignationReason: resignReason
-    } : u));
-    setSelectedUPZ(prev => prev && prev.id === resignUPZ.id ? {
-      ...prev,
-      status: 'Mengundurkan Diri',
-      resignationDate: resignDate,
-      resignationReason: resignReason
-    } : prev);
-    setIsResignModalOpen(false);
-    setResignUPZ(null);
+    };
+
+    try {
+      await axios.put(`/api/upz/${resignUPZ.id}`, updatedUpz);
+      await fetchUPZList();
+      setSelectedUPZ(prev => prev && prev.id === resignUPZ.id ? updatedUpz : prev);
+      setIsResignModalOpen(false);
+      setResignUPZ(null);
+    } catch (err) {
+      console.error(err);
+      alert('Gagal memperbarui status pengunduran diri UPZ.');
+    }
   };
 
-  const handleReactivateUPZ = (upz: UPZ) => {
+  const handleReactivateUPZ = async (upz: UPZ) => {
     if (window.confirm(`Apakah Anda yakin ingin mengaktifkan kembali UPZ "${upz.name}"?`)) {
-      setData(prev => prev.map(u => u.id === upz.id ? {
-        ...u,
+      const updatedUpz: UPZ = {
+        ...upz,
         status: 'Aktif',
         resignationDate: undefined,
         resignationReason: undefined
-      } : u));
-      setSelectedUPZ(prev => prev && prev.id === upz.id ? {
-        ...prev,
-        status: 'Aktif',
-        resignationDate: undefined,
-        resignationReason: undefined
-      } : prev);
+      };
+
+      try {
+        await axios.put(`/api/upz/${upz.id}`, updatedUpz);
+        await fetchUPZList();
+        setSelectedUPZ(prev => prev && prev.id === upz.id ? updatedUpz : prev);
+      } catch (err) {
+        console.error(err);
+        alert('Gagal mengaktifkan kembali UPZ.');
+      }
     }
   };
 
@@ -351,7 +437,7 @@ export default function DatabaseUPZ() {
   // Computed: next base SK number for new UPZ registration
   const nextBaseSK = getNextBaseSKNumber(skHistory, data, formCategory);
 
-  const handleRenewalSK = () => {
+  const handleRenewalSK = async () => {
     if (!selectedUPZ || !renewalForm.skNumber || !renewalForm.startYear || !renewalForm.endYear || !formPengurus.penasehat.nama) {
       alert('Harap isi minimal Nomor SK, Tahun, dan Nama Penasehat/Ketua.');
       return;
@@ -372,40 +458,34 @@ export default function DatabaseUPZ() {
       newEntry,
     ]);
 
-    setData(prev => prev.map(u => u.id === selectedUPZ.id ? { 
-      ...u, 
+    const updatedUpz = { 
+      ...selectedUPZ, 
       activeSKNumber: renewalForm.skNumber,
       skExpiryDate: `${renewalForm.endYear}-12-31`,
       metadata: { 
-        ...u.metadata, 
+        ...selectedUPZ.metadata, 
         pimpinanName: formPengurus.penasehat.nama,
         pengurus: {
           ...formPengurus,
           anggotaTambahan: anggotaTambahan
         }
       } 
-    } : u));
-    
-    setSelectedUPZ(prev => prev ? { 
-      ...prev, 
-      activeSKNumber: renewalForm.skNumber,
-      skExpiryDate: `${renewalForm.endYear}-12-31`,
-      metadata: { 
-        ...prev.metadata, 
-        pimpinanName: formPengurus.penasehat.nama,
-        pengurus: {
-          ...formPengurus,
-          anggotaTambahan: anggotaTambahan
-        }
-      }
-    } : prev);
+    };
 
-    setRenewalForm({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
-    setHistoryView('list');
-    alert(`✅ SK Pembaruan ${renewalForm.skNumber} berhasil disimpan dengan struktur pengurus baru!`);
+    try {
+      await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
+      await fetchUPZList();
+      setSelectedUPZ(updatedUpz);
+      setRenewalForm({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
+      setHistoryView('list');
+      alert(`✅ SK Pembaruan ${renewalForm.skNumber} berhasil disimpan dengan struktur pengurus baru!`);
+    } catch (err) {
+      console.error(err);
+      alert('Gagal memperbarui SK UPZ.');
+    }
   };
 
-  const handlePerubahanSK = () => {
+  const handlePerubahanSK = async () => {
     if (!selectedUPZ || !formPengurus.penasehat.nama) {
       alert('Harap isi minimal Nama Penasehat/Ketua.');
       return;
@@ -431,33 +511,30 @@ export default function DatabaseUPZ() {
       newEntry,
     ]);
 
-    setData(prev => prev.map(u => u.id === selectedUPZ.id ? { 
-      ...u, 
+    const updatedUpz = { 
+      ...selectedUPZ, 
       metadata: { 
-        ...u.metadata, 
+        ...selectedUPZ.metadata, 
         pimpinanName: formPengurus.penasehat.nama,
         pengurus: {
           ...formPengurus,
           anggotaTambahan: anggotaTambahan
         }
       } 
-    } : u));
+    };
 
-    setSelectedUPZ(prev => prev ? { 
-      ...prev, 
-      metadata: { 
-        ...prev.metadata, 
-        pimpinanName: formPengurus.penasehat.nama,
-        pengurus: {
-          ...formPengurus,
-          anggotaTambahan: anggotaTambahan
-        }
-      }
-    } : prev);
-
-    setHistoryView('list');
-    alert(`✅ Perubahan pengurus berhasil disimpan. No. SK tetap ${sameSKNumber}. Masa berlaku tetap.`);
+    try {
+      await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
+      await fetchUPZList();
+      setSelectedUPZ(updatedUpz);
+      setHistoryView('list');
+      alert(`✅ Perubahan pengurus berhasil disimpan. No. SK tetap ${sameSKNumber}. Masa berlaku tetap.`);
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menyimpan perubahan SK.');
+    }
   };
+
 
   const generateSKHtml = (upz: UPZ, history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string) => {
     const isPembentukan = history.skType === 'Baru' || isSKPembentukan(history.skNumber);
@@ -1854,6 +1931,8 @@ export default function DatabaseUPZ() {
                 <th className="px-6 py-4">Nama UPZ</th>
                 <th className="px-6 py-4">Kategori</th>
                 <th className="px-6 py-4">Wilayah (Kec/Kel)</th>
+                <th className="px-6 py-4 text-right">Total Setoran</th>
+                <th className="px-6 py-4 text-right">Hak UPZ</th>
                 <th className="px-6 py-4 text-center">SK Aktif</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Aksi</th>
@@ -1890,6 +1969,26 @@ export default function DatabaseUPZ() {
                     <p className="text-sm font-medium text-slate-600">{item.kecamatan}</p>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{item.kelurahan}</p>
                   </td>
+                  <td className="px-6 py-4 text-right font-mono">
+                    <p className="text-xs font-bold text-slate-900">
+                      Rp {getUPZAccumulation(item).total.toLocaleString('id-ID')}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono">
+                    {item.type === 'On-Balance' ? (
+                      <div>
+                        <p className="text-xs font-bold text-primary">
+                          Rp {getUPZAccumulation(item).hak.toLocaleString('id-ID')}
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">
+                          {getUPZAccumulation(item).pct}%
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 font-medium">-</span>
+                    )}
+                  </td>
+
                   <td className="px-6 py-4 text-center">
                     {(() => {
                       const expiryYearStr = item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
@@ -2471,7 +2570,7 @@ export default function DatabaseUPZ() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden"
+              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-3">
@@ -2484,7 +2583,7 @@ export default function DatabaseUPZ() {
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
-              <div className="p-8 space-y-8">
+              <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <div className="space-y-1">
@@ -2624,6 +2723,127 @@ export default function DatabaseUPZ() {
                             )}>{selectedUPZ.metadata.pimpinanAddress || '-'}</p>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {(() => {
+                  if (selectedUPZ.type !== 'On-Balance') {
+                    return null;
+                  }
+
+                  const onBalanceType = selectedUPZ.metadata.onBalanceType || 'Pengumpulan';
+                  if (onBalanceType !== 'Pengumpulan' && onBalanceType !== 'Pembantuan Pendistribusian dan Pendayagunaan') {
+                    return null;
+                  }
+
+                  const isPembantuan = onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
+                  const pctVal = isPembantuan ? upzHakPembantuan : upzHakPengumpulan;
+                  const pct = pctVal / 100;
+                  const pctLabel = isPembantuan ? `${pctVal}% Pembantuan` : `${pctVal}% Pengumpulan`;
+                  const badgeLabel = `Hak ${pctVal}%`;
+
+                  // Calculate total collections for this UPZ
+                  const upzName = selectedUPZ.name;
+                  const targetUpz = upzName.toLowerCase().trim();
+                  const cleanTargetUpz = targetUpz.replace(/^upz\s+/i, '');
+                  const upzCode = selectedUPZ.code?.toLowerCase().trim();
+
+                  const upzHistory = bankJatengHistory.filter(tx => {
+                    if (!tx) return false;
+                    
+                    // 1. check by code (primary)
+                    const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
+                    if (upzCode && muzakkiUpz === upzCode) return true;
+
+                    // 2. check by name (fallback)
+                    if (muzakkiUpz === targetUpz) return true;
+                    const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
+                    if (cleanMuzakkiUpz === cleanTargetUpz) return true;
+
+                    // 3. check keterangan
+                    const keterangan = tx.keterangan?.toLowerCase() || '';
+                    if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) {
+                      return true;
+                    }
+                    if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) {
+                      return true;
+                    }
+                    if (cleanTargetUpz && (keterangan.includes(`(${cleanTargetUpz})`) || keterangan.includes(`(upz ${cleanTargetUpz})`))) {
+                      return true;
+                    }
+
+                    return false;
+                  });
+
+                  // 3. check direct ZIS receipts
+                  const upzZisHistory = zisHistory.filter(tx => {
+                    if (!tx) return false;
+
+                    // 1. check by code (primary)
+                    const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
+                    if (upzCode && muzakkiUpz === upzCode) return true;
+
+                    // 2. check by name (fallback)
+                    if (muzakkiUpz === targetUpz) return true;
+                    const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
+                    if (cleanMuzakkiUpz === cleanTargetUpz) return true;
+
+                    // 3. check keterangan
+                    const keterangan = tx.keterangan?.toLowerCase() || '';
+                    if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) {
+                      return true;
+                    }
+                    if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) {
+                      return true;
+                    }
+                    if (cleanTargetUpz && (keterangan.includes(`(${cleanTargetUpz})`) || keterangan.includes(`(upz ${cleanTargetUpz})`))) {
+                      return true;
+                    }
+
+                    return false;
+                  });
+
+                  const totalBankJateng = upzHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+                  const totalZis = upzZisHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+                  const totalPengumpulan = totalBankJateng + totalZis;
+                  const hakVal = totalPengumpulan * pct;
+
+                  return (
+                    <div className="p-6 bg-primary/5 rounded-2xl border border-primary/10 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Coins className="size-5 text-primary" />
+                          <h4 className="text-xs font-black text-primary uppercase tracking-widest">Informasi Hak Penyaluran UPZ ({pctLabel})</h4>
+                        </div>
+                        <span className="px-2.5 py-0.5 text-[9px] font-black rounded-full border border-primary/20 bg-primary/10 text-primary uppercase tracking-wider">
+                          {badgeLabel}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pengumpulan Terakumulasi</p>
+                          <p className="text-lg font-black text-slate-900">
+                            Rp {totalPengumpulan.toLocaleString('id-ID')}
+                          </p>
+                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                            Bank Jateng: Rp {totalBankJateng.toLocaleString('id-ID')} | ZIS: Rp {totalZis.toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">Hak Usulan Penyaluran UPZ ({Math.round(pct * 100)}%)</p>
+                          <p className="text-lg font-black text-emerald-600">
+                            Rp {hakVal.toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-white/60 border border-slate-100 rounded-xl">
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          * Data di atas diakumulasikan secara real-time dari riwayat transaksi payroll Bank Jateng yang berhasil direkonsiliasi untuk UPZ ini. Nilai ini bersifat administratif/informasi pagu usulan penyaluran bantuan dan tidak memotong saldo kas utama BAZNAS.
+                        </p>
                       </div>
                     </div>
                   );
@@ -2984,11 +3204,17 @@ export default function DatabaseUPZ() {
               <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <button 
                   type="button" 
-                  onClick={() => {
+                  onClick={async () => {
                     if (window.confirm(`Apakah Anda yakin ingin menghapus UPZ "${selectedUPZ.name}"?`)) {
-                      setData(prev => prev.filter(u => u.id !== selectedUPZ.id));
-                      setIsEditModalOpen(false);
-                      alert('Data UPZ berhasil dihapus.');
+                      try {
+                        await axios.delete(`/api/upz/${selectedUPZ.id}`);
+                        await fetchUPZList();
+                        setIsEditModalOpen(false);
+                        alert('Data UPZ berhasil dihapus.');
+                      } catch (err) {
+                        console.error(err);
+                        alert('Gagal menghapus UPZ.');
+                      }
                     }
                   }}
                   className="px-4 py-2.5 text-xs font-black text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer"
@@ -3006,13 +3232,13 @@ export default function DatabaseUPZ() {
                   </button>
                    <button 
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!formNamaUpz.trim()) {
                         alert('Nama UPZ tidak boleh kosong.');
                         return;
                       }
-                      setData(prev => prev.map(u => u.id === selectedUPZ.id ? {
-                        ...u,
+                      const updatedUpz = {
+                        ...selectedUPZ,
                         name: formNamaUpz,
                         category: formCategory,
                         type: formType,
@@ -3025,7 +3251,7 @@ export default function DatabaseUPZ() {
                         resignationDate: formStatus === 'Mengundurkan Diri' ? formResignationDate : undefined,
                         resignationReason: formStatus === 'Mengundurkan Diri' ? formResignationReason : undefined,
                         metadata: {
-                          ...u.metadata,
+                          ...selectedUPZ.metadata,
                           address: formAlamatLengkap,
                           upzPhone: formNoTelepon,
                           onBalanceType: formType === 'On-Balance' ? formOnBalanceType : undefined,
@@ -3035,14 +3261,22 @@ export default function DatabaseUPZ() {
                             anggotaTambahan: anggotaTambahan
                           }
                         }
-                      } : u));
-                      alert('Data UPZ berhasil diperbarui.');
-                      setIsEditModalOpen(false);
+                      };
+                      try {
+                        await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
+                        await fetchUPZList();
+                        alert('Data UPZ berhasil diperbarui.');
+                        setIsEditModalOpen(false);
+                      } catch (err) {
+                        console.error(err);
+                        alert('Gagal memperbarui data UPZ.');
+                      }
                     }}
                     className="px-10 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all cursor-pointer"
                   >
                     Simpan Perubahan
                   </button>
+
                 </div>
               </div>
             </motion.div>
@@ -3353,13 +3587,27 @@ export default function DatabaseUPZ() {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (!formNamaUpz.trim()) {
                       alert('Nama UPZ harus diisi.');
                       return;
                     }
 
-                    const nextCode = `UPZ-${Date.now()}`;
+                    let nextIndex = 1;
+                    if (data && data.length > 0) {
+                      const indices = data
+                        .map(u => {
+                          const match = u.code.match(/^UPZ-(\d+)$/);
+                          return match ? parseInt(match[1], 10) : 0;
+                        })
+                        .filter(Boolean);
+                      if (indices.length > 0) {
+                        nextIndex = Math.max(...indices) + 1;
+                      } else {
+                        nextIndex = data.length + 1;
+                      }
+                    }
+                    const nextCode = `UPZ-${nextIndex}`;
                     const skPenetapan = formNoSKPenetapan || nextBaseSK.toString();
 
                     const newUpz: UPZ = {
@@ -3403,8 +3651,18 @@ export default function DatabaseUPZ() {
                       skType: 'Baru'
                     };
 
-                    setData(prev => [newUpz, ...prev]);
-                    setSkHistory(prev => [newSkHistoryEntry, ...prev]);
+                    try {
+                      await axios.post('/api/upz', newUpz);
+                      await fetchUPZList();
+                      setSkHistory(prev => [newSkHistoryEntry, ...prev]);
+                      setIsAddModalOpen(false);
+                      alert('UPZ berhasil didaftarkan.');
+                    } catch (err) {
+                      console.error(err);
+                      alert('Gagal mendaftarkan UPZ.');
+                      return;
+                    }
+
 
                     // Reset form states
                     setFormNamaUpz('');

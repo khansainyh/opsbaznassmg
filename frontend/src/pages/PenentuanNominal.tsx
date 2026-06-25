@@ -271,7 +271,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
           Penentuan Nominal Bantuan
         </h2>
         <p className="text-slate-500 font-medium">
-          Tahap penentuan besaran nominal dan tipe bantuan oleh Wakil Ketua berdasarkan SOP RKAT.
+          Layanan penetapan besaran nominal dan tipe penyaluran bantuan bagi mustahik yang disetujui. Setelah nominal diselaraskan dengan anggaran RKAT, teruskan proposal untuk proses pencairan dana bank.
         </p>
       </motion.div>
 
