@@ -34,7 +34,7 @@ const defaultMappings = [
     coa_kredit_utang: '21040101'
   },
   {
-    kategori: 'Infak/Sedekah - Mandiri',
+    kategori: 'Infak/Sedekah Tidak Terikat - Mandiri',
     persentase_amil: new Prisma.Decimal(20.00),
     persentase_upz: new Prisma.Decimal(0.00),
     persentase_baznas: new Prisma.Decimal(20.00),
@@ -44,11 +44,51 @@ const defaultMappings = [
     coa_kredit_utang: '21040101'
   },
   {
-    kategori: 'Infak/Sedekah - UPZ',
+    kategori: 'Infak/Sedekah Tidak Terikat - UPZ Pengumpulan',
     persentase_amil: new Prisma.Decimal(20.00),
+    persentase_upz: new Prisma.Decimal(5.00),
+    persentase_baznas: new Prisma.Decimal(15.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(0.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  },
+  {
+    kategori: 'Infak/Sedekah Tidak Terikat - UPZ Pembantuan',
+    persentase_amil: new Prisma.Decimal(6.00),
     persentase_upz: new Prisma.Decimal(0.00),
-    persentase_baznas: new Prisma.Decimal(20.00),
-    persentase_salur_pembantuan: new Prisma.Decimal(30.00),
+    persentase_baznas: new Prisma.Decimal(6.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(70.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  },
+  {
+    kategori: 'Infak Terikat - Qurban/CSR/DAM/DSKL',
+    persentase_amil: new Prisma.Decimal(10.00),
+    persentase_upz: new Prisma.Decimal(0.00),
+    persentase_baznas: new Prisma.Decimal(10.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(0.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  },
+  {
+    kategori: 'Infak Terikat - Palestina',
+    persentase_amil: new Prisma.Decimal(5.00),
+    persentase_upz: new Prisma.Decimal(0.00),
+    persentase_baznas: new Prisma.Decimal(5.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(0.00),
+    coa_debit_beban: '51020101',
+    coa_kredit_amil: '43010101',
+    coa_kredit_utang: '21040101'
+  },
+  {
+    kategori: 'Infak Terikat - Non-Amil',
+    persentase_amil: new Prisma.Decimal(0.00),
+    persentase_upz: new Prisma.Decimal(0.00),
+    persentase_baznas: new Prisma.Decimal(0.00),
+    persentase_salur_pembantuan: new Prisma.Decimal(0.00),
     coa_debit_beban: '51020101',
     coa_kredit_amil: '43010101',
     coa_kredit_utang: '21040101'
@@ -61,7 +101,7 @@ export const getPenerimaanMappings = async (req: Request, res: Response) => {
     
     // Check if we have the old mappings
     const hasOldMappings = list.some(item => 
-      ['Zakat Maal', 'Zakat Fitrah', 'Infak', 'Sedekah'].includes(item.kategori)
+      ['Zakat Maal', 'Zakat Fitrah', 'Infak', 'Sedekah', 'Infak/Sedekah - Mandiri', 'Infak/Sedekah - UPZ'].includes(item.kategori)
     );
     
     // Auto-seed if empty or has old mappings

@@ -2666,7 +2666,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                     label="Hubungkan ke Akun COA Penerimaan"
                     selectedCodes={formPengCoas}
                     onChange={setFormPengCoas}
-                    availableCoas={coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.'))}
+                    availableCoas={coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4'))}
                     placeholder="Cari COA Penerimaan..."
                   />
                   <p className="text-[10px] text-slate-400">Pilih satu atau lebih akun COA Penerimaan. Nilai transaksi Uang Masuk pada COA terpilih akan otomatis terakumulasi sebagai Realisasi program.</p>
@@ -2960,7 +2960,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                             "No": "1",
                             "Kategori": "Zakat",
                             "Nama Program": "Zakat Maal Badan",
-                            "Kode COA": "4.1.01.01.001, 4.1.01.01.002",
+                            "Kode COA": "41010101, 41010102",
                             "Target Perorangan": "",
                             "Target Lembaga": "10",
                             "Nilai Anggaran": 50000000,
@@ -2979,7 +2979,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                           }
                         ]);
                         const refCoas = coas
-                          .filter(coa => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4.'))
+                          .filter(coa => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4'))
                           .map(coa => ({
                             "Kode COA": coa.coa_code,
                             "Nama Akun": coa.nama_akun,
@@ -2997,7 +2997,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                             "No": "1",
                             "Nama Program": "Belanja ATK Kantor",
                             "Keterangan": "Pembelian kertas, pulpen, tinta printer triwulanan",
-                            "Kode COA": "5.2.01.01.001",
+                            "Kode COA": "52010101",
                             "Volume": 4,
                             "Frekuensi": 1,
                             "Unit Cost": 1500000,
@@ -3039,7 +3039,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                             "Target Jiwa": 100,
                             "Frekuensi": 1,
                             "Unit Cost": 250000,
-                            "Kode COA": "5.1.01.01.001"
+                            "Kode COA": "51010101"
                           }
                         ]);
                         const refCoas = coas
@@ -3052,9 +3052,9 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                         const wsRef = XLSX.utils.json_to_sheet(refCoas);
 
                         const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, "Template_RKAT");
+                        XLSX.utils.book_append_sheet(wb, ws, "Template_Penyaluran");
                         XLSX.utils.book_append_sheet(wb, wsRef, "Referensi_COA");
-                        XLSX.writeFile(wb, "Template_Migrasi_RKAT.xlsx");
+                        XLSX.writeFile(wb, "Template_Migrasi_RKAT_Penyaluran.xlsx");
                       }
                     }} 
                     className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all"

@@ -200,9 +200,11 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
           }
         } else if (mappedKategori === 'Infak' || mappedKategori === 'Sedekah') {
           if (!muzakki || !muzakki.upz) {
-            mappedKategoriRule = 'Infak/Sedekah - Mandiri';
+            mappedKategoriRule = 'Infak/Sedekah Tidak Terikat - Mandiri';
+          } else if (isPembantuan) {
+            mappedKategoriRule = 'Infak/Sedekah Tidak Terikat - UPZ Pembantuan';
           } else {
-            mappedKategoriRule = 'Infak/Sedekah - UPZ';
+            mappedKategoriRule = 'Infak/Sedekah Tidak Terikat - UPZ Pengumpulan';
           }
         }
 
