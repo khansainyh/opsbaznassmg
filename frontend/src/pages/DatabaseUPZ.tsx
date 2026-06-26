@@ -55,19 +55,6 @@ export default function DatabaseUPZ() {
     const cleanTargetUpz = targetUpz.replace(/^upz\s+/i, '');
     const upzCode = item.code?.toLowerCase().trim();
 
-    const upzHistory = bankJatengHistory.filter(tx => {
-      if (!tx) return false;
-      const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
-      if (upzCode && muzakkiUpz === upzCode) return true;
-      if (muzakkiUpz === targetUpz) return true;
-      const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
-      if (cleanMuzakkiUpz === cleanTargetUpz) return true;
-      const keterangan = tx.keterangan?.toLowerCase() || '';
-      if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) return true;
-      if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) return true;
-      return false;
-    });
-
     const upzZisHistory = zisHistory.filter(tx => {
       if (!tx) return false;
       const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
@@ -81,8 +68,17 @@ export default function DatabaseUPZ() {
       return false;
     });
 
-    const totalBankJateng = upzHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
-    const totalZis = upzZisHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const bankJatengRecords = upzZisHistory.filter(tx => 
+      tx.no_kuitansi?.startsWith('BSZ-JTG-') || 
+      tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
+    );
+    const manualZisRecords = upzZisHistory.filter(tx => 
+      !tx.no_kuitansi?.startsWith('BSZ-JTG-') && 
+      !tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
+    );
+
+    const totalBankJateng = bankJatengRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const totalZis = manualZisRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
     const total = totalBankJateng + totalZis;
     const hak = total * pct;
     return { total, hak, pct: pctVal };
@@ -99,7 +95,6 @@ export default function DatabaseUPZ() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const [bankJatengHistory, setBankJatengHistory] = useState<any[]>([]);
   const [zisHistory, setZisHistory] = useState<any[]>([]);
   const [upzHakPengumpulan, setUpzHakPengumpulan] = useState(30);
   const [upzHakPembantuan, setUpzHakPembantuan] = useState(70);
@@ -107,14 +102,10 @@ export default function DatabaseUPZ() {
   useEffect(() => {
     const fetchHistories = async () => {
       try {
-        const [resJateng, resZis, resMappings] = await Promise.all([
-          axios.get('/api/bank-jateng/history'),
+        const [resZis, resMappings] = await Promise.all([
           axios.get('/api/penerimaan-zis'),
           axios.get('/api/penerimaan-mapping').catch(() => null)
         ]);
-        if (resJateng.data.status === 'success') {
-          setBankJatengHistory(resJateng.data.data);
-        }
         if (resZis.data.status === 'success') {
           setZisHistory(resZis.data.data);
         }
@@ -2754,34 +2745,6 @@ export default function DatabaseUPZ() {
                   const cleanTargetUpz = targetUpz.replace(/^upz\s+/i, '');
                   const upzCode = selectedUPZ.code?.toLowerCase().trim();
 
-                  const upzHistory = bankJatengHistory.filter(tx => {
-                    if (!tx) return false;
-                    
-                    // 1. check by code (primary)
-                    const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
-                    if (upzCode && muzakkiUpz === upzCode) return true;
-
-                    // 2. check by name (fallback)
-                    if (muzakkiUpz === targetUpz) return true;
-                    const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
-                    if (cleanMuzakkiUpz === cleanTargetUpz) return true;
-
-                    // 3. check keterangan
-                    const keterangan = tx.keterangan?.toLowerCase() || '';
-                    if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) {
-                      return true;
-                    }
-                    if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) {
-                      return true;
-                    }
-                    if (cleanTargetUpz && (keterangan.includes(`(${cleanTargetUpz})`) || keterangan.includes(`(upz ${cleanTargetUpz})`))) {
-                      return true;
-                    }
-
-                    return false;
-                  });
-
-                  // 3. check direct ZIS receipts
                   const upzZisHistory = zisHistory.filter(tx => {
                     if (!tx) return false;
 
@@ -2809,8 +2772,18 @@ export default function DatabaseUPZ() {
                     return false;
                   });
 
-                  const totalBankJateng = upzHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
-                  const totalZis = upzZisHistory.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+                  // Split them to prevent double counting
+                  const bankJatengRecords = upzZisHistory.filter(tx => 
+                    tx.no_kuitansi?.startsWith('BSZ-JTG-') || 
+                    tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
+                  );
+                  const manualZisRecords = upzZisHistory.filter(tx => 
+                    !tx.no_kuitansi?.startsWith('BSZ-JTG-') && 
+                    !tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
+                  );
+
+                  const totalBankJateng = bankJatengRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+                  const totalZis = manualZisRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
                   const totalPengumpulan = totalBankJateng + totalZis;
                   const hakVal = totalPengumpulan * pct;
 
