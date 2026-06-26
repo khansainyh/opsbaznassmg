@@ -95,9 +95,12 @@ export default function PengaturanKeuangan() {
     persentase_salur_pembantuan: 70.0,
     coa_debit_beban: '',
     coa_kredit_amil: '',
-    coa_kredit_utang: ''
+    coa_kredit_utang: '',
+    coa_codes: ''
   });
 
+  const [isPenerimaanCoasDropdownOpen, setIsPenerimaanCoasDropdownOpen] = useState(false);
+  const [penerimaanCoasSearch, setPenerimaanCoasSearch] = useState('');
   const [isPenerimaanDebitDropdownOpen, setIsPenerimaanDebitDropdownOpen] = useState(false);
   const [penerimaanDebitSearch, setPenerimaanDebitSearch] = useState('');
   const [isPenerimaanKreditAmilDropdownOpen, setIsPenerimaanKreditAmilDropdownOpen] = useState(false);
@@ -505,6 +508,8 @@ export default function PengaturanKeuangan() {
   };
 
   const handleOpenPenerimaanModal = (item: any = null) => {
+    setIsPenerimaanCoasDropdownOpen(false);
+    setPenerimaanCoasSearch('');
     setIsPenerimaanDebitDropdownOpen(false);
     setPenerimaanDebitSearch('');
     setIsPenerimaanKreditAmilDropdownOpen(false);
@@ -521,7 +526,8 @@ export default function PengaturanKeuangan() {
         persentase_salur_pembantuan: Number(item.persentase_salur_pembantuan),
         coa_debit_beban: item.coa_debit_beban,
         coa_kredit_amil: item.coa_kredit_amil,
-        coa_kredit_utang: item.coa_kredit_utang
+        coa_kredit_utang: item.coa_kredit_utang,
+        coa_codes: item.coa_codes || ''
       });
     } else {
       setEditingItem(null);
@@ -533,10 +539,19 @@ export default function PengaturanKeuangan() {
         persentase_salur_pembantuan: 70.0,
         coa_debit_beban: '51020101',
         coa_kredit_amil: '43010101',
-        coa_kredit_utang: '21040101'
+        coa_kredit_utang: '21040101',
+        coa_codes: ''
       });
     }
     setIsPenerimaanModalOpen(true);
+  };
+
+  const togglePenerimaanCoa = (code: string) => {
+    const current = penerimaanForm.coa_codes ? penerimaanForm.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
+    const next = current.includes(code)
+      ? current.filter((c: string) => c !== code)
+      : [...current, code];
+    setPenerimaanForm({ ...penerimaanForm, coa_codes: next.join(', ') });
   };
 
   const handleSavePenerimaan = async (e: React.FormEvent) => {
@@ -1019,7 +1034,22 @@ export default function PengaturanKeuangan() {
                         </tr>
                       ) : penerimaanMappings.map((item: any) => (
                         <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
-                          <td className="px-6 py-5 font-black text-slate-900">{item.kategori}</td>
+                          <td className="px-6 py-5">
+                            <span className="font-black text-slate-900 block">{item.kategori}</span>
+                            {item.coa_codes && (
+                              <div className="flex flex-wrap gap-1 mt-1.5 max-w-[200px]">
+                                {item.coa_codes.split(',').map((code: string) => {
+                                  const cleanCode = code.trim();
+                                  if (!cleanCode) return null;
+                                  return (
+                                    <span key={cleanCode} className="inline-block text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
+                                      {cleanCode}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-6 py-5 font-bold text-slate-700">{Number(item.persentase_amil)}%</td>
                           <td className="px-6 py-5">
                             <div className="flex flex-col gap-0.5">
@@ -2021,6 +2051,76 @@ export default function PengaturanKeuangan() {
                     onChange={(e) => setPenerimaanForm({ ...penerimaanForm, kategori: e.target.value })}
                     className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Penerimaan Terkait (Multi-select)</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPenerimaanCoasDropdownOpen(!isPenerimaanCoasDropdownOpen);
+                        setPenerimaanCoasSearch('');
+                      }}
+                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 text-left cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {penerimaanForm.coa_codes
+                          ? `${penerimaanForm.coa_codes.split(',').length} COA Terpilih: ${penerimaanForm.coa_codes}`
+                          : '-- Pilih COA Penerimaan --'
+                        }
+                      </span>
+                      <ChevronDown className="size-4 text-slate-400 transition-transform shrink-0" />
+                    </button>
+
+                    {isPenerimaanCoasDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsPenerimaanCoasDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 flex flex-col max-h-64">
+                          <div className="relative mb-2 shrink-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                            <input
+                              type="text"
+                              placeholder="Cari COA Penerimaan..."
+                              value={penerimaanCoasSearch}
+                              onChange={(e) => setPenerimaanCoasSearch(e.target.value)}
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                            />
+                          </div>
+                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
+                            {coas
+                              .filter(c => c.coa_code.startsWith('4'))
+                              .filter(c => 
+                                c.coa_code.includes(penerimaanCoasSearch) || 
+                                c.nama_akun.toLowerCase().includes(penerimaanCoasSearch.toLowerCase())
+                              )
+                              .map(c => {
+                                const currentCodes = penerimaanForm.coa_codes 
+                                  ? penerimaanForm.coa_codes.split(',').map((code: string) => code.trim()).filter(Boolean) 
+                                  : [];
+                                const isChecked = currentCodes.includes(c.coa_code);
+                                return (
+                                  <label
+                                    key={c.coa_code}
+                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1 cursor-pointer text-slate-700"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => togglePenerimaanCoa(c.coa_code)}
+                                      className="rounded border-slate-300 text-primary focus:ring-primary/20 size-3.5 cursor-pointer"
+                                    />
+                                    <span className="truncate">
+                                      {c.coa_code} - {c.nama_akun}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

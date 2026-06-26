@@ -33,9 +33,6 @@ const defaultLembagaSurveyTemplate = JSON.stringify([
 
 const defaultParams = [
   { key: 'bps_garis_kemiskinan', value: '709000', description: 'Garis Kemiskinan BPS (Rupiah per Kapita)' },
-  { key: 'upz_hak_salur_persentase', value: '30', description: 'Persentase Hak Salur UPZ (%)' },
-  { key: 'upz_hak_salur_pengumpulan', value: '30', description: 'Persentase Hak Salur UPZ Pengumpulan (%)' },
-  { key: 'upz_hak_salur_pembantuan', value: '70', description: 'Persentase Hak Salur UPZ Pembantuan Pendistribusian & Pendayagunaan (%)' },
   { key: 'survey_template_individu', value: defaultSurveyTemplate, description: 'Template Form Asesmen Individu / Perorangan Konsumtif (JSON)' },
   { key: 'survey_template_perorangan_produktif', value: defaultSurveyTemplate, description: 'Template Form Asesmen Perorangan Produktif (JSON)' },
   { key: 'survey_template_lembaga', value: defaultLembagaSurveyTemplate, description: 'Template Form Asesmen Lembaga (JSON)' },
@@ -56,7 +53,10 @@ export const getParameters = async (req: Request, res: Response) => {
       'coa_kredit_utang_upz',
       'hak_amil_zakat_upz_pengumpulan',
       'hak_amil_upz_bagian',
-      'hak_amil_baznas_bagian'
+      'hak_amil_baznas_bagian',
+      'upz_hak_salur_persentase',
+      'upz_hak_salur_pengumpulan',
+      'upz_hak_salur_pembantuan'
     ];
     await prisma.systemParameter.deleteMany({
       where: {

@@ -169,56 +169,69 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       }
 
       if (mappedKategori) {
-        // Query mapping for this category
-        const mapping = await tx.penerimaanMapping.findFirst({
-          where: { kategori: mappedKategori }
-        });
+        // Determine the rule category based on muzakki UPZ and type
+        let mappedKategoriRule = '';
+        let isPembantuan = false;
+        let upzObj = null;
 
-        if (mapping) {
-          const hakAmilPct = Number(mapping.persentase_amil);
-          const upzAmilPct = Number(mapping.persentase_upz);
-          const baznasAmilPct = Number(mapping.persentase_baznas);
-          const salurPembantuanPct = Number(mapping.persentase_salur_pembantuan);
-          const coaDebitBeban = mapping.coa_debit_beban;
-          const coaKreditAmil = mapping.coa_kredit_amil;
-          const coaKreditUtang = mapping.coa_kredit_utang;
-
-          if (hakAmilPct > 0) {
-            let amilDebit = 0;
-            let amilBaznasCredit = 0;
-            let amilUpzCredit = 0;
-
-            if (!muzakki.upz) {
-              // Scenario 1: Mandiri
-              amilDebit = tNominal * (hakAmilPct / 100);
-              amilBaznasCredit = amilDebit;
-            } else {
-              // Fetch UPZ details
-              const upzObj = await tx.upz.findFirst({
-                where: {
-                  OR: [
-                    { id: muzakki.upz },
-                    { nama_upz: muzakki.upz }
-                  ]
-                }
-              });
-
-              const isPembantuan = upzObj && 
-                ((upzObj.metadata as any)?.type === 'On-Balance') &&
-                ((upzObj.metadata as any)?.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan');
-
-              if (isPembantuan) {
-                // Scenario 3: UPZ Pembantuan
-                const remainingPct = 100 - salurPembantuanPct;
-                amilDebit = tNominal * (remainingPct / 100) * (hakAmilPct / 100);
-                amilBaznasCredit = amilDebit;
-              } else {
-                // Scenario 2: UPZ Pengumpulan
-                amilDebit = tNominal * (hakAmilPct / 100);
-                amilBaznasCredit = tNominal * (baznasAmilPct / 100);
-                amilUpzCredit = tNominal * (upzAmilPct / 100);
-              }
+        if (muzakki && muzakki.upz) {
+          upzObj = await tx.upz.findFirst({
+            where: {
+              OR: [
+                { id: muzakki.upz },
+                { nama_upz: muzakki.upz }
+              ]
             }
+          });
+          
+          if (upzObj) {
+            isPembantuan = ((upzObj.metadata as any)?.type === 'On-Balance') &&
+              ((upzObj.metadata as any)?.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan');
+          }
+        }
+
+        if (mappedKategori.startsWith('Zakat')) {
+          if (!muzakki || !muzakki.upz) {
+            mappedKategoriRule = 'Zakat - Mandiri';
+          } else if (isPembantuan) {
+            mappedKategoriRule = 'Zakat - UPZ Pembantuan';
+          } else {
+            mappedKategoriRule = 'Zakat - UPZ Pengumpulan';
+          }
+        } else if (mappedKategori === 'Infak' || mappedKategori === 'Sedekah') {
+          if (!muzakki || !muzakki.upz) {
+            mappedKategoriRule = 'Infak/Sedekah - Mandiri';
+          } else {
+            mappedKategoriRule = 'Infak/Sedekah - UPZ';
+          }
+        }
+
+        if (mappedKategoriRule) {
+          // Query all mapping rules to find matches
+          const mappings = await tx.penerimaanMapping.findMany();
+          let mapping = mappings.find(m => {
+            if (!m.coa_codes) return false;
+            const codes = m.coa_codes.split(',').map(c => c.trim());
+            return codes.includes(creditCoaCode);
+          });
+
+          // Fallback to channel-based category if no direct COA mapping exists
+          if (!mapping) {
+            mapping = mappings.find(m => m.kategori === mappedKategoriRule);
+          }
+
+          if (mapping) {
+            const hakAmilPct = Number(mapping.persentase_amil);
+            const upzAmilPct = Number(mapping.persentase_upz);
+            const baznasAmilPct = Number(mapping.persentase_baznas);
+            const coaDebitBeban = mapping.coa_debit_beban;
+            const coaKreditAmil = mapping.coa_kredit_amil;
+            const coaKreditUtang = mapping.coa_kredit_utang;
+
+            if (hakAmilPct > 0) {
+              const amilDebit = tNominal * (hakAmilPct / 100);
+              const amilBaznasCredit = tNominal * (baznasAmilPct / 100);
+              const amilUpzCredit = tNominal * (upzAmilPct / 100);
 
             // Create Journal Entries for Hak Amil if amilDebit > 0
             if (amilDebit > 0) {
@@ -236,9 +249,9 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
                 }
               };
 
-              await ensureCoaExists(coaDebitBeban, `Beban Hak Amil ${mappedKategori}`, 'Beban', 'AMIL');
-              await ensureCoaExists(coaKreditAmil, `Pendapatan Hak Amil ${mappedKategori}`, 'Pendapatan', 'AMIL');
-              await ensureCoaExists(coaKreditUtang, `Utang Bagian Hak Amil UPZ ${mappedKategori}`, 'Kewajiban', 'AMIL');
+              await ensureCoaExists(coaDebitBeban, `Beban Hak Amil ${mappedKategoriRule}`, 'Beban', 'AMIL');
+              await ensureCoaExists(coaKreditAmil, `Pendapatan Hak Amil ${mappedKategoriRule}`, 'Pendapatan', 'AMIL');
+              await ensureCoaExists(coaKreditUtang, `Utang Bagian Hak Amil UPZ ${mappedKategoriRule}`, 'Kewajiban', 'AMIL');
 
               // Debit: Beban Hak Amil
               await tx.journalEntry.create({
@@ -280,6 +293,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
           }
         }
       }
+    }
 
 
       // 3. Create PenerimaanZis record in PENDING state (but with transaksi_id set)

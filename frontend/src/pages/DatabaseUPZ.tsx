@@ -107,11 +107,10 @@ export default function DatabaseUPZ() {
   useEffect(() => {
     const fetchHistories = async () => {
       try {
-        const [resJateng, resZis, resPengumpulanParam, resPembantuanParam] = await Promise.all([
+        const [resJateng, resZis, resMappings] = await Promise.all([
           axios.get('/api/bank-jateng/history'),
           axios.get('/api/penerimaan-zis'),
-          axios.get('/api/parameters/upz_hak_salur_pengumpulan').catch(() => null),
-          axios.get('/api/parameters/upz_hak_salur_pembantuan').catch(() => null)
+          axios.get('/api/penerimaan-mapping').catch(() => null)
         ]);
         if (resJateng.data.status === 'success') {
           setBankJatengHistory(resJateng.data.data);
@@ -119,11 +118,16 @@ export default function DatabaseUPZ() {
         if (resZis.data.status === 'success') {
           setZisHistory(resZis.data.data);
         }
-        if (resPengumpulanParam && resPengumpulanParam.data) {
-          setUpzHakPengumpulan(Number(resPengumpulanParam.data.value || 30));
-        }
-        if (resPembantuanParam && resPembantuanParam.data) {
-          setUpzHakPembantuan(Number(resPembantuanParam.data.value || 70));
+        if (resMappings && resMappings.data && resMappings.data.status === 'success') {
+          const mappings = resMappings.data.data;
+          const pengumpulanRule = mappings.find((m: any) => m.kategori === 'Zakat - UPZ Pengumpulan');
+          const pembantuanRule = mappings.find((m: any) => m.kategori === 'Zakat - UPZ Pembantuan');
+          if (pengumpulanRule) {
+            setUpzHakPengumpulan(Number(pengumpulanRule.persentase_salur_pembantuan));
+          }
+          if (pembantuanRule) {
+            setUpzHakPembantuan(Number(pembantuanRule.persentase_salur_pembantuan));
+          }
         }
       } catch (err) {
         console.error('Error fetching history data:', err);

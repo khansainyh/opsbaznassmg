@@ -383,6 +383,19 @@ model RkatOperasional {
   updated_at     DateTime @updatedAt
 }
 
+model PenerimaanMapping {
+  id                          String  @id @default(uuid())
+  kategori                    String  @unique @db.VarChar(50)
+  persentase_amil             Decimal @default(12.50) @db.Decimal(5, 2)
+  persentase_upz              Decimal @default(5.00) @db.Decimal(5, 2)
+  persentase_baznas           Decimal @default(7.50) @db.Decimal(5, 2)
+  persentase_salur_pembantuan Decimal @default(70.00) @db.Decimal(5, 2)
+  coa_debit_beban             String  @db.VarChar(20)
+  coa_kredit_amil             String  @db.VarChar(20)
+  coa_kredit_utang            String  @db.VarChar(20)
+  coa_codes                   String? @db.Text
+}
+
 enum Role {
   Super_Admin
   Ketua
@@ -413,16 +426,3 @@ enum KategoriUPZ {
   Sekolah
   OPD
 }
-
-model PenerimaanMapping {
-  id                            String   @id @default(uuid())
-  kategori                      String   @unique @db.VarChar(50)
-  persentase_amil               Decimal  @default(12.50) @db.Decimal(5, 2)
-  persentase_upz                Decimal  @default(5.00) @db.Decimal(5, 2)
-  persentase_baznas             Decimal  @default(7.50) @db.Decimal(5, 2)
-  persentase_salur_pembantuan   Decimal  @default(70.00) @db.Decimal(5, 2)
-  coa_debit_beban               String   @db.VarChar(20)
-  coa_kredit_amil               String   @db.VarChar(20)
-  coa_kredit_utang              String   @db.VarChar(20)
-}
-
