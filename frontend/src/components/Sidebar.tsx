@@ -126,7 +126,8 @@ const menuGroups = [
       { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin"] },
       { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
-      { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+      { name: "Off-Balancing", icon: Target, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"], requiresObs: true },
+      { name: "Survei OBS", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
     ]
   }
 ];
@@ -135,6 +136,7 @@ const settingsGroup = {
   title: "PENGATURAN",
   items: [
     { name: "User Management", icon: Settings2, roles: ["Super_Admin"] },
+    { name: "Parameter Sistem", icon: Settings2, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
     { name: "Audit Logs", icon: History, roles: ["Super_Admin"] },
   ]
 };
@@ -144,9 +146,10 @@ interface SidebarProps {
   onMenuChange: (name: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  obsMenuEnabled?: boolean;
 }
 
-export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, obsMenuEnabled = false }: SidebarProps) {
   const { user, logout } = useAuth();
   const userRole = (user?.role as Role) || 'Relawan';
 
@@ -177,7 +180,12 @@ export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: S
       )}>
         {userRole === 'Super_Admin' ? (
           menuGroups.map((group) => {
-            const visibleItems = group.items.filter(item => item.roles.includes(userRole));
+            const visibleItems = group.items.filter(item => {
+              const matchesRole = item.roles.includes(userRole);
+              if (!matchesRole) return false;
+              if ((item as any).requiresObs && !obsMenuEnabled) return false;
+              return true;
+            });
             if (visibleItems.length === 0) return null;
 
             return (
@@ -208,7 +216,12 @@ export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: S
             );
           })
         ) : (
-          menuGroups.flatMap(g => g.items).filter(item => item.roles.includes(userRole)).map((item) => (
+          menuGroups.flatMap(g => g.items).filter(item => {
+            const matchesRole = item.roles.includes(userRole);
+            if (!matchesRole) return false;
+            if ((item as any).requiresObs && !obsMenuEnabled) return false;
+            return true;
+          }).map((item) => (
             <button
               key={item.name}
               onClick={() => { onMenuChange(item.name); onClose(); }}
@@ -229,14 +242,24 @@ export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: S
       </nav>
 
       <div className="p-4 mt-auto border-t border-primary/10 shrink-0">
-      {settingsGroup.items.filter(item => item.roles.includes(userRole)).length > 0 && (
+      {settingsGroup.items.filter(item => {
+        const matchesRole = item.roles.includes(userRole);
+        if (!matchesRole) return false;
+        if ((item as any).requiresObs && !obsMenuEnabled) return false;
+        return true;
+      }).length > 0 && (
         <div className="space-y-1 mb-4">
           {userRole === 'Super_Admin' && (
             <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest px-3 mb-2">
               {settingsGroup.title}
             </p>
           )}
-          {settingsGroup.items.filter(item => item.roles.includes(userRole)).map((item) => (
+          {settingsGroup.items.filter(item => {
+            const matchesRole = item.roles.includes(userRole);
+            if (!matchesRole) return false;
+            if ((item as any).requiresObs && !obsMenuEnabled) return false;
+            return true;
+          }).map((item) => (
             <button
               key={item.name}
               onClick={() => { onMenuChange(item.name); onClose(); }}

@@ -39,7 +39,8 @@ const defaultParams = [
   { key: 'rkat_pengumpulan_no_zakat', value: '3', description: 'Nomor Urut RKAT Zakat Maal UPZ Pengumpulan' },
   { key: 'rkat_pengumpulan_no_infak', value: '8', description: 'Nomor Urut RKAT Infak/Sedekah UPZ Pengumpulan' },
   { key: 'coa_penerimaan_zakat', value: '41020201', description: 'Kode Akun (COA) Kredit Zakat Maal UPZ Pengumpulan' },
-  { key: 'coa_penerimaan_infak', value: '42020101', description: 'Kode Akun (COA) Kredit Infak/Sedekah UPZ Pengumpulan' }
+  { key: 'coa_penerimaan_infak', value: '42020101', description: 'Kode Akun (COA) Kredit Infak/Sedekah UPZ Pengumpulan' },
+  { key: 'obs_menu_enabled', value: 'false', description: 'Status Menu Off-Balancing Aktif (true/false)' }
 ];
 
 export const getParameters = async (req: Request, res: Response) => {

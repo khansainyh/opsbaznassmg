@@ -25,6 +25,8 @@ import TrackingProposal from '@/src/pages/TrackingProposal';
 import TrackingSurat from '@/src/pages/TrackingSurat';
 import NotificationBell from '@/src/components/NotificationBell';
 import ParameterSistem from '@/src/pages/ParameterSistem';
+import OffBalancing from '@/src/pages/OffBalancing';
+import SurveiObs from '@/src/pages/SurveiObs';
 import TargetRKAT from '@/src/pages/TargetRKAT';
 import PengaturanKeuangan from '@/src/pages/PengaturanKeuangan';
 import SimulatorPencairan from '@/src/pages/SimulatorPencairan';
@@ -54,6 +56,26 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [proposals, setProposals] = useState<ProposalMemo[]>([]);
   const [surats, setSurats] = useState<Surat[]>([]);
+  const [obsMenuEnabled, setObsMenuEnabled] = useState(false);
+
+  // Fetch obs_menu_enabled parameter — only on login/mount, NOT on menu change
+  useEffect(() => {
+    if (isAuthenticated) {
+      axios.get('/api/parameters/obs_menu_enabled')
+        .then(res => {
+          setObsMenuEnabled(res.data?.value === 'true');
+        })
+        .catch(() => {
+          // Fallback: fetch all params if single key endpoint fails
+          axios.get('/api/parameters')
+            .then(res => {
+              const obsParam = res.data?.find((p: any) => p.key === 'obs_menu_enabled');
+              setObsMenuEnabled(obsParam?.value === 'true');
+            })
+            .catch(console.error);
+        });
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -78,6 +100,8 @@ function App() {
         { name: "Penerimaan Bank Jateng", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
         { name: "Identifikasi Mutasi", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Pelaporan"] },
         { name: "Monitoring Tugas", roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+        { name: "Off-Balancing", roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"], requiresObs: true },
+        { name: "Survei OBS", roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
         { name: "Antrean SIMBA", roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Realisasi Bantuan", roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Antrean Arsip", roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
@@ -103,14 +127,18 @@ function App() {
       ];
       
       const currentAllowed = allItems.find(item => item.name === activeMenu && item.roles.includes(role));
-      if (!currentAllowed) {
-        const firstAllowed = allItems.find(item => item.roles.includes(role));
+      if (!currentAllowed || (currentAllowed.requiresObs && !obsMenuEnabled)) {
+        const firstAllowed = allItems.find(item => {
+          if (!item.roles.includes(role)) return false;
+          if (item.requiresObs && !obsMenuEnabled) return false;
+          return true;
+        });
         if (firstAllowed) {
           setActiveMenu(firstAllowed.name);
         }
       }
     }
-  }, [isAuthenticated, user, activeMenu]);
+  }, [isAuthenticated, user, activeMenu, obsMenuEnabled]);
 
   useEffect(() => {
     axios.get('/api/pilars')
@@ -143,6 +171,8 @@ function App() {
                 memoSource: item.memo_source || '',
                 jenisPengajuan: item.jenis_ajuan || item.jenis_pengajuan || '',
                 status: item.status.replace(/_/g, ' '),
+                keterangan: item.keterangan || '',
+                rekomendasi: item.rekomendasi || '',
                 fileGdriveLink: item.file_gdrive_link || '',
                 surveyorName: item.surveyorName || undefined,
                 isBeingSurveyed: item.isBeingSurveyed || false,
@@ -206,6 +236,8 @@ function App() {
               jenisPengajuan: item.jenis_ajuan || item.jenis_pengajuan || '',
               no_kk: item.no_kk || '',
               status: item.status.replace(/_/g, ' '),
+              keterangan: item.keterangan || '',
+              rekomendasi: item.rekomendasi || '',
               fileGdriveLink: item.file_gdrive_link || '',
               surveyorName: item.surveyorName || undefined,
               isBeingSurveyed: item.isBeingSurveyed || false,
@@ -285,6 +317,7 @@ function App() {
         onMenuChange={setActiveMenu} 
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 
+        obsMenuEnabled={obsMenuEnabled}
       />
       
       <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
@@ -420,7 +453,17 @@ function App() {
         ) : activeMenu === 'User Management' ? (
           <UserManagement />
         ) : activeMenu === 'Parameter Sistem' ? (
-          <ParameterSistem />
+          <ParameterSistem onObsMenuToggle={setObsMenuEnabled} />
+        ) : activeMenu === 'Off-Balancing' ? (
+          <OffBalancing 
+            data={proposals}
+            onUpdate={handleUpdateProposals}
+          />
+        ) : activeMenu === 'Survei OBS' ? (
+          <SurveiObs 
+            data={proposals}
+            onUpdate={handleUpdateProposals}
+          />
         ) : activeMenu === 'Ganti Password' ? (
           <GantiPassword />
         ) : (

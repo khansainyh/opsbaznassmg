@@ -21,7 +21,11 @@ interface ParameterItem {
   description: string;
 }
 
-export default function ParameterSistem() {
+interface ParameterSistemProps {
+  onObsMenuToggle?: (enabled: boolean) => void;
+}
+
+export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProps = {}) {
   const [params, setParams] = useState<ParameterItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,7 +43,8 @@ export default function ParameterSistem() {
     rkat_pengumpulan_no_zakat: '3',
     rkat_pengumpulan_no_infak: '8',
     coa_penerimaan_zakat: '41020201',
-    coa_penerimaan_infak: '42020101'
+    coa_penerimaan_infak: '42020101',
+    obs_menu_enabled: 'false'
   });
 
   // Load active template whenever survey type selection or loaded formValues change
@@ -181,6 +186,9 @@ export default function ParameterSistem() {
 
       await Promise.all(updatePromises);
       showToast('Parameter sistem berhasil disimpan!', 'success');
+      if (onObsMenuToggle && formValues.obs_menu_enabled !== undefined) {
+        onObsMenuToggle(formValues.obs_menu_enabled === 'true');
+      }
       fetchParameters();
     } catch (error) {
       console.error(error);
@@ -446,6 +454,50 @@ export default function ParameterSistem() {
                     onChange={(e) => handleInputChange('coa_penerimaan_infak', e.target.value)}
                     required
                   />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 3: PENGATURAN MENU FITUR */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden flex flex-col md:col-span-2"
+            >
+              <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+                <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                  <Settings className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-md font-black text-slate-900">Pengaturan Fitur Tambahan</h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Aktifkan / Nonaktifkan Modul Sistem</p>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Modul Off-Balancing (OBS)</h4>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Mengaktifkan menu <strong>Off-Balancing</strong> dan <strong>Survei OBS</strong> di Sidebar untuk Staf Pelaporan, Distribusi, dan Relawan Lapangan. (Biasa diaktifkan tiap akhir semester: Juni &amp; Desember).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('obs_menu_enabled', formValues.obs_menu_enabled === 'true' ? 'false' : 'true')}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                      formValues.obs_menu_enabled === 'true' ? "bg-primary" : "bg-slate-200"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                        formValues.obs_menu_enabled === 'true' ? "translate-x-5" : "translate-x-0"
+                      )}
+                    />
+                  </button>
                 </div>
               </div>
             </motion.div>
