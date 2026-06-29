@@ -2960,7 +2960,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                             "No": "1",
                             "Kategori": "Zakat",
                             "Nama Program": "Zakat Maal Badan",
-                            "Kode COA": "41010101, 41010102",
+                            "Kode COA": "41010101",
                             "Target Perorangan": "",
                             "Target Lembaga": "10",
                             "Nilai Anggaran": 50000000,
@@ -2981,7 +2981,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                         const refCoas = coas
                           .filter(coa => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4'))
                           .map(coa => ({
-                            "Kode COA": coa.coa_code,
+                            "Kode COA": (coa.coa_code || '').replace(/\./g, ''),
                             "Nama Akun": coa.nama_akun,
                             "Klasifikasi": coa.klasifikasi
                           }));
@@ -3018,7 +3018,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                         const refCoas = coas
                           .filter(coa => coa.klasifikasi?.toLowerCase() === 'beban' || coa.coa_code.startsWith('5'))
                           .map(coa => ({
-                            "Kode COA": coa.coa_code,
+                            "Kode COA": (coa.coa_code || '').replace(/\./g, ''),
                             "Nama Akun": coa.nama_akun,
                             "Klasifikasi": coa.klasifikasi
                           }));
@@ -3045,7 +3045,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                         const refCoas = coas
                           .filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan')
                           .map(coa => ({
-                            "Kode COA": coa.coa_code,
+                            "Kode COA": (coa.coa_code || '').replace(/\./g, ''),
                             "Nama Akun": coa.nama_akun,
                             "Klasifikasi": coa.klasifikasi
                           }));
@@ -3104,6 +3104,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                 no: String(row.No || row.no || row.NO || '').trim(),
                                 kategori: String(row.Kategori || row.kategori || 'Zakat').trim(),
                                 nama_program: String(row["Nama Program"] || row["nama_program"] || row.Nama_Program || row.NamaProgram || '').trim(),
+                                coa_codes: String(row["Kode COA"] || row["kode_coa"] || row.Kode_COA || row.coa_codes || row.coa || '').trim().replace(/\./g, ''),
                                 target_perorangan: row["Target Perorangan"] || row.target_perorangan || null,
                                 target_lembaga: row["Target Lembaga"] || row.target_lembaga || null,
                                 nilai_anggaran: row["Nilai Anggaran"] || row.nilai_anggaran || 0,
@@ -3129,7 +3130,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                 no: String(row.No || row.no || row.NO || '').trim(),
                                 nama: String(row["Nama Program"] || row["nama_program"] || row.Nama_Program || row.NamaProgram || row.Nama || '').trim(),
                                 keterangan: String(row.Keterangan || row.keterangan || '').trim(),
-                                coa_codes: String(row["Kode COA"] || row["kode_coa"] || row.Kode_COA || row.COA || '').trim(),
+                                coa_codes: String(row["Kode COA"] || row["kode_coa"] || row.Kode_COA || row.COA || '').trim().replace(/\./g, ''),
                                 volume: row.Volume || row.volume || 1,
                                 frekuensi: row.Frekuensi || row.frekuensi || 1,
                                 unit_cost: row["Unit Cost"] || row.unit_cost || row["Unit_Cost"] || 0,
@@ -3155,7 +3156,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                               // Group activities by Kode Program
                               const groupedByProgram: { [code: string]: any[] } = {};
                               dataExcel.forEach((row) => {
-                                const progCode = String(row["Kode Program"] || row["Kode_Program"] || row["kode_program"] || "").trim();
+                                const progCode = String(row["Kode Program"] || row["Kode_Program"] || row["kode_program"] || "").trim().replace(/\./g, "");
                                 if (!progCode) return;
                                 if (!groupedByProgram[progCode]) {
                                   groupedByProgram[progCode] = [];
@@ -3172,7 +3173,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
                                    nominal,
                                    mustahik,
                                    keterangan: String(row["Keterangan"] || row["keterangan"] || "").trim(),
-                                   coaCode: String(row["Kode COA"] || row["Kode_COA"] || row["kode_coa"] || "").trim() || undefined
+                                   coaCode: String(row["Kode COA"] || row["Kode_COA"] || row["kode_coa"] || "").trim().replace(/\./g, "") || undefined
                                  });
                               });
 

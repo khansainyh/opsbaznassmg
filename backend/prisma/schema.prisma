@@ -396,6 +396,16 @@ model PenerimaanMapping {
   coa_codes                   String? @db.Text
 }
 
+model LaporanKinerjaMapping {
+  id         String   @id @default(uuid())
+  tab        String   @db.VarChar(20) // 'pengumpulan' | 'penyaluran'
+  row_key    String   @unique @db.VarChar(50) // e.g. 'muzakki_individu'
+  row_label  String   @db.VarChar(150)
+  coa_codes  String?  @db.Text // Comma-separated COA codes
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
 enum Role {
   Super_Admin
   Ketua

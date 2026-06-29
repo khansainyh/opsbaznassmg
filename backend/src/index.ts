@@ -22,6 +22,7 @@ import penerimaanZisRoutes from './routes/penerimaan-zis.route';
 import bankJatengRoutes from './routes/bank-jateng.route';
 import upzRoutes from './routes/upz.route';
 import penerimaanMappingRoutes from './routes/penerimaan-mapping.route';
+import laporanKinerjaRoutes from './routes/laporan-kinerja.route';
 
 
 dotenv.config();
@@ -67,6 +68,7 @@ app.use('/api/penerimaan-zis', penerimaanZisRoutes);
 app.use('/api/bank-jateng', bankJatengRoutes);
 app.use('/api/upz', upzRoutes);
 app.use('/api/penerimaan-mapping', penerimaanMappingRoutes);
+app.use('/api/laporan-kinerja', laporanKinerjaRoutes);
 
 
 

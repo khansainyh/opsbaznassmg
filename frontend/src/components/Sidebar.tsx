@@ -55,7 +55,7 @@ const menuGroups = [
     title: "MENU UTAMA",
     items: [
       { name: "Executive", icon: LayoutDashboard, active: true, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Monitoring & Evaluasi", icon: LineChart, roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+      { name: "Laporan Kinerja", icon: LineChart, roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
     ]
   },
   {

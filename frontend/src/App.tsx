@@ -39,6 +39,7 @@ import PenerimaanZis from '@/src/pages/PenerimaanZis';
 import IdentifikasiMutasi from '@/src/pages/IdentifikasiMutasi';
 import PenerimaanBankJateng from '@/src/pages/PenerimaanBankJateng';
 import CatatMutasi from '@/src/pages/CatatMutasi';
+import LaporanKinerja from '@/src/pages/LaporanKinerja';
 
 
 function App() {
@@ -59,7 +60,7 @@ function App() {
       const role = user.role;
       const allItems = [
         { name: "Executive", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-        { name: "Monitoring & Evaluasi", roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+        { name: "Laporan Kinerja", roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
         { name: "Pilar & Program", roles: ["Super_Admin", "Kepala_Pelaksana"] },
         { name: "Database UPZ", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Administrasi"] },
         { name: "Data Mustahik", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
@@ -311,6 +312,8 @@ function App() {
 
         {activeMenu === 'Executive' ? (
           <ExecutiveDashboard />
+        ) : activeMenu === 'Laporan Kinerja' ? (
+          <LaporanKinerja />
         ) : activeMenu === 'Input Proposal' ? (
           <InputProposalMemo 
             data={registrasiProposals} 
