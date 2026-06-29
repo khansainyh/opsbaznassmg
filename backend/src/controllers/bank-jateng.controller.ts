@@ -129,7 +129,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
       const batchName = `${prefix} ${nextBatchNum}`;
 
-      const createdItems = [];
+      const createdItems: any[] = [];
       let totalNominal = 0;
 
       for (let i = 0; i < transactions.length; i++) {
@@ -231,7 +231,37 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
           }
         });
 
-        createdItems.push(penerimaan);
+      }
+
+      // 5.5 Process failed transactions
+      const failedTransactions = req.body.failedTransactions || [];
+      for (let j = 0; j < failedTransactions.length; j++) {
+        const failedItem = failedTransactions[j];
+        const nominalVal = Number(failedItem.nominal) || 0;
+        const no_kuitansi = `${batchName} / Gagal / ${j + 1}`;
+        
+        const failedKeterangan = JSON.stringify({
+          type: 'failed_deduction',
+          nama: failedItem.nama || '-',
+          opd: failedItem.opd || 'Lainnya',
+          no_rekening: failedItem.no_rekening || '-',
+          keterangan: failedItem.keterangan || 'Gagal Potong'
+        });
+
+        await tx.penerimaanZis.create({
+          data: {
+            no_kuitansi,
+            muzakki_id: null,
+            rkat_id: null,
+            bank_account_id,
+            nominal: new Prisma.Decimal(nominalVal),
+            metode_pembayaran: 'TRANSFER',
+            tanggal_pembayaran: paymentDate,
+            keterangan: failedKeterangan,
+            status_simba: 'FAILED',
+            transaksi_id: null
+          }
+        });
       }
 
       // 6. Update BankAccount balance with total sum (batch addition)
@@ -314,7 +344,7 @@ export const deleteBatch = async (req: Request, res: Response): Promise<void> =>
       // 1. Group total nominal by bank account to decrement balance
       const balanceDecrements: Record<string, number> = {};
       for (const rec of records) {
-        if (rec.bank_account_id && rec.nominal) {
+        if (rec.bank_account_id && rec.nominal && rec.status_simba !== 'FAILED') {
           const nominalVal = Number(rec.nominal);
           balanceDecrements[rec.bank_account_id] = (balanceDecrements[rec.bank_account_id] || 0) + nominalVal;
         }

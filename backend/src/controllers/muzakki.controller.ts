@@ -50,21 +50,23 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
     const currentKategori = kategori || 'Perorangan';
 
     if (currentKategori === 'Perorangan') {
-      if (!nama || !nik || !jenis_kelamin || !alamat || !handphone) {
+      if (!nama || !jenis_kelamin || !alamat || !handphone) {
         res.status(400).json({ 
           status: 'error', 
-          message: 'Nama, NIK, Jenis Kelamin, Alamat Rumah (Alamat), dan Handphone wajib diisi untuk kategori Perorangan.' 
+          message: 'Nama, Jenis Kelamin, Alamat Rumah (Alamat), dan Handphone wajib diisi untuk kategori Perorangan.' 
         });
         return;
       }
 
       // Check if NIK already exists
-      const existingNik = await prisma.muzakki.findUnique({
-        where: { nik: String(nik) }
-      });
-      if (existingNik) {
-        res.status(400).json({ status: 'error', message: 'NIK sudah terdaftar.' });
-        return;
+      if (nik) {
+        const existingNik = await prisma.muzakki.findUnique({
+          where: { nik: String(nik) }
+        });
+        if (existingNik) {
+          res.status(400).json({ status: 'error', message: 'NIK sudah terdaftar.' });
+          return;
+        }
       }
     } else if (currentKategori === 'Lembaga') {
       if (!nama || !alamat || !telepon || !cp_nama || !cp_telepon) {
@@ -76,9 +78,9 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    const finalNpwz = req.body.npwz ? String(req.body.npwz) : null;
+    const finalNpwz = req.body.npwz ? String(req.body.npwz).trim() : null;
     
-    // Check if NPWZ already exists if custom one is provided
+    // Check if NPWZ already exists
     if (finalNpwz) {
       const existingNpwz = await prisma.muzakki.findUnique({
         where: { npwz: finalNpwz }
@@ -191,15 +193,14 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
 
     if (currentKategori === 'Perorangan') {
       const checkNama = nama !== undefined ? nama : existing.nama;
-      const checkNik = nik !== undefined ? nik : existing.nik;
       const checkJenisKelamin = jenis_kelamin !== undefined ? jenis_kelamin : existing.jenis_kelamin;
       const checkAlamat = alamat !== undefined ? alamat : existing.alamat;
       const checkHandphone = handphone !== undefined ? handphone : existing.handphone;
 
-      if (!checkNama || !checkNik || !checkJenisKelamin || !checkAlamat || !checkHandphone) {
+      if (!checkNama || !checkJenisKelamin || !checkAlamat || !checkHandphone) {
         res.status(400).json({ 
           status: 'error', 
-          message: 'Nama, NIK, Jenis Kelamin, Alamat Rumah (Alamat), dan Handphone wajib diisi untuk kategori Perorangan.' 
+          message: 'Nama, Jenis Kelamin, Alamat Rumah (Alamat), dan Handphone wajib diisi untuk kategori Perorangan.' 
         });
         return;
       }
@@ -267,7 +268,7 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
         no_rekening: req.body.no_rekening !== undefined ? (req.body.no_rekening ? String(req.body.no_rekening) : null) : existing.no_rekening,
 
         // Perorangan
-        nik: currentKategori === 'Perorangan' ? (nik ? String(nik) : existing.nik) : null,
+        nik: currentKategori === 'Perorangan' ? (nik !== undefined ? (nik ? String(nik) : null) : existing.nik) : null,
         tempat_lahir: currentKategori === 'Perorangan' ? (tempat_lahir !== undefined ? (tempat_lahir ? String(tempat_lahir) : null) : existing.tempat_lahir) : null,
         tanggal_lahir: currentKategori === 'Perorangan' ? (tanggal_lahir !== undefined ? (tanggal_lahir ? String(tanggal_lahir) : null) : existing.tanggal_lahir) : null,
         jenis_kelamin: currentKategori === 'Perorangan' ? (jenis_kelamin !== undefined ? (jenis_kelamin ? String(jenis_kelamin) : null) : existing.jenis_kelamin) : null,

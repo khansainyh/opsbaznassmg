@@ -17,20 +17,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { UPZ } from '@/src/types/upz';
-
-interface RawRow {
-  No?: any;
-  Nama?: any;
-  OPD?: any;
-  'No. Rekening'?: any;
-  no_rekening?: any;
-  norek?: any;
-  Nominal?: any;
-  jumlah?: any;
-  'Status Potongan'?: any;
-  status?: any;
-}
 
 interface ProcessedTransaction {
   no: number;
@@ -48,8 +37,9 @@ interface ProcessedTransaction {
 }
 
 export default function PenerimaanBankJateng() {
-  const [activeTab, setActiveTab] = useState<'berhasil' | 'opd'>('berhasil');
+  const [activeTab, setActiveTab] = useState<'berhasil' | 'gagal' | 'opd'>('berhasil');
   const [fileData, setFileData] = useState<ProcessedTransaction[]>([]);
+  const [failedData, setFailedData] = useState<any[]>([]);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [fileName, setFileName] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -72,13 +62,19 @@ export default function PenerimaanBankJateng() {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [selectedRowToRegister, setSelectedRowToRegister] = useState<{nama: string, no_rekening: string} | null>(null);
   const [registerNik, setRegisterNik] = useState('');
+  const [registerTanpaNik, setRegisterTanpaNik] = useState(false);
+  const [registerNpwz, setRegisterNpwz] = useState('');
   const [registerAddress, setRegisterAddress] = useState('Kota Semarang');
   const [registerPhone, setRegisterPhone] = useState('-');
   const [registerGender, setRegisterGender] = useState('Pria');
   const [registerUpz, setRegisterUpz] = useState('');
+  const [registerUpzSearchQuery, setRegisterUpzSearchQuery] = useState('');
+  const [isRegisterUpzDropdownOpen, setIsRegisterUpzDropdownOpen] = useState(false);
+
+  const [expandedGroupDetails, setExpandedGroupDetails] = useState<Record<string, boolean>>({});
 
   const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
-  const [batchActiveTab, setBatchActiveTab] = useState<Record<string, 'upz' | 'pegawai'>>({});
+  const [batchActiveTab, setBatchActiveTab] = useState<Record<string, 'upz' | 'pegawai' | 'gagal'>>({});
   const [historyUpzSearch, setHistoryUpzSearch] = useState<Record<string, string>>({});
 
   const toggleBatchExpand = (batchName: string) => {
@@ -189,6 +185,7 @@ export default function PenerimaanBankJateng() {
         bankAccountNumber: string;
         totalNominal: number;
         items: any[];
+        failedItems: any[];
       }
     } = {};
 
@@ -201,11 +198,44 @@ export default function PenerimaanBankJateng() {
           bankAccountName: item.bankAccount?.nama_akun || '-',
           bankAccountNumber: item.bankAccount?.no_rekening || item.bankAccount?.nomor_rekening || '-',
           totalNominal: 0,
-          items: []
+          items: [],
+          failedItems: []
         };
       }
-      groups[batchName].totalNominal += Number(item.nominal);
-      groups[batchName].items.push(item);
+
+      const isFailed = item.status_simba === 'FAILED';
+      if (isFailed) {
+        let parsedFailedItem: any = null;
+        if (item.keterangan) {
+          try {
+            const parsed = JSON.parse(item.keterangan);
+            if (parsed && parsed.type === 'failed_deduction') {
+              parsedFailedItem = parsed;
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+
+        const details = parsedFailedItem || {
+          nama: item.muzakki?.nama || '-',
+          opd: 'Lainnya',
+          no_rekening: '-',
+          keterangan: item.keterangan || 'Gagal Potong'
+        };
+
+        groups[batchName].failedItems.push({
+          id: item.id,
+          nama: details.nama,
+          opd: details.opd,
+          no_rekening: details.no_rekening,
+          nominal: Number(item.nominal),
+          keterangan: details.keterangan
+        });
+      } else {
+        groups[batchName].totalNominal += Number(item.nominal);
+        groups[batchName].items.push(item);
+      }
     });
 
     return Object.values(groups).sort((a, b) => new Date(b.tanggal_pembayaran).getTime() - new Date(a.tanggal_pembayaran).getTime());
@@ -253,6 +283,341 @@ export default function PenerimaanBankJateng() {
     
     const docName = `${batchName.replace(/[^a-zA-Z0-9]/g, '_')}_SIMBA.xlsx`;
     XLSX.writeFile(workbook, docName);
+  };
+
+  const generateFailedPdf = (itemsToExport: any[], docTitle: string, subtitle: string, fileSource?: string) => {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const primaryColor: [number, number, number] = [16, 185, 129]; // Emerald 500
+    const secondaryColor: [number, number, number] = [30, 41, 59]; // Slate 800
+
+    // Helper to find UPZ object
+    const findUpzObject = (opdName: string) => {
+      if (!opdName) return null;
+      const cleanRaw = opdName.toLowerCase().replace(/upz/gi, '').trim();
+      
+      const exactMatch = upzList.find(u => u.name.toLowerCase() === opdName.toLowerCase());
+      if (exactMatch) return exactMatch;
+      
+      const partialMatch = upzList.find(u => {
+        const cleanUName = u.name.toLowerCase().replace(/upz/gi, '').trim();
+        return cleanUName === cleanRaw || cleanUName.includes(cleanRaw) || cleanRaw.includes(cleanUName);
+      });
+      return partialMatch || null;
+    };
+
+    // Group items by UPZ
+    const groupedData: Record<string, { upz: any; items: any[]; total: number }> = {};
+    itemsToExport.forEach(item => {
+      const upzObj = findUpzObject(item.opd || '');
+      const upzName = upzObj ? upzObj.name : (item.opd || 'Lain-lain');
+      
+      if (!groupedData[upzName]) {
+        groupedData[upzName] = {
+          upz: upzObj || { name: upzName, metadata: { onBalanceType: 'Pengumpulan' } },
+          items: [],
+          total: 0
+        };
+      }
+      
+      groupedData[upzName].items.push(item);
+      groupedData[upzName].total += Number(item.nominal || 0);
+    });
+
+    // Partition groups
+    const pengumpulanGroups: typeof groupedData = {};
+    const pembantuanGroups: typeof groupedData = {};
+    
+    Object.keys(groupedData).forEach(upzName => {
+      const group = groupedData[upzName];
+      const isPembantuan = group.upz?.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
+      if (isPembantuan) {
+        pembantuanGroups[upzName] = group;
+      } else {
+        pengumpulanGroups[upzName] = group;
+      }
+    });
+
+    const totalPengumpulan = Object.values(pengumpulanGroups).reduce((sum, g) => sum + g.total, 0);
+    const totalPembantuan = Object.values(pembantuanGroups).reduce((sum, g) => sum + g.total, 0);
+    const grandTotal = itemsToExport.reduce((sum, item) => sum + Number(item.nominal || 0), 0);
+
+    // Draw main header (Page 1)
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('BAZNAS KOTA SEMARANG', 14, 20);
+
+    doc.setFontSize(11);
+    doc.setFont('Helvetica', 'normal');
+    doc.text(docTitle, 14, 26);
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(subtitle, 14, 32);
+    if (fileSource) {
+      doc.text(fileSource, 14, 36);
+    }
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(14, 39, 196, 39);
+
+    let currentY = 44;
+
+    const checkPageSpace = (neededSpace: number) => {
+      if (currentY + neededSpace > 260) {
+        doc.addPage();
+        currentY = 20;
+        return true;
+      }
+      return false;
+    };
+
+    // SECTION 1: UPZ PENGUMPULAN
+    checkPageSpace(15);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text(`UPZ Pengumpulan: Rp ${totalPengumpulan.toLocaleString('id-ID')}`, 14, currentY);
+    currentY += 6;
+
+    if (Object.keys(pengumpulanGroups).length === 0) {
+      doc.setFont('Helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Tidak ada data gagal potong.', 14, currentY);
+      currentY += 10;
+    } else {
+      Object.keys(pengumpulanGroups).forEach(upzName => {
+        const group = pengumpulanGroups[upzName];
+        checkPageSpace(35);
+
+        // Header for specific UPZ
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+        doc.text(`${upzName}: Rp ${group.total.toLocaleString('id-ID')}`, 14, currentY);
+        currentY += 4;
+
+        const tableBody = group.items.map((item, index) => [
+          index + 1,
+          item.nama,
+          item.opd,
+          item.no_rekening,
+          `Rp ${Number(item.nominal).toLocaleString('id-ID')}`,
+          item.keterangan || '-'
+        ]);
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [['No', 'Nama Pegawai', 'OPD / Dinas', 'No. Rekening', 'Nominal', 'Keterangan']],
+          body: tableBody,
+          theme: 'striped',
+          headStyles: {
+            fillColor: primaryColor,
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8,
+            halign: 'left',
+          },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 30 },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 27 },
+          },
+          styles: {
+            fontSize: 7.5,
+            cellPadding: 2,
+          },
+          margin: { left: 14, right: 14 }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 8;
+      });
+      currentY += 4;
+    }
+
+    // SECTION 2: UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN
+    checkPageSpace(15);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text(`UPZ Pembantuan Pendistribusian dan Pendayagunaan: Rp ${totalPembantuan.toLocaleString('id-ID')}`, 14, currentY);
+    currentY += 6;
+
+    if (Object.keys(pembantuanGroups).length === 0) {
+      doc.setFont('Helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Tidak ada data gagal potong.', 14, currentY);
+      currentY += 10;
+    } else {
+      Object.keys(pembantuanGroups).forEach(upzName => {
+        const group = pembantuanGroups[upzName];
+        checkPageSpace(35);
+
+        // Header for specific UPZ
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+        doc.text(`${upzName}: Rp ${group.total.toLocaleString('id-ID')}`, 14, currentY);
+        currentY += 4;
+
+        const tableBody = group.items.map((item, index) => [
+          index + 1,
+          item.nama,
+          item.opd,
+          item.no_rekening,
+          `Rp ${Number(item.nominal).toLocaleString('id-ID')}`,
+          item.keterangan || '-'
+        ]);
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [['No', 'Nama Pegawai', 'OPD / Dinas', 'No. Rekening', 'Nominal', 'Keterangan']],
+          body: tableBody,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [59, 130, 246], // Blue 500
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8,
+            halign: 'left',
+          },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 30 },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 27 },
+          },
+          styles: {
+            fontSize: 7.5,
+            cellPadding: 2,
+          },
+          margin: { left: 14, right: 14 }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 8;
+      });
+      currentY += 4;
+    }
+
+    // SECTION 3: GRAND TOTAL
+    checkPageSpace(15);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(14, currentY, 196, currentY);
+    currentY += 6;
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(225, 29, 72); // Rose 600
+    doc.text(`Total Akumulasi: Rp ${grandTotal.toLocaleString('id-ID')}`, 14, currentY);
+
+    // Multi-page footers
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      const str = `Halaman ${i} dari ${pageCount}`;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(str, 196 - doc.getTextWidth(str), 287);
+    }
+
+    return doc;
+  };
+
+  const handleExportPDFFailed = () => {
+    if (failedData.length === 0) {
+      alert('Tidak ada data gagal potong untuk diexport');
+      return;
+    }
+
+    const now = new Date();
+    const formattedPrintDate = now.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const doc = generateFailedPdf(
+      failedData,
+      'Laporan Rekapitulasi Gagal Potong Gaji - Bank Jateng',
+      `Tanggal Cetak: ${formattedPrintDate}`,
+      fileName ? `Sumber File: ${fileName}` : undefined
+    );
+
+    const docName = `Rekap_Gagal_Potong_${now.toISOString().split('T')[0]}.pdf`;
+    doc.save(docName);
+  };
+
+  const handleExportHistoryPDFFailed = (failedItems: any[], batchName: string) => {
+    if (!failedItems || failedItems.length === 0) {
+      alert('Tidak ada data gagal potong untuk diexport');
+      return;
+    }
+
+    const doc = generateFailedPdf(
+      failedItems,
+      'Laporan Rekapitulasi Gagal Potong Gaji - Bank Jateng',
+      `Batch: ${getDisplayBatchName(batchName)}`
+    );
+
+    const docName = `Rekap_Gagal_Potong_${batchName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    doc.save(docName);
+  };
+
+  const handleDownloadTemplate = () => {
+    const headers = [
+      ["BAZNAS KOTA SEMARANG"],
+      ["FORMAT REALISASI GAJI BANK JATENG"],
+      [],
+      [
+        "NO", 
+        "NAMA", 
+        "OPD", 
+        "NO REKENING", 
+        "TOTAL", 
+        "", 
+        "NO", 
+        "NAMA", 
+        "NO REK", 
+        "DINAS", 
+        "TOTAL", 
+        "KETERANGAN"
+      ],
+      [
+        1, 
+        "M. Luthfi Eko Nugroho", 
+        "Bagian Perekonomian", 
+        "3021072132", 
+        145000, 
+        "", 
+        1, 
+        "Purwoko, Sh", 
+        "(UPZ SATPOL)", 
+        "3090032711", 
+        118013, 
+        "NO REK TDK ADA DI SIPD"
+      ]
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(headers);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Realisasi Gaji');
+
+    XLSX.writeFile(workbook, 'Format_Realisasi_Gaji_Bank_Jateng.xlsx');
   };
 
   // Fetch RKAT & Bank Accounts & History
@@ -330,57 +695,131 @@ export default function PenerimaanBankJateng() {
       const workbook = XLSX.read(buffer, { type: 'array' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      const json: RawRow[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+      
+      const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 'A', defval: "" });
 
-      if (json.length === 0) {
+      if (rawRows.length === 0) {
         throw new Error('File excel kosong');
       }
 
-      // Filter and clean rows
       const items: ProcessedTransaction[] = [];
+      const failedItems: any[] = [];
 
-      json.forEach((row: any, index) => {
-        // Helper function for flexible case-insensitive and space-insensitive key retrieval
-        const getValue = (keys: string[], defaultVal: any = '') => {
-          for (const k of keys) {
-            if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
-              return row[k];
-            }
-          }
-          // Fallback to normalized match
-          const normalizedKeys = keys.map(k => k.toLowerCase().replace(/[^a-z0-9]/g, ''));
-          for (const rk of Object.keys(row)) {
-            const normRk = rk.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (normalizedKeys.includes(normRk)) {
-              return row[rk];
-            }
-          }
-          return defaultVal;
-        };
-
-        const no = Number(getValue(['no', 'nomor', 'id', 'no.'], index + 1));
-        const nama = String(getValue(['nama', 'name', 'nama lengkap', 'warga', 'nama muzakki'], '')).trim();
-        const opd = String(getValue(['opd', 'instansi', 'dinas', 'unit', 'unit kerja', 'opd/instansi', 'opd / instansi'], 'Lainnya')).trim();
-        const no_rekening = String(getValue(['no rekening', 'norek', 'no rek', 'no_rekening', 'no. rekening', 'nomor rekening', 'norekening'], '')).trim();
-        const nominalRaw = getValue(['nominal', 'jumlah', 'nominal potong', 'jumlah potong', 'total', 'nominal_potongan', 'jumlah_potongan'], '0');
-        const nominal = Number(String(nominalRaw).replace(/[^0-9]/g, ''));
-
-        if (!nama || !no_rekening) return; // skip row if mandatory fields missing
-
-        items.push({
-          no,
-          nama,
-          opd,
-          no_rekening,
-          nominal,
-          status_potongan: 'Berhasil',
-          matched: false,
-          muzakki_id: null,
-          npwz: null,
-          nama_muzakki: null,
-          selected: true
-        });
+      // Check if there is data in column H (which indicates dual table format)
+      // ignoring the header rows (index < 4)
+      const hasDualTable = rawRows.some((row, idx) => {
+        if (idx < 3) return false;
+        const hVal = String(row['H'] || '').trim();
+        return hVal !== '' && hVal.toLowerCase() !== 'nama' && hVal.toLowerCase() !== 'nama lengkap';
       });
+
+      if (hasDualTable) {
+        rawRows.forEach((row, index) => {
+          // Left Table (Berhasil)
+          const bVal = String(row['B'] || '').trim();
+          const dVal = String(row['D'] || '').trim();
+          const eVal = row['E'];
+
+          // Right Table (Gagal)
+          const hVal = String(row['H'] || '').trim();
+          const jVal = String(row['J'] || '').trim();
+          const kVal = row['K'];
+          const lVal = String(row['L'] || '').trim();
+
+          if (index >= 3) {
+            // Process Left (Berhasil)
+            if (bVal && bVal.toLowerCase() !== 'nama' && bVal.toLowerCase() !== 'nama lengkap') {
+              const no = Number(row['A']) || (items.length + 1);
+              const nama = bVal;
+              const opd = String(row['C'] || 'Lainnya').trim();
+              const no_rekening = dVal;
+              const nominal = Number(String(eVal).replace(/[^0-9]/g, '')) || 0;
+
+              if (nama && no_rekening && nominal > 0) {
+                items.push({
+                  no,
+                  nama,
+                  opd,
+                  no_rekening,
+                  nominal,
+                  status_potongan: 'Berhasil',
+                  matched: false,
+                  muzakki_id: null,
+                  npwz: null,
+                  nama_muzakki: null,
+                  selected: true
+                });
+              }
+            }
+
+            // Process Right (Gagal)
+            if (hVal && hVal.toLowerCase() !== 'nama' && hVal.toLowerCase() !== 'nama lengkap') {
+              const no = Number(row['G']) || (failedItems.length + 1);
+              const nama = hVal;
+              const opd = String(row['I'] || 'Lainnya').trim();
+              const no_rekening = jVal;
+              const nominal = Number(String(kVal).replace(/[^0-9]/g, '')) || 0;
+              const keterangan = lVal || 'Gagal Potong';
+
+              if (nama && no_rekening && nominal > 0) {
+                failedItems.push({
+                  no,
+                  nama,
+                  opd,
+                  no_rekening,
+                  nominal,
+                  keterangan
+                });
+              }
+            }
+          }
+        });
+      } else {
+        // Legacy single-table parser fallback
+        rawRows.forEach((row, index) => {
+          const bVal = String(row['B'] || '').trim();
+          const dVal = String(row['D'] || '').trim();
+          const eVal = row['E'];
+
+          if (index >= 3 && bVal && bVal.toLowerCase() !== 'nama' && bVal.toLowerCase() !== 'nama lengkap') {
+            const no = Number(row['A']) || (items.length + 1);
+            const nama = bVal;
+            const opd = String(row['C'] || 'Lainnya').trim();
+            const no_rekening = dVal;
+            const nominal = Number(String(eVal).replace(/[^0-9]/g, '')) || 0;
+
+            if (nama && no_rekening && nominal > 0) {
+              items.push({
+                no,
+                nama,
+                opd,
+                no_rekening,
+                nominal,
+                status_potongan: 'Berhasil',
+                matched: false,
+                muzakki_id: null,
+                npwz: null,
+                nama_muzakki: null,
+                selected: true
+              });
+            }
+          }
+        });
+      }
+
+      setFailedData(failedItems);
+
+      if (items.length === 0 && failedItems.length > 0) {
+        setFileData([]);
+        setMessages([
+          { 
+            type: 'success', 
+            text: `Berhasil memetakan data. Ditemukan ${failedItems.length} transaksi gagal potong.` 
+          }
+        ]);
+        setActiveTab('gagal');
+        return;
+      }
 
       if (items.length === 0) {
         setFileData([]);
@@ -477,10 +916,18 @@ export default function PenerimaanBankJateng() {
       no_rekening: row.no_rekening
     });
     setRegisterNik('');
+    setRegisterTanpaNik(false);
+    setRegisterNpwz('');
     setRegisterAddress('Kota Semarang');
     setRegisterPhone('-');
     setRegisterGender('Pria');
-    setRegisterUpz(row.opd || '');
+    
+    // Auto-map or clean UPZ name from the OPD in row
+    const matchedUpzName = findMatchingUpzName(row.opd || '');
+    setRegisterUpz(matchedUpzName || row.opd || '');
+    setRegisterUpzSearchQuery('');
+    setIsRegisterUpzDropdownOpen(false);
+    
     setIsRegisterModalOpen(true);
   };
 
@@ -489,8 +936,13 @@ export default function PenerimaanBankJateng() {
     e.preventDefault();
     if (!selectedRowToRegister) return;
 
-    if (!registerNik || registerNik.length !== 16) {
+    if (!registerTanpaNik && (!registerNik || registerNik.length !== 16)) {
       alert('NIK harus 16 digit angka.');
+      return;
+    }
+
+    if (!registerNpwz) {
+      alert('NPWZ wajib diisi sesuai data di SIMBA.');
       return;
     }
 
@@ -498,7 +950,8 @@ export default function PenerimaanBankJateng() {
       const payload = {
         kategori: 'Perorangan',
         nama: selectedRowToRegister.nama,
-        nik: registerNik,
+        nik: registerTanpaNik ? '' : registerNik,
+        npwz: registerNpwz,
         no_rekening: selectedRowToRegister.no_rekening,
         alamat: registerAddress,
         handphone: registerPhone,
@@ -510,7 +963,7 @@ export default function PenerimaanBankJateng() {
       const res = await axios.post('/api/muzakki', payload);
       if (res.data.status === 'success') {
         setIsRegisterModalOpen(false);
-        setMessages([{ type: 'success', text: `Muzakki ${selectedRowToRegister.nama} berhasil didaftarkan!` }]);
+        setMessages([{ type: 'success', text: `Muzakki ${selectedRowToRegister.nama} berhasil didaftarkan dengan NPWZ: ${res.data.data.npwz}!` }]);
         
         // Refresh mapping logic directly
         await handleRecheck();
@@ -546,6 +999,13 @@ export default function PenerimaanBankJateng() {
           opd: t.opd,
           keterangan: `Penerimaan payroll Bank Jateng OPD ${t.opd} - Rekening ${t.no_rekening}`
         })),
+        failedTransactions: failedData.map(fd => ({
+          nama: fd.nama,
+          opd: fd.opd,
+          no_rekening: fd.no_rekening,
+          nominal: fd.nominal,
+          keterangan: fd.keterangan || 'Gagal Potong'
+        })),
         bank_account_id: selectedBankAccountId,
         tanggal_pembayaran: tanggalPembayaran
       };
@@ -569,22 +1029,56 @@ export default function PenerimaanBankJateng() {
     }
   };
 
-  // Group by OPD for display and downloads
+  // Group by OPD for display and downloads (combining success and failed data)
   const opdGroups = useMemo(() => {
-    const groups: { [key: string]: { name: string, count: number, total: number, items: ProcessedTransaction[] } } = {};
+    const groups: { 
+      [key: string]: { 
+        name: string; 
+        successCount: number; 
+        successTotal: number; 
+        failedCount: number; 
+        failedTotal: number; 
+        items: { nama: string; no_rekening: string; nominal: number; status_potongan: 'Berhasil' | 'Gagal'; keterangan?: string }[] 
+      } 
+    } = {};
     
+    // Process successful transactions
     fileData.forEach(item => {
       const key = item.originalOpd || item.opd || 'Lainnya';
       if (!groups[key]) {
-        groups[key] = { name: key, count: 0, total: 0, items: [] };
+        groups[key] = { name: key, successCount: 0, successTotal: 0, failedCount: 0, failedTotal: 0, items: [] };
       }
-      groups[key].count += 1;
-      groups[key].total += item.nominal;
-      groups[key].items.push(item);
+      groups[key].successCount += 1;
+      groups[key].successTotal += item.nominal;
+      groups[key].items.push({
+        nama: item.nama,
+        no_rekening: item.no_rekening,
+        nominal: item.nominal,
+        status_potongan: 'Berhasil'
+      });
     });
 
-    return Object.values(groups).sort((a, b) => b.total - a.total);
-  }, [fileData]);
+    // Process failed transactions
+    failedData.forEach(item => {
+      const key = item.opd || 'Lainnya';
+      if (!groups[key]) {
+        groups[key] = { name: key, successCount: 0, successTotal: 0, failedCount: 0, failedTotal: 0, items: [] };
+      }
+      groups[key].failedCount += 1;
+      groups[key].failedTotal += item.nominal;
+      groups[key].items.push({
+        nama: item.nama,
+        no_rekening: item.no_rekening,
+        nominal: item.nominal,
+        status_potongan: 'Gagal',
+        keterangan: item.keterangan
+      });
+    });
+
+    return Object.values(groups).sort((a, b) => 
+      (b.successTotal + b.failedTotal) - (a.successTotal + a.failedTotal)
+    );
+  }, [fileData, failedData]);
 
   // Export to SIMBA format for specific OPD or all
   const exportToSimba = (groupName?: string) => {
@@ -713,7 +1207,7 @@ export default function PenerimaanBankJateng() {
       </AnimatePresence>
 
       {/* File Upload / Drag & Drop Area */}
-      {fileData.length === 0 && (
+      {fileData.length === 0 && failedData.length === 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -738,18 +1232,26 @@ export default function PenerimaanBankJateng() {
           <div className="size-16 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mb-4 border border-slate-200">
             <Upload className="size-8 text-primary" />
           </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-2">Upload File Rekapan Realisasi Bulk</h3>
-          <p className="text-sm text-slate-500 max-w-md mb-6">
-            Drag &amp; drop file Excel/CSV atau klik untuk browsing dari device Anda.
+          <h3 className="text-lg font-bold text-slate-900 mb-2">Upload File Realisasi Gaji Bank Jateng</h3>
+          <p className="text-sm text-slate-500 max-w-md mb-6 leading-relaxed">
+            Drag &amp; drop file laporan di sini, atau klik untuk memilih file. Harap sesuaikan dengan format laporan yang telah ditentukan.
           </p>
-          <div className="flex gap-4 text-xs font-bold text-slate-550 bg-slate-550 px-4 py-2.5 rounded-lg border border-slate-200">
-            <span>Kolom Wajib: Nama, OPD, No. Rekening, Nominal</span>
-          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDownloadTemplate();
+            }}
+            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg border border-slate-200 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+          >
+            <Download className="size-4 text-primary" />
+            Unduh Format Laporan
+          </button>
         </motion.div>
       )}
 
       {/* After File Uploaded */}
-      {fileData.length > 0 && (
+      {(fileData.length > 0 || failedData.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           {/* Main List Section */}
@@ -768,7 +1270,17 @@ export default function PenerimaanBankJateng() {
                   )}
                 >
                   <CheckCircle2 className="size-4" />
-                  Daftar Transaksi ({fileData.length})
+                  Berhasil Potong ({fileData.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('gagal')}
+                  className={cn(
+                    "px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2",
+                    activeTab === 'gagal' ? "bg-rose-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  <AlertCircle className="size-4" />
+                  Gagal Potong ({failedData.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('opd')}
@@ -782,23 +1294,34 @@ export default function PenerimaanBankJateng() {
                 </button>
               </div>
 
-              {/* Reset File Button */}
+              {/* Reset/Download Actions */}
               <div className="flex items-center gap-3">
                 {fileName && (
                   <span className="text-xs text-slate-550 font-medium max-w-[200px] truncate">
                     File: <span className="text-slate-750 font-bold">{fileName}</span>
                   </span>
                 )}
-                <button
-                  onClick={() => exportToSimba()}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
-                >
-                  <FileSpreadsheet className="size-3.5" />
-                  Format SIMBA (Semua)
-                </button>
+                {activeTab === 'gagal' && (
+                  <button
+                    onClick={handleExportPDFFailed}
+                    className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer"
+                  >
+                    <Download className="size-3.5" />
+                    Cetak PDF Gagal Potong
+                  </button>
+                )}
+                {activeTab === 'berhasil' && (
+                  <button
+                    onClick={() => exportToSimba()}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer"
+                  >
+                    <FileSpreadsheet className="size-3.5" />
+                    Format SIMBA (Semua)
+                  </button>
+                )}
                 <button 
-                  onClick={() => { setFileData([]); setFileName(''); }}
-                  className="text-xs text-rose-650 hover:text-rose-700 font-bold px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50/50 transition-colors"
+                  onClick={() => { setFileData([]); setFailedData([]); setFileName(''); }}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50/50 transition-colors cursor-pointer"
                 >
                   Ganti File
                 </button>
@@ -823,7 +1346,7 @@ export default function PenerimaanBankJateng() {
                   </div>
                   <button 
                     onClick={handleRecheck}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold border border-slate-200 transition-all"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold border border-slate-200 transition-all cursor-pointer"
                   >
                     Re-check Lookup
                   </button>
@@ -835,7 +1358,7 @@ export default function PenerimaanBankJateng() {
                 <div className="overflow-x-auto min-h-[300px]">
                    <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-550 uppercase text-[10px] font-bold tracking-wider border-b border-slate-150">
+                      <tr className="bg-slate-50 text-slate-550 uppercase text-[11px] font-bold tracking-wider border-b border-slate-150">
                         <th className="px-4 py-3 text-center w-12">
                           <input 
                             type="checkbox" 
@@ -919,7 +1442,7 @@ export default function PenerimaanBankJateng() {
                               {!row.matched && (
                                 <button
                                   onClick={() => openRegisterModal(row)}
-                                  className="bg-primary/10 hover:bg-primary text-primary hover:text-white px-2.5 py-1 rounded text-[10px] font-bold border border-primary/20 transition-all"
+                                  className="bg-primary/10 hover:bg-primary text-primary hover:text-white px-2.5 py-1 rounded text-[10px] font-bold border border-primary/20 transition-all cursor-pointer"
                                 >
                                   Daftarkan
                                 </button>
@@ -943,17 +1466,98 @@ export default function PenerimaanBankJateng() {
                 </div>
               )}
 
+              {/* Table rendering for Gagal Potong */}
+              {activeTab === 'gagal' && (
+                <div className="overflow-x-auto min-h-[300px]">
+                   <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-550 uppercase text-[11px] font-bold tracking-wider border-b border-slate-150">
+                        <th className="px-6 py-4 text-center w-12">No</th>
+                        <th className="px-6 py-4">Nama Pegawai</th>
+                        <th className="px-6 py-4">No. Rekening</th>
+                        <th className="px-6 py-4">OPD / Dinas</th>
+                        <th className="px-6 py-4 text-right">Nominal</th>
+                        <th className="px-6 py-4">Keterangan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs">
+                      {failedData.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
+                            Tidak ada data gagal potong.
+                          </td>
+                        </tr>
+                      ) : (
+                        failedData.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
+                            <td className="px-6 py-4 text-center font-bold text-slate-400">
+                              {idx + 1}
+                            </td>
+                            <td className="px-6 py-4 font-bold text-slate-900">
+                              {row.nama}
+                            </td>
+                            <td className="px-6 py-4 font-mono text-slate-500">
+                              {row.no_rekening}
+                            </td>
+                            <td className="px-6 py-4 font-medium text-slate-700">
+                              {row.opd}
+                            </td>
+                            <td className="px-6 py-4 text-right font-semibold text-rose-600">
+                              Rp {row.nominal.toLocaleString('id-ID')}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-rose-50 text-rose-700 border border-rose-100">
+                                {row.keterangan || 'Gagal Potong'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                  
+                  {/* Footer Stats summary */}
+                  <div className="p-6 bg-slate-50/50 border-t border-slate-150 flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">
+                      Menampilkan {failedData.length} transaksi gagal potong
+                    </span>
+                    <span className="text-rose-600 font-black text-sm">
+                      Total Akumulasi Gagal Potong: Rp {failedData.reduce((sum, item) => sum + item.nominal, 0).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'opd' && (
                 <div className="p-4 space-y-4">
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-2">Data Realisasi Dikelompokkan Per OPD</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {opdGroups.map((group, idx) => (
-                      <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between hover:border-slate-300 transition-colors relative">
+                      <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col hover:border-slate-350 transition-colors relative space-y-4">
                         <div>
-                          <h4 className="font-black text-slate-800 text-sm mb-1">{group.name}</h4>
-                          <div className="flex justify-between text-xs text-slate-550 mt-2">
-                            <span>Jumlah: {group.count} pegawai</span>
-                            <span className="font-semibold text-emerald-600">Rp {group.total.toLocaleString('id-ID')}</span>
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-black text-slate-800 text-sm">{group.name}</h4>
+                            <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+                              Total: {group.successCount + group.failedCount} Orang
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg">
+                              <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider block">Berhasil Potong</span>
+                              <div className="flex justify-between items-baseline mt-1">
+                                <span className="text-[10px] text-slate-500 font-semibold">{group.successCount} Pegawai</span>
+                                <span className="text-xs font-bold text-emerald-600">Rp {group.successTotal.toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="bg-rose-50 border border-rose-100 p-2.5 rounded-lg">
+                              <span className="text-[9px] font-bold text-rose-700 uppercase tracking-wider block">Gagal Potong</span>
+                              <div className="flex justify-between items-baseline mt-1">
+                                <span className="text-[10px] text-slate-500 font-semibold">{group.failedCount} Pegawai</span>
+                                <span className="text-xs font-bold text-rose-600">Rp {group.failedTotal.toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Searchable UPZ Database Matcher */}
@@ -970,7 +1574,7 @@ export default function PenerimaanBankJateng() {
                                   value={upzSearchQuery}
                                   onChange={(e) => setUpzSearchQuery(e.target.value)}
                                   placeholder="Cari nama UPZ..."
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 text-slate-800"
                                 />
                                 <div className="space-y-1">
                                   <button
@@ -1019,16 +1623,70 @@ export default function PenerimaanBankJateng() {
                               <ChevronRight className="size-3.5 text-slate-400 rotate-90" />
                             </button>
                           </div>
+                          
+                          {/* Expanded detail by name */}
+                          <div className="mt-4 border-t border-slate-200 pt-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedGroupDetails(prev => ({ ...prev, [group.name]: !prev[group.name] }));
+                              }}
+                              className="text-xs font-semibold text-slate-500 hover:text-slate-750 flex items-center gap-1"
+                            >
+                              <span>{expandedGroupDetails[group.name] ? 'Sembunyikan Detail Pegawai' : 'Tampilkan Detail Pegawai'}</span>
+                              <ChevronRight className={cn("size-3.5 transition-transform text-slate-400", expandedGroupDetails[group.name] && "rotate-90")} />
+                            </button>
+                            
+                            {expandedGroupDetails[group.name] && (
+                              <div className="mt-2.5 space-y-2 max-h-52 overflow-y-auto custom-scrollbar bg-white p-2.5 rounded-lg border border-slate-200">
+                                <table className="w-full text-left text-[11px]">
+                                  <thead>
+                                    <tr className="border-b border-slate-100 text-slate-400 font-bold">
+                                      <th className="pb-1.5">Nama</th>
+                                      <th className="pb-1.5">No. Rekening</th>
+                                      <th className="pb-1.5 text-right">Nominal</th>
+                                      <th className="pb-1.5 text-center">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.items.map((item, idx2) => (
+                                      <tr key={idx2} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
+                                        <td className="py-2 text-slate-700 font-semibold">{item.nama}</td>
+                                        <td className="py-2 text-slate-500 font-mono">{item.no_rekening}</td>
+                                        <td className="py-2 text-slate-700 text-right font-bold">
+                                          Rp {item.nominal.toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="py-2 text-center">
+                                          {item.status_potongan === 'Berhasil' ? (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                              Berhasil
+                                            </span>
+                                          ) : (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100 cursor-help" title={item.keterangan}>
+                                              Gagal
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end">
-                          <button
-                            onClick={() => exportToSimba(group.name)}
-                            className="bg-primary/20 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
-                          >
-                            <FileSpreadsheet className="size-3.5" />
-                            Format SIMBA
-                          </button>
-                        </div>
+                        
+                        {group.successCount > 0 && (
+                          <div className="pt-3 border-t border-slate-200 flex justify-end">
+                            <button
+                              onClick={() => exportToSimba(group.name)}
+                              className="bg-primary/20 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                            >
+                              <FileSpreadsheet className="size-3.5" />
+                              Format SIMBA
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1211,7 +1869,7 @@ export default function PenerimaanBankJateng() {
                             </button>
                             <button
                               onClick={() => handleDeleteBatch(batch.batchName)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-55 rounded-lg transition-all"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                               title="Hapus Batch"
                             >
                               <Trash2 className="size-5" />
@@ -1279,9 +1937,20 @@ export default function PenerimaanBankJateng() {
                                   >
                                     Detail Rincian Pegawai ({batch.items.length})
                                   </button>
+                                  <button
+                                    onClick={() => setBatchActiveTab(prev => ({ ...prev, [batch.batchName]: 'gagal' }))}
+                                    className={cn(
+                                      "pb-2 text-xs font-bold transition-all border-b-2 px-1 focus:outline-none",
+                                      currentTab === 'gagal' 
+                                        ? "text-rose-600 border-rose-600" 
+                                        : "text-slate-400 border-transparent hover:text-slate-700"
+                                    )}
+                                  >
+                                    Rekap Gagal Potong ({batch.failedItems?.length || 0})
+                                  </button>
                                 </div>
 
-                                {currentTab === 'upz' ? (
+                                {currentTab === 'upz' && (
                                   /* Rekap per UPZ Table */
                                   <div className="space-y-3">
                                     <div className="flex justify-between items-center gap-4">
@@ -1305,7 +1974,7 @@ export default function PenerimaanBankJateng() {
                                     <div className="overflow-x-auto">
                                       <table className="w-full text-left">
                                         <thead>
-                                          <tr className="bg-slate-50 text-slate-500 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
+                                          <tr className="bg-slate-50 text-slate-550 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
                                             <th className="px-4 py-2 text-center w-12">No</th>
                                             <th className="px-4 py-2">Nama UPZ / OPD</th>
                                             <th className="px-4 py-2 text-center">Jumlah Pegawai</th>
@@ -1346,12 +2015,14 @@ export default function PenerimaanBankJateng() {
                                       </table>
                                     </div>
                                   </div>
-                                ) : (
+                                )}
+
+                                {currentTab === 'pegawai' && (
                                   /* Rincian Pegawai Table */
                                   <div className="overflow-x-auto">
                                     <table className="w-full text-left">
                                       <thead>
-                                        <tr className="bg-slate-50 text-slate-500 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
+                                        <tr className="bg-slate-50 text-slate-550 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
                                           <th className="px-4 py-2 text-center w-12">No</th>
                                           <th className="px-4 py-2">Muzakki (NPWZ)</th>
                                           <th className="px-4 py-2">Dinas / OPD</th>
@@ -1406,6 +2077,64 @@ export default function PenerimaanBankJateng() {
                                         })}
                                       </tbody>
                                     </table>
+                                  </div>
+                                )}
+
+                                {currentTab === 'gagal' && (
+                                  /* Rekap Gagal Potong Table */
+                                  <div className="space-y-4">
+                                    <div className="flex justify-between items-center bg-rose-50 p-4 rounded-xl border border-rose-100">
+                                      <div>
+                                        <p className="text-xs text-rose-700 font-bold">Total Akumulasi Gagal Potong</p>
+                                        <p className="text-xl font-black text-rose-600 mt-1">
+                                          Rp {batch.failedItems.reduce((sum: number, it: any) => sum + it.nominal, 0).toLocaleString('id-ID')}
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() => handleExportHistoryPDFFailed(batch.failedItems, batch.batchName)}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm cursor-pointer"
+                                      >
+                                        <Download className="size-4" />
+                                        Unduh Rekap Gagal Potong PDF
+                                      </button>
+                                    </div>
+
+                                    <div className="overflow-x-auto border border-slate-100 rounded-lg">
+                                      <table className="w-full text-left">
+                                        <thead>
+                                          <tr className="bg-slate-50 text-slate-550 uppercase text-[9px] font-bold tracking-wider border-b border-slate-150">
+                                            <th className="px-4 py-2.5 text-center w-12">No</th>
+                                            <th className="px-4 py-2.5">Nama Pegawai</th>
+                                            <th className="px-4 py-2.5">Dinas / OPD</th>
+                                            <th className="px-4 py-2.5">No. Rekening</th>
+                                            <th className="px-4 py-2.5 text-right">Nominal</th>
+                                            <th className="px-4 py-2.5">Keterangan Gagal</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-xs text-slate-650 bg-white">
+                                          {batch.failedItems.length === 0 ? (
+                                            <tr>
+                                              <td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">
+                                                Tidak ada transaksi gagal potong pada batch ini.
+                                              </td>
+                                            </tr>
+                                          ) : (
+                                            batch.failedItems.map((item: any, itemIdx: number) => (
+                                              <tr key={item.id || itemIdx} className="hover:bg-slate-50/30 transition-colors">
+                                                <td className="px-4 py-2 text-center font-medium text-slate-400">{itemIdx + 1}</td>
+                                                <td className="px-4 py-2 font-bold text-slate-900">{item.nama}</td>
+                                                <td className="px-4 py-2 font-medium text-slate-700">{item.opd}</td>
+                                                <td className="px-4 py-2 font-mono text-slate-500">{item.no_rekening}</td>
+                                                <td className="px-4 py-2 text-right font-bold text-rose-600">
+                                                  Rp {Number(item.nominal).toLocaleString('id-ID')}
+                                                </td>
+                                                <td className="px-4 py-2 text-rose-500 font-semibold">{item.keterangan}</td>
+                                              </tr>
+                                            ))
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1465,15 +2194,51 @@ export default function PenerimaanBankJateng() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NIK Muzakki (16 Digit) *</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    NPWZ (dari SIMBA) *
+                  </label>
                   <input 
                     required 
+                    type="text" 
+                    value={registerNpwz}
+                    onChange={(e) => setRegisterNpwz(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-800 font-semibold" 
+                    placeholder="Contoh: WZ-2026-10293..." 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      NIK Muzakki (16 Digit) {!registerTanpaNik && "*"}
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={registerTanpaNik}
+                        onChange={(e) => {
+                          setRegisterTanpaNik(e.target.checked);
+                          if (e.target.checked) setRegisterNik('');
+                        }}
+                        className="rounded border-slate-300 text-primary focus:ring-primary/20 size-3.5 cursor-pointer"
+                      />
+                      <span>Tanpa NIK</span>
+                    </label>
+                  </div>
+                  <input 
+                    required={!registerTanpaNik}
+                    disabled={registerTanpaNik}
                     type="text" 
                     maxLength={16}
                     value={registerNik}
                     onChange={(e) => setRegisterNik(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-800" 
-                    placeholder="Masukkan NIK 16 digit..." 
+                    className={cn(
+                      "w-full border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-800",
+                      registerTanpaNik 
+                        ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed" 
+                        : "bg-white border-slate-200"
+                    )}
+                    placeholder={registerTanpaNik ? "Muzakki didaftarkan tanpa NIK" : "Masukkan NIK 16 digit..."} 
                   />
                 </div>
 
@@ -1489,15 +2254,57 @@ export default function PenerimaanBankJateng() {
                       <option value="Wanita">Wanita</option>
                     </select>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ / Dinas / OPD</label>
-                    <input 
-                      type="text" 
-                      value={registerUpz}
-                      onChange={(e) => setRegisterUpz(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-800" 
-                      placeholder="Dinas Pendidikan..." 
-                    />
+                  <div className="space-y-1 relative">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">UPZ / Dinas / OPD *</label>
+                    {isRegisterUpzDropdownOpen && (
+                      <div className="absolute z-30 left-0 right-0 bottom-full mb-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={registerUpzSearchQuery}
+                          onChange={(e) => setRegisterUpzSearchQuery(e.target.value)}
+                          placeholder="Cari nama UPZ..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 text-slate-800"
+                        />
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {upzList
+                            .filter(upz => upz.name.toLowerCase().includes(registerUpzSearchQuery.toLowerCase()))
+                            .map(upz => (
+                              <button
+                                type="button"
+                                key={upz.id}
+                                onClick={() => {
+                                  setRegisterUpz(upz.name);
+                                  setIsRegisterUpzDropdownOpen(false);
+                                  setRegisterUpzSearchQuery('');
+                                }}
+                                className={cn(
+                                  "w-full text-left px-2 py-1.5 rounded hover:bg-slate-100 text-xs transition-colors",
+                                  registerUpz === upz.name ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                )}
+                              >
+                                {upz.name} <span className="text-[9px] text-slate-400">({upz.category})</span>
+                              </button>
+                            ))}
+                          {upzList.filter(upz => upz.name.toLowerCase().includes(registerUpzSearchQuery.toLowerCase())).length === 0 && (
+                            <p className="text-[11px] text-slate-400 italic p-2 text-center">Tidak ada UPZ yang cocok</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRegisterUpzDropdownOpen(!isRegisterUpzDropdownOpen);
+                        setRegisterUpzSearchQuery('');
+                      }}
+                      className="w-full text-left text-sm bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-800 font-semibold flex justify-between items-center"
+                    >
+                      <span className={registerUpz ? "text-slate-800 font-semibold truncate" : "text-slate-400 font-normal"}>
+                        {registerUpz || 'Pilih UPZ...'}
+                      </span>
+                      <ChevronRight className="size-4 text-slate-400 rotate-90 shrink-0" />
+                    </button>
                   </div>
                 </div>
 

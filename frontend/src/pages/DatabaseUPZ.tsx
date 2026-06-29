@@ -9,6 +9,7 @@ import {
   Download, 
   CheckCircle2, 
   XCircle, 
+  AlertCircle,
   X, 
   PlusCircle, 
   Eye, 
@@ -20,7 +21,8 @@ import {
   FileSpreadsheet,
   Edit2,
   Trash2,
-  Coins
+  Coins,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -29,6 +31,19 @@ import { skHistoryData as initialSkHistoryData } from '@/src/data/upzData';
 import { UPZ, SKHistory } from '@/src/types/upz';
 import { getNextRenewalSKNumber, getNextBaseSKNumber, isSKPembentukan, parseSKNumber } from '@/src/utils/skUtils';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+
+function getEmbedLink(url?: string): string {
+  if (!url) return '';
+  const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (fileIdMatch && fileIdMatch[1]) {
+    return `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+  }
+  return url;
+}
 
 export default function DatabaseUPZ() {
   const [data, setData] = useState<UPZ[]>([]);
@@ -37,7 +52,31 @@ export default function DatabaseUPZ() {
     try {
       const res = await axios.get('/api/upz');
       if (res.data.status === 'success') {
-        setData(res.data.data);
+        const fetchedData = res.data.data;
+        setData(fetchedData);
+        
+        // Extract and sync skHistory from database
+        const dbHistories: SKHistory[] = [];
+        fetchedData.forEach((upz: any) => {
+          if (upz.metadata?.skHistory && Array.isArray(upz.metadata.skHistory)) {
+            dbHistories.push(...upz.metadata.skHistory);
+          }
+        });
+        
+        if (dbHistories.length > 0) {
+          setSkHistory(prev => {
+            const merged = [...prev];
+            dbHistories.forEach(h => {
+              if (!merged.some(m => m.id === h.id)) {
+                merged.push(h);
+              } else {
+                const idx = merged.findIndex(m => m.id === h.id);
+                merged[idx] = h;
+              }
+            });
+            return merged;
+          });
+        }
       }
     } catch (err) {
       console.error('Error fetching UPZ list:', err);
@@ -45,7 +84,7 @@ export default function DatabaseUPZ() {
   };
 
   const getUPZAccumulation = (item: UPZ) => {
-    if (item.type !== 'On-Balance') return { total: 0, hak: 0, pct: 0 };
+    if (item.type !== 'On-Balance') return { total: 0, hak: 0, pct: 0, gagalPotong: 0 };
     const isPembantuan = item.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
     const pctVal = isPembantuan ? upzHakPembantuan : upzHakPengumpulan;
     const pct = pctVal / 100;
@@ -63,6 +102,22 @@ export default function DatabaseUPZ() {
       const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
       if (cleanMuzakkiUpz === cleanTargetUpz) return true;
       const keterangan = tx.keterangan?.toLowerCase() || '';
+
+      if (tx.status_simba === 'FAILED' && tx.keterangan) {
+        try {
+          const parsed = JSON.parse(tx.keterangan);
+          if (parsed && parsed.type === 'failed_deduction') {
+            const parsedOpd = (parsed.opd || '').toLowerCase().trim();
+            const cleanParsedOpd = parsedOpd.replace(/^upz\s+/i, '');
+            if (parsedOpd === targetUpz || cleanParsedOpd === cleanTargetUpz || (upzCode && parsedOpd.includes(upzCode))) {
+              return true;
+            }
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+
       if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) return true;
       if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) return true;
       return false;
@@ -77,11 +132,18 @@ export default function DatabaseUPZ() {
       !tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
     );
 
-    const totalBankJateng = bankJatengRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
-    const totalZis = manualZisRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const successJtg = bankJatengRecords.filter(tx => tx.status_simba !== 'FAILED');
+    const failedJtg = bankJatengRecords.filter(tx => tx.status_simba === 'FAILED');
+    const successZis = manualZisRecords.filter(tx => tx.status_simba !== 'FAILED');
+    const failedZis = manualZisRecords.filter(tx => tx.status_simba === 'FAILED');
+
+    const totalBankJateng = successJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const totalZis = successZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
     const total = totalBankJateng + totalZis;
+    const gagalPotong = failedJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0) + failedZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+
     const hak = total * pct;
-    return { total, hak, pct: pctVal };
+    return { total, hak, pct: pctVal, gagalPotong, totalBankJateng, totalZis };
   };
 
 
@@ -98,6 +160,285 @@ export default function DatabaseUPZ() {
   const [zisHistory, setZisHistory] = useState<any[]>([]);
   const [upzHakPengumpulan, setUpzHakPengumpulan] = useState(30);
   const [upzHakPembantuan, setUpzHakPembantuan] = useState(70);
+
+  const [isDownloadRecapModalOpen, setIsDownloadRecapModalOpen] = useState(false);
+  const [selectedRecapYear, setSelectedRecapYear] = useState<number>(() => new Date().getFullYear());
+
+  const recapYears = useMemo(() => {
+    const years = new Set<number>();
+    if (Array.isArray(zisHistory)) {
+      zisHistory.forEach(tx => {
+        if (tx && tx.tanggal_pembayaran) {
+          const y = new Date(tx.tanggal_pembayaran).getFullYear();
+          if (!isNaN(y)) {
+            years.add(y);
+          }
+        }
+      });
+    }
+    // Add current year if empty
+    if (years.size === 0) {
+      years.add(new Date().getFullYear());
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [zisHistory]);
+
+  const getUPZAccumulationForYear = (item: UPZ, year: number) => {
+    if (item.type !== 'On-Balance') return { total: 0, hak: 0, pct: 0, gagalPotong: 0 };
+    const isPembantuan = item.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
+    const pctVal = isPembantuan ? upzHakPembantuan : upzHakPengumpulan;
+    const pct = pctVal / 100;
+
+    const upzName = item.name;
+    const targetUpz = upzName.toLowerCase().trim();
+    const cleanTargetUpz = targetUpz.replace(/^upz\s+/i, '');
+    const upzCode = item.code?.toLowerCase().trim();
+
+    const upzZisHistory = zisHistory.filter(tx => {
+      if (!tx) return false;
+      
+      if (tx.tanggal_pembayaran) {
+        const txYear = new Date(tx.tanggal_pembayaran).getFullYear();
+        if (txYear !== year) return false;
+      } else {
+        return false;
+      }
+
+      const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
+      if (upzCode && muzakkiUpz === upzCode) return true;
+      if (muzakkiUpz === targetUpz) return true;
+      const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
+      if (cleanMuzakkiUpz === cleanTargetUpz) return true;
+      const keterangan = tx.keterangan?.toLowerCase() || '';
+
+      if (tx.status_simba === 'FAILED' && tx.keterangan) {
+        try {
+          const parsed = JSON.parse(tx.keterangan);
+          if (parsed && parsed.type === 'failed_deduction') {
+            const parsedOpd = (parsed.opd || '').toLowerCase().trim();
+            const cleanParsedOpd = parsedOpd.replace(/^upz\s+/i, '');
+            if (parsedOpd === targetUpz || cleanParsedOpd === cleanTargetUpz || (upzCode && parsedOpd.includes(upzCode))) {
+              return true;
+            }
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) return true;
+      if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) return true;
+      return false;
+    });
+
+    const bankJatengRecords = upzZisHistory.filter(tx => 
+      tx.no_kuitansi?.startsWith('BSZ-JTG-') || 
+      tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
+    );
+    const manualZisRecords = upzZisHistory.filter(tx => 
+      !tx.no_kuitansi?.startsWith('BSZ-JTG-') && 
+      !tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
+    );
+
+    const successJtg = bankJatengRecords.filter(tx => tx.status_simba !== 'FAILED');
+    const failedJtg = bankJatengRecords.filter(tx => tx.status_simba === 'FAILED');
+    const successZis = manualZisRecords.filter(tx => tx.status_simba !== 'FAILED');
+    const failedZis = manualZisRecords.filter(tx => tx.status_simba === 'FAILED');
+
+    const totalBankJateng = successJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const totalZis = successZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+    const total = totalBankJateng + totalZis;
+    const gagalPotong = failedJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0) + failedZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
+
+    const hak = total * pct;
+    return { total, hak, pct: pctVal, gagalPotong };
+  };
+
+  const getRecapDataForYear = (year: number) => {
+    const onBalanceUpzs = data.filter(item => item.type === 'On-Balance');
+
+    const groupPenyaluran: { name: string; hak: number }[] = [];
+    const groupPembantuan: { name: string; hak: number }[] = [];
+
+    onBalanceUpzs.forEach(item => {
+      const { hak } = getUPZAccumulationForYear(item, year);
+      const isPembantuan = item.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
+      
+      if (isPembantuan) {
+        groupPembantuan.push({ name: item.name, hak });
+      } else {
+        groupPenyaluran.push({ name: item.name, hak });
+      }
+    });
+
+    return {
+      penyaluran: groupPenyaluran,
+      pembantuan: groupPembantuan,
+      totalPenyaluran: groupPenyaluran.reduce((sum, item) => sum + item.hak, 0),
+      totalPembantuan: groupPembantuan.reduce((sum, item) => sum + item.hak, 0),
+    };
+  };
+
+  const handleExportExcelRecap = (year: number) => {
+    const { penyaluran, pembantuan, totalPenyaluran, totalPembantuan } = getRecapDataForYear(year);
+    
+    const rows: any[] = [];
+    
+    // Header information
+    rows.push({ 'Nama UPZ': `REKAPAN HAK SALUR UPZ - TAHUN ${year}`, 'Hak Salur (IDR)': '' });
+    rows.push({ 'Nama UPZ': 'BAZNAS KOTA SEMARANG', 'Hak Salur (IDR)': '' });
+    rows.push({ 'Nama UPZ': `Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, 'Hak Salur (IDR)': '' });
+    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '' }); // Blank row
+    
+    // Table Headers
+    rows.push({ 'Nama UPZ': 'Nama UPZ', 'Hak Salur (IDR)': 'Hak Salur (IDR)' });
+    
+    // Group 1: UPZ Penyaluran
+    rows.push({ 'Nama UPZ': 'UPZ PENYALURAN', 'Hak Salur (IDR)': '' });
+    penyaluran.forEach((item, index) => {
+      rows.push({
+        'Nama UPZ': `${index + 1}. ${item.name}`,
+        'Hak Salur (IDR)': item.hak
+      });
+    });
+    rows.push({
+      'Nama UPZ': 'Subtotal UPZ Penyaluran',
+      'Hak Salur (IDR)': totalPenyaluran
+    });
+    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '' }); // Blank row
+    
+    // Group 2: UPZ Pembantuan Pendistribusian & Pendayagunaan
+    rows.push({ 'Nama UPZ': 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', 'Hak Salur (IDR)': '' });
+    pembantuan.forEach((item, index) => {
+      rows.push({
+        'Nama UPZ': `${index + 1}. ${item.name}`,
+        'Hak Salur (IDR)': item.hak
+      });
+    });
+    rows.push({
+      'Nama UPZ': 'Subtotal UPZ Pembantuan Pendistribusian dan Pendayagunaan',
+      'Hak Salur (IDR)': totalPembantuan
+    });
+    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '' }); // Blank row
+    
+    // Grand Total Accumulation
+    rows.push({
+      'Nama UPZ': 'TOTAL AKUMULASI HAK SALUR UPZ',
+      'Hak Salur (IDR)': totalPenyaluran + totalPembantuan
+    });
+    
+    // Generate worksheet
+    const worksheet = XLSX.utils.json_to_sheet(rows, { skipHeader: true });
+    
+    // Auto-fit column widths
+    const max_len = Math.max(...rows.map(r => String(r['Nama UPZ'] || '').length));
+    worksheet['!cols'] = [
+      { wch: Math.max(max_len + 5, 30) },
+      { wch: 20 }
+    ];
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekapan Hak Salur');
+    XLSX.writeFile(workbook, `Rekapan_Hak_Salur_UPZ_${year}.xlsx`);
+  };
+ 
+  const handleExportPDFRecap = (year: number) => {
+    const { penyaluran, pembantuan, totalPenyaluran, totalPembantuan } = getRecapDataForYear(year);
+    
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('BAZNAS KOTA SEMARANG', 105, 15, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.text(`REKAPAN HAK SALUR UPZ - TAHUN ${year}`, 105, 21, { align: 'center' });
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, 105, 26, { align: 'center' });
+    
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(15, 29, 195, 29);
+    
+    const tableBody: any[] = [];
+    
+    tableBody.push([
+      { content: 'UPZ PENYALURAN', colSpan: 2, styles: { fillColor: [220, 235, 252], fontStyle: 'bold' } }
+    ]);
+    
+    penyaluran.forEach((item, index) => {
+      tableBody.push([
+        `${index + 1}. ${item.name}`,
+        `Rp ${item.hak.toLocaleString('id-ID')}`
+      ]);
+    });
+    
+    tableBody.push([
+      { content: 'Subtotal UPZ Penyaluran', styles: { fontStyle: 'bold', halign: 'left' } },
+      { content: `Rp ${totalPenyaluran.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } }
+    ]);
+    
+    tableBody.push([
+      { content: '', colSpan: 2, styles: { cellPadding: 1, fillColor: [255, 255, 255] } }
+    ]);
+    
+    tableBody.push([
+      { content: 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', colSpan: 2, styles: { fillColor: [220, 245, 230], fontStyle: 'bold' } }
+    ]);
+    
+    pembantuan.forEach((item, index) => {
+      tableBody.push([
+        `${index + 1}. ${item.name}`,
+        `Rp ${item.hak.toLocaleString('id-ID')}`
+      ]);
+    });
+    
+    tableBody.push([
+      { content: 'Subtotal UPZ Pembantuan Pendistribusian dan Pendayagunaan', styles: { fontStyle: 'bold', halign: 'left' } },
+      { content: `Rp ${totalPembantuan.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } }
+    ]);
+    
+    tableBody.push([
+      { content: '', colSpan: 2, styles: { cellPadding: 1, fillColor: [255, 255, 255] } }
+    ]);
+    
+    tableBody.push([
+      { content: 'TOTAL AKUMULASI HAK SALUR UPZ', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: `Rp ${(totalPenyaluran + totalPembantuan).toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } }
+    ]);
+    
+    autoTable(doc, {
+      startY: 32,
+      head: [['Nama UPZ', 'Hak Salur']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [22, 163, 74],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto', halign: 'left' },
+        1: { cellWidth: 50, halign: 'right' }
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      margin: { left: 15, right: 15 }
+    });
+    
+    doc.save(`Rekapan_Hak_Salur_UPZ_${year}.pdf`);
+  };
+
+
 
   useEffect(() => {
     const fetchHistories = async () => {
@@ -186,7 +527,12 @@ export default function DatabaseUPZ() {
   }, [skHistory]);
 
   // Pembaruan (SK renewal) form state (includes manually filled skNumber)
-  const [renewalForm, setRenewalForm] = useState({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
+  const [renewalForm, setRenewalForm] = useState({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '', scanLink: '' });
+  const [formScanLink, setFormScanLink] = useState('');
+  const [activeMigrationTab, setActiveMigrationTab] = useState<'upz' | 'sk'>('upz');
+  const [activeSkPreview, setActiveSkPreview] = useState<SKHistory | null>(null);
+  const [editScanSkTarget, setEditScanSkTarget] = useState<SKHistory | null>(null);
+  const [formEditScanLink, setFormEditScanLink] = useState('');
 
   // Form States for Add/Edit
   const [formKecamatan, setFormKecamatan] = useState('');
@@ -256,6 +602,7 @@ export default function DatabaseUPZ() {
     setFormNoSKPenetapan('');
     setFormTahunMulai('');
     setFormTahunBerakhir('');
+    setFormScanLink('');
     setFormKecamatan('');
     setFormKelurahan('');
     setFormType('Off-Balance');
@@ -296,6 +643,7 @@ export default function DatabaseUPZ() {
     setFormNoSKPenetapan(upz.activeSKNumber || '');
     setFormTahunMulai(getYearOnly(upz.skStartYear || ''));
     setFormTahunBerakhir(getYearOnly(upz.skExpiryDate || ''));
+    setFormScanLink(upz.metadata?.scanLink || '');
     setFormStatus(upz.status || 'Aktif');
     setFormResignationDate(upz.resignationDate || '');
     setFormResignationReason(upz.resignationReason || '');
@@ -353,7 +701,8 @@ export default function DatabaseUPZ() {
       startYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear()).toString() : '', 
       endYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear() + 5).toString() : '', 
       pimpinanName: upz.metadata.pimpinanName || '', 
-      keterangan: '' 
+      keterangan: '',
+      scanLink: upz.metadata?.scanLink || ''
     });
 
     // Load current pengurus structure
@@ -445,13 +794,19 @@ export default function DatabaseUPZ() {
       endDate: `${renewalForm.endYear}-12-31`,
       pimpinanName: formPengurus.penasehat.nama,
       status: 'Aktif',
-      skType: 'Pembaruan'
+      skType: 'Pembaruan',
+      scanLink: renewalForm.scanLink
     };
     
     setSkHistory(prev => [
       ...prev.map(h => h.upzId === selectedUPZ.id && h.status === 'Aktif' ? { ...h, status: 'Tidak Aktif' as const } : h),
       newEntry,
     ]);
+
+    const updatedHistoryList = [
+      ...(selectedUPZ.metadata?.skHistory || []).map((h: any) => ({ ...h, status: 'Tidak Aktif' })),
+      newEntry
+    ];
 
     const updatedUpz = { 
       ...selectedUPZ, 
@@ -460,10 +815,12 @@ export default function DatabaseUPZ() {
       metadata: { 
         ...selectedUPZ.metadata, 
         pimpinanName: formPengurus.penasehat.nama,
+        scanLink: renewalForm.scanLink,
         pengurus: {
           ...formPengurus,
           anggotaTambahan: anggotaTambahan
-        }
+        },
+        skHistory: updatedHistoryList
       } 
     };
 
@@ -471,7 +828,7 @@ export default function DatabaseUPZ() {
       await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
       await fetchUPZList();
       setSelectedUPZ(updatedUpz);
-      setRenewalForm({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '' });
+      setRenewalForm({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '', scanLink: '' });
       setHistoryView('list');
       alert(`✅ SK Pembaruan ${renewalForm.skNumber} berhasil disimpan dengan struktur pengurus baru!`);
     } catch (err) {
@@ -486,7 +843,6 @@ export default function DatabaseUPZ() {
       return;
     }
 
-    // Get current SK dates and number to keep them same
     const currentSK = skHistory.find(h => h.upzId === selectedUPZ.id && h.status === 'Aktif');
     const sameSKNumber = selectedUPZ.activeSKNumber;
     
@@ -498,7 +854,8 @@ export default function DatabaseUPZ() {
       endDate: currentSK?.endDate || '',
       pimpinanName: formPengurus.penasehat.nama,
       status: 'Aktif',
-      skType: 'Perubahan'
+      skType: 'Perubahan',
+      scanLink: currentSK?.scanLink || ''
     };
 
     setSkHistory(prev => [
@@ -506,15 +863,22 @@ export default function DatabaseUPZ() {
       newEntry,
     ]);
 
+    const updatedHistoryList = [
+      ...(selectedUPZ.metadata?.skHistory || []).map((h: any) => ({ ...h, status: 'Tidak Aktif' })),
+      newEntry
+    ];
+
     const updatedUpz = { 
       ...selectedUPZ, 
       metadata: { 
         ...selectedUPZ.metadata, 
         pimpinanName: formPengurus.penasehat.nama,
+        scanLink: currentSK?.scanLink || '',
         pengurus: {
           ...formPengurus,
           anggotaTambahan: anggotaTambahan
-        }
+        },
+        skHistory: updatedHistoryList
       } 
     };
 
@@ -527,6 +891,40 @@ export default function DatabaseUPZ() {
     } catch (err) {
       console.error(err);
       alert('Gagal menyimpan perubahan SK.');
+    }
+  };
+
+  const handleSaveScanLink = async () => {
+    if (!selectedUPZ || !editScanSkTarget) return;
+
+    const updatedHistoryList = (selectedUPZ.metadata?.skHistory || []).map((h: SKHistory) => 
+      h.id === editScanSkTarget.id ? { ...h, scanLink: formEditScanLink } : h
+    );
+
+    setSkHistory(prev => prev.map(h => h.id === editScanSkTarget.id ? { ...h, scanLink: formEditScanLink } : h));
+
+    const isActiveSK = editScanSkTarget.status === 'Aktif' || editScanSkTarget.skNumber === selectedUPZ.activeSKNumber;
+    const updatedMetadata = {
+      ...selectedUPZ.metadata,
+      scanLink: isActiveSK ? formEditScanLink : selectedUPZ.metadata?.scanLink,
+      skHistory: updatedHistoryList
+    };
+
+    const updatedUpz = {
+      ...selectedUPZ,
+      metadata: updatedMetadata
+    };
+
+    try {
+      await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
+      await fetchUPZList();
+      setSelectedUPZ(updatedUpz);
+      setEditScanSkTarget(null);
+      setFormEditScanLink('');
+      alert('✅ Link Scan SK berhasil diperbarui.');
+    } catch (err) {
+      console.error(err);
+      alert('Gagal memperbarui Link Scan SK.');
     }
   };
 
@@ -1779,6 +2177,339 @@ export default function DatabaseUPZ() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadUPZTemplate = () => {
+    const headers = [
+      'Nama UPZ', 
+      'Kategori UPZ', 
+      'Tipe Dana', 
+      'Tipe On-Balance (Jika On-Balance)', 
+      'Kecamatan', 
+      'Kelurahan', 
+      'Alamat Lengkap', 
+      'No Telepon'
+    ];
+    const sampleData = [
+      {
+        'Nama UPZ': 'UPZ Masjid Al-Istiqomah',
+        'Kategori UPZ': 'Masjid & Mushola',
+        'Tipe Dana': 'On-Balance',
+        'Tipe On-Balance (Jika On-Balance)': 'Pengumpulan',
+        'Kecamatan': 'Semarang Tengah',
+        'Kelurahan': 'Sekayu',
+        'Alamat Lengkap': 'Jl. Pemuda No. 12',
+        'No Telepon': '081234567890'
+      },
+      {
+        'Nama UPZ': 'UPZ Dinas Kesehatan',
+        'Kategori UPZ': 'OPD',
+        'Tipe Dana': 'Off-Balance',
+        'Tipe On-Balance (Jika On-Balance)': '',
+        'Kecamatan': 'Semarang Selatan',
+        'Kelurahan': 'Mugasari',
+        'Alamat Lengkap': 'Jl. Pandanaran No. 24',
+        'No Telepon': '089876543210'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData, { header: headers });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data UPZ');
+    XLSX.writeFile(workbook, 'Template_Migrasi_Data_UPZ.xlsx');
+  };
+
+  const handleDownloadSKTemplate = () => {
+    const headers = [
+      'Kode UPZ', 
+      'No SK', 
+      'Tahun Mulai', 
+      'Tahun Berakhir', 
+      'Nama Pimpinan (Penasehat)', 
+      'Penasehat (Nama)', 
+      'Penasehat (Jabatan/Alamat)', 
+      'Ketua (Nama)', 
+      'Ketua (Jabatan/Alamat)', 
+      'Sekretaris (Nama)', 
+      'Sekretaris (Jabatan/Alamat)', 
+      'Bendahara (Nama)', 
+      'Bendahara (Jabatan/Alamat)', 
+      'Anggota 1 (Nama)', 
+      'Anggota 1 (Jabatan/Alamat)', 
+      'Anggota 2 (Nama)', 
+      'Anggota 2 (Jabatan/Alamat)', 
+      'Link Scan SK GDrive'
+    ];
+    
+    const sampleData = data.slice(0, 3).map(upz => ({
+      'Kode UPZ': upz.code,
+      'No SK': '800/' + Math.floor(100 + Math.random() * 900) + '/2024',
+      'Tahun Mulai': '2024',
+      'Tahun Berakhir': '2029',
+      'Nama Pimpinan (Penasehat)': upz.metadata?.pimpinanName || 'H. Ahmad Syarif',
+      'Penasehat (Nama)': upz.metadata?.pengurus?.penasehat?.nama || 'H. Ahmad Syarif',
+      'Penasehat (Jabatan/Alamat)': upz.metadata?.pengurus?.penasehat?.alamat || 'Penasehat',
+      'Ketua (Nama)': upz.metadata?.pengurus?.ketua?.nama || 'Budi Utomo',
+      'Ketua (Jabatan/Alamat)': upz.metadata?.pengurus?.ketua?.alamat || 'Ketua',
+      'Sekretaris (Nama)': upz.metadata?.pengurus?.sekretaris?.nama || 'Siti Aminah',
+      'Sekretaris (Jabatan/Alamat)': upz.metadata?.pengurus?.sekretaris?.alamat || 'Sekretaris',
+      'Bendahara (Nama)': upz.metadata?.pengurus?.bendahara?.nama || 'H. Joko Widodo',
+      'Bendahara (Jabatan/Alamat)': upz.metadata?.pengurus?.bendahara?.alamat || 'Bendahara',
+      'Anggota 1 (Nama)': upz.metadata?.pengurus?.anggota1?.nama || 'Rian',
+      'Anggota 1 (Jabatan/Alamat)': upz.metadata?.pengurus?.anggota1?.alamat || 'Anggota',
+      'Anggota 2 (Nama)': upz.metadata?.pengurus?.anggota2?.nama || 'Dani',
+      'Anggota 2 (Jabatan/Alamat)': upz.metadata?.pengurus?.anggota2?.alamat || 'Anggota',
+      'Link Scan SK GDrive': 'https://drive.google.com/file/d/1234567890/view'
+    }));
+
+    if (sampleData.length === 0) {
+      sampleData.push({
+        'Kode UPZ': 'UPZ-1',
+        'No SK': '800/123/2024',
+        'Tahun Mulai': '2024',
+        'Tahun Berakhir': '2029',
+        'Nama Pimpinan (Penasehat)': 'H. Ahmad Syarif',
+        'Penasehat (Nama)': 'H. Ahmad Syarif',
+        'Penasehat (Jabatan/Alamat)': 'Penasehat',
+        'Ketua (Nama)': 'Budi Utomo',
+        'Ketua (Jabatan/Alamat)': 'Ketua',
+        'Sekretaris (Nama)': 'Siti Aminah',
+        'Sekretaris (Jabatan/Alamat)': 'Sekretaris',
+        'Bendahara (Nama)': 'H. Joko Widodo',
+        'Bendahara (Jabatan/Alamat)': 'Bendahara',
+        'Anggota 1 (Nama)': 'Rian',
+        'Anggota 1 (Jabatan/Alamat)': 'Anggota',
+        'Anggota 2 (Nama)': 'Dani',
+        'Anggota 2 (Jabatan/Alamat)': 'Anggota',
+        'Link Scan SK GDrive': 'https://drive.google.com/file/d/1234567890/view'
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData, { header: headers });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data SK UPZ');
+    XLSX.writeFile(workbook, 'Template_Migrasi_Data_SK.xlsx');
+  };
+
+  const processUPZMigration = async (rows: any[]) => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      alert('File Excel kosong atau tidak valid.');
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    
+    let currentMaxIndex = 0;
+    data.forEach(u => {
+      const match = u.code.match(/^UPZ-(\d+)$/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (val > currentMaxIndex) currentMaxIndex = val;
+      }
+    });
+
+    for (const row of rows) {
+      const namaUpz = row['Nama UPZ'] || row['nama_upz'];
+      const category = row['Kategori UPZ'] || row['kategori_upz'] || 'Masjid & Mushola';
+      const type = row['Tipe Dana'] || row['tipe_dana'] || 'Off-Balance';
+      const onBalanceType = row['Tipe On-Balance (Jika On-Balance)'] || row['on_balance_type'];
+      const kecamatan = row['Kecamatan'] || row['kecamatan'] || '-';
+      const kelurahan = row['Kelurahan'] || row['kelurahan'] || '-';
+      const alamat = row['Alamat Lengkap'] || row['alamat'] || '';
+      const noTelepon = row['No Telepon'] || row['no_telepon'] || '';
+
+      if (!namaUpz) {
+        failCount++;
+        continue;
+      }
+
+      currentMaxIndex++;
+      const nextCode = `UPZ-${currentMaxIndex}`;
+
+      const newUpz: UPZ = {
+        id: nextCode,
+        code: nextCode,
+        name: namaUpz,
+        category: category,
+        type: type as 'On-Balance' | 'Off-Balance',
+        kecamatan: kecamatan,
+        kelurahan: kelurahan,
+        activeSKNumber: '-',
+        skStartYear: '',
+        skExpiryDate: '',
+        status: 'Aktif',
+        metadata: {
+          address: alamat,
+          upzPhone: noTelepon,
+          onBalanceType: type === 'On-Balance' ? onBalanceType : undefined,
+          pengurus: {
+            penasehat: { nama: '', alamat: '' },
+            ketua: { nama: '', alamat: '' },
+            sekretaris: { nama: '', alamat: '' },
+            bendahara: { nama: '', alamat: '' },
+            anggota1: { nama: '', alamat: '' },
+            anggota2: { nama: '', alamat: '' },
+            anggotaTambahan: []
+          },
+          skHistory: []
+        }
+      };
+
+      try {
+        await axios.post('/api/upz', newUpz);
+        successCount++;
+      } catch (err) {
+        console.error('Failed to import row:', row, err);
+        failCount++;
+      }
+    }
+
+    await fetchUPZList();
+    alert(`Impor UPZ selesai. Sukses: ${successCount}, Gagal/Dilewati: ${failCount}`);
+    setIsMigrationModalOpen(false);
+  };
+
+  const processSKMigration = async (rows: any[]) => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      alert('File Excel kosong atau tidak valid.');
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const row of rows) {
+      let identifier = row['Kode UPZ'] || row['kode_upz'] || row['Identifier'] || row['identifier'];
+      const skNumber = row['No SK'] || row['no_sk'] || row['Nomor SK'] || row['nomor_sk'];
+      const startYear = row['Tahun Mulai'] || row['tahun_mulai'] || row['Mulai'] || row['mulai'];
+      const endYear = row['Tahun Berakhir'] || row['tahun_berakhir'] || row['Berakhir'] || row['berakhir'];
+      const pimpinanName = row['Nama Pimpinan (Penasehat)'] || row['Nama Pimpinan'] || row['pimpinan_name'] || '';
+      
+      const penasehatNama = row['Penasehat (Nama)'] || '';
+      const penasehatAlamat = row['Penasehat (Jabatan/Alamat)'] || '';
+      const ketuaNama = row['Ketua (Nama)'] || '';
+      const ketuaAlamat = row['Ketua (Jabatan/Alamat)'] || '';
+      const sekretarisNama = row['Sekretaris (Nama)'] || '';
+      const sekretarisAlamat = row['Sekretaris (Jabatan/Alamat)'] || '';
+      const bendaharaNama = row['Bendahara (Nama)'] || '';
+      const bendaharaAlamat = row['Bendahara (Jabatan/Alamat)'] || '';
+      const anggota1Nama = row['Anggota 1 (Nama)'] || '';
+      const anggota1Alamat = row['Anggota 1 (Jabatan/Alamat)'] || '';
+      const anggota2Nama = row['Anggota 2 (Nama)'] || '';
+      const anggota2Alamat = row['Anggota 2 (Jabatan/Alamat)'] || '';
+      const scanLink = row['Link Scan SK GDrive'] || row['scan_link'] || row['Link Scan SK'] || '';
+
+      if (!identifier || !skNumber) {
+        failCount++;
+        continue;
+      }
+
+      let targetCode = String(identifier).trim();
+      if (/^\d+$/.test(targetCode)) {
+        targetCode = `UPZ-${targetCode}`;
+      }
+
+      const targetUPZ = data.find(u => 
+        u.code.toLowerCase() === targetCode.toLowerCase() ||
+        u.name.toLowerCase() === targetCode.toLowerCase()
+      );
+
+      if (!targetUPZ) {
+        console.warn(`UPZ dengan identifier "${targetCode}" tidak ditemukan.`);
+        failCount++;
+        continue;
+      }
+
+      const newSkHistoryEntry: SKHistory = {
+        id: `SK-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        upzId: targetUPZ.id,
+        skNumber: skNumber,
+        startDate: startYear ? `${startYear}-01-01` : `${new Date().getFullYear()}-01-01`,
+        endDate: endYear ? `${endYear}-12-31` : `${new Date().getFullYear() + 5}-12-31`,
+        pimpinanName: ketuaNama || pimpinanName || '-',
+        status: 'Aktif',
+        skType: 'Pembaruan',
+        scanLink: scanLink
+      };
+
+      const updatedSkHistory = (targetUPZ.metadata?.skHistory || []).map((h: any) => ({
+        ...h,
+        status: 'Tidak Aktif'
+      }));
+
+      const mergedSkHistory = [newSkHistoryEntry, ...updatedSkHistory];
+
+      const updatedUpz: UPZ = {
+        ...targetUPZ,
+        activeSKNumber: skNumber,
+        skStartYear: startYear ? String(startYear) : targetUPZ.skStartYear,
+        skExpiryDate: endYear ? `${endYear}-12-31` : targetUPZ.skExpiryDate,
+        metadata: {
+          ...targetUPZ.metadata,
+          pimpinanName: ketuaNama || pimpinanName || targetUPZ.metadata.pimpinanName,
+          scanLink: scanLink || targetUPZ.metadata?.scanLink,
+          pengurus: {
+            penasehat: { nama: penasehatNama || targetUPZ.metadata.pengurus?.penasehat?.nama || '', alamat: penasehatAlamat || targetUPZ.metadata.pengurus?.penasehat?.alamat || '' },
+            ketua: { nama: ketuaNama || targetUPZ.metadata.pengurus?.ketua?.nama || '', alamat: ketuaAlamat || targetUPZ.metadata.pengurus?.ketua?.alamat || '' },
+            sekretaris: { nama: sekretarisNama || targetUPZ.metadata.pengurus?.sekretaris?.nama || '', alamat: sekretarisAlamat || targetUPZ.metadata.pengurus?.sekretaris?.alamat || '' },
+            bendahara: { nama: bendaharaNama || targetUPZ.metadata.pengurus?.bendahara?.nama || '', alamat: bendaharaAlamat || targetUPZ.metadata.pengurus?.bendahara?.alamat || '' },
+            anggota1: { nama: anggota1Nama || targetUPZ.metadata.pengurus?.anggota1?.nama || '', alamat: anggota1Alamat || targetUPZ.metadata.pengurus?.anggota1?.alamat || '' },
+            anggota2: { nama: anggota2Nama || targetUPZ.metadata.pengurus?.anggota2?.nama || '', alamat: anggota2Alamat || targetUPZ.metadata.pengurus?.anggota2?.alamat || '' },
+            anggotaTambahan: targetUPZ.metadata.pengurus?.anggotaTambahan || []
+          },
+          skHistory: mergedSkHistory
+        }
+      };
+
+      try {
+        await axios.put(`/api/upz/${targetUPZ.id}`, updatedUpz);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to update SK for UPZ ${targetUPZ.id}:`, err);
+        failCount++;
+      }
+    }
+
+    await fetchUPZList();
+    const res = await axios.get('/api/upz');
+    if (res.data?.status === 'success') {
+      const allHistories: SKHistory[] = [];
+      res.data.data.forEach((u: any) => {
+        if (u.metadata?.skHistory) {
+          allHistories.push(...u.metadata.skHistory);
+        }
+      });
+      setSkHistory(allHistories);
+    }
+    
+    alert(`Impor SK selesai. Sukses: ${successCount}, Gagal/Dilewati: ${failCount}`);
+    setIsMigrationModalOpen(false);
+  };
+
+  const handleUploadMigrationFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const dataArr = evt.target?.result;
+        const workbook = XLSX.read(dataArr, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rawJson = XLSX.utils.sheet_to_json<any>(worksheet);
+
+        if (activeMigrationTab === 'upz') {
+          await processUPZMigration(rawJson);
+        } else {
+          await processSKMigration(rawJson);
+        }
+      } catch (err: any) {
+        alert('Gagal membaca file Excel: ' + err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Breadcrumbs & Title */}
@@ -1851,20 +2582,20 @@ export default function DatabaseUPZ() {
       </motion.div>
 
       {/* Filters & Actions */}
-      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-primary/10 shadow-sm">
-        <div className="flex flex-wrap gap-3 items-center w-full lg:w-auto">
-          <div className="relative w-full md:w-64">
+      <div className="p-4 bg-white rounded-xl border border-primary/10 shadow-sm flex flex-wrap gap-4 items-center justify-between no-print">
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="relative w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
             <input 
               type="text"
               placeholder="Cari Nama UPZ / Kelurahan..."
-              className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
+              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <select 
-            className="text-sm bg-slate-50 border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer font-medium text-slate-600"
+            className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-4 focus:ring-primary focus:border-primary outline-none cursor-pointer text-slate-600 transition-all"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
@@ -1883,7 +2614,7 @@ export default function DatabaseUPZ() {
             <option value="Yayasan">Yayasan</option>
           </select>
           <select 
-            className="text-sm bg-slate-50 border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer font-medium text-slate-600"
+            className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-4 focus:ring-primary focus:border-primary outline-none cursor-pointer text-slate-600 transition-all"
             value={kecamatanFilter}
             onChange={(e) => setKecamatanFilter(e.target.value)}
           >
@@ -1893,19 +2624,26 @@ export default function DatabaseUPZ() {
             ))}
           </select>
         </div>
-        <div className="flex gap-3 w-full lg:w-auto">
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setIsDownloadRecapModalOpen(true)}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+          >
+            <Download className="size-4 shrink-0" />
+            Rekapan Hak Salur
+          </button>
           <button 
             onClick={() => setIsMigrationModalOpen(true)}
-            className="flex-1 lg:flex-none bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
           >
-            <Upload className="size-4" />
+            <Upload className="size-4 shrink-0" />
             Migrasi Data
           </button>
           <button 
             onClick={openAddModal}
-            className="flex-1 lg:flex-none bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
+            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95 cursor-pointer whitespace-nowrap"
           >
-            <Plus className="size-4" />
+            <Plus className="size-4 shrink-0" />
             Registrasi UPZ Baru
           </button>
         </div>
@@ -1921,12 +2659,13 @@ export default function DatabaseUPZ() {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+              <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
                 <th className="px-6 py-4">Kode Sistem</th>
                 <th className="px-6 py-4">Nama UPZ</th>
                 <th className="px-6 py-4">Kategori</th>
                 <th className="px-6 py-4">Wilayah (Kec/Kel)</th>
                 <th className="px-6 py-4 text-right">Total Setoran</th>
+                <th className="px-6 py-4 text-right">Gagal Potong</th>
                 <th className="px-6 py-4 text-right">Hak UPZ</th>
                 <th className="px-6 py-4 text-center">SK Aktif</th>
                 <th className="px-6 py-4 text-center">Status</th>
@@ -1967,6 +2706,11 @@ export default function DatabaseUPZ() {
                   <td className="px-6 py-4 text-right font-mono">
                     <p className="text-xs font-bold text-slate-900">
                       Rp {getUPZAccumulation(item).total.toLocaleString('id-ID')}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4 text-right font-mono">
+                    <p className="text-xs font-bold text-rose-600">
+                      Rp {getUPZAccumulation(item).gagalPotong.toLocaleString('id-ID')}
                     </p>
                   </td>
                   <td className="px-6 py-4 text-right font-mono">
@@ -2136,113 +2880,154 @@ export default function DatabaseUPZ() {
 
               {/* ── VIEW: LIST ── */}
               {historyView === 'list' && (
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                  {/* Action buttons */}
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Daftar Rekam Jejak SK</h4>
-                    {(selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
-                      <span className="px-3 py-1.5 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg uppercase tracking-wider">
-                        Aksi Dinonaktifkan (UPZ {selectedUPZ.status || 'Aktif'})
-                      </span>
-                    ) : (
-                      <div className="flex gap-2">
-                        <button onClick={() => setHistoryView('perubahan')}
-                          className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20">
-                          <Edit2 className="size-4" />Perubahan
-                        </button>
-                        <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'' }); setHistoryView('pembaruan'); }}
-                          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
-                          <PlusCircle className="size-4" />Pembaruan
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex-1 overflow-hidden flex flex-col h-full">
+                  {/* History Table (Full width) */}
+                  <div className="w-full overflow-y-auto p-6 space-y-6 custom-scrollbar flex-1 flex flex-col">
+                    {/* Action buttons */}
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Daftar Rekam Jejak SK</h4>
+                      {(selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
+                        <span className="px-3 py-1.5 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg uppercase tracking-wider">
+                          Aksi Dinonaktifkan (UPZ {selectedUPZ.status || 'Aktif'})
+                        </span>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button onClick={() => setHistoryView('perubahan')}
+                            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20">
+                            <Edit2 className="size-4" />Perubahan
+                          </button>
+                          <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'', scanLink: '' }); setHistoryView('pembaruan'); }}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
+                            <PlusCircle className="size-4" />Pembaruan
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
-                          <th className="px-6 py-4">No. SK</th>
-                          <th className="px-6 py-4">Masa Berlaku</th>
-                          <th className="px-6 py-4">Pengurus Utama</th>
-                          <th className="px-6 py-4 text-center">Status</th>
-                          {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
-                            <th className="px-6 py-4 text-right">Draft SK</th>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
-                          <tr key={history.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="space-y-1">
-                                <span className={cn(
-                                  "text-sm font-black",
-                                  (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                                )}>{history.skNumber}</span>
-                                <p className="text-[9px] font-bold uppercase tracking-wider"
-                                  style={{ color: (selectedUPZ.status || 'Aktif') !== 'Aktif' ? '#94a3b8' : (isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb') }}>
-                                  {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
-                                </p>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                                <Calendar className="size-4 text-slate-400" />
-                                <span className={cn((selectedUPZ.status || 'Aktif') !== 'Aktif' && "text-slate-400 font-medium")}>
-                                  {new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                                  <User className="size-4" />
-                                </div>
-                                <div>
-                                  <p className={cn(
-                                    "text-sm font-bold",
-                                    (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                                  )}>{history.pimpinanName}</p>
-                                  <p className="text-[10px] text-slate-400 font-bold uppercase">Penasehat</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-                                (history.status === 'Aktif' && (selectedUPZ.status || 'Aktif') === 'Aktif') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
-                                {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
-                              </span>
-                            </td>
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex-1">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                            <th className="px-6 py-4">No. SK</th>
+                            <th className="px-6 py-4">Masa Berlaku</th>
+                            <th className="px-6 py-4">Pengurus Utama</th>
+                            <th className="px-6 py-4 text-center">Status</th>
+                            <th className="px-6 py-4 text-center">Scan SK</th>
                             {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
-                              <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => openPrintDateModal(history, 'print')}
-                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded text-[10px] font-black uppercase tracking-wider transition-colors"
-                                    title="Cetak/Pratinjau SK"
-                                  >
-                                    Cetak
-                                  </button>
-                                  <button
-                                    onClick={() => openPrintDateModal(history, 'download')}
-                                    className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded text-[10px] font-black uppercase tracking-wider transition-colors"
-                                    title="Download Word (.doc)"
-                                  >
-                                    Docx
-                                  </button>
-                                </div>
-                              </td>
+                              <th className="px-6 py-4 text-right">Draft SK</th>
                             )}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
+                            <tr 
+                              key={history.id} 
+                              className="hover:bg-slate-50/70 transition-colors"
+                            >
+                              <td className="px-6 py-4">
+                                <div className="space-y-1">
+                                  <span className={cn(
+                                    "text-sm font-black",
+                                    (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
+                                  )}>{history.skNumber}</span>
+                                  <p className="text-[9px] font-bold uppercase tracking-wider"
+                                    style={{ color: (selectedUPZ.status || 'Aktif') !== 'Aktif' ? '#94a3b8' : (isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb') }}>
+                                    {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                                  <Calendar className="size-4 text-slate-400" />
+                                  <span className={cn((selectedUPZ.status || 'Aktif') !== 'Aktif' && "text-slate-400 font-medium")}>
+                                    {new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                                    <User className="size-4" />
+                                  </div>
+                                  <div>
+                                    <p className={cn(
+                                      "text-sm font-bold",
+                                      (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
+                                    )}>{history.pimpinanName}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Penasehat</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
+                                  (history.status === 'Aktif' && (selectedUPZ.status || 'Aktif') === 'Aktif') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
+                                  {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-2">
+                                  {history.scanLink ? (
+                                    <>
+                                      <button
+                                        onClick={() => setActiveSkPreview(history)}
+                                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 border border-emerald-200 shadow-sm"
+                                      >
+                                        <FileText className="size-3.5 text-emerald-600" /> Dokumen SK
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditScanSkTarget(history);
+                                          setFormEditScanLink(history.scanLink || '');
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-primary hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded transition-all"
+                                        title="Ubah Link SK"
+                                      >
+                                        <Edit2 className="size-3.5" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setEditScanSkTarget(history);
+                                        setFormEditScanLink('');
+                                      }}
+                                      className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1 shadow-sm"
+                                    >
+                                      <Plus className="size-3.5" /> Isi Link SK
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
+                                <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      onClick={() => openPrintDateModal(history, 'print')}
+                                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded text-[10px] font-black uppercase tracking-wider transition-colors"
+                                      title="Cetak/Pratinjau SK"
+                                    >
+                                      Cetak
+                                    </button>
+                                    <button
+                                      onClick={() => openPrintDateModal(history, 'download')}
+                                      className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded text-[10px] font-black uppercase tracking-wider transition-colors"
+                                      title="Download Word (.doc)"
+                                    >
+                                      Docx
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
 
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed">
-                    <span className="font-black text-slate-700">Perubahan</span> = pergantian pengurus, No. SK tetap, masa berlaku tetap. &nbsp;
-                    <span className="font-black text-slate-700">Pembaruan</span> = masa berlaku SK habis, No. SK baru diisi manual, masa berlaku baru (5 thn).
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed mt-4">
+                      <span className="font-black text-slate-700">Perubahan</span> = pergantian pengurus, No. SK tetap, masa berlaku tetap. &nbsp;
+                      <span className="font-black text-slate-700">Pembaruan</span> = masa berlaku SK habis, No. SK baru diisi manual, masa berlaku baru (5 thn).
+                    </div>
                   </div>
                 </div>
               )}
@@ -2250,10 +3035,12 @@ export default function DatabaseUPZ() {
               {/* ── VIEW: PERUBAHAN ── */}
               {historyView === 'perubahan' && (
                 <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
-                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Nomor SK (Tetap)</p>
-                    <p className="text-2xl font-black text-amber-800">{selectedUPZ.activeSKNumber}</p>
-                    <p className="text-[10px] text-amber-600 font-medium">Masa berlaku tetap mengikuti SK aktif saat ini.</p>
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Nomor SK (Tetap)</p>
+                      <p className="text-2xl font-black text-amber-800">{selectedUPZ.activeSKNumber}</p>
+                      <p className="text-[10px] text-amber-600 font-medium">Masa berlaku tetap mengikuti SK aktif saat ini.</p>
+                    </div>
                   </div>
 
                   {/* Pengurus Form */}
@@ -2471,6 +3258,103 @@ export default function DatabaseUPZ() {
         )}
       </AnimatePresence>
 
+      {/* Download Recap Modal */}
+      <AnimatePresence>
+        {isDownloadRecapModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsDownloadRecapModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Unduh Rekapan Hak Salur</h3>
+                <button onClick={() => setIsDownloadRecapModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <Coins className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900">Rekapan Hak Salur UPZ</h4>
+                  <p className="text-xs text-slate-500">
+                    Unduh rekapan Hak Salur UPZ On-Balance (UPZ Penyaluran & UPZ Pembantuan Pendistribusian & Pendayagunaan) dalam format PDF atau Excel.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Calendar className="size-3.5" /> Pilih Tahun Anggaran
+                    </label>
+                    <select
+                      value={selectedRecapYear}
+                      onChange={(e) => setSelectedRecapYear(Number(e.target.value))}
+                      className="w-full text-xs font-bold bg-slate-50 border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
+                    >
+                      {recapYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <button
+                      onClick={() => {
+                        handleExportExcelRecap(selectedRecapYear);
+                        setIsDownloadRecapModalOpen(false);
+                      }}
+                      className="w-full flex flex-col items-center justify-center p-4 border border-emerald-200 bg-emerald-50/50 rounded-xl group hover:bg-emerald-100/50 transition-all cursor-pointer gap-2"
+                    >
+                      <FileSpreadsheet className="size-6 text-emerald-600" />
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-emerald-700">Format Excel</p>
+                        <p className="text-[9px] text-emerald-600/70 font-semibold uppercase tracking-wider">.xlsx</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleExportPDFRecap(selectedRecapYear);
+                        setIsDownloadRecapModalOpen(false);
+                      }}
+                      className="w-full flex flex-col items-center justify-center p-4 border border-rose-200 bg-rose-50/50 rounded-xl group hover:bg-rose-100/50 transition-all cursor-pointer gap-2"
+                    >
+                      <Download className="size-6 text-rose-600" />
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-rose-700">Format PDF</p>
+                        <p className="text-[9px] text-rose-600/70 font-semibold uppercase tracking-wider">.pdf</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
+                  <div className="flex gap-3">
+                    <div className="size-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-primary font-bold text-[10px]">i</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Laporan ini akan mengelompokkan UPZ Penyaluran (On-Balance) dan UPZ Pembantuan, serta menampilkan jumlah total hak salur masing-masing di akhir laporan.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Migration Modal */}
       <AnimatePresence>
         {isMigrationModalOpen && (
@@ -2489,25 +3373,53 @@ export default function DatabaseUPZ() {
               className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Migrasi Data UPZ</h3>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Migrasi Database UPZ</h3>
                 <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
+
+              {/* Tab Selector */}
+              <div className="flex border-b border-slate-100 bg-slate-50/50">
+                <button
+                  onClick={() => setActiveMigrationTab('upz')}
+                  className={cn(
+                    "flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all",
+                    activeMigrationTab === 'upz' 
+                      ? "border-primary text-primary bg-white" 
+                      : "border-transparent text-slate-400 hover:text-slate-650"
+                  )}
+                >
+                  Migrasi Data UPZ
+                </button>
+                <button
+                  onClick={() => setActiveMigrationTab('sk')}
+                  className={cn(
+                    "flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all",
+                    activeMigrationTab === 'sk' 
+                      ? "border-primary text-primary bg-white" 
+                      : "border-transparent text-slate-400 hover:text-slate-650"
+                  )}
+                >
+                  Migrasi Data SK
+                </button>
+              </div>
+
               <div className="p-8 space-y-6">
                 <div className="text-center space-y-2">
                   <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
                     <FileSpreadsheet className="size-8" />
                   </div>
-                  <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
+                  <h4 className="font-bold text-slate-900">
+                    {activeMigrationTab === 'upz' ? 'Impor Data UPZ via Excel' : 'Impor Data SK via Excel'}
+                  </h4>
                   <p className="text-xs text-slate-500">Gunakan template yang tersedia untuk memastikan format data sesuai dengan sistem.</p>
                 </div>
 
                 <div className="space-y-3">
-                  <a 
-                    href="/Template_Migrasi_Database_UPZ.xlsx" 
-                    download="Template_Migrasi_Database_UPZ.xlsx"
-                    className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all cursor-pointer"
+                  <button 
+                    onClick={activeMigrationTab === 'upz' ? handleDownloadUPZTemplate : handleDownloadSKTemplate}
+                    className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all cursor-pointer text-left"
                   >
                     <div className="flex items-center gap-3">
                       <Download className="size-5 text-primary" />
@@ -2517,7 +3429,7 @@ export default function DatabaseUPZ() {
                       </div>
                     </div>
                     <ChevronRight className="size-4 text-primary opacity-0 group-hover:opacity-100 transition-all" />
-                  </a>
+                  </button>
 
                   <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
                     <div className="flex items-center gap-3">
@@ -2527,10 +3439,7 @@ export default function DatabaseUPZ() {
                         <p className="text-[10px] text-slate-400 font-medium">Maksimal file 10MB</p>
                       </div>
                     </div>
-                    <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={() => {
-                      alert('Fitur upload sedang diproses. Data akan divalidasi sebelum diimpor.');
-                      setIsMigrationModalOpen(false);
-                    }} />
+                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleUploadMigrationFile} />
                   </label>
                 </div>
 
@@ -2540,7 +3449,10 @@ export default function DatabaseUPZ() {
                       <span className="text-amber-600 font-bold text-[10px]">!</span>
                     </div>
                     <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
-                      Pastikan kolom Kode UPZ tidak kosong dan unik. Data duplikat akan dilewati secara otomatis oleh sistem.
+                      {activeMigrationTab === 'upz' 
+                        ? 'Pastikan nama UPZ, kategori, dan tipe dana diisi dengan benar. Kode UPZ baru akan digenerate otomatis oleh sistem secara berurutan.'
+                        : 'Pastikan kolom Kode UPZ (angka saja/kode lengkap) atau Nama UPZ terisi dan sesuai dengan UPZ yang terdaftar di sistem agar SK dan Kepengurusan terhubung dengan tepat.'
+                      }
                     </p>
                   </div>
                 </div>
@@ -2739,90 +3651,77 @@ export default function DatabaseUPZ() {
                   const pctLabel = isPembantuan ? `${pctVal}% Pembantuan` : `${pctVal}% Pengumpulan`;
                   const badgeLabel = `Hak ${pctVal}%`;
 
-                  // Calculate total collections for this UPZ
-                  const upzName = selectedUPZ.name;
-                  const targetUpz = upzName.toLowerCase().trim();
-                  const cleanTargetUpz = targetUpz.replace(/^upz\s+/i, '');
-                  const upzCode = selectedUPZ.code?.toLowerCase().trim();
-
-                  const upzZisHistory = zisHistory.filter(tx => {
-                    if (!tx) return false;
-
-                    // 1. check by code (primary)
-                    const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
-                    if (upzCode && muzakkiUpz === upzCode) return true;
-
-                    // 2. check by name (fallback)
-                    if (muzakkiUpz === targetUpz) return true;
-                    const cleanMuzakkiUpz = muzakkiUpz?.replace(/^upz\s+/i, '');
-                    if (cleanMuzakkiUpz === cleanTargetUpz) return true;
-
-                    // 3. check keterangan
-                    const keterangan = tx.keterangan?.toLowerCase() || '';
-                    if (upzCode && (keterangan.includes(`(${upzCode})`) || keterangan.includes(`(upz ${upzCode})`) || keterangan.includes(upzCode))) {
-                      return true;
-                    }
-                    if (keterangan.includes(`(${targetUpz})`) || keterangan.includes(`(upz ${targetUpz})`)) {
-                      return true;
-                    }
-                    if (cleanTargetUpz && (keterangan.includes(`(${cleanTargetUpz})`) || keterangan.includes(`(upz ${cleanTargetUpz})`))) {
-                      return true;
-                    }
-
-                    return false;
-                  });
-
-                  // Split them to prevent double counting
-                  const bankJatengRecords = upzZisHistory.filter(tx => 
-                    tx.no_kuitansi?.startsWith('BSZ-JTG-') || 
-                    tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
-                  );
-                  const manualZisRecords = upzZisHistory.filter(tx => 
-                    !tx.no_kuitansi?.startsWith('BSZ-JTG-') && 
-                    !tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
-                  );
-
-                  const totalBankJateng = bankJatengRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
-                  const totalZis = manualZisRecords.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
-                  const totalPengumpulan = totalBankJateng + totalZis;
-                  const hakVal = totalPengumpulan * pct;
+                  // Call the single source of truth helper
+                  const { total: totalPengumpulan, hak: hakVal, gagalPotong, totalBankJateng, totalZis } = getUPZAccumulation(selectedUPZ);
 
                   return (
-                    <div className="p-6 bg-primary/5 rounded-2xl border border-primary/10 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <Coins className="size-5 text-primary" />
-                          <h4 className="text-xs font-black text-primary uppercase tracking-widest">Informasi Hak Penyaluran UPZ ({pctLabel})</h4>
+                    <>
+                      {/* Card 1: Hak Penyaluran UPZ */}
+                      <div className="p-6 bg-emerald-50/40 rounded-2xl border border-emerald-100/80 space-y-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Coins className="size-5 text-emerald-600" />
+                            <h4 className="text-xs font-black text-emerald-800 uppercase tracking-widest">Informasi Hak Penyaluran UPZ ({pctLabel})</h4>
+                          </div>
+                          <span className="px-2.5 py-0.5 text-[9px] font-black rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 uppercase tracking-wider">
+                            {badgeLabel}
+                          </span>
                         </div>
-                        <span className="px-2.5 py-0.5 text-[9px] font-black rounded-full border border-primary/20 bg-primary/10 text-primary uppercase tracking-wider">
-                          {badgeLabel}
-                        </span>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pengumpulan Terakumulasi (Berhasil)</p>
+                            <p className="text-lg font-black text-slate-900">
+                              Rp {totalPengumpulan.toLocaleString('id-ID')}
+                            </p>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                              Bank Jateng: Rp {totalBankJateng.toLocaleString('id-ID')} | ZIS: Rp {totalZis.toLocaleString('id-ID')}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Hak Usulan Penyaluran UPZ ({Math.round(pct * 100)}%)</p>
+                            <p className="text-lg font-black text-emerald-600">
+                              Rp {hakVal.toLocaleString('id-ID')}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white/60 border border-slate-100 rounded-xl">
+                          <p className="text-[10px] text-slate-500 leading-relaxed">
+                            * Data di atas diakumulasikan secara real-time dari riwayat transaksi payroll Bank Jateng yang berhasil direkonsiliasi untuk UPZ ini. Nilai ini bersifat administratif/informasi pagu usulan penyaluran bantuan dan tidak memotong saldo kas utama BAZNAS.
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pengumpulan Terakumulasi</p>
-                          <p className="text-lg font-black text-slate-900">
-                            Rp {totalPengumpulan.toLocaleString('id-ID')}
-                          </p>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                            Bank Jateng: Rp {totalBankJateng.toLocaleString('id-ID')} | ZIS: Rp {totalZis.toLocaleString('id-ID')}
-                          </p>
+                      {/* Card 2: Gagal Potong UPZ (Pending) */}
+                      <div className="p-6 bg-rose-50/40 rounded-2xl border border-rose-100/80 space-y-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="size-5 text-rose-600" />
+                            <h4 className="text-xs font-black text-rose-800 uppercase tracking-widest">Informasi Gagal Potong UPZ (Pending)</h4>
+                          </div>
+                          <span className="px-2.5 py-0.5 text-[9px] font-black rounded-full border border-rose-200 bg-rose-50 text-rose-600 uppercase tracking-wider">
+                            Pending
+                          </span>
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">Hak Usulan Penyaluran UPZ ({Math.round(pct * 100)}%)</p>
-                          <p className="text-lg font-black text-emerald-600">
-                            Rp {hakVal.toLocaleString('id-ID')}
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="p-3 bg-white/60 border border-slate-100 rounded-xl">
-                        <p className="text-[10px] text-slate-500 leading-relaxed">
-                          * Data di atas diakumulasikan secara real-time dari riwayat transaksi payroll Bank Jateng yang berhasil direkonsiliasi untuk UPZ ini. Nilai ini bersifat administratif/informasi pagu usulan penyaluran bantuan dan tidak memotong saldo kas utama BAZNAS.
-                        </p>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Total Nominal Gagal Potong Terakumulasi</p>
+                          <p className="text-lg font-black text-rose-600">
+                            Rp {gagalPotong.toLocaleString('id-ID')}
+                          </p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                            Belum terdaftar atau terdapat ketidakcocokan data di SIMBA
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-white/60 border border-rose-50 rounded-xl">
+                          <p className="text-[10px] text-rose-700/80 leading-relaxed">
+                            * Data nominal ini merupakan akumulasi transaksi gagal potong yang terdeteksi di sistem. Dana ini belum masuk ke kas hak salur UPZ dan membutuhkan pendaftaran muzakki/NPWZ di SIMBA agar dapat direkonsiliasi ulang.
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    </>
                   );
                 })()}
               </div>
@@ -3214,6 +4113,13 @@ export default function DatabaseUPZ() {
                         alert('Nama UPZ tidak boleh kosong.');
                         return;
                       }
+                      const updatedSkHistory = (selectedUPZ.metadata?.skHistory || []).map((h: any) => {
+                        if (h.skNumber === formNoSKPenetapan && h.status === 'Aktif') {
+                          return { ...h, scanLink: formScanLink };
+                        }
+                        return h;
+                      });
+
                       const updatedUpz = {
                         ...selectedUPZ,
                         name: formNamaUpz,
@@ -3233,14 +4139,24 @@ export default function DatabaseUPZ() {
                           upzPhone: formNoTelepon,
                           onBalanceType: formType === 'On-Balance' ? formOnBalanceType : undefined,
                           pimpinanName: formPengurus.ketua.nama || formPengurus.penasehat.nama || '',
+                          scanLink: formScanLink,
                           pengurus: {
                             ...formPengurus,
                             anggotaTambahan: anggotaTambahan
-                          }
+                          },
+                          skHistory: updatedSkHistory
                         }
                       };
                       try {
                         await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
+                        setSkHistory(prev => {
+                          return prev.map(h => {
+                            if (h.upzId === selectedUPZ.id && h.skNumber === formNoSKPenetapan && h.status === 'Aktif') {
+                              return { ...h, scanLink: formScanLink };
+                            }
+                            return h;
+                          });
+                        });
                         await fetchUPZList();
                         alert('Data UPZ berhasil diperbarui.');
                         setIsEditModalOpen(false);
@@ -3474,6 +4390,16 @@ export default function DatabaseUPZ() {
                       />
                     </div>
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link Scan SK (Google Drive)</label>
+                    <input 
+                      type="text" 
+                      value={formScanLink}
+                      onChange={e => setFormScanLink(e.target.value)}
+                      placeholder="https://drive.google.com/file/d/.../view"
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
+                    />
+                  </div>
                 </section>
 
                 {/* Section 4: Data Pengurus */}
@@ -3587,6 +4513,18 @@ export default function DatabaseUPZ() {
                     const nextCode = `UPZ-${nextIndex}`;
                     const skPenetapan = formNoSKPenetapan || nextBaseSK.toString();
 
+                    const newSkHistoryEntry: SKHistory = {
+                      id: `SK-${Date.now()}`,
+                      upzId: nextCode,
+                      skNumber: skPenetapan,
+                      startDate: formTahunMulai ? `${formTahunMulai}-01-01` : `${new Date().getFullYear()}-01-01`,
+                      endDate: formTahunBerakhir ? `${formTahunBerakhir}-12-31` : `${new Date().getFullYear() + 5}-12-31`,
+                      pimpinanName: formPengurus.ketua.nama || '-',
+                      status: 'Aktif',
+                      skType: 'Baru',
+                      scanLink: formScanLink
+                    };
+
                     const newUpz: UPZ = {
                       id: nextCode,
                       code: nextCode,
@@ -3605,6 +4543,7 @@ export default function DatabaseUPZ() {
                         onBalanceType: formType === 'On-Balance' ? formOnBalanceType : undefined,
                         pimpinanTitle: 'Ketua',
                         pimpinanName: formPengurus.ketua.nama || formPengurus.penasehat.nama || '',
+                        scanLink: formScanLink,
                         pengurus: {
                           penasehat: { nama: formPengurus.penasehat.nama, alamat: formPengurus.penasehat.alamat || '' },
                           ketua: { nama: formPengurus.ketua.nama, alamat: formPengurus.ketua.alamat || '' },
@@ -3613,19 +4552,9 @@ export default function DatabaseUPZ() {
                           anggota1: { nama: formPengurus.anggota1.nama, alamat: formPengurus.anggota1.alamat || '' },
                           anggota2: { nama: formPengurus.anggota2.nama, alamat: formPengurus.anggota2.alamat || '' },
                           anggotaTambahan: anggotaTambahan
-                        }
+                        },
+                        skHistory: [newSkHistoryEntry]
                       }
-                    };
-
-                    const newSkHistoryEntry: SKHistory = {
-                      id: `SK-${Date.now()}`,
-                      upzId: newUpz.id,
-                      skNumber: skPenetapan,
-                      startDate: newUpz.skStartYear,
-                      endDate: newUpz.skExpiryDate,
-                      pimpinanName: formPengurus.ketua.nama || '-',
-                      status: 'Aktif',
-                      skType: 'Baru'
                     };
 
                     try {
@@ -3639,6 +4568,7 @@ export default function DatabaseUPZ() {
                       alert('Gagal mendaftarkan UPZ.');
                       return;
                     }
+
 
 
                     // Reset form states
@@ -3737,6 +4667,133 @@ export default function DatabaseUPZ() {
                   className="px-6 py-2 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 shadow-lg shadow-rose-600/20 transition-colors"
                 >
                   Simpan Status
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Document Preview Lightbox Modal */}
+      <AnimatePresence>
+        {activeSkPreview && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveSkPreview(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-4xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col z-10"
+            >
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Pratinjau Dokumen SK</h4>
+                  <p className="text-xs text-primary font-bold mt-0.5">No. SK: {activeSkPreview.skNumber}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {activeSkPreview.scanLink && (
+                    <a 
+                      href={activeSkPreview.scanLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-xs font-bold text-primary hover:underline uppercase tracking-wider flex items-center gap-1"
+                    >
+                      Buka Tab Baru ↗
+                    </a>
+                  )}
+                  <button 
+                    onClick={() => setActiveSkPreview(null)} 
+                    className="p-1.5 hover:bg-slate-200 rounded-full transition-colors"
+                  >
+                    <X className="size-5 text-slate-500" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 p-4 bg-slate-100 flex flex-col justify-center items-center h-full min-h-[400px]">
+                {activeSkPreview.scanLink ? (
+                  <iframe 
+                    src={getEmbedLink(activeSkPreview.scanLink)} 
+                    className="w-full h-full border border-slate-200 rounded-xl bg-white shadow-sm"
+                    allow="autoplay"
+                  />
+                ) : (
+                  <div className="text-center p-6 space-y-3 max-w-sm">
+                    <div className="size-16 rounded-2xl bg-slate-200 text-slate-400 flex items-center justify-center mx-auto shadow-sm">
+                      <FileText className="size-8" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-750">Tidak ada Scan SK terlampir</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Scan Link Modal */}
+      <AnimatePresence>
+        {editScanSkTarget && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditScanSkTarget(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col z-10"
+            >
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Isi / Ubah Link Scan SK</h4>
+                  <p className="text-xs text-primary font-bold mt-0.5">No. SK: {editScanSkTarget.skNumber}</p>
+                </div>
+                <button 
+                  onClick={() => setEditScanSkTarget(null)} 
+                  className="p-1.5 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X className="size-5 text-slate-500" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link Scan SK (Google Drive)</label>
+                  <input 
+                    type="text" 
+                    placeholder="https://drive.google.com/file/d/.../view" 
+                    value={formEditScanLink} 
+                    onChange={e => setFormEditScanLink(e.target.value)} 
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                    Masukkan link Google Drive file hasil scan SK. Pastikan hak akses file diset ke <strong>"Siapa saja yang memiliki link" (Anyone with the link)</strong> agar dapat dipratinjau dengan benar.
+                  </p>
+                </div>
+              </div>
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button 
+                  onClick={() => setEditScanSkTarget(null)} 
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleSaveScanLink}
+                  className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/95 shadow-lg shadow-primary/20 transition-all"
+                >
+                  Simpan Link
                 </button>
               </div>
             </motion.div>

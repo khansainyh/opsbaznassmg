@@ -7,6 +7,7 @@ export interface SKHistory {
   pimpinanName: string;
   status: 'Aktif' | 'Tidak Aktif';
   skType?: 'Baru' | 'Pembaruan' | 'Perubahan';
+  scanLink?: string;
 }
 
 // Struktur pengurus per jabatan (nama + alamat, tanpa input jabatan manual)
@@ -36,6 +37,8 @@ export interface UPZMetadata {
   address: string;
   upzPhone?: string;
   pengurus: UPZPengurus;
+  scanLink?: string;
+  skHistory?: SKHistory[];
   // Legacy fields - kept for backward compat
   pimpinanTitle?: string;
   pimpinanName?: string;
