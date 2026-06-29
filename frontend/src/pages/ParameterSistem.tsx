@@ -103,6 +103,49 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
     }));
   };
 
+  const handleObsToggle = async () => {
+    const currentValue = formValues.obs_menu_enabled;
+    const newValue = currentValue === 'true' ? 'false' : 'true';
+    
+    // Update local state instantly for UI feedback
+    setFormValues(prev => ({
+      ...prev,
+      obs_menu_enabled: newValue
+    }));
+
+    try {
+      const matchingParam = params.find(p => p.key === 'obs_menu_enabled');
+      await axios.post('/api/parameters', {
+        key: 'obs_menu_enabled',
+        value: newValue,
+        description: matchingParam?.description || 'Status Menu Off-Balancing Aktif (true/false)'
+      });
+      
+      showToast(
+        newValue === 'true'
+          ? 'Modul Off-Balancing berhasil diaktifkan!'
+          : 'Modul Off-Balancing berhasil dinonaktifkan!',
+        'success'
+      );
+      
+      if (onObsMenuToggle) {
+        onObsMenuToggle(newValue === 'true');
+      }
+      
+      // Refresh parameters in background to sync params state
+      const resParams = await axios.get('/api/parameters');
+      setParams(resParams.data);
+    } catch (error) {
+      console.error(error);
+      showToast('Gagal mengubah status modul Off-Balancing.', 'error');
+      // Revert the state on error
+      setFormValues(prev => ({
+        ...prev,
+        obs_menu_enabled: currentValue
+      }));
+    }
+  };
+
   const handleUpdateQuestionLabel = (index: number, label: string) => {
     setSurveyTemplate(prev => prev.map((q, i) => i === index ? { ...q, label } : q));
   };
@@ -171,8 +214,8 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
     e.preventDefault();
     setSaving(true);
     try {
-      // Exclude survey templates as they are saved separately
-      const excludedKeys = ['survey_template_individu', 'survey_template_perorangan_produktif', 'survey_template_lembaga'];
+      // Exclude survey templates and obs_menu_enabled as they are saved separately
+      const excludedKeys = ['survey_template_individu', 'survey_template_perorangan_produktif', 'survey_template_lembaga', 'obs_menu_enabled'];
       const updatePromises = Object.entries(formValues)
         .filter(([key]) => !excludedKeys.includes(key))
         .map(([key, value]) => {
@@ -186,9 +229,6 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
 
       await Promise.all(updatePromises);
       showToast('Parameter sistem berhasil disimpan!', 'success');
-      if (onObsMenuToggle && formValues.obs_menu_enabled !== undefined) {
-        onObsMenuToggle(formValues.obs_menu_enabled === 'true');
-      }
       fetchParameters();
     } catch (error) {
       console.error(error);
@@ -485,7 +525,7 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleInputChange('obs_menu_enabled', formValues.obs_menu_enabled === 'true' ? 'false' : 'true')}
+                    onClick={handleObsToggle}
                     className={cn(
                       "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
                       formValues.obs_menu_enabled === 'true' ? "bg-primary" : "bg-slate-200"

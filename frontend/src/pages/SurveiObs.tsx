@@ -2,10 +2,48 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
+import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 import {
-  MapPin, Phone, Camera, FileText, Navigation, ChevronLeft, X, Send, Search, Map, Download, Home, History, FileEdit, ChevronRight
+  MapPin, Phone, Camera, FileText, Navigation, ChevronLeft, X, Send, Search, Map, Download, Home, History, FileEdit, Eye, ExternalLink, CheckCircle2, Filter
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+
+function getSurveyDeadlineInfo(claimedAtStr?: string | null) {
+  if (!claimedAtStr) return null;
+  const claimedAt = new Date(claimedAtStr);
+  const now = new Date();
+  const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+  const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
+  const diffMs = deadline.getTime() - now.getTime();
+  
+  if (diffMs <= 0) {
+    return {
+      remainingText: 'KADALUARSA',
+      isExpired: true,
+      diffMs: 0
+    };
+  }
+  
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+  
+  let remainingText = '';
+  if (diffDays > 0) {
+    remainingText = `${diffDays} Hari ${diffHours} Jam`;
+  } else if (diffHours > 0) {
+    remainingText = `${diffHours} Jam ${diffMinutes} Mnt`;
+  } else {
+    remainingText = `${diffMinutes} Mnt`;
+  }
+  
+  return {
+    remainingText,
+    isExpired: false,
+    diffMs
+  };
+}
 
 interface SurveiObsProps {
   data: ProposalMemo[];
@@ -20,6 +58,8 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
   const [bottomNav, setBottomNav] = useState<'home' | 'riwayat'>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingHistory, setEditingHistory] = useState<ProposalMemo | null>(null);
+  const [filterKecamatan, setFilterKecamatan] = useState('');
+  const [filterKelurahan, setFilterKelurahan] = useState('');
 
   // Custom Survey Questions template for Off-Balancing (OBS)
   const obsQuestions = [
@@ -120,6 +160,17 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
     return obsTasks.filter(t => t.surveyorName === user?.name && (t.status === 'Survei Selesai' || t.status === 'Selesai' || t.status === 'Disetujui'));
   }, [obsTasks, user]);
 
+  // Kecamatan & Kelurahan options from Kota Semarang master data
+  const kecamatanOptions = useMemo(() => {
+    return kecamatanKelurahanSemarang.map(k => k.kecamatan).sort();
+  }, []);
+
+  const kelurahanOptions = useMemo(() => {
+    if (!filterKecamatan) return [];
+    const found = kecamatanKelurahanSemarang.find(k => k.kecamatan === filterKecamatan);
+    return found ? [...found.kelurahan].sort() : [];
+  }, [filterKecamatan]);
+
   const isEditable = (task: ProposalMemo): boolean => {
     if (!task.surveySubmittedAt) return false;
     const submitted = new Date(task.surveySubmittedAt);
@@ -142,14 +193,23 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
 
   const displayedTasks = useMemo(() => {
     let tasks = activeTab === 'tersedia' ? availableTasks : myTasks;
-    if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
       tasks = tasks.filter(t =>
-        t.namaPemohon.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.kecamatan?.toLowerCase().includes(searchQuery.toLowerCase())
+        t.namaPemohon.toLowerCase().includes(q) ||
+        t.kecamatan?.toLowerCase().includes(q) ||
+        t.kelurahan?.toLowerCase().includes(q) ||
+        t.alamat?.toLowerCase().includes(q)
       );
     }
+    if (filterKecamatan) {
+      tasks = tasks.filter(t => t.kecamatan === filterKecamatan);
+    }
+    if (filterKelurahan) {
+      tasks = tasks.filter(t => t.kelurahan === filterKelurahan);
+    }
     return tasks;
-  }, [activeTab, availableTasks, myTasks, searchQuery]);
+  }, [activeTab, availableTasks, myTasks, searchQuery, filterKecamatan, filterKelurahan]);
 
   const handleClaimTask = async (task: ProposalMemo) => {
     try {
@@ -293,6 +353,40 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-32">
+          {selectedTask.survey_data?.surveyClaimedAt && (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Informasi Batas Waktu</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tanggal Diambil</p>
+                  <p className="font-extrabold text-slate-700">
+                    {new Date(selectedTask.survey_data.surveyClaimedAt).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+                <div>
+                  {(() => {
+                    const dl = getSurveyDeadlineInfo(selectedTask.survey_data.surveyClaimedAt);
+                    if (!dl) return null;
+                    return (
+                      <>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tenggat Waktu</p>
+                        <p className={cn("font-black", dl.isExpired ? "text-rose-600 animate-pulse" : "text-amber-600")}>
+                          {dl.remainingText} (s.d. {new Date(new Date(selectedTask.survey_data.surveyClaimedAt).getTime() + 3*24*60*60*1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })})
+                        </p>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2">Lokasi Tujuan</h3>
             <div className="flex items-start gap-3">
@@ -320,6 +414,23 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
               </div>
             </div>
           </div>
+
+          {selectedTask.fileGdriveLink && (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center justify-between mb-3 border-b border-slate-50 pb-2">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Dokumen Proposal</h3>
+                <a href={selectedTask.fileGdriveLink} target="_blank" rel="noopener noreferrer"
+                  className="text-[10px] font-black text-emerald-600 hover:underline flex items-center gap-1">
+                  Buka di Drive <ExternalLink className="size-3" />
+                </a>
+              </div>
+              <iframe
+                src={selectedTask.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')}
+                className="w-full h-64 rounded-xl border border-slate-200 shadow-sm bg-slate-100"
+                allow="autoplay"
+              />
+            </div>
+          )}
         </div>
 
         <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none flex flex-col justify-end">
@@ -414,187 +525,333 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
     );
   }
 
+  // Reset kelurahan filter when kecamatan changes
+  const handleKecamatanChange = (val: string) => {
+    setFilterKecamatan(val);
+    setFilterKelurahan('');
+  };
+
+  const activeFilterCount = (filterKecamatan ? 1 : 0) + (filterKelurahan ? 1 : 0);
+  const userFirstName = user?.name?.split(' ')[0] || 'Relawan';
+
   return (
-    <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 min-h-screen flex flex-col relative shadow-2xl">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-700 pt-12 pb-8 px-6 text-white shrink-0 relative overflow-hidden rounded-b-[2rem] shadow-xl">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-black">Asesmen OBS BAZNAS</h2>
-            <p className="text-emerald-100 text-xs font-bold mt-0.5">Hai {user?.name?.split(' ')[0] || 'Relawan'}, pastikan survei objektif!</p>
-          </div>
-        </div>
+    <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 h-screen flex flex-col relative shadow-xl overflow-hidden pb-16">
+      {/* Top App Bar — same as TimSurvei */}
+      <div className="flex justify-center items-center px-6 py-4 bg-white z-20 shrink-0">
+        <h1 className="text-emerald-600 font-extrabold text-xl tracking-tight">BAZNAS Survei OBS</h1>
       </div>
 
       {bottomNav === 'home' ? (
-        <div className="flex-1 flex flex-col min-h-0 bg-white/40 -mt-4 rounded-t-3xl overflow-hidden relative z-10 pt-4">
-          {/* Tab Switcher */}
-          <div className="px-6 flex gap-2 border-b border-slate-100 pb-3 shrink-0">
+        <>
+          {/* Header + Tab Switcher — exactly TimSurvei style */}
+          <div className="px-6 pt-4 pb-4 bg-white shrink-0">
+            <h2 className="text-[28px] font-black text-slate-900 leading-tight">Hallo, {userFirstName}!</h2>
+            <p className="text-slate-500 font-medium">Siap assessment OBS hari ini?</p>
+          </div>
+
+          <div className="flex px-4 border-b border-slate-200 bg-white shrink-0">
             <button
-              onClick={() => setActiveTab('tersedia')}
+              onClick={() => { setActiveTab('tersedia'); setFilterKecamatan(''); setFilterKelurahan(''); }}
               className={cn(
-                "flex-1 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-wider text-center border",
-                activeTab === 'tersedia'
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600"
+                "flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors",
+                activeTab === 'tersedia' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'
               )}
             >
-              Tersedia ({availableTasks.length})
+              Tugas Tersedia
             </button>
             <button
-              onClick={() => setActiveTab('tugasSaya')}
+              onClick={() => { setActiveTab('tugasSaya'); setFilterKecamatan(''); setFilterKelurahan(''); }}
               className={cn(
-                "flex-1 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-wider text-center border",
-                activeTab === 'tugasSaya'
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600"
+                "flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors",
+                activeTab === 'tugasSaya' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'
               )}
             >
               Tugas Saya ({myTasks.length})
             </button>
           </div>
-
-          {/* Search bar */}
-          <div className="px-6 py-3 shrink-0">
-            <div className="relative">
-              <Search className="absolute left-4 top-3 text-slate-400 size-4" />
-              <input
-                type="text"
-                placeholder="Cari nama lembaga / kecamatan..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          {/* List Content */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-24 custom-scrollbar">
-            {displayedTasks.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
-                <Map className="size-16 mx-auto stroke-1 opacity-40 mb-3" />
-                <p className="text-sm font-bold">Tidak Ada Tugas OBS</p>
-                <p className="text-xs text-slate-400 mt-1">Gunakan kata kunci pencarian lain atau kembali nanti.</p>
-              </div>
-            ) : (
-              displayedTasks.map(task => (
-                <div
-                  key={task.id}
-                  onClick={() => { setSelectedTask(task); setViewMode('detail'); }}
-                  className="bg-white p-5 rounded-2xl border border-slate-150/60 shadow-sm hover:border-emerald-200 transition cursor-pointer flex flex-col gap-3 relative"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-black rounded border mb-1">
-                        {task.agendaNo}
-                      </span>
-                      <h4 className="font-extrabold text-slate-800 leading-snug">{task.namaPemohon}</h4>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{task.keterangan}</p>
-                    </div>
-                    <span className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                      <ChevronRight className="size-4" />
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 border-t border-slate-50 pt-2 font-medium">
-                    <MapPin className="size-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{task.alamat} • {task.kecamatan}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        </>
       ) : (
-        // RIWAYAT VIEW
-        <div className="flex-1 flex flex-col min-h-0 bg-white/40 -mt-4 rounded-t-3xl overflow-hidden relative z-10 pt-4">
-          <div className="px-6 pb-2 border-b border-slate-100 shrink-0">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Riwayat Survei OBS Saya</h3>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-24 custom-scrollbar">
-            {historyTasks.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
-                <History className="size-16 mx-auto stroke-1 opacity-40 mb-3" />
-                <p className="text-sm font-bold">Belum Ada Riwayat</p>
-                <p className="text-xs text-slate-400 mt-1">Riwayat tugas assessment OBS Anda akan muncul di sini.</p>
-              </div>
-            ) : (
-              historyTasks.map(task => {
-                const editable = isEditable(task);
-                const remainingTime = getRemainingEditTime(task);
-
-                return (
-                  <div
-                    key={task.id}
-                    className="bg-white p-5 rounded-2xl border border-slate-150/60 shadow-sm flex flex-col gap-3 relative"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-black rounded border">
-                            {task.agendaNo}
-                          </span>
-                          <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded">
-                            Selesai
-                          </span>
-                        </div>
-                        <h4 className="font-extrabold text-slate-800 leading-snug">{task.namaPemohon}</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{task.keterangan}</p>
-                      </div>
-                      
-                      {editable && (
-                        <button
-                          onClick={() => handleEditHistory(task)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-lg border border-amber-200 transition"
-                        >
-                          <FileEdit className="size-3.5" /> Edit
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs border-t border-slate-50 pt-2 font-medium">
-                      <div className="flex items-center gap-1 text-slate-500">
-                        <MapPin className="size-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[180px]">{task.alamat}</span>
-                      </div>
-                      {editable && remainingTime && (
-                        <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">
-                          Sisa edit: {remainingTime}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+        <div className="px-6 pt-4 pb-4 bg-emerald-600 shrink-0 text-white">
+          <h2 className="text-[28px] font-black leading-tight">Riwayat Tugas</h2>
+          <p className="font-medium text-emerald-100">Assessment OBS yang pernah kamu lakukan.</p>
         </div>
       )}
 
-      {/* Dynamic Bottom Navigation */}
-      <div className="absolute bottom-0 inset-x-0 bg-white border-t border-slate-100 py-3 px-12 flex justify-between items-center z-40 shadow-lg">
+      {/* Content Area with Search & Cards */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50">
+        {/* Search bar — sticky floating, same as TimSurvei */}
+        <div className="p-4 relative sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 px-5 space-y-2">
+          <div className="bg-white rounded-xl border border-slate-200 flex items-center px-4 py-3.5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
+            <Search className="size-5 text-emerald-500/70 mr-3" />
+            <input
+              placeholder="Cari nama / wilayah..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 outline-none text-sm text-slate-700 placeholder:text-slate-400 font-medium bg-transparent"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600 ml-2">
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter dropdowns — kecamatan & kelurahan */}
+          {bottomNav === 'home' && (
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <select
+                  value={filterKecamatan}
+                  onChange={(e) => handleKecamatanChange(e.target.value)}
+                  className={cn(
+                    "w-full text-xs font-semibold pl-3 pr-7 py-2.5 rounded-xl border outline-none appearance-none cursor-pointer transition-all",
+                    filterKecamatan
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                      : "bg-white border-slate-200 text-slate-500"
+                  )}
+                >
+                  <option value="">Semua Kecamatan</option>
+                  {kecamatanOptions.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+                <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 size-3 text-slate-400 pointer-events-none" />
+              </div>
+              <div className="flex-1 relative">
+                <select
+                  value={filterKelurahan}
+                  onChange={(e) => setFilterKelurahan(e.target.value)}
+                  disabled={!filterKecamatan && kelurahanOptions.length === 0}
+                  className={cn(
+                    "w-full text-xs font-semibold pl-3 pr-7 py-2.5 rounded-xl border outline-none appearance-none cursor-pointer transition-all",
+                    filterKelurahan
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                      : "bg-white border-slate-200 text-slate-500",
+                    (!filterKecamatan && kelurahanOptions.length === 0) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <option value="">Semua Kelurahan</option>
+                  {kelurahanOptions.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+                <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 size-3 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+          )}
+
+          {/* Active filter chips */}
+          {activeFilterCount > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {filterKecamatan && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">
+                  Kec. {filterKecamatan}
+                  <button onClick={() => handleKecamatanChange('')}><X className="size-2.5" /></button>
+                </span>
+              )}
+              {filterKelurahan && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">
+                  Kel. {filterKelurahan}
+                  <button onClick={() => setFilterKelurahan('')}><X className="size-2.5" /></button>
+                </span>
+              )}
+              <button
+                onClick={() => { handleKecamatanChange(''); setSearchQuery(''); }}
+                className="text-[10px] text-slate-400 font-bold hover:text-rose-500 transition-colors"
+              >
+                Reset semua
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 pb-6 space-y-4 shadow-inner min-h-full">
+          {bottomNav === 'riwayat' && historyTasks.length === 0 ? (
+            <div className="pt-12 flex flex-col items-center justify-center text-slate-400 space-y-4">
+              <History className="size-16 opacity-20" />
+              <p className="text-sm font-medium">Belum ada riwayat survei yang selesai.</p>
+            </div>
+          ) : bottomNav === 'riwayat' && historyTasks.length > 0 ? (
+            historyTasks.map((task) => {
+              const editable = isEditable(task);
+              const remaining = getRemainingEditTime(task);
+              const urgencyColor =
+                task.urgencyLevel === 'Sangat Kritis' ? 'bg-rose-50 border-rose-200 text-rose-700' :
+                  task.urgencyLevel === 'Tinggi' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                    'bg-emerald-50 border-emerald-200 text-emerald-700';
+              return (
+                <div key={task.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="px-3 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-full uppercase tracking-widest">
+                      NO AGENDA {task.agendaNo}
+                    </div>
+                    <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
+                      <CheckCircle2 className="size-3" /> Survei Selesai
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">{task.namaPemohon}</h3>
+                  <div className="flex items-center gap-1.5 text-slate-400 mb-4">
+                    <MapPin className="size-3" />
+                    <span className="text-xs font-semibold">Kec. {task.kecamatan}</span>
+                  </div>
+                  <div className={cn("border rounded-xl p-3 mb-4", urgencyColor)}>
+                    <p className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-60">Hasil Evaluasi</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-black">{task.urgencyLevel || '-'}</p>
+                      <span className="text-lg font-black opacity-70">{task.score || 0} Poin</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      {task.surveySubmittedAt
+                        ? <>Dikirim {new Date(task.surveySubmittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</>
+                        : 'Waktu tidak tersedia'}
+                    </div>
+                    {editable ? (
+                      <button
+                        onClick={() => handleEditHistory(task)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black transition active:scale-95"
+                      >
+                        <FileEdit className="size-3" /> EDIT ({remaining})
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-300 font-bold">Edit berakhir</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <AnimatePresence>
+              {displayedTasks.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="pt-12 flex flex-col items-center justify-center text-slate-400 space-y-4"
+                >
+                  <Map className="size-16 opacity-20" />
+                  <p className="text-sm font-medium">Tidak ada tugas yang ditemukan.</p>
+                  {(searchQuery || activeFilterCount > 0) && (
+                    <p className="text-xs text-slate-400">Coba ubah kata kunci atau filter pencarian.</p>
+                  )}
+                </motion.div>
+              ) : (
+                displayedTasks.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={cn(
+                      "bg-white p-5 rounded-2xl shadow-sm border transition-all",
+                      task.isBeingSurveyed ? "border-amber-400/50 bg-amber-50/30" : "border-slate-100 hover:border-emerald-600/30"
+                    )}
+                  >
+                    {/* Top row: no agenda badge + lokasi */}
+                    <div className="flex justify-between items-start gap-2 mb-3 flex-wrap">
+                      <div className="flex flex-wrap gap-1.5">
+                        <div className="px-3 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-full uppercase tracking-widest">
+                          NO AGENDA {task.agendaNo}
+                        </div>
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-sky-50 text-sky-700 border-sky-200">
+                          OBS
+                        </span>
+                      </div>
+                      <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
+                        <MapPin className="size-3" /> Lokasi
+                      </span>
+                    </div>
+
+                    {/* Name */}
+                    <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">{task.namaPemohon}</h3>
+
+                    {/* Location detail */}
+                    <div className="flex items-center gap-1.5 text-slate-400 mb-4">
+                      <MapPin className="size-3" />
+                      <span className="text-xs font-semibold">
+                        {task.kelurahan ? `Kel. ${task.kelurahan}, ` : ''}Kec. {task.kecamatan}
+                      </span>
+                    </div>
+
+                    {/* Program sub-card */}
+                    <div className="bg-slate-50 border-l-[3px] border-l-emerald-600 rounded-r-lg p-3 mb-4 pl-4">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Program & Jenis</p>
+                      <p className="text-sm font-bold text-slate-800 leading-snug">{task.jenisPermohonan || 'Asesmen Off-Balancing'}</p>
+                    </div>
+
+                    {/* Deadline pill */}
+                    {(task.survey_data as any)?.surveyClaimedAt && (
+                      <div className="mb-4 text-xs p-3 bg-slate-50 border border-slate-200/60 rounded-xl">
+                        {(() => {
+                          const dl = getSurveyDeadlineInfo((task.survey_data as any).surveyClaimedAt);
+                          if (!dl) return null;
+                          return (
+                            <div className="flex justify-between items-center">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sisa Waktu Pengerjaan</span>
+                              <span className={cn("font-extrabold", dl.isExpired ? "text-rose-600 animate-pulse" : "text-amber-600")}>
+                                {dl.remainingText}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={() => { setSelectedTask(task); setViewMode('detail'); }}
+                        className="flex-1 max-w-[120px] py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+                      >
+                        <Eye className="size-[14px]" /> DETAIL
+                      </button>
+                      {activeTab === 'tersedia' ? (
+                        <button
+                          onClick={() => handleClaimTask(task)}
+                          className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-emerald-600/20 active:scale-[0.98]"
+                        >
+                          <Download className="size-[14px]" /> AMBIL TUGAS INI
+                        </button>
+                      ) : !task.isBeingSurveyed ? (
+                        <button
+                          onClick={() => handleStartSurvey(task)}
+                          className="flex-1 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-indigo-500/20 active:scale-[0.98]"
+                        >
+                          <Navigation className="size-[14px]" /> MULAI JALAN
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => { setSelectedTask(task); setViewMode('surveyForm'); }}
+                          className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-amber-500/20 active:scale-[0.98]"
+                        >
+                          <Camera className="size-[14px]" /> ISI FORMULIR
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Fixed Navigation Bar — same as TimSurvei */}
+      <div className="fixed bottom-0 w-full max-w-md bg-white border-t border-slate-100 flex justify-around py-3 pb-safe z-30 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)]">
         <button
           onClick={() => setBottomNav('home')}
-          className={cn(
-            "flex flex-col items-center gap-1 transition-colors",
-            bottomNav === 'home' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
-          )}
+          className={cn("flex flex-col items-center gap-1.5 w-20 transition-colors", bottomNav === 'home' ? "text-emerald-600" : "text-slate-300 hover:text-slate-400")}
         >
           <Home className="size-5" />
-          <span className="text-[10px] font-bold uppercase tracking-wide">Beranda</span>
+          <span className="text-[9px] font-black tracking-widest">HOME</span>
         </button>
-
         <button
           onClick={() => setBottomNav('riwayat')}
-          className={cn(
-            "flex flex-col items-center gap-1 transition-colors",
-            bottomNav === 'riwayat' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
-          )}
+          className={cn("flex flex-col items-center gap-1.5 w-20 transition-colors relative", bottomNav === 'riwayat' ? "text-emerald-600" : "text-slate-300 hover:text-slate-400")}
         >
           <History className="size-5" />
-          <span className="text-[10px] font-bold uppercase tracking-wide">Riwayat</span>
+          <span className="text-[9px] font-black tracking-widest">RIWAYAT</span>
+          {historyTasks.length > 0 && (
+            <span className="absolute -top-1 right-0 w-4 h-4 bg-emerald-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+              {historyTasks.length}
+            </span>
+          )}
         </button>
       </div>
     </div>
