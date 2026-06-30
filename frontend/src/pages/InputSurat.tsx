@@ -41,7 +41,7 @@ export interface Surat {
   jamPengajuan?: string;
   yangMengajukan?: string;
   arsip?: string;
-  status: 'Registrasi' | 'Scan Surat' | 'Review Kabag Admin' | 'Review Kepala Pelaksana' | 'Review Pimpinan' | 'Selesai' | 'Arsip' | 'Ditolak';
+  status: 'Registrasi' | 'Scan Surat' | 'Review Kabag Admin' | 'Review Kepala Pelaksana' | 'Review Pimpinan' | 'Penugasan Kepala Pelaksana' | 'Selesai' | 'Arsip' | 'Ditolak';
   fileGdriveId?: string;
   fileGdriveLink?: string;
   catatanKepala?: string;
@@ -49,6 +49,7 @@ export interface Surat {
   kategori?: string;
   tanggalAcara?: string;
   jamAcara?: string;
+  assigned_staff?: string[];
 }
 
 function toGDriveEmbedUrl(link: string): string | null {

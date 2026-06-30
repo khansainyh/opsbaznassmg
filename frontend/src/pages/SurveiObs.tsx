@@ -9,41 +9,27 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
-function getSurveyDeadlineInfo(claimedAtStr?: string | null) {
-  if (!claimedAtStr) return null;
-  const claimedAt = new Date(claimedAtStr);
-  const now = new Date();
-  const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
-  const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
-  const diffMs = deadline.getTime() - now.getTime();
-  
-  if (diffMs <= 0) {
-    return {
-      remainingText: 'KADALUARSA',
-      isExpired: true,
-      diffMs: 0
-    };
+const formatRupiah = (value: number | string | undefined | null) => {
+  if (value === undefined || value === null || value === '') return '';
+  const numberString = String(value).replace(/[^0-9]/g, '');
+  if (!numberString) return '';
+  const sisa = numberString.length % 3;
+  let rupiah = numberString.substr(0, sisa);
+  const ribuan = numberString.substr(sisa).match(/\d{3}/g);
+  if (ribuan) {
+    const separator = sisa ? '.' : '';
+    rupiah += separator + ribuan.join('.');
   }
-  
-  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-  const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-  const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
-  
-  let remainingText = '';
-  if (diffDays > 0) {
-    remainingText = `${diffDays} Hari ${diffHours} Jam`;
-  } else if (diffHours > 0) {
-    remainingText = `${diffHours} Jam ${diffMinutes} Mnt`;
-  } else {
-    remainingText = `${diffMinutes} Mnt`;
-  }
-  
-  return {
-    remainingText,
-    isExpired: false,
-    diffMs
-  };
-}
+  return rupiah;
+};
+
+const parseRupiah = (str: string): number => {
+  if (!str) return 0;
+  const clean = str.replace(/[^0-9]/g, '');
+  return clean ? parseInt(clean, 10) : 0;
+};
+
+
 
 interface SurveiObsProps {
   data: ProposalMemo[];
@@ -61,87 +47,116 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
   const [filterKecamatan, setFilterKecamatan] = useState('');
   const [filterKelurahan, setFilterKelurahan] = useState('');
 
-  // Custom Survey Questions template for Off-Balancing (OBS)
-  const obsQuestions = [
-    { 
-      id: 'keaktifanPengurus', 
-      section: 'A', 
-      sectionTitle: 'Bagian A: Aspek Organisasi & SDM', 
-      label: 'Keaktifan Pengurus / Petugas UPZ', 
-      options: [
-        { val: 3, label: 'Sangat Aktif (Struktur lengkap, rutin rapat koordinasi)' }, 
-        { val: 2, label: 'Cukup Aktif (Struktur ada, rapat kondisional)' }, 
-        { val: 1, label: 'Tidak Aktif (Pengurus pasif, tidak ada koordinasi)' }
-      ] 
-    },
-    { 
-      id: 'kesesuaianPenyaluran', 
-      section: 'A', 
-      sectionTitle: 'Bagian A: Aspek Organisasi & SDM', 
-      label: 'Kesesuaian Penyaluran Asnaf', 
-      options: [
-        { val: 3, label: 'Sangat Sesuai (8 Asnaf terpenuhi dengan verifikasi ketat)' }, 
-        { val: 2, label: 'Cukup Sesuai (Penyaluran umum tanpa verifikasi detil)' }, 
-        { val: 1, label: 'Tidak Sesuai / Asal Salur' }
-      ] 
-    },
-    { 
-      id: 'pelaporanKeuangan', 
-      section: 'B', 
-      sectionTitle: 'Bagian B: Administrasi & Pelaporan keuangan', 
-      label: 'Rutinitas Pelaporan Keuangan UPZ', 
-      options: [
-        { val: 3, label: 'Rutin Bulanan (Tepat waktu via Sistem BAZNAS)' }, 
-        { val: 2, label: 'Semesteran (Hanya dilaporkan di akhir periode)' }, 
-        { val: 1, label: 'Tidak Pernah / Jarang Sekali' }
-      ] 
-    },
-    { 
-      id: 'dokumentasiKegiatan', 
-      section: 'B', 
-      sectionTitle: 'Bagian B: Administrasi & Pelaporan keuangan', 
-      label: 'Kelengkapan Dokumentasi Kegiatan & Kwitansi', 
-      options: [
-        { val: 3, label: 'Lengkap (Semua penyaluran memiliki kwitansi + foto)' }, 
-        { val: 2, label: 'Kurang Lengkap (Dokumentasi seadanya)' }, 
-        { val: 1, label: 'Tidak Ada / Hilang' }
-      ] 
-    },
-    { 
-      id: 'rencanaKerja', 
-      section: 'B', 
-      sectionTitle: 'Bagian B: Administrasi & Pelaporan keuangan', 
-      label: 'Memiliki Rencana Kerja Anggaran Tahunan (RKAT)', 
-      options: [
-        { val: 2, label: 'Memiliki RKAT Aktif & Disetujui' }, 
-        { val: 1, label: 'Tidak Memiliki RKAT' }
-      ] 
-    }
-  ];
+  const penerimaanRows = [
+    { key: 'penerimaan_zakatMaal', label: '1. Zakat Maal' },
+    { key: 'penerimaan_zakatFitrah', label: '2. Zakat Fitrah' },
+    { key: 'penerimaan_infakSedekah', label: '3. Infak/ Sedekah (Kotak Infak, Infak Jumat, Qris, Sedekah Subuh, Dll)' },
+    { key: 'penerimaan_infakBarangJasa', label: '4. Infak/ Sedekah Barang/Jasa (Daftar Terlampir)' },
+    { key: 'penerimaan_qurban', label: '5. Qurban' },
+    { key: 'penerimaan_fidyah', label: '6. Fidyah' }
+  ] as const;
+
+  const penyaluranRows = [
+    { key: 'penyaluran_zakatMaal', label: '1. Zakat Maal' },
+    { key: 'penyaluran_zakatFitrah', label: '2. Zakat Fitrah' },
+    { key: 'penyaluran_infakSedekah', label: '3. Infak/ Sedekah (Kotak Infak, Infak Jumat, Qris, Sedekah Subuh, Dll)' },
+    { key: 'penyaluran_qurban', label: '4. Qurban' },
+    { key: 'penyaluran_fidyah', label: '5. Fidyah' }
+  ] as const;
 
   // Survey Form State
   const [surveyForm, setSurveyForm] = useState<Record<string, any>>({
-    keaktifanPengurus: 0,
-    kesesuaianPenyaluran: 0,
-    pelaporanKeuangan: 0,
-    dokumentasiKegiatan: 0,
-    rencanaKerja: 0,
-    catatanLapangan: ''
+    namaUpz: '',
+    namaKetuaUpz: '',
+    noWa: '',
+    alamat: '',
+    kecamatan: '',
+    ketuaTakmir: '',
+    bendahara: '',
+    tanggalSemarang: '',
+    picRelawanNama: '',
+    picRelawanNoWa: '',
+    penerimaan_zakatMaal: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_zakatFitrah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_infakSedekah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_infakBarangJasa: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_qurban: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_fidyah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penyaluran_zakatMaal: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_zakatFitrah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_infakSedekah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_qurban: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_fidyah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
   });
 
-  const totalScore = useMemo(() => {
-    let scoreSum = 0;
-    obsQuestions.forEach(q => {
-      scoreSum += Number(surveyForm[q.id]) || 0;
+  const totalPenerimaanSaldoAwal = useMemo(() => {
+    let sum = 0;
+    penerimaanRows.forEach(row => {
+      const rowData = surveyForm[row.key] || { saldoAwal: 0 };
+      sum += Number(rowData.saldoAwal) || 0;
     });
-    return scoreSum;
+    return sum;
   }, [surveyForm]);
 
-  const urgencyLevel = useMemo(() => {
-    if (totalScore >= 12) return 'Sangat Kritis';
-    if (totalScore >= 8) return 'Tinggi';
-    return 'Rendah';
-  }, [totalScore]);
+  const totalPenerimaanJumlahPenerimaan = useMemo(() => {
+    let sum = 0;
+    penerimaanRows.forEach(row => {
+      const rowData = surveyForm[row.key] || { jumlahPenerimaan: 0 };
+      sum += Number(rowData.jumlahPenerimaan) || 0;
+    });
+    return sum;
+  }, [surveyForm]);
+
+  const totalPenerimaanJumlahDonatur = useMemo(() => {
+    let sum = 0;
+    penerimaanRows.forEach(row => {
+      const rowData = surveyForm[row.key] || { jumlahDonatur: 0 };
+      sum += Number(rowData.jumlahDonatur) || 0;
+    });
+    return sum;
+  }, [surveyForm]);
+
+  const totalPenyaluranJumlahPenyaluran = useMemo(() => {
+    let sum = 0;
+    penyaluranRows.forEach(row => {
+      const rowData = surveyForm[row.key] || { jumlahPenyaluran: 0 };
+      sum += Number(rowData.jumlahPenyaluran) || 0;
+    });
+    return sum;
+  }, [surveyForm]);
+
+  const totalPenyaluranJumlahMustahik = useMemo(() => {
+    let sum = 0;
+    penyaluranRows.forEach(row => {
+      const rowData = surveyForm[row.key] || { jumlahMustahik: 0 };
+      sum += Number(rowData.jumlahMustahik) || 0;
+    });
+    return sum;
+  }, [surveyForm]);
+
+  const calculatedSaldoAkhir = useMemo(() => {
+    return (totalPenerimaanSaldoAwal + totalPenerimaanJumlahPenerimaan) - totalPenyaluranJumlahPenyaluran;
+  }, [totalPenerimaanSaldoAwal, totalPenerimaanJumlahPenerimaan, totalPenyaluranJumlahPenyaluran]);
+
+  const handlePenerimaanChange = (rowKey: string, field: string, value: any) => {
+    setSurveyForm((prev: any) => ({
+      ...prev,
+      [rowKey]: {
+        ...(prev[rowKey] || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' }),
+        [field]: value
+      }
+    }));
+  };
+
+  const handlePenyaluranChange = (rowKey: string, field: string, value: any) => {
+    setSurveyForm((prev: any) => ({
+      ...prev,
+      [rowKey]: {
+        ...(prev[rowKey] || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' }),
+        [field]: value
+      }
+    }));
+  };
 
   // Filter only OBS tasks
   const obsTasks = useMemo(() => {
@@ -247,27 +262,66 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
     }
   };
 
+  const handleOpenNewSurvey = (task: ProposalMemo) => {
+    setSurveyForm({
+      namaUpz: task.namaPemohon || '',
+      namaKetuaUpz: '',
+      noWa: task.noTelpon || '',
+      alamat: task.alamat || '',
+      kecamatan: task.kecamatan || '',
+      ketuaTakmir: '',
+      bendahara: '',
+      tanggalSemarang: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      picRelawanNama: user?.name || '',
+      picRelawanNoWa: '',
+      penerimaan_zakatMaal: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_zakatFitrah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_infakSedekah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_infakBarangJasa: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_qurban: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_fidyah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penyaluran_zakatMaal: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_zakatFitrah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_infakSedekah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_qurban: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_fidyah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    });
+    setEditingHistory(null);
+    setViewMode('surveyForm');
+  };
+
   const handleSubmitSurvey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask) return;
 
     try {
+      const finalSurveyData = {
+        ...surveyForm,
+        totalPenerimaanSaldoAwal,
+        totalPenerimaan: totalPenerimaanJumlahPenerimaan,
+        totalPenerimaanJumlahDonatur,
+        totalPenyaluran: totalPenyaluranJumlahPenyaluran,
+        totalPenyaluranJumlahMustahik,
+        saldoAkhir: calculatedSaldoAkhir,
+        updatedAt: new Date().toISOString()
+      };
+
       const payload = {
         status: 'Survei_Selesai',
-        urgencyLevel: urgencyLevel,
-        score: totalScore,
-        survey_data: JSON.stringify(surveyForm)
+        urgencyLevel: 'Rendah',
+        score: 100,
+        survey_data: JSON.stringify(finalSurveyData)
       };
 
       const response = await axios.put(`/api/proposals/${selectedTask.id}`, payload);
       const now = new Date().toISOString();
-      const updatedSurveyData = response.data.survey_data || surveyForm;
+      const updatedSurveyData = response.data.survey_data || finalSurveyData;
 
       const updated = data.map(d => d.id === selectedTask.id ? {
         ...d,
         status: 'Survei Selesai' as const,
-        urgencyLevel: urgencyLevel as any,
-        score: totalScore,
+        urgencyLevel: 'Rendah' as any,
+        score: 100,
         surveySubmittedAt: now,
         survey_data: updatedSurveyData
       } : d);
@@ -286,52 +340,33 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
   const handleEditHistory = (task: ProposalMemo) => {
     if (task.survey_data) {
       setSurveyForm({
-        keaktifanPengurus: task.survey_data.keaktifanPengurus ?? 0,
-        kesesuaianPenyaluran: task.survey_data.kesesuaianPenyaluran ?? 0,
-        pelaporanKeuangan: task.survey_data.pelaporanKeuangan ?? 0,
-        dokumentasiKegiatan: task.survey_data.dokumentasiKegiatan ?? 0,
-        rencanaKerja: task.survey_data.rencanaKerja ?? 0,
-        catatanLapangan: task.survey_data.catatanLapangan ?? '',
+        namaUpz: task.survey_data.namaUpz || task.namaPemohon || '',
+        namaKetuaUpz: task.survey_data.namaKetuaUpz || '',
+        noWa: task.survey_data.noWa || task.noTelpon || '',
+        alamat: task.survey_data.alamat || task.alamat || '',
+        kecamatan: task.survey_data.kecamatan || task.kecamatan || '',
+        ketuaTakmir: task.survey_data.ketuaTakmir || '',
+        bendahara: task.survey_data.bendahara || '',
+        tanggalSemarang: task.survey_data.tanggalSemarang || '',
+        picRelawanNama: task.survey_data.picRelawanNama || user?.name || '',
+        picRelawanNoWa: task.survey_data.picRelawanNoWa || '',
+        penerimaan_zakatMaal: task.survey_data.penerimaan_zakatMaal || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penerimaan_zakatFitrah: task.survey_data.penerimaan_zakatFitrah || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penerimaan_infakSedekah: task.survey_data.penerimaan_infakSedekah || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penerimaan_infakBarangJasa: task.survey_data.penerimaan_infakBarangJasa || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penerimaan_qurban: task.survey_data.penerimaan_qurban || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penerimaan_fidyah: task.survey_data.penerimaan_fidyah || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penyaluran_zakatMaal: task.survey_data.penyaluran_zakatMaal || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+        penyaluran_zakatFitrah: task.survey_data.penyaluran_zakatFitrah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+        penyaluran_infakSedekah: task.survey_data.penyaluran_infakSedekah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+        penyaluran_qurban: task.survey_data.penyaluran_qurban || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+        penyaluran_fidyah: task.survey_data.penyaluran_fidyah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
       });
     }
     setEditingHistory(task);
     setSelectedTask(task);
     setViewMode('surveyForm');
   };
-
-  const renderRadio = (name: string, label: string, options: { val: number, label: string }[]) => (
-    <div className="space-y-2">
-      <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{label}</label>
-      <div className="space-y-2">
-        {options.map(opt => {
-          const isSelected = surveyForm[name] === opt.val;
-          return (
-            <label key={opt.val} className={cn(
-              "flex items-center p-3 border rounded-xl cursor-pointer transition-all",
-              isSelected
-                ? "bg-emerald-50 border-emerald-400 ring-1 ring-emerald-300"
-                : "bg-slate-50 border-slate-200 hover:bg-emerald-50 hover:border-emerald-200"
-            )}>
-              <input
-                type="radio"
-                name={name}
-                value={opt.val}
-                checked={isSelected}
-                onChange={() => setSurveyForm(prev => ({ ...prev, [name]: opt.val }))}
-                className="mr-3 w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                required={!isSelected ? true : undefined}
-              />
-              <span className={cn(
-                "text-sm font-medium",
-                isSelected ? "text-emerald-800 font-bold" : "text-slate-700"
-              )}>{opt.label}</span>
-              {isSelected && <span className="ml-auto text-emerald-500 text-xs font-black">✓</span>}
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
 
   if (viewMode === 'detail' && selectedTask) {
     return (
@@ -353,39 +388,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-32">
-          {selectedTask.survey_data?.surveyClaimedAt && (
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Informasi Batas Waktu</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tanggal Diambil</p>
-                  <p className="font-extrabold text-slate-700">
-                    {new Date(selectedTask.survey_data.surveyClaimedAt).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-                <div>
-                  {(() => {
-                    const dl = getSurveyDeadlineInfo(selectedTask.survey_data.surveyClaimedAt);
-                    if (!dl) return null;
-                    return (
-                      <>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tenggat Waktu</p>
-                        <p className={cn("font-black", dl.isExpired ? "text-rose-600 animate-pulse" : "text-amber-600")}>
-                          {dl.remainingText} (s.d. {new Date(new Date(selectedTask.survey_data.surveyClaimedAt).getTime() + 3*24*60*60*1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })})
-                        </p>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          )}
+
 
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2">Lokasi Tujuan</h3>
@@ -451,7 +454,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
               </button>
             ) : (
               <button
-                onClick={() => setViewMode('surveyForm')}
+                onClick={() => handleOpenNewSurvey(selectedTask)}
                 className="w-full py-4 bg-amber-500 text-white rounded-2xl text-base font-black shadow-xl shadow-amber-500/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Camera className="size-5" /> Isi Assessment OBS
@@ -486,36 +489,332 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
           </button>
           <div className="text-center">
             <h3 className="font-black text-slate-800">
-              {isEditMode ? 'Edit Survei OBS' : 'Asessment Off-Balancing'}
+              {isEditMode ? 'Edit Survei OBS' : 'Assessment Off-Balancing'}
             </h3>
             {isEditMode && (
               <p className="text-[10px] text-amber-600 font-bold">Mode Edit Aktif</p>
             )}
           </div>
-          <div className="size-9 font-bold text-emerald-600 flex items-center justify-center">{totalScore}</div>
+          <div className="text-right">
+            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-250 px-2 py-0.5 rounded font-black uppercase">
+              OBS
+            </span>
+          </div>
         </div>
 
-        <form id="obs-survey-form" onSubmit={handleSubmitSurvey} className="flex-1 overflow-y-auto p-6 space-y-8 pb-32 custom-scrollbar">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-            <h4 className="text-sm font-black text-slate-800 border-b pb-2 uppercase tracking-wider">Lembar Evaluasi Mandiri</h4>
-            {obsQuestions.map(q => renderRadio(q.id, q.label, q.options))}
+        <form id="obs-survey-form" onSubmit={handleSubmitSurvey} className="flex-1 overflow-y-auto p-6 space-y-6 pb-32 custom-scrollbar">
+          
+          {/* Section 1: Informasi UPZ */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+            <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider border-b pb-2">Informasi UPZ Masjid/Musholla</h4>
             
-            <div className="space-y-3 pt-2">
-              <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Catatan Penilai / Relawan Lapangan</label>
-              <textarea
-                rows={3}
-                value={surveyForm.catatanLapangan}
-                onChange={e => setSurveyForm(prev => ({ ...prev, catatanLapangan: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-600/20 outline-none transition-all resize-none"
-                placeholder="Deskripsikan kondisi tata kelola & kendala UPZ di lapangan secara objektif..."
-              />
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Nama UPZ</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={surveyForm.namaUpz || ''}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Nama Ketua UPZ / Takmir</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nama ketua UPZ..."
+                  value={surveyForm.namaKetuaUpz || ''}
+                  onChange={e => setSurveyForm(prev => ({ ...prev, namaKetuaUpz: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">No. WA Ketua</label>
+                <input
+                  type="text"
+                  placeholder="Nomor Whatsapp..."
+                  value={surveyForm.noWa || ''}
+                  onChange={e => setSurveyForm(prev => ({ ...prev, noWa: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Alamat Masjid</label>
+                <textarea
+                  rows={2}
+                  value={surveyForm.alamat || ''}
+                  onChange={e => setSurveyForm(prev => ({ ...prev, alamat: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Kecamatan</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={surveyForm.kecamatan || ''}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Tabel Penerimaan */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b pb-2 border-slate-200">
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">A. LAPORAN PENERIMAN (JAN - JUNI)</h4>
+            </div>
+
+            <div className="space-y-4">
+              {penerimaanRows.map((row) => {
+                const rowData = surveyForm[row.key] || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' };
+                return (
+                  <div key={row.key} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
+                    <div className="flex items-center gap-1.5 pb-2 border-b border-slate-50">
+                      <span className="w-1.5 h-3 bg-emerald-500 rounded-full" />
+                      <span className="font-bold text-slate-800 text-xs">{row.label}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Saldo Awal</label>
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
+                          <input
+                            type="text"
+                            placeholder="0"
+                            value={formatRupiah(rowData.saldoAwal)}
+                            onChange={e => handlePenerimaanChange(row.key, 'saldoAwal', parseRupiah(e.target.value))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Penerimaan</label>
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
+                          <input
+                            type="text"
+                            placeholder="0"
+                            value={formatRupiah(rowData.jumlahPenerimaan)}
+                            onChange={e => handlePenerimaanChange(row.key, 'jumlahPenerimaan', parseRupiah(e.target.value))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Donatur (Orang)</label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={rowData.jumlahDonatur || ''}
+                          onChange={e => handlePenerimaanChange(row.key, 'jumlahDonatur', Number(e.target.value))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Keterangan</label>
+                        <input
+                          type="text"
+                          placeholder="Keterangan..."
+                          value={rowData.keterangan || ''}
+                          onChange={e => handlePenerimaanChange(row.key, 'keterangan', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Subtotal Penerimaan */}
+              <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 space-y-2 text-xs font-bold text-slate-700">
+                <div className="flex justify-between">
+                  <span>Total Saldo Awal:</span>
+                  <span className="text-slate-900">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalPenerimaanSaldoAwal)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Penerimaan:</span>
+                  <span className="text-emerald-600">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalPenerimaanJumlahPenerimaan)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-2 text-slate-900">
+                  <span>Total Penerimaan + Saldo Awal:</span>
+                  <span>
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalPenerimaanSaldoAwal + totalPenerimaanJumlahPenerimaan)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-slate-250 pt-2 text-slate-500 text-[10px]">
+                  <span>Total Donatur:</span>
+                  <span>{totalPenerimaanJumlahDonatur} Orang</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Tabel Penyaluran */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b pb-2 border-slate-200">
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">B. LAPORAN PENYALURAN (JAN - JUNI)</h4>
+            </div>
+
+            <div className="space-y-4">
+              {penyaluranRows.map((row) => {
+                const rowData = surveyForm[row.key] || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' };
+                return (
+                  <div key={row.key} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
+                    <div className="flex items-center gap-1.5 pb-2 border-b border-slate-50">
+                      <span className="w-1.5 h-3 bg-rose-500 rounded-full" />
+                      <span className="font-bold text-slate-800 text-xs">{row.label}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Jumlah Penyaluran</label>
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
+                          <input
+                            type="text"
+                            placeholder="0"
+                            value={formatRupiah(rowData.jumlahPenyaluran)}
+                            onChange={e => handlePenyaluranChange(row.key, 'jumlahPenyaluran', parseRupiah(e.target.value))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Mustahik (Orang)</label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={rowData.jumlahMustahik || ''}
+                          onChange={e => handlePenyaluranChange(row.key, 'jumlahMustahik', Number(e.target.value))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase">Keterangan</label>
+                      <input
+                        type="text"
+                        placeholder="Keterangan..."
+                        value={rowData.keterangan || ''}
+                        onChange={e => handlePenyaluranChange(row.key, 'keterangan', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-500"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Subtotal Penyaluran */}
+              <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 space-y-2 text-xs font-bold text-slate-700">
+                <div className="flex justify-between">
+                  <span>Total Penyaluran:</span>
+                  <span className="text-rose-600">
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalPenyaluranJumlahPenyaluran)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-2 text-slate-500 text-[10px]">
+                  <span>Total Mustahik:</span>
+                  <span>{totalPenyaluranJumlahMustahik} Orang</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Saldo Akhir */}
+          <div className="bg-primary/5 p-5 rounded-2xl border border-primary/20 space-y-3">
+            <h4 className="text-xs font-black text-primary uppercase tracking-wider border-b border-primary/10 pb-2">C. SALDO AKHIR LAPORAN</h4>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-bold">Saldo Akhir Kumulatif:</span>
+              <span className="text-base font-black text-primary">
+                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(calculatedSaldoAkhir)}
+              </span>
+            </div>
+          </div>
+
+          {/* Section 5: Signature / Pihak Terkait */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+            <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider border-b pb-2">Tanda Tangan Pihak Terkait</h4>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Ketua Takmir Masjid / UPZ</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nama Ketua Takmir..."
+                  value={surveyForm.ketuaTakmir || ''}
+                  onChange={e => setSurveyForm(prev => ({ ...prev, ketuaTakmir: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Bendahara UPZ</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nama Bendahara..."
+                  value={surveyForm.bendahara || ''}
+                  onChange={e => setSurveyForm(prev => ({ ...prev, bendahara: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Semarang, Tanggal Laporan</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Tanggal laporan (e.g. 30 Juni 2026)..."
+                  value={surveyForm.tanggalSemarang || ''}
+                  onChange={e => setSurveyForm(prev => ({ ...prev, tanggalSemarang: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                />
+              </div>
+
+              <div className="border-t pt-3 mt-2 space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Nama PIC Relawan (Penilai)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama relawan..."
+                    value={surveyForm.picRelawanNama || ''}
+                    onChange={e => setSurveyForm(prev => ({ ...prev, picRelawanNama: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">No. WA PIC Relawan</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="No WA relawan..."
+                    value={surveyForm.picRelawanNoWa || ''}
+                    onChange={e => setSurveyForm(prev => ({ ...prev, picRelawanNoWa: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="p-6 bg-gradient-to-t from-white via-white to-transparent pt-12 pointer-events-auto shrink-0">
             <button
               type="submit"
-              className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
             >
               <Send className="size-5" /> {isEditMode ? 'Simpan Perubahan' : 'Kirim Laporan OBS'}
             </button>
@@ -671,15 +970,11 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
             historyTasks.map((task) => {
               const editable = isEditable(task);
               const remaining = getRemainingEditTime(task);
-              const urgencyColor =
-                task.urgencyLevel === 'Sangat Kritis' ? 'bg-rose-50 border-rose-200 text-rose-700' :
-                  task.urgencyLevel === 'Tinggi' ? 'bg-amber-50 border-amber-200 text-amber-700' :
-                    'bg-emerald-50 border-emerald-200 text-emerald-700';
               return (
                 <div key={task.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mt-4">
                   <div className="flex justify-between items-center mb-3">
                     <div className="px-3 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-full uppercase tracking-widest">
-                      NO AGENDA {task.agendaNo}
+                      UPZ MASJID
                     </div>
                     <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
                       <CheckCircle2 className="size-3" /> Survei Selesai
@@ -690,11 +985,10 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                     <MapPin className="size-3" />
                     <span className="text-xs font-semibold">Kec. {task.kecamatan}</span>
                   </div>
-                  <div className={cn("border rounded-xl p-3 mb-4", urgencyColor)}>
-                    <p className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-60">Hasil Evaluasi</p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-black">{task.urgencyLevel || '-'}</p>
-                      <span className="text-lg font-black opacity-70">{task.score || 0} Poin</span>
+                  <div className="border border-emerald-100 bg-emerald-50/30 rounded-xl p-3 mb-4 text-xs">
+                    <p className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-60 text-slate-400">Ringkasan Keuangan</p>
+                    <div className="flex items-center justify-between text-slate-700">
+                      <div>Saldo Akhir: <strong className="text-emerald-600 font-extrabold">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(task.survey_data?.saldoAkhir || 0)}</strong></div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2">
@@ -743,14 +1037,14 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                       task.isBeingSurveyed ? "border-amber-400/50 bg-amber-50/30" : "border-slate-100 hover:border-emerald-600/30"
                     )}
                   >
-                    {/* Top row: no agenda badge + lokasi */}
+                    {/* Top row: status + lokasi */}
                     <div className="flex justify-between items-start gap-2 mb-3 flex-wrap">
                       <div className="flex flex-wrap gap-1.5">
-                        <div className="px-3 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-full uppercase tracking-widest">
-                          NO AGENDA {task.agendaNo}
-                        </div>
-                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-sky-50 text-sky-700 border-sky-200">
-                          OBS
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                          task.isBeingSurveyed ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-100 text-slate-600 border-slate-200"
+                        )}>
+                          {task.isBeingSurveyed ? "Sedang Disurvei" : "Belum Disurvei"}
                         </span>
                       </div>
                       <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
@@ -762,11 +1056,8 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                     <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">{task.namaPemohon}</h3>
 
                     {/* Location detail */}
-                    <div className="flex items-center gap-1.5 text-slate-400 mb-4">
-                      <MapPin className="size-3" />
-                      <span className="text-xs font-semibold">
-                        {task.kelurahan ? `Kel. ${task.kelurahan}, ` : ''}Kec. {task.kecamatan}
-                      </span>
+                    <div className="flex items-center gap-1 text-xs text-slate-500 font-semibold mb-4">
+                      <span>{task.kelurahan}, Kec. {task.kecamatan}</span>
                     </div>
 
                     {/* Program sub-card */}
@@ -774,24 +1065,6 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Program & Jenis</p>
                       <p className="text-sm font-bold text-slate-800 leading-snug">{task.jenisPermohonan || 'Asesmen Off-Balancing'}</p>
                     </div>
-
-                    {/* Deadline pill */}
-                    {(task.survey_data as any)?.surveyClaimedAt && (
-                      <div className="mb-4 text-xs p-3 bg-slate-50 border border-slate-200/60 rounded-xl">
-                        {(() => {
-                          const dl = getSurveyDeadlineInfo((task.survey_data as any).surveyClaimedAt);
-                          if (!dl) return null;
-                          return (
-                            <div className="flex justify-between items-center">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sisa Waktu Pengerjaan</span>
-                              <span className={cn("font-extrabold", dl.isExpired ? "text-rose-600 animate-pulse" : "text-amber-600")}>
-                                {dl.remainingText}
-                              </span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
 
                     {/* Action buttons */}
                     <div className="flex gap-3 mt-4">
@@ -817,7 +1090,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                         </button>
                       ) : (
                         <button
-                          onClick={() => { setSelectedTask(task); setViewMode('surveyForm'); }}
+                          onClick={() => { setSelectedTask(task); handleOpenNewSurvey(task); }}
                           className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-amber-500/20 active:scale-[0.98]"
                         >
                           <Camera className="size-[14px]" /> ISI FORMULIR

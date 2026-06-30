@@ -19,6 +19,7 @@ const STATUS_ORDER = [
   'Review Kabag Admin',
   'Review Kepala Pelaksana',
   'Review Pimpinan',
+  'Penugasan Kepala Pelaksana',
   'Selesai'
 ];
 
@@ -28,6 +29,7 @@ const FILTER_STATUSES = [
   'Review Kabag Admin',
   'Review Kepala Pelaksana',
   'Review Pimpinan',
+  'Penugasan Kepala Pelaksana',
   'Selesai',
   'Ditolak'
 ];
@@ -44,11 +46,24 @@ function getProgressSteps(status: string) {
   if (status === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
   const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === status.toLowerCase());
   return STEPS.map((step, i) => {
-    // ADM: 0, KDM: 1, KAPEL: 2, PIMP: 3, DONE: 4
-    const ranges = [[0,0],[1,1],[2,2],[3,3],[4,4]];
-    const [lo, hi] = ranges[i];
-    const active = idx >= lo && idx <= hi;
-    const completed = idx > hi;
+    let active = false;
+    let completed = false;
+    if (i === 0) { // ADM
+      completed = idx > 0;
+      active = idx === 0;
+    } else if (i === 1) { // KDM
+      completed = idx > 1;
+      active = idx === 1;
+    } else if (i === 2) { // KAPEL
+      completed = idx > 4 || (idx > 2 && idx !== 4);
+      active = idx === 2 || idx === 4;
+    } else if (i === 3) { // PIMP
+      completed = idx > 3;
+      active = idx === 3;
+    } else if (i === 4) { // DONE
+      completed = idx >= 5;
+      active = idx === 5;
+    }
     return { ...step, active, completed, rejected: false };
   });
 }
@@ -59,6 +74,7 @@ function getStatusColor(status: string) {
     case 'Review Kabag Admin': return 'bg-indigo-100 text-indigo-700';
     case 'Review Kepala Pelaksana': return 'bg-blue-100 text-blue-700';
     case 'Review Pimpinan': return 'bg-purple-100 text-purple-700';
+    case 'Penugasan Kepala Pelaksana': return 'bg-amber-100 text-amber-700 border border-amber-200';
     case 'Arsip': return 'bg-amber-100 text-amber-700';
     case 'Selesai': return 'bg-emerald-100 text-emerald-700';
     case 'Ditolak': return 'bg-rose-100 text-rose-700';

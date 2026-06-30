@@ -273,41 +273,41 @@ export default function PilarProgram() {
   const totalProgram = data.reduce((acc, curr) => acc + curr.programs.length, 0);
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8">
-      {/* Breadcrumb */}
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
+      {/* Breadcrumbs & Title */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-2 text-xs font-medium text-slate-500"
+        className="space-y-2"
       >
-        <span className="hover:text-primary transition-colors cursor-pointer">Master Data</span>
-        <ChevronRight className="size-3 text-slate-400" />
-        <span className="text-primary font-bold">Pilar & Program</span>
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Master Data</span>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-primary font-bold">Pilar & Program</span>
+        </nav>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Master Data: Pilar & Program</h2>
+            <p className="text-slate-500 font-medium">Kelola klasifikasi pilar utama dan kode program berdasarkan standar SIMBA BAZNAS.</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setIsMigrationModalOpen(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-slate-200"
+            >
+              <Upload className="size-4" />
+              Migrasi Program
+            </button>
+            <button
+              onClick={handleAddPilar}
+              className="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+            >
+              <Plus className="size-4" />
+              Tambah Pilar Baru
+            </button>
+          </div>
+        </div>
       </motion.div>
-
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black tracking-tight text-slate-900">Master Data: Pilar & Program</h2>
-          <p className="text-slate-500 text-sm font-medium">Kelola klasifikasi pilar utama dan kode program berdasarkan standar SIMBA BAZNAS.</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setIsMigrationModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-slate-200"
-          >
-            <Upload className="size-4" />
-            Migrasi Program
-          </button>
-          <button
-            onClick={handleAddPilar}
-            className="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
-          >
-            <Plus className="size-4" />
-            Tambah Pilar Baru
-          </button>
-        </div>
-      </div>
 
       {/* Search & Stats */}
       <div className="flex flex-col lg:flex-row gap-6">

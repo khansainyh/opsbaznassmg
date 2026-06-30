@@ -57,6 +57,81 @@ export const updateSurat = async (req: Request, res: Response) => {
       data
     });
 
+    // Handle notification to Kepala Pelaksana when Ketua approves Undangan
+    if (existingSurat?.kategori === 'Undangan' && data.status === 'Penugasan_Kepala_Pelaksana') {
+      const kapels = await prisma.user.findMany({
+        where: { role: 'Kepala_Pelaksana' },
+        select: { id: true, name: true, email: true }
+      });
+
+      if (kapels.length > 0) {
+        const notifications = kapels.map(kapel => ({
+          userId: kapel.id,
+          title: 'Butuh Penugasan Undangan',
+          message: `Ketua telah menyetujui surat undangan dari ${surat.nama_instansi || 'Instansi Terkait'}. Silakan lakukan penugasan staf.`,
+          link: '/persetujuan-kepala'
+        }));
+
+        await prisma.notification.createMany({
+          data: notifications
+        });
+
+        for (const kapel of kapels) {
+          if (kapel.email) {
+            const htmlContent = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                <div style="text-align: center; border-bottom: 2px solid #16a34a; padding-bottom: 15px; margin-bottom: 20px;">
+                  <h2 style="color: #16a34a; margin: 0; font-size: 22px;">BAZNAS Operational Hub</h2>
+                  <p style="color: #64748b; margin: 5px 0 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: bold;">Butuh Penugasan Undangan</p>
+                </div>
+                
+                <div style="color: #334155; line-height: 1.6; font-size: 14px;">
+                  <p>Halo <strong>${kapel.name}</strong>,</p>
+                  <p>Ketua telah memberikan arahan/persetujuan untuk surat undangan berikut:</p>
+                  
+                  <div style="background-color: #f8fafc; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 4px 0; width: 120px; font-weight: bold; color: #475569;">Pengirim:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${surat.nama_instansi || 'Instansi Terkait'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-weight: bold; color: #475569;">Keperluan:</td>
+                        <td style="padding: 4px 0; color: #1e293b;">${surat.keperluan || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-weight: bold; color: #475569;">Catatan Ketua:</td>
+                        <td style="padding: 4px 0; color: #1e293b; font-style: italic;">"${surat.catatanPimpinan || '-'}"</td>
+                      </tr>
+                    </table>
+                  </div>
+ 
+                  <p>Silakan masuk ke dasbor Kepala Pelaksana untuk menentukan staf yang ditugaskan berdasarkan arahan Ketua.</p>
+                  
+                  <div style="text-align: center; margin-top: 30px;">
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Masuk ke Aplikasi</a>
+                  </div>
+                </div>
+ 
+                <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px;">
+                  <p>Ini adalah email otomatis dari BAZNAS Operational Hub. Harap tidak membalas email ini.</p>
+                  <p>&copy; ${new Date().getFullYear()} BAZNAS Kota Semarang. All rights reserved.</p>
+                </div>
+              </div>
+            `;
+
+            sendNotificationEmail({
+              to: kapel.email,
+              subject: `📢 Butuh Penugasan Undangan: ${surat.nama_instansi || 'Instansi Terkait'}`,
+              html: htmlContent
+            }).catch(err => {
+              console.error(`Gagal mengirim email penugasan ke ${kapel.email}:`, err);
+            });
+          }
+        }
+      }
+    }
+
     // Handle notifications for assigned staff in 'Undangan'
     if (existingSurat?.kategori === 'Undangan' && data.assigned_staff && Array.isArray(data.assigned_staff)) {
       const oldStaff = Array.isArray(existingSurat.assigned_staff) ? existingSurat.assigned_staff as string[] : [];

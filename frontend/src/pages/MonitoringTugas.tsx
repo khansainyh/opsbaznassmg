@@ -976,7 +976,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 {kecamatans.map((kec) => (
                   <div key={kec} className="p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter group-hover:text-primary transition-colors">Kecamatan</p>
-                    <p className="text-xs font-black text-slate-700 mt-0.5 truncate" title={kec}>{kec}</p>
+                    <p className="text-xs font-black text-slate-700 mt-0.5 min-h-[2rem] flex items-center leading-tight whitespace-normal break-words" title={kec}>{kec}</p>
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-[9px] font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-100">
                         {tasks.filter(t => t.kecamatan === kec).length} Aktif

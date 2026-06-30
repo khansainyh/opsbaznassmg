@@ -167,12 +167,14 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
         onUpdate(data.map(d => d.id === selectedProposal.id
           ? { ...d, status: 'Penentuan Nominal' as any, catatanPimpinan } : d));
       } else if (selectedSurat) {
+        const isUndangan = selectedSurat.kategori === 'Undangan';
+        const nextStatus = isUndangan ? 'Penugasan_Kepala_Pelaksana' : 'Selesai';
         await axios.put(`/api/surats/${selectedSurat.id}`, {
-          status: 'Selesai',
+          status: nextStatus,
           catatanPimpinan
         });
         onUpdateSurat(suratData.map(d => d.id === selectedSurat.id
-          ? { ...d, status: 'Selesai', catatanPimpinan } : d));
+          ? { ...d, status: nextStatus.replace(/_/g, ' '), catatanPimpinan } : d));
       }
       setApprovedToday(p => p + 1);
       setIsModalOpen(false);
@@ -197,11 +199,20 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
         onUpdate(data.map(d => selectedIds.includes(d.id) 
           ? { ...d, status: 'Penentuan Nominal' as any, catatanPimpinan: cat } : d));
       } else {
-        await Promise.all(selectedIds.map(id => 
-          axios.put(`/api/surats/${id}`, { status: 'Selesai', catatanPimpinan: cat })
-        ));
-        onUpdateSurat(suratData.map(d => selectedIds.includes(d.id) 
-          ? { ...d, status: 'Selesai', catatanPimpinan: cat } : d));
+        await Promise.all(selectedIds.map(async id => {
+          const item = suratData.find(d => d.id === id);
+          const isUndangan = item?.kategori === 'Undangan';
+          const nextStatus = isUndangan ? 'Penugasan_Kepala_Pelaksana' : 'Selesai';
+          await axios.put(`/api/surats/${id}`, { status: nextStatus, catatanPimpinan: cat });
+        }));
+        onUpdateSurat(suratData.map(d => {
+          if (selectedIds.includes(d.id)) {
+            const isUndangan = d.kategori === 'Undangan';
+            const nextStatus = isUndangan ? 'Penugasan Kepala Pelaksana' : 'Selesai';
+            return { ...d, status: nextStatus, catatanPimpinan: cat };
+          }
+          return d;
+        }));
       }
       setApprovedToday(p => p + selectedIds.length);
       setSelectedIds([]);

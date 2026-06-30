@@ -4,7 +4,7 @@ import {
   Search, Eye, CheckCircle2, ChevronRight, X,
   ClipboardList, AlertTriangle, MessageSquare, Send, Flame,
   FileText, Newspaper, ExternalLink, History, User, Building2,
-  MapPin, Briefcase, Calendar, Home, ChevronDown, Check
+  MapPin, Briefcase, Calendar, Home, ChevronDown, Check, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -112,7 +112,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     data.filter(d => d.status === 'Review Kepala Pelaksana'), [data]);
 
   const antreanSurat = useMemo(() =>
-    suratData.filter(d => d.status === 'Review Kepala Pelaksana'), [suratData]);
+    suratData.filter(d => d.status === 'Review Kepala Pelaksana' || d.status === 'Penugasan Kepala Pelaksana'), [suratData]);
 
   const q = searchTerm.toLowerCase();
   const filteredProposal = useMemo(() =>
@@ -175,14 +175,15 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const openSuratModal = (item: Surat) => {
     setSelectedSurat(item);
     setSelectedProposal(null);
-    setCatatan('');
-    setAssignedStaff([]);
+    setCatatan(item.catatanKepala || '');
+    setAssignedStaff(Array.isArray(item.assigned_staff) ? (item.assigned_staff as string[]) : []);
     setStaffSearchQuery('');
     setIsModalOpen(true);
   };
 
   const handleApprove = async () => {
-    if (!catatan.trim()) { alert('Harap isi catatan terlebih dahulu.'); return; }
+    const isPenugasanPass = selectedSurat && selectedSurat.status === 'Penugasan Kepala Pelaksana';
+    if (!isPenugasanPass && !catatan.trim()) { alert('Harap isi catatan terlebih dahulu.'); return; }
     setIsSubmitting(true);
     try {
       if (selectedProposal) {
@@ -203,13 +204,19 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
               rkatActivityId: selectedRkatId
             } : d));
       } else if (selectedSurat) {
+        const nextStatus = isPenugasanPass ? 'Selesai' : 'Review_Pimpinan';
         await axios.put(`/api/surats/${selectedSurat.id}`, {
-          status: 'Review_Pimpinan',
+          status: nextStatus,
           catatanKepala: catatan.trim(),
           assigned_staff: assignedStaff
         });
         onUpdateSurat(suratData.map(d => d.id === selectedSurat.id
-          ? { ...d, status: 'Review Pimpinan', catatanKepala: catatan.trim() } : d));
+          ? { 
+              ...d, 
+              status: nextStatus.replace(/_/g, ' '), 
+              catatanKepala: catatan.trim(),
+              assigned_staff: assignedStaff
+            } : d));
       }
       setApprovedToday(p => p + 1);
       setIsModalOpen(false);
@@ -326,7 +333,14 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-900">{item.namaInstansi || '-'}</p>
-                      <p className="text-[10px] text-slate-500 line-clamp-1">{item.keperluan}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] text-slate-500 line-clamp-1">{item.keperluan}</p>
+                        {item.status === 'Penugasan Kepala Pelaksana' && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[8px] font-black uppercase tracking-wider border border-amber-200 shrink-0">
+                            Butuh Penugasan
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-700">{item.tanggalMasuk}</p>
@@ -334,7 +348,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                     <td className="px-6 py-4 text-center">
                       <button onClick={() => openSuratModal(item)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all mx-auto">
-                        <Eye className="size-3.5" /> Tinjau
+                        <Eye className="size-3.5" /> {item.status === 'Penugasan Kepala Pelaksana' ? 'Tugaskan' : 'Tinjau'}
                       </button>
                     </td>
                   </tr>
@@ -938,83 +952,109 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                       </div>
                     </div>
 
+                    {/* Catatan Pimpinan (Jika ada / di tahap Penugasan) */}
+                    {selectedSurat.catatanPimpinan && (
+                      <div className="p-4 bg-purple-50 rounded-xl border border-purple-200 space-y-2 shadow-sm mb-4">
+                        <div className="flex items-center gap-2 text-purple-800">
+                          <MessageSquare className="size-4" />
+                          <span className="text-xs font-black uppercase tracking-widest">Arahan &amp; Catatan Ketua</span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-900 italic">
+                          "{selectedSurat.catatanPimpinan}"
+                        </p>
+                      </div>
+                    )}
+
                     {/* Catatan Kepala */}
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <label className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
-                        <MessageSquare className="size-3.5 text-primary" />
-                        Catatan Kepala Pelaksana
-                        <span className="text-rose-500">*</span>
-                      </label>
-                      <textarea rows={3} value={catatan} onChange={e => setCatatan(e.target.value)}
-                        placeholder="Catatan untuk Pimpinan / Staf..."
-                        className={cn(
-                          'w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none leading-relaxed',
-                          catatan.trim() ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200'
-                        )} />
-                      {catatan.trim()
-                        ? <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="size-3" /> {catatan.trim().length} karakter · Siap dikirim</p>
-                        : <p className="text-[11px] text-rose-500 font-bold">⚠ Catatan wajib diisi sebelum menyetujui surat</p>}
-                    </div>
-
-                    {selectedSurat.kategori === 'Undangan' && (
-                      <div className="space-y-3 pt-2 border-t border-slate-100 mt-4">
-                        <div>
-                          <label className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 mb-1">
-                            <User className="size-3.5 text-primary" />
-                            Tugaskan Staf (Notifikasi &amp; Pengingat H-1)
-                          </label>
-                          <p className="text-[11px] text-slate-400">Cari dan tambahkan staf yang wajib menghadiri undangan ini.</p>
-                        </div>
-                        
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                          <input 
-                            type="text" 
-                            placeholder="Ketik nama staf untuk mencari..." 
-                            value={staffSearchQuery} 
-                            onChange={e => setStaffSearchQuery(e.target.value)}
-                            className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all" 
-                          />
-                        </div>
-
-                        {staffSearchQuery && (
-                          <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-lg flex flex-col divide-y divide-slate-50 relative z-10">
-                            {users.filter(u => !assignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase())).map(u => (
-                              <button
-                                key={u.id}
-                                onClick={() => {
-                                  setAssignedStaff(prev => [...prev, u.id]);
-                                  setStaffSearchQuery('');
-                                }}
-                                className="px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex justify-between items-center group"
-                              >
-                                <span>{u.name} <span className="font-medium text-slate-400 ml-1">({u.role.replace(/_/g, ' ')})</span></span>
-                                <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity">Tambahkan</span>
-                              </button>
-                            ))}
-                            {users.filter(u => !assignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase())).length === 0 && (
-                              <div className="px-4 py-3 text-xs text-slate-400 text-center italic">Tidak ditemukan staf dengan nama tersebut.</div>
-                            )}
-                          </div>
-                        )}
-
-                        {assignedStaff.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {assignedStaff.map(id => {
-                              const u = users.find(x => x.id === id);
-                              if (!u) return null;
-                              return (
-                                <div key={u.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold shadow-sm">
-                                  {u.name}
-                                  <button onClick={() => setAssignedStaff(prev => prev.filter(x => x !== u.id))} className="hover:text-rose-300 transition-colors p-0.5 rounded-full hover:bg-white/10">
-                                    <X className="size-3" />
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
+                    {selectedSurat.status !== 'Penugasan Kepala Pelaksana' && (
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <label className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                          <MessageSquare className="size-3.5 text-primary" />
+                          Catatan Kepala Pelaksana
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <textarea rows={3} value={catatan} onChange={e => setCatatan(e.target.value)}
+                          placeholder="Catatan untuk Pimpinan / Staf..."
+                          className={cn(
+                            'w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none leading-relaxed',
+                            catatan.trim() ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200'
+                          )} />
+                        {catatan.trim() ? (
+                          <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="size-3" /> {catatan.trim().length} karakter · Siap dikirim</p>
+                        ) : (
+                          <p className="text-[11px] text-rose-500 font-bold">⚠ Catatan wajib diisi sebelum menyetujui surat</p>
                         )}
                       </div>
+                    )}
+
+                    {selectedSurat.kategori === 'Undangan' && (
+                      selectedSurat.status === 'Penugasan Kepala Pelaksana' ? (
+                        <div className="space-y-3 pt-2 border-t border-slate-100 mt-4">
+                          <div>
+                            <label className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 mb-1">
+                              <User className="size-3.5 text-primary" />
+                              Tugaskan Staf (Notifikasi &amp; Pengingat H-1)
+                            </label>
+                            <p className="text-[11px] text-slate-400">Cari dan tambahkan staf yang wajib menghadiri undangan ini.</p>
+                          </div>
+                          
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                            <input 
+                              type="text" 
+                              placeholder="Ketik nama staf untuk mencari..." 
+                              value={staffSearchQuery} 
+                              onChange={e => setStaffSearchQuery(e.target.value)}
+                              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all" 
+                            />
+                          </div>
+
+                          {staffSearchQuery && (
+                            <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-lg flex flex-col divide-y divide-slate-50 relative z-10">
+                              {users.filter(u => !assignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase())).map(u => (
+                                <button
+                                  key={u.id}
+                                  onClick={() => {
+                                    setAssignedStaff(prev => [...prev, u.id]);
+                                    setStaffSearchQuery('');
+                                  }}
+                                  className="px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex justify-between items-center group"
+                                >
+                                  <span>{u.name} <span className="font-medium text-slate-400 ml-1">({u.role.replace(/_/g, ' ')})</span></span>
+                                  <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity">Tambahkan</span>
+                                </button>
+                              ))}
+                              {users.filter(u => !assignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase())).length === 0 && (
+                                <div className="px-4 py-3 text-xs text-slate-400 text-center italic">Tidak ditemukan staf dengan nama tersebut.</div>
+                              )}
+                            </div>
+                          )}
+
+                          {assignedStaff.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {assignedStaff.map(id => {
+                                const u = users.find(x => x.id === id);
+                                if (!u) return null;
+                                return (
+                                  <div key={u.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold shadow-sm">
+                                    {u.name}
+                                    <button onClick={() => setAssignedStaff(prev => prev.filter(x => x !== u.id))} className="hover:text-rose-300 transition-colors p-0.5 rounded-full hover:bg-white/10">
+                                      <X className="size-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mt-4">
+                          <p className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                            <Clock className="size-3.5 text-slate-400 animate-pulse" />
+                            Penugasan staf akan dilakukan di tahap berikutnya setelah ulasan Pimpinan/Ketua.
+                          </p>
+                        </div>
+                      )
                     )}
                   </div>
                 )}
@@ -1027,16 +1067,18 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                   Batal
                 </button>
                 <button onClick={handleApprove}
-                  disabled={isSubmitting || !catatan.trim()}
+                  disabled={isSubmitting || (selectedSurat ? (selectedSurat.status !== 'Penugasan Kepala Pelaksana' && !catatan.trim()) : !catatan.trim())}
                   className={cn(
                     'flex-1 px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg',
-                    (!isSubmitting && catatan.trim())
+                    (!isSubmitting && (selectedSurat ? (selectedSurat.status === 'Penugasan Kepala Pelaksana' || catatan.trim()) : catatan.trim()))
                       ? 'bg-primary text-white hover:bg-primary/90 shadow-primary/20'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                   )}>
                   {isSubmitting
                     ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Memproses...</>
-                    : <><Send className="size-4" /> Setujui &amp; Teruskan ke Ketua</>}
+                    : (selectedSurat && selectedSurat.status === 'Penugasan Kepala Pelaksana')
+                      ? <><CheckCircle2 className="size-4" /> Selesaikan &amp; Tugaskan Staf</>
+                      : <><Send className="size-4" /> Setujui &amp; Teruskan ke Ketua</>}
                 </button>
               </div>
             </motion.div>

@@ -408,7 +408,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
   const totalLembaga = localMuzakkiData.filter(m => m.kategori === 'Lembaga').length;
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       
       {/* Breadcrumbs & Title */}
       <motion.div 
@@ -417,7 +417,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
         className="space-y-2"
       >
         <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Database Warga</span>
+          <span className="text-slate-400">Master Data</span>
           <ChevronRight className="size-4 text-slate-300" />
           <span className="text-primary font-bold">Data Muzakki</span>
         </nav>
