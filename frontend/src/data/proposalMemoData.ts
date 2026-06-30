@@ -86,6 +86,10 @@ export interface ProposalMemo {
   mustahik_id?: string;
   updatedAt?: string;
   jadwalRealisasi?: string;
+  is_rutin?: boolean;
+  frekuensi_berulang?: number;
+  tanggal_pencairan?: number;
+  butuh_survei?: boolean;
 }
 
 export const proposalMemoData: ProposalMemo[] = [];

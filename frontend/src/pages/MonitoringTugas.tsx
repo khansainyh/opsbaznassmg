@@ -17,7 +17,11 @@ import {
   ExternalLink,
   Calendar,
   ChevronDown,
-  Check
+  Check,
+  Repeat2,
+  FlaskConical,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -133,6 +137,12 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [isAsnafDropdownOpen, setIsAsnafDropdownOpen] = useState(false);
   const [isRekomendasiDropdownOpen, setIsRekomendasiDropdownOpen] = useState(false);
   const [isAlurDropdownOpen, setIsAlurDropdownOpen] = useState(false);
+
+  // Disposisi fields: Bantuan Berulang & Survei
+  const [isBantuanBerulang, setIsBantuanBerulang] = useState(false);
+  const [frekuensiBerulang, setFrekuensiBerulang] = useState<number>(1);
+  const [tanggalPencairan, setTanggalPencairan] = useState<number>(1);
+  const [perluSurvei, setPerluSurvei] = useState(true);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -596,7 +606,46 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     setRekomendasiKabag((task.rekomendasi_kabag as any) || 'Zakat');
     setSelectedAsnaf(task.asnaf || 'Fakir');
     setChangedProgramCode('');
+    // Initialize disposisi state from task
+    setIsBantuanBerulang(task.is_rutin ?? false);
+    setFrekuensiBerulang(task.frekuensi_berulang ?? 1);
+    setTanggalPencairan(task.tanggal_pencairan ?? 1);
+    setPerluSurvei(task.butuh_survei ?? true);
     setIsDetailModalOpen(true);
+  };
+
+  const handleSaveDisposisi = async (task: ProposalMemo) => {
+    try {
+      const payload: any = {
+        is_rutin: isBantuanBerulang,
+        butuh_survei: perluSurvei,
+      };
+      if (isBantuanBerulang) {
+        payload.frekuensi_berulang = frekuensiBerulang;
+        payload.tanggal_pencairan = tanggalPencairan;
+      }
+      // If survey is not required, skip the survey step and move to Antrean Bantuan
+      if (!perluSurvei) {
+        payload.status = 'Antrean_Bantuan';
+        if (!task.asnaf) payload.asnaf = 'Miskin';
+      }
+      await axios.put(`/api/proposals/${task.id}`, payload);
+      const updatedTask = {
+        ...task,
+        is_rutin: isBantuanBerulang,
+        frekuensi_berulang: isBantuanBerulang ? frekuensiBerulang : undefined,
+        tanggal_pencairan: isBantuanBerulang ? tanggalPencairan : undefined,
+        butuh_survei: perluSurvei,
+        ...(!perluSurvei ? { status: 'Antrean Bantuan' } : {})
+      };
+      const updatedList = data.map(d => d.id === task.id ? updatedTask : d);
+      onUpdate(updatedList);
+      setSelectedTask(updatedTask);
+      alert('Pengaturan disposisi berhasil disimpan.');
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menyimpan pengaturan disposisi.');
+    }
   };
 
 
@@ -1406,6 +1455,141 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     </div>
                   </div>
                   
+                  {/* DISPOSISI PANEL - Pendistribusian / Pendayagunaan */}
+                  {(isSuperAdmin || isKabagPendistribusian || isKabagPendayagunaan || isStafDistribusi) && (
+                    <div className="col-span-full mt-4 pt-4 border-t border-slate-100 space-y-4">
+                      <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                        <SlidersHorizontal className="size-4 text-primary" />
+                        Pengaturan Disposisi
+                      </h4>
+
+                      {/* Survei Required Toggle */}
+                      <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("p-2 rounded-lg", perluSurvei ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600")}>
+                              <FlaskConical className="size-4" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-slate-800">Perlu Survei Lapangan</p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                {perluSurvei
+                                  ? 'Agenda ini akan masuk ke antrean survei relawan'
+                                  : 'Agenda ini akan langsung masuk ke Antrean Pencairan (tanpa survei)'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPerluSurvei(p => !p)}
+                            className={cn(
+                              "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all border",
+                              perluSurvei
+                                ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                                : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                            )}
+                          >
+                            {perluSurvei
+                              ? <><ToggleRight className="size-4" /> Ya, Perlu Survei</>
+                              : <><ToggleLeft className="size-4" /> Tidak Perlu Survei</>}
+                          </button>
+                        </div>
+                        {!perluSurvei && (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 flex items-start gap-2">
+                            <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                            <span>Agenda ini akan <strong>langsung diproses ke Antrean Pencairan</strong> tanpa melalui survei relawan. Pastikan data mustahik sudah valid sebelum menyimpan.</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bantuan Berulang Toggle */}
+                      <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("p-2 rounded-lg", isBantuanBerulang ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500")}>
+                              <Repeat2 className="size-4" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-slate-800">Bantuan Berulang (Rutin)</p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                {isBantuanBerulang
+                                  ? 'Bantuan akan dijadwalkan masuk ke Antrean Pencairan secara otomatis setiap bulan'
+                                  : 'Bantuan satu kali / tidak berulang'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsBantuanBerulang(b => !b)}
+                            className={cn(
+                              "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all border",
+                              isBantuanBerulang
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                            )}
+                          >
+                            {isBantuanBerulang
+                              ? <><ToggleRight className="size-4" /> Aktif</>
+                              : <><ToggleLeft className="size-4" /> Tidak Aktif</>}
+                          </button>
+                        </div>
+
+                        {isBantuanBerulang && (
+                          <div className="grid grid-cols-2 gap-4 pt-1">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                                Frekuensi per Tahun
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={12}
+                                  value={frekuensiBerulang}
+                                  onChange={e => setFrekuensiBerulang(Math.max(1, Math.min(12, parseInt(e.target.value) || 1)))}
+                                  className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                                />
+                                <span className="text-xs font-bold text-slate-500 shrink-0">x/thn</span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                Setiap {frekuensiBerulang > 0 ? Math.round(12 / frekuensiBerulang) : '-'} bulan sekali
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                                Tanggal Pencairan
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={28}
+                                  value={tanggalPencairan}
+                                  onChange={e => setTanggalPencairan(Math.max(1, Math.min(28, parseInt(e.target.value) || 1)))}
+                                  className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                                />
+                                <span className="text-xs font-bold text-slate-500 shrink-0">tgl</span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                Masuk antrean setiap tgl {tanggalPencairan}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Save Disposisi Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleSaveDisposisi(selectedTask)}
+                        className="w-full py-2.5 px-4 bg-primary text-white rounded-xl text-sm font-black hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 className="size-4" />
+                        Simpan Pengaturan Disposisi
+                      </button>
+                    </div>
+                  )}
+
                   {/* RKAT STATUS WIDGET */}
                   {matchedActivities.length > 0 && (
                     <div className="col-span-full mt-4 pt-4 border-t border-slate-100">

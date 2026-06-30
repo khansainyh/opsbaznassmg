@@ -192,6 +192,10 @@ function App() {
                 mustahik: item.mustahik || null,
                 mustahik_id: item.mustahik_id || null,
                 updatedAt: item.updated_at || '',
+                is_rutin: item.is_rutin ?? false,
+                frekuensi_berulang: item.frekuensi_berulang ?? undefined,
+                tanggal_pencairan: item.tanggal_pencairan ?? undefined,
+                butuh_survei: item.butuh_survei ?? true,
                 program: item.program ? (
                   matchedPilar ? matchedPilar.name : (
                     item.program.pilar_code === '1100' || item.program.pilar_code === '2101' ? 'Semarang Peduli' :
@@ -254,6 +258,10 @@ function App() {
               rekomendasi_kabag: item.rekomendasi_kabag || undefined,
               approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
               rkatActivityId: item.rkat_activity_id || undefined,
+              is_rutin: item.is_rutin ?? false,
+              frekuensi_berulang: item.frekuensi_berulang ?? undefined,
+              tanggal_pencairan: item.tanggal_pencairan ?? undefined,
+              butuh_survei: item.butuh_survei ?? true,
               mustahik: item.mustahik || null,
               mustahik_id: item.mustahik_id || null,
               updatedAt: item.updated_at || '',

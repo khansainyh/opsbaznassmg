@@ -105,7 +105,8 @@ export const updateProposal = async (req: Request, res: Response) => {
       'file_gdrive_link', 'mustahik_id', 'surveyorName', 'isBeingSurveyed',
       'urgencyLevel', 'score', 'survey_data', 'surveySubmittedAt', 'catatanKepala', 'catatanPimpinan',
       'nominal', 'tipe_bantuan', 'alasan_perubahan_nominal',
-      'asnaf', 'rekomendasi_kabag', 'hasil_identifikasi', 'approval_kabag', 'rkat_activity_id'
+      'asnaf', 'rekomendasi_kabag', 'hasil_identifikasi', 'approval_kabag', 'rkat_activity_id',
+      'is_rutin', 'frekuensi_berulang', 'tanggal_pencairan', 'butuh_survei'
     ];
 
     const data: Record<string, any> = {};
