@@ -106,7 +106,8 @@ export const updateProposal = async (req: Request, res: Response) => {
       'urgencyLevel', 'score', 'survey_data', 'surveySubmittedAt', 'catatanKepala', 'catatanPimpinan',
       'nominal', 'tipe_bantuan', 'alasan_perubahan_nominal',
       'asnaf', 'rekomendasi_kabag', 'hasil_identifikasi', 'approval_kabag', 'rkat_activity_id',
-      'is_rutin', 'frekuensi_berulang', 'tanggal_pencairan', 'butuh_survei'
+      'is_rutin', 'frekuensi_berulang', 'tanggal_pencairan', 'butuh_survei', 'penerima_detail',
+      'volume', 'rekomendasi_unit_cost'
     ];
 
     const data: Record<string, any> = {};
@@ -135,6 +136,15 @@ export const updateProposal = async (req: Request, res: Response) => {
       }
     }
 
+    // Parse penerima_detail jika dikirim sebagai string
+    if (data.penerima_detail && typeof data.penerima_detail === 'string') {
+      try {
+        data.penerima_detail = JSON.parse(data.penerima_detail);
+      } catch {
+        // Biarkan apa adanya jika sudah object
+      }
+    }
+
     // Parse score jadi integer jika dikirim sebagai string
     if (data.score !== undefined && data.score !== null) {
       data.score = parseInt(String(data.score), 10);
@@ -142,6 +152,14 @@ export const updateProposal = async (req: Request, res: Response) => {
 
     if (data.nominal !== undefined && data.nominal !== null) {
       data.nominal = parseInt(String(data.nominal), 10);
+    }
+
+    if (data.volume !== undefined && data.volume !== null) {
+      data.volume = parseInt(String(data.volume), 10);
+    }
+
+    if (data.rekomendasi_unit_cost !== undefined && data.rekomendasi_unit_cost !== null) {
+      data.rekomendasi_unit_cost = parseInt(String(data.rekomendasi_unit_cost), 10);
     }
 
     // Parse isBeingSurveyed jadi boolean
@@ -180,6 +198,51 @@ export const updateProposal = async (req: Request, res: Response) => {
       where: { id },
       data: data
     });
+
+    // Auto-coordination with Mustahik master table if by-name recipients have NIK
+    if (data.penerima_detail && Array.isArray(data.penerima_detail)) {
+      for (const item of data.penerima_detail) {
+        const nik = item.nik ? String(item.nik).trim() : '';
+        if (nik && nik.length === 16) {
+          const mustahikData = {
+            nama: item.nama_lengkap ? String(item.nama_lengkap).trim() : 'Tanpa Nama',
+            nrm: item.nrm ? String(item.nrm).trim() : null,
+            jenis_kelamin: item.jenis_kelamin ? String(item.jenis_kelamin).trim() : 'Pria',
+            alamat: item.alamat ? String(item.alamat).trim() : 'Tidak ada alamat',
+            telepon: item.telepon ? String(item.telepon).trim() : null,
+            handphone: item.handphone ? String(item.handphone).trim() : null,
+            catatan: item.keterangan ? String(item.keterangan).trim() : '',
+            kategori: 'Perorangan'
+          };
+
+          const existingMustahik = await prisma.mustahik.findUnique({
+            where: { nik }
+          });
+
+          if (existingMustahik) {
+            await prisma.mustahik.update({
+              where: { id: existingMustahik.id },
+              data: {
+                nrm: mustahikData.nrm || existingMustahik.nrm,
+                nama: mustahikData.nama,
+                jenis_kelamin: mustahikData.jenis_kelamin,
+                alamat: mustahikData.alamat,
+                telepon: mustahikData.telepon || existingMustahik.telepon,
+                handphone: mustahikData.handphone || existingMustahik.handphone,
+                catatan: mustahikData.catatan || existingMustahik.catatan
+              }
+            });
+          } else {
+            await prisma.mustahik.create({
+              data: {
+                nik,
+                ...mustahikData
+              }
+            });
+          }
+        }
+      }
+    }
 
     res.status(200).json(proposal);
   } catch (error) {
@@ -254,6 +317,98 @@ export const scanProposal = async (req: Request, res: Response) => {
     res.status(200).json({ status: 'success', data: proposal });
   } catch (error) {
     console.error('Error scanning proposal:', error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const syncNrmFromMustahik = async (req: Request, res: Response) => {
+  try {
+    console.log('Syncing NRMs from master Mustahik data...');
+    // Find all proposals in status 'Selesai & Arsip'
+    const proposals = await prisma.proposal.findMany({
+      where: {
+        status: 'Selesai & Arsip'
+      },
+      include: {
+        mustahik: true
+      }
+    });
+
+    let updatedCount = 0;
+
+    for (const proposal of proposals) {
+      let isUpdated = false;
+      let updatedPenerimaDetail = proposal.penerima_detail;
+      let updatedMustahikId = proposal.mustahik_id;
+
+      // 1. Check by-name list
+      const isByName = proposal.jenis_pengajuan === 'Lembaga' && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
+      if (isByName) {
+        const list = proposal.penerima_detail as any[];
+        const newList = [];
+        for (const item of list) {
+          const nik = item.nik ? String(item.nik).trim() : '';
+          if (nik && nik.length === 16) {
+            const mustahikRecord = await prisma.mustahik.findUnique({
+              where: { nik }
+            });
+            if (mustahikRecord && mustahikRecord.nrm && mustahikRecord.nrm !== item.nrm) {
+              newList.push({
+                ...item,
+                nrm: mustahikRecord.nrm
+              });
+              isUpdated = true;
+            } else {
+              newList.push(item);
+            }
+          } else {
+            newList.push(item);
+          }
+        }
+        if (isUpdated) {
+          updatedPenerimaDetail = newList;
+        }
+      }
+
+      // 2. Check standard proposal (linked mustahik, or via NIK matching)
+      if (!isByName) {
+        // If not linked yet but has a NIK
+        const pNik = proposal.nik ? String(proposal.nik).trim() : '';
+        if (!updatedMustahikId && pNik && pNik.length === 16) {
+          const mustahikRecord = await prisma.mustahik.findUnique({
+            where: { nik: pNik }
+          });
+          if (mustahikRecord) {
+            updatedMustahikId = mustahikRecord.id;
+            isUpdated = true;
+          }
+        }
+      }
+
+      if (isUpdated) {
+        await prisma.proposal.update({
+          where: { id: proposal.id },
+          data: {
+            penerima_detail: updatedPenerimaDetail as any,
+            mustahik_id: updatedMustahikId
+          }
+        });
+        updatedCount++;
+      }
+    }
+
+    // Return the updated list of all proposals
+    const allProposals = await prisma.proposal.findMany({
+      include: { program: true, mustahik: true }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: `Berhasil mensinkronkan ${updatedCount} data proposal dengan Data Mustahik terbaru.`,
+      proposals: allProposals
+    });
+  } catch (error) {
+    console.error('[SYNC NRM ERROR]', error);
     res.status(500).json({ error: String(error) });
   }
 };

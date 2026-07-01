@@ -180,5 +180,16 @@
     "nominal": 200000,
     "type": "KREDIT",
     "status": "PENDING"
+  },
+  {
+    "id": "mut-1782807049128",
+    "tanggalCatatan": "2026-06-30",
+    "tanggal": "2026-06-30",
+    "bankAccountId": "b1d6b740-d2f3-47d3-bc9b-d453aefd0c87",
+    "bankName": "Dana Amil",
+    "keteranganBank": "Gaji an Khansa Inayah",
+    "nominal": 2000000,
+    "type": "KREDIT",
+    "status": "PENDING"
   }
 ]

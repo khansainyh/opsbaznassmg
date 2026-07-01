@@ -101,7 +101,7 @@ function App() {
         { name: "Identifikasi Mutasi", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Pelaporan"] },
         { name: "Monitoring Tugas", roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Off-Balancing", roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"], requiresObs: true },
-        { name: "Survei OBS", roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
+        { name: "Pelaporan OBS", roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
         { name: "Antrean SIMBA", roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Realisasi Bantuan", roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Antrean Arsip", roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
@@ -196,6 +196,7 @@ function App() {
                 frekuensi_berulang: item.frekuensi_berulang ?? undefined,
                 tanggal_pencairan: item.tanggal_pencairan ?? undefined,
                 butuh_survei: item.butuh_survei ?? true,
+                penerima_detail: item.penerima_detail || [],
                 program: item.program ? (
                   matchedPilar ? matchedPilar.name : (
                     item.program.pilar_code === '1100' || item.program.pilar_code === '2101' ? 'Semarang Peduli' :
@@ -262,6 +263,7 @@ function App() {
               frekuensi_berulang: item.frekuensi_berulang ?? undefined,
               tanggal_pencairan: item.tanggal_pencairan ?? undefined,
               butuh_survei: item.butuh_survei ?? true,
+              penerima_detail: item.penerima_detail || [],
               mustahik: item.mustahik || null,
               mustahik_id: item.mustahik_id || null,
               updatedAt: item.updated_at || '',
@@ -467,7 +469,7 @@ function App() {
             data={proposals}
             onUpdate={handleUpdateProposals}
           />
-        ) : activeMenu === 'Survei OBS' ? (
+        ) : activeMenu === 'Pelaporan OBS' ? (
           <SurveiObs 
             data={proposals}
             onUpdate={handleUpdateProposals}

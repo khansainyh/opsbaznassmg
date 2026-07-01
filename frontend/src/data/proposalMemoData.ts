@@ -90,6 +90,9 @@ export interface ProposalMemo {
   frekuensi_berulang?: number;
   tanggal_pencairan?: number;
   butuh_survei?: boolean;
+  penerima_detail?: any[];
+  volume?: number;
+  rekomendasi_unit_cost?: number;
 }
 
 export const proposalMemoData: ProposalMemo[] = [];

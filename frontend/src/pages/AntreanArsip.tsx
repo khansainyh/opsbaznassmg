@@ -50,7 +50,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         item.nik.includes(searchTerm);
+                         (item.nik || '').includes(searchTerm);
       return isAntreanArsip && searchMatch;
     });
   }, [data, searchTerm]);

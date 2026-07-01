@@ -211,6 +211,8 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
   const filtered = useMemo(() => {
     return data
       .filter(item => {
+        if (item.jenisPengajuan === 'OBS') return false;
+
         const date = new Date(item.tanggalMasuk);
         const yearOk = date.getFullYear().toString() === selectedYear;
         const monthOk = selectedMonth === 'Semua' || (date.getMonth()+1).toString().padStart(2,'0') === MONTH_MAP[selectedMonth];
@@ -220,7 +222,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           item.agendaNo.toString().includes(searchTerm) ||
           item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-          item.nik.includes(searchTerm);
+          (item.nik || '').includes(searchTerm);
         return yearOk && monthOk && memoOk && statusOk && searchOk;
       })
       .sort((a, b) => Number(b.agendaNo) - Number(a.agendaNo));

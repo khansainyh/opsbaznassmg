@@ -84,10 +84,13 @@ export default function DatabaseUPZ() {
   };
 
   const getUPZAccumulation = (item: UPZ) => {
-    if (item.type !== 'On-Balance') return { total: 0, hak: 0, pct: 0, gagalPotong: 0 };
+    if (item.type !== 'On-Balance') return { total: 0, hak: 0, hakAmil: 0, pct: 0, pctAmil: 0, gagalPotong: 0, totalBankJateng: 0, totalZis: 0 };
     const isPembantuan = item.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
     const pctVal = isPembantuan ? upzHakPembantuan : upzHakPengumpulan;
     const pct = pctVal / 100;
+
+    const pctAmilVal = isPembantuan ? 0 : upzHakAmilPengumpulan;
+    const pctAmil = pctAmilVal / 100;
 
     const upzName = item.name;
     const targetUpz = upzName.toLowerCase().trim();
@@ -143,7 +146,8 @@ export default function DatabaseUPZ() {
     const gagalPotong = failedJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0) + failedZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
 
     const hak = total * pct;
-    return { total, hak, pct: pctVal, gagalPotong, totalBankJateng, totalZis };
+    const hakAmil = total * pctAmil;
+    return { total, hak, hakAmil, pct: pctVal, pctAmil: pctAmilVal, gagalPotong, totalBankJateng, totalZis };
   };
 
 
@@ -160,6 +164,7 @@ export default function DatabaseUPZ() {
   const [zisHistory, setZisHistory] = useState<any[]>([]);
   const [upzHakPengumpulan, setUpzHakPengumpulan] = useState(30);
   const [upzHakPembantuan, setUpzHakPembantuan] = useState(70);
+  const [upzHakAmilPengumpulan, setUpzHakAmilPengumpulan] = useState(5);
 
   const [isDownloadRecapModalOpen, setIsDownloadRecapModalOpen] = useState(false);
   const [selectedRecapYear, setSelectedRecapYear] = useState<number>(() => new Date().getFullYear());
@@ -184,10 +189,13 @@ export default function DatabaseUPZ() {
   }, [zisHistory]);
 
   const getUPZAccumulationForYear = (item: UPZ, year: number) => {
-    if (item.type !== 'On-Balance') return { total: 0, hak: 0, pct: 0, gagalPotong: 0 };
+    if (item.type !== 'On-Balance') return { total: 0, hak: 0, hakAmil: 0, pct: 0, pctAmil: 0, gagalPotong: 0 };
     const isPembantuan = item.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
     const pctVal = isPembantuan ? upzHakPembantuan : upzHakPengumpulan;
     const pct = pctVal / 100;
+
+    const pctAmilVal = isPembantuan ? 0 : upzHakAmilPengumpulan;
+    const pctAmil = pctAmilVal / 100;
 
     const upzName = item.name;
     const targetUpz = upzName.toLowerCase().trim();
@@ -251,23 +259,24 @@ export default function DatabaseUPZ() {
     const gagalPotong = failedJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0) + failedZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
 
     const hak = total * pct;
-    return { total, hak, pct: pctVal, gagalPotong };
+    const hakAmil = total * pctAmil;
+    return { total, hak, hakAmil, pct: pctVal, pctAmil: pctAmilVal, gagalPotong };
   };
 
   const getRecapDataForYear = (year: number) => {
     const onBalanceUpzs = data.filter(item => item.type === 'On-Balance');
 
-    const groupPenyaluran: { name: string; hak: number }[] = [];
-    const groupPembantuan: { name: string; hak: number }[] = [];
+    const groupPenyaluran: { name: string; hak: number; hakAmil: number }[] = [];
+    const groupPembantuan: { name: string; hak: number; hakAmil: number }[] = [];
 
     onBalanceUpzs.forEach(item => {
-      const { hak } = getUPZAccumulationForYear(item, year);
+      const { hak, hakAmil } = getUPZAccumulationForYear(item, year);
       const isPembantuan = item.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan';
       
       if (isPembantuan) {
-        groupPembantuan.push({ name: item.name, hak });
+        groupPembantuan.push({ name: item.name, hak, hakAmil: 0 });
       } else {
-        groupPenyaluran.push({ name: item.name, hak });
+        groupPenyaluran.push({ name: item.name, hak, hakAmil });
       }
     });
 
@@ -275,56 +284,62 @@ export default function DatabaseUPZ() {
       penyaluran: groupPenyaluran,
       pembantuan: groupPembantuan,
       totalPenyaluran: groupPenyaluran.reduce((sum, item) => sum + item.hak, 0),
+      totalPenyaluranAmil: groupPenyaluran.reduce((sum, item) => sum + item.hakAmil, 0),
       totalPembantuan: groupPembantuan.reduce((sum, item) => sum + item.hak, 0),
     };
   };
 
   const handleExportExcelRecap = (year: number) => {
-    const { penyaluran, pembantuan, totalPenyaluran, totalPembantuan } = getRecapDataForYear(year);
+    const { penyaluran, pembantuan, totalPenyaluran, totalPenyaluranAmil, totalPembantuan } = getRecapDataForYear(year);
     
     const rows: any[] = [];
     
     // Header information
-    rows.push({ 'Nama UPZ': `REKAPAN HAK SALUR UPZ - TAHUN ${year}`, 'Hak Salur (IDR)': '' });
-    rows.push({ 'Nama UPZ': 'BAZNAS KOTA SEMARANG', 'Hak Salur (IDR)': '' });
-    rows.push({ 'Nama UPZ': `Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, 'Hak Salur (IDR)': '' });
-    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '' }); // Blank row
+    rows.push({ 'Nama UPZ': `REKAPAN HAK SALUR & HAK AMIL UPZ - TAHUN ${year}`, 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    rows.push({ 'Nama UPZ': 'BAZNAS KOTA SEMARANG', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    rows.push({ 'Nama UPZ': `Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
     
     // Table Headers
-    rows.push({ 'Nama UPZ': 'Nama UPZ', 'Hak Salur (IDR)': 'Hak Salur (IDR)' });
+    rows.push({ 'Nama UPZ': 'Nama UPZ', 'Hak Salur (IDR)': 'Hak Salur (IDR)', 'Hak Amil UPZ (IDR)': 'Hak Amil UPZ (IDR)' });
     
     // Group 1: UPZ Penyaluran
-    rows.push({ 'Nama UPZ': 'UPZ PENYALURAN', 'Hak Salur (IDR)': '' });
+    rows.push({ 'Nama UPZ': 'UPZ PENYALURAN (PENGUMPULAN)', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
     penyaluran.forEach((item, index) => {
       rows.push({
         'Nama UPZ': `${index + 1}. ${item.name}`,
-        'Hak Salur (IDR)': item.hak
+        'Hak Salur (IDR)': item.hak,
+        'Hak Amil UPZ (IDR)': item.hakAmil
       });
     });
     rows.push({
       'Nama UPZ': 'Subtotal UPZ Penyaluran',
-      'Hak Salur (IDR)': totalPenyaluran
+      'Hak Salur (IDR)': totalPenyaluran,
+      'Hak Amil UPZ (IDR)': totalPenyaluranAmil
     });
-    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '' }); // Blank row
+    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
     
     // Group 2: UPZ Pembantuan Pendistribusian & Pendayagunaan
-    rows.push({ 'Nama UPZ': 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', 'Hak Salur (IDR)': '' });
+    rows.push({ 'Nama UPZ': 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
     pembantuan.forEach((item, index) => {
       rows.push({
         'Nama UPZ': `${index + 1}. ${item.name}`,
-        'Hak Salur (IDR)': item.hak
+        'Hak Salur (IDR)': item.hak,
+        'Hak Amil UPZ (IDR)': 0
       });
     });
     rows.push({
       'Nama UPZ': 'Subtotal UPZ Pembantuan Pendistribusian dan Pendayagunaan',
-      'Hak Salur (IDR)': totalPembantuan
+      'Hak Salur (IDR)': totalPembantuan,
+      'Hak Amil UPZ (IDR)': 0
     });
-    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '' }); // Blank row
+    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
     
     // Grand Total Accumulation
     rows.push({
-      'Nama UPZ': 'TOTAL AKUMULASI HAK SALUR UPZ',
-      'Hak Salur (IDR)': totalPenyaluran + totalPembantuan
+      'Nama UPZ': 'TOTAL AKUMULASI HAK SALUR & HAK AMIL UPZ',
+      'Hak Salur (IDR)': totalPenyaluran + totalPembantuan,
+      'Hak Amil UPZ (IDR)': totalPenyaluranAmil
     });
     
     // Generate worksheet
@@ -334,6 +349,7 @@ export default function DatabaseUPZ() {
     const max_len = Math.max(...rows.map(r => String(r['Nama UPZ'] || '').length));
     worksheet['!cols'] = [
       { wch: Math.max(max_len + 5, 30) },
+      { wch: 20 },
       { wch: 20 }
     ];
     
@@ -343,7 +359,7 @@ export default function DatabaseUPZ() {
   };
  
   const handleExportPDFRecap = (year: number) => {
-    const { penyaluran, pembantuan, totalPenyaluran, totalPembantuan } = getRecapDataForYear(year);
+    const { penyaluran, pembantuan, totalPenyaluran, totalPenyaluranAmil, totalPembantuan } = getRecapDataForYear(year);
     
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -356,7 +372,7 @@ export default function DatabaseUPZ() {
     doc.text('BAZNAS KOTA SEMARANG', 105, 15, { align: 'center' });
     
     doc.setFontSize(12);
-    doc.text(`REKAPAN HAK SALUR UPZ - TAHUN ${year}`, 105, 21, { align: 'center' });
+    doc.text(`REKAPAN HAK SALUR & HAK AMIL UPZ - TAHUN ${year}`, 105, 21, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -369,53 +385,58 @@ export default function DatabaseUPZ() {
     const tableBody: any[] = [];
     
     tableBody.push([
-      { content: 'UPZ PENYALURAN', colSpan: 2, styles: { fillColor: [220, 235, 252], fontStyle: 'bold' } }
+      { content: 'UPZ PENYALURAN (PENGUMPULAN)', colSpan: 3, styles: { fillColor: [220, 235, 252], fontStyle: 'bold' } }
     ]);
     
     penyaluran.forEach((item, index) => {
       tableBody.push([
         `${index + 1}. ${item.name}`,
-        `Rp ${item.hak.toLocaleString('id-ID')}`
+        `Rp ${item.hak.toLocaleString('id-ID')}`,
+        `Rp ${item.hakAmil.toLocaleString('id-ID')}`
       ]);
     });
     
     tableBody.push([
       { content: 'Subtotal UPZ Penyaluran', styles: { fontStyle: 'bold', halign: 'left' } },
-      { content: `Rp ${totalPenyaluran.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } }
+      { content: `Rp ${totalPenyaluran.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } },
+      { content: `Rp ${totalPenyaluranAmil.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } }
     ]);
     
     tableBody.push([
-      { content: '', colSpan: 2, styles: { cellPadding: 1, fillColor: [255, 255, 255] } }
+      { content: '', colSpan: 3, styles: { cellPadding: 1, fillColor: [255, 255, 255] } }
     ]);
     
     tableBody.push([
-      { content: 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', colSpan: 2, styles: { fillColor: [220, 245, 230], fontStyle: 'bold' } }
+      { content: 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', colSpan: 3, styles: { fillColor: [220, 245, 230], fontStyle: 'bold' } }
     ]);
     
     pembantuan.forEach((item, index) => {
       tableBody.push([
         `${index + 1}. ${item.name}`,
-        `Rp ${item.hak.toLocaleString('id-ID')}`
+        `Rp ${item.hak.toLocaleString('id-ID')}`,
+        'Rp 0'
       ]);
     });
     
     tableBody.push([
       { content: 'Subtotal UPZ Pembantuan Pendistribusian dan Pendayagunaan', styles: { fontStyle: 'bold', halign: 'left' } },
-      { content: `Rp ${totalPembantuan.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } }
+      { content: `Rp ${totalPembantuan.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } },
+      { content: 'Rp 0', styles: { fontStyle: 'bold', halign: 'right' } }
     ]);
     
     tableBody.push([
-      { content: '', colSpan: 2, styles: { cellPadding: 1, fillColor: [255, 255, 255] } }
+      { content: '', colSpan: 3, styles: { cellPadding: 1, fillColor: [255, 255, 255] } }
     ]);
     
     tableBody.push([
-      { content: 'TOTAL AKUMULASI HAK SALUR UPZ', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
-      { content: `Rp ${(totalPenyaluran + totalPembantuan).toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } }
+      { content: 'TOTAL AKUMULASI HAK SALUR & HAK AMIL UPZ', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: `Rp ${(totalPenyaluran + totalPembantuan).toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } },
+      { content: `Rp ${totalPenyaluranAmil.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } }
     ]);
     
     autoTable(doc, {
       startY: 32,
-      head: [['Nama UPZ', 'Hak Salur']],
+      head: [['Nama UPZ', 'Hak Salur', 'Hak Amil UPZ']],
       body: tableBody,
       theme: 'grid',
       headStyles: {
@@ -426,7 +447,8 @@ export default function DatabaseUPZ() {
       },
       columnStyles: {
         0: { cellWidth: 'auto', halign: 'left' },
-        1: { cellWidth: 50, halign: 'right' }
+        1: { cellWidth: 40, halign: 'right' },
+        2: { cellWidth: 40, halign: 'right' }
       },
       styles: {
         fontSize: 9,
@@ -435,7 +457,7 @@ export default function DatabaseUPZ() {
       margin: { left: 15, right: 15 }
     });
     
-    doc.save(`Rekapan_Hak_Salur_UPZ_${year}.pdf`);
+    doc.save(`Rekapan_Hak_Salur_&_Amil_UPZ_${year}.pdf`);
   };
 
 
@@ -456,6 +478,7 @@ export default function DatabaseUPZ() {
           const pembantuanRule = mappings.find((m: any) => m.kategori === 'Zakat - UPZ Pembantuan');
           if (pengumpulanRule) {
             setUpzHakPengumpulan(Number(pengumpulanRule.persentase_salur_pembantuan));
+            setUpzHakAmilPengumpulan(Number(pengumpulanRule.persentase_upz));
           }
           if (pembantuanRule) {
             setUpzHakPembantuan(Number(pembantuanRule.persentase_salur_pembantuan));
@@ -2665,8 +2688,6 @@ export default function DatabaseUPZ() {
                 <th className="px-6 py-4">Kategori</th>
                 <th className="px-6 py-4">Wilayah (Kec/Kel)</th>
                 <th className="px-6 py-4 text-right">Total Setoran</th>
-                <th className="px-6 py-4 text-right">Gagal Potong</th>
-                <th className="px-6 py-4 text-right">Hak UPZ</th>
                 <th className="px-6 py-4 text-center">SK Aktif</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Aksi</th>
@@ -2704,25 +2725,10 @@ export default function DatabaseUPZ() {
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{item.kelurahan}</p>
                   </td>
                   <td className="px-6 py-4 text-right font-mono">
-                    <p className="text-xs font-bold text-slate-900">
-                      Rp {getUPZAccumulation(item).total.toLocaleString('id-ID')}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono">
-                    <p className="text-xs font-bold text-rose-600">
-                      Rp {getUPZAccumulation(item).gagalPotong.toLocaleString('id-ID')}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono">
                     {item.type === 'On-Balance' ? (
-                      <div>
-                        <p className="text-xs font-bold text-primary">
-                          Rp {getUPZAccumulation(item).hak.toLocaleString('id-ID')}
-                        </p>
-                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">
-                          {getUPZAccumulation(item).pct}%
-                        </p>
-                      </div>
+                      <p className="text-xs font-bold text-slate-900">
+                        Rp {getUPZAccumulation(item).total.toLocaleString('id-ID')}
+                      </p>
                     ) : (
                       <span className="text-xs text-slate-400 font-medium">-</span>
                     )}
@@ -3692,6 +3698,42 @@ export default function DatabaseUPZ() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Card 1.5: Hak Amil UPZ (Only for Pengumpulan) */}
+                      {!isPembantuan && (
+                        <div className="p-6 bg-indigo-50/40 rounded-2xl border border-indigo-100/80 space-y-4">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <Coins className="size-5 text-indigo-600" />
+                              <h4 className="text-xs font-black text-indigo-800 uppercase tracking-widest">Informasi Hak Amil UPZ Pengumpulan</h4>
+                            </div>
+                            <span className="px-2.5 py-0.5 text-[9px] font-black rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 uppercase tracking-wider">
+                              Hak Amil {upzHakAmilPengumpulan}%
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pengumpulan Terakumulasi</p>
+                              <p className="text-lg font-black text-slate-900">
+                                Rp {totalPengumpulan.toLocaleString('id-ID')}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Hak Amil UPZ ({upzHakAmilPengumpulan}%)</p>
+                              <p className="text-lg font-black text-indigo-600">
+                                Rp {getUPZAccumulation(selectedUPZ).hakAmil.toLocaleString('id-ID')}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="p-3 bg-white/60 border border-indigo-50 rounded-xl">
+                            <p className="text-[10px] text-indigo-700/80 leading-relaxed">
+                              * Porsi Hak Amil UPZ Pengumpulan ini dihitung dari total setoran zakat/infak yang berhasil direkonsiliasi. Hak Amil digunakan untuk menunjang kebutuhan operasional UPZ.
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Card 2: Gagal Potong UPZ (Pending) */}
                       <div className="p-6 bg-rose-50/40 rounded-2xl border border-rose-100/80 space-y-4">

@@ -40,7 +40,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         item.nik.includes(searchTerm);
+                         (item.nik || '').includes(searchTerm);
       return isReviewKabag && searchMatch;
     });
   }, [data, searchTerm]);

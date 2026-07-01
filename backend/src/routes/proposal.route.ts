@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { getProposals, getProposalById, createProposal, updateProposal, deleteProposal, scanProposal } from '../controllers/proposal.controller';
+import { getProposals, getProposalById, createProposal, updateProposal, deleteProposal, scanProposal, syncNrmFromMustahik } from '../controllers/proposal.controller';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -9,8 +9,9 @@ const upload = multer({
 const router = Router();
 
 router.get('/', getProposals);
-router.get('/:id', getProposalById);
+router.post('/sync-nrm-from-mustahik', syncNrmFromMustahik);
 router.post('/', upload.single('file'), createProposal);
+router.get('/:id', getProposalById);
 router.post('/:id/scan', upload.single('file'), scanProposal);
 router.put('/:id', upload.any(), updateProposal);
 router.delete('/:id', deleteProposal);

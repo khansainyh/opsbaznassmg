@@ -127,7 +127,7 @@ const menuGroups = [
       { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin"] },
       { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
       { name: "Off-Balancing", icon: Target, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"], requiresObs: true },
-      { name: "Survei OBS", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
+      { name: "Pelaporan OBS", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
     ]
   }
 ];

@@ -31,7 +31,7 @@ interface OffBalanceUPZ {
   metadata?: { address?: string; upzPhone?: string };
 }
 
-type SurveyStatus = 'Antrean Tugas' | 'Pending' | 'On Progress' | 'Selesai' | 'Disetujui';
+type SurveyStatus = 'Antrean Tugas' | 'Pending' | 'On Progress' | 'Laporan Selesai' | 'Disetujui';
 
 interface OffBalancingProps {
   data: ProposalMemo[];
@@ -42,6 +42,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
   const [viewMode, setViewMode] = useState<'dashboard' | 'all-tasks'>('dashboard');
   const [statusFilter, setStatusFilter] = useState<SurveyStatus | 'Semua'>('Semua');
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
+  const [editingSurveyData, setEditingSurveyData] = useState<any>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -183,7 +184,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
     if (item.status === 'Survei Assessment' || item.status === 'Proses Disposisi') {
       return item.isBeingSurveyed ? 'On Progress' : 'Pending';
     }
-    if (item.status === 'Selesai' || item.status === 'Survei Selesai') return 'Selesai';
+    if (item.status === 'Selesai' || item.status === 'Survei Selesai') return 'Laporan Selesai';
     if (['Review Kepala Pelaksana', 'Persetujuan Nominal', 'Persetujuan Pimpinan', 'Penentuan Nominal', 'Pencairan Dana', 'Antrean Bantuan', 'Arsip', 'Disetujui'].includes(item.status)) return 'Disetujui';
     return 'Antrean Tugas';
   };
@@ -192,7 +193,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
     return [
       { title: "Total Tugas OBS", value: obsTasks.length.toString(), subtitle: "Semester ini", icon: <ClipboardList className="size-5" />, color: "slate" },
       { title: "Sedang Disurvei", value: obsTasks.filter(t => getSurveyStatus(t) === 'On Progress').length.toString(), subtitle: "In Progress", icon: <RefreshCw className="size-5 animate-spin-slow" />, color: "primary", trend: "In Progress" },
-      { title: "Menunggu Approve", value: obsTasks.filter(t => getSurveyStatus(t) === 'Selesai').length.toString(), subtitle: "Butuh Persetujuan", icon: <AlertCircle className="size-5" />, color: "amber" },
+      { title: "Menunggu Approve", value: obsTasks.filter(t => getSurveyStatus(t) === 'Laporan Selesai').length.toString(), subtitle: "Butuh Persetujuan", icon: <AlertCircle className="size-5" />, color: "amber" },
       { title: "Selesai / Disetujui", value: obsTasks.filter(t => getSurveyStatus(t) === 'Disetujui').length.toString(), subtitle: "Telah Tervalidasi", icon: <CheckCircle2 className="size-5" />, color: "emerald" },
     ];
   }, [obsTasks]);
@@ -338,8 +339,25 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
     }
   };
 
+  const handleSaveSurveyData = async () => {
+    if (!selectedTask || !editingSurveyData) return;
+    try {
+      await axios.put(`/api/proposals/${selectedTask.id}`, {
+        survey_data: editingSurveyData
+      });
+      const updatedData = data.map(item => item.id === selectedTask.id ? { ...item, survey_data: editingSurveyData } : item);
+      onUpdate(updatedData);
+      setSelectedTask(prev => prev ? { ...prev, survey_data: editingSurveyData } : null);
+      alert('Perubahan laporan berhasil disimpan!');
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menyimpan perubahan laporan');
+    }
+  };
+
   const handleViewDetail = (task: ProposalMemo) => {
     setSelectedTask(task);
+    setEditingSurveyData(task.survey_data ? JSON.parse(JSON.stringify(task.survey_data)) : null);
     setIsDetailModalOpen(true);
   };
 
@@ -348,7 +366,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
       case 'Antrean Tugas': return "bg-slate-100 text-slate-600 border-slate-200";
       case 'Pending': return "bg-blue-50 text-blue-600 border-blue-100";
       case 'On Progress': return "bg-primary/10 text-primary border-primary/20";
-      case 'Selesai': return "bg-amber-50 text-amber-700 border-amber-200";
+      case 'Laporan Selesai': return "bg-amber-50 text-amber-700 border-amber-200";
       case 'Disetujui': return "bg-emerald-50 text-emerald-600 border-emerald-100";
       default: return "bg-slate-100 text-slate-600";
     }
@@ -357,8 +375,8 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
   const filteredTasks = useMemo(() => {
     const list = obsTasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
     return [...list].sort((a, b) => {
-      const orderA = getSurveyStatus(a) === 'Selesai' ? 1 : 2;
-      const orderB = getSurveyStatus(b) === 'Selesai' ? 1 : 2;
+      const orderA = getSurveyStatus(a) === 'Laporan Selesai' ? 1 : 2;
+      const orderB = getSurveyStatus(b) === 'Laporan Selesai' ? 1 : 2;
       return orderA - orderB;
     });
   }, [obsTasks, statusFilter]);
@@ -551,7 +569,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-2">
-                              {status === 'Selesai' && (
+                              {status === 'Laporan Selesai' && (
                                 <button 
                                   onClick={() => handleUpdateStatus(task.id, 'Disetujui')}
                                   className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors"
@@ -617,7 +635,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
           {/* Filters */}
           <div className="p-6 border-b border-slate-100 bg-slate-50 flex flex-wrap gap-2 items-center justify-between">
             <div className="flex flex-wrap gap-2">
-              {(['Semua', 'Antrean Tugas', 'On Progress', 'Selesai', 'Disetujui'] as const).map(f => (
+              {(['Semua', 'Antrean Tugas', 'On Progress', 'Laporan Selesai', 'Disetujui'] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setStatusFilter(f)}
@@ -685,7 +703,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
-                            {status === 'Selesai' && (
+                            {status === 'Laporan Selesai' && (
                               <button 
                                 onClick={() => handleUpdateStatus(task.id, 'Disetujui')}
                                 className="p-1.5 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 transition"
@@ -1182,13 +1200,11 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Laporan Assessment OBS Section */}
+                </div>                {/* Laporan Assessment OBS Section */}
                 <div className="border-t border-slate-100 pt-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider">Laporan Assessment OBS</h4>
-                    {selectedTask.survey_data && selectedTask.survey_data.saldoAkhir !== undefined ? (
+                    {editingSurveyData && editingSurveyData.saldoAkhir !== undefined ? (
                       <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-black uppercase border border-emerald-100">
                         Terisi
                       </span>
@@ -1199,47 +1215,184 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                     )}
                   </div>
 
-                  {selectedTask.survey_data && selectedTask.survey_data.saldoAkhir !== undefined ? (
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 text-xs">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <div>
-                          <span className="text-slate-400 font-semibold block uppercase text-[9px]">Ketua UPZ</span>
-                          <span className="text-slate-700 font-bold">{selectedTask.survey_data.namaKetuaUpz || '-'}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-semibold block uppercase text-[9px]">No. WA</span>
-                          <span className="text-slate-700 font-bold">{selectedTask.survey_data.noWa || '-'}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-semibold block uppercase text-[9px]">Tanggal Laporan</span>
-                          <span className="text-slate-700 font-bold">{selectedTask.survey_data.tanggalSemarang || '-'}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-semibold block uppercase text-[9px]">Total Penerimaan</span>
-                          <span className="text-emerald-600 font-extrabold">
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedTask.survey_data.totalPenerimaan || 0)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-semibold block uppercase text-[9px]">Total Penyaluran</span>
-                          <span className="text-rose-600 font-extrabold">
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedTask.survey_data.totalPenyaluran || 0)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-semibold block uppercase text-[9px]">Saldo Akhir</span>
-                          <span className="text-primary font-extrabold">
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selectedTask.survey_data.saldoAkhir || 0)}
-                          </span>
+                  {editingSurveyData && editingSurveyData.saldoAkhir !== undefined ? (
+                    <div className="space-y-6">
+                      {/* Ringkasan Kontak & Pengurus */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4 text-xs">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div>
+                            <span className="text-slate-400 font-semibold block uppercase text-[9px]">Ketua UPZ</span>
+                            <span className="text-slate-700 font-bold">{editingSurveyData.namaKetuaUpz || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block uppercase text-[9px]">No. WA</span>
+                            <span className="text-slate-700 font-bold">{editingSurveyData.noWa || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block uppercase text-[9px]">Tanggal Laporan</span>
+                            <span className="text-slate-700 font-bold">{editingSurveyData.tanggalSemarang || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block uppercase text-[9px]">Total Penerimaan</span>
+                            <span className="text-emerald-600 font-extrabold">
+                              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(editingSurveyData.totalPenerimaan || 0)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block uppercase text-[9px]">Total Penyaluran</span>
+                            <span className="text-rose-600 font-extrabold">
+                              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(editingSurveyData.totalPenyaluran || 0)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-semibold block uppercase text-[9px]">Saldo Akhir</span>
+                            <span className="text-primary font-extrabold">
+                              {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(editingSurveyData.saldoAkhir || 0)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      
-                      <div className="border-t border-slate-200/60 pt-3">
-                        <span className="text-slate-400 font-semibold block uppercase text-[9px] mb-1">Keterangan Penyerahan</span>
-                        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-650 bg-white p-2 rounded-lg border border-slate-100">
-                          <div>Takmir: <strong className="text-slate-700">{selectedTask.survey_data.ketuaTakmir || '-'}</strong></div>
-                          <div>Bendahara: <strong className="text-slate-700">{selectedTask.survey_data.bendahara || '-'}</strong></div>
-                          <div className="col-span-2 border-t pt-1 mt-1">PIC Relawan: <strong className="text-slate-700">{selectedTask.survey_data.picRelawanNama || '-'} ({selectedTask.survey_data.picRelawanNoWa || '-'})</strong></div>
+
+                      {/* Detail Penerimaan */}
+                      <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm space-y-3">
+                        <h5 className="font-bold text-emerald-700 text-xs flex items-center gap-1.5 border-b border-emerald-50 pb-2">
+                          <span className="w-1.5 h-3 bg-emerald-500 rounded-full" />
+                          Rincian Penerimaan
+                        </h5>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-[11px]">
+                            <thead>
+                              <tr className="border-b border-slate-100 text-slate-400 uppercase font-black tracking-wider">
+                                <th className="pb-2">Jenis ZIS</th>
+                                <th className="pb-2 text-right">Jumlah (Rp)</th>
+                                <th className="pb-2 text-center">Donatur</th>
+                                <th className="pb-2">Tambahan</th>
+                                <th className="pb-2">Keterangan</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
+                              {[
+                                { key: 'penerimaan_zakatMaal', label: 'Zakat Maal' },
+                                { key: 'penerimaan_zakatFitrah', label: 'Zakat Fitrah', isBeras: true },
+                                { key: 'penerimaan_infakSedekah', label: 'Infak/Sedekah' },
+                                { key: 'penerimaan_qurban', label: 'Qurban', isQurban: true },
+                                { key: 'penerimaan_fidyah', label: 'Fidyah', isBeras: true }
+                              ].map(row => {
+                                const val = editingSurveyData[row.key] || {};
+                                return (
+                                  <tr key={row.key}>
+                                    <td className="py-2 font-bold">{row.label}</td>
+                                    <td className="py-2 text-right font-extrabold text-emerald-600">
+                                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val.jumlahPenerimaan || 0)}
+                                    </td>
+                                    <td className="py-2 text-center">{val.jumlahDonatur || 0} Orang</td>
+                                    <td className="py-2 text-slate-500">
+                                      {row.isBeras && val.beras !== undefined && `${val.beras || 0} kg`}
+                                      {row.isQurban && val.kambingDomba !== undefined && `${val.kambingDomba || 0} ekor, ${val.sapiKerbau || 0} ekor`}
+                                    </td>
+                                    <td className="py-2 text-slate-500 italic max-w-[120px] truncate" title={val.keterangan || ''}>
+                                      {val.keterangan || '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Infak/Sedekah Barang & Jasa (Staff Pelaporan Estimasi Harga) */}
+                      <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm space-y-3">
+                        <h5 className="font-bold text-amber-700 text-xs flex items-center justify-between border-b border-amber-50 pb-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                            Infak / Sedekah Barang &amp; Jasa
+                          </div>
+                          <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full font-bold">
+                            {(editingSurveyData.penerimaan_infakBarangJasa?.items || []).length} Item
+                          </span>
+                        </h5>
+                        <div className="space-y-3">
+                          {!(editingSurveyData.penerimaan_infakBarangJasa?.items?.length) ? (
+                            <p className="text-[11px] text-slate-400 italic text-center py-2">Tidak ada penerimaan barang &amp; jasa.</p>
+                          ) : (
+                            editingSurveyData.penerimaan_infakBarangJasa.items.map((item: any, idx: number) => (
+                              <div key={idx} className="bg-slate-50/50 p-3 rounded-lg border border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                                <div className="space-y-1">
+                                  <div>Jenis: <strong className="text-slate-800">{item.jenisBarang || '-'}</strong></div>
+                                  <div>Merek: <span className="text-slate-650">{item.merekSpesifikasi || '-'}</span></div>
+                                  <div>Jumlah: <span className="text-slate-650">{item.jumlah || '-'}</span></div>
+                                  <div>Keterangan: <span className="text-slate-500 italic">{item.keterangan || '-'}</span></div>
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-amber-600 uppercase tracking-wider block">Estimasi Harga (Rp) *</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Masukkan estimasi harga..."
+                                    value={item.estimasiHarga || ''}
+                                    onChange={e => {
+                                      const newItems = [...(editingSurveyData.penerimaan_infakBarangJasa?.items || [])];
+                                      newItems[idx] = { ...newItems[idx], estimasiHarga: e.target.value === '' ? '' : Number(e.target.value) };
+                                      setEditingSurveyData({
+                                        ...editingSurveyData,
+                                        penerimaan_infakBarangJasa: { ...editingSurveyData.penerimaan_infakBarangJasa, items: newItems }
+                                      });
+                                    }}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-amber-500"
+                                  />
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Detail Penyaluran */}
+                      <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm space-y-3">
+                        <h5 className="font-bold text-rose-700 text-xs flex items-center gap-1.5 border-b border-rose-50 pb-2">
+                          <span className="w-1.5 h-3 bg-rose-500 rounded-full" />
+                          Rincian Penyaluran
+                        </h5>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-[11px]">
+                            <thead>
+                              <tr className="border-b border-slate-100 text-slate-400 uppercase font-black tracking-wider">
+                                <th className="pb-2">Jenis ZIS</th>
+                                <th className="pb-2 text-right">Jumlah (Rp)</th>
+                                <th className="pb-2 text-center">Mustahik</th>
+                                <th className="pb-2">Tambahan</th>
+                                <th className="pb-2">Keterangan</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
+                              {[
+                                { key: 'penyaluran_zakatMaal', label: 'Zakat Maal' },
+                                { key: 'penyaluran_zakatFitrah', label: 'Zakat Fitrah', isBeras: true },
+                                { key: 'penyaluran_infakSedekah', label: 'Infak/Sedekah' },
+                                { key: 'penyaluran_qurban', label: 'Qurban', isQurban: true },
+                                { key: 'penyaluran_fidyah', label: 'Fidyah', isBeras: true }
+                              ].map(row => {
+                                const val = editingSurveyData[row.key] || {};
+                                return (
+                                  <tr key={row.key}>
+                                    <td className="py-2 font-bold">{row.label}</td>
+                                    <td className="py-2 text-right font-extrabold text-rose-600">
+                                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val.jumlahPenyaluran || 0)}
+                                    </td>
+                                    <td className="py-2 text-center">{val.jumlahMustahik || 0} Orang</td>
+                                    <td className="py-2 text-slate-500">
+                                      {row.isBeras && val.beras !== undefined && `${val.beras || 0} kg`}
+                                      {row.isQurban && val.kambingDomba !== undefined && `${val.kambingDomba || 0} ekor, ${val.sapiKerbau || 0} ekor`}
+                                    </td>
+                                    <td className="py-2 text-slate-500 italic max-w-[120px] truncate" title={val.keterangan || ''}>
+                                      {val.keterangan || '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     </div>
@@ -1261,12 +1414,23 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                   <Trash2 className="size-4" />
                   Hapus Penugasan
                 </button>
-                <button
-                  onClick={() => setIsDetailModalOpen(false)}
-                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition"
-                >
-                  Tutup
-                </button>
+                <div className="flex items-center gap-3">
+                  {JSON.stringify(selectedTask.survey_data) !== JSON.stringify(editingSurveyData) && (
+                    <button
+                      onClick={handleSaveSurveyData}
+                      className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition flex items-center gap-1.5"
+                    >
+                      <Check className="size-4" />
+                      Simpan Perubahan
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setIsDetailModalOpen(false)}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition"
+                  >
+                    Tutup
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

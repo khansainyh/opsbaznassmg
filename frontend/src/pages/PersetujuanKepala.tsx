@@ -41,6 +41,21 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const [rkatSearchQuery, setRkatSearchQuery] = useState('');
   const [isSumberKasDropdownOpen, setIsSumberKasDropdownOpen] = useState(false);
 
+  const [tipeRealisasiLembaga, setTipeRealisasiLembaga] = useState<'Lembaga' | 'Perorangan'>('Lembaga');
+  const [volumeReal, setVolumeReal] = useState<number>(1);
+  const [rekomendasiUnitCost, setRekomendasiUnitCost] = useState<number>(0);
+
+  useEffect(() => {
+    if (selectedProposal) {
+      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
+                        selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+                        (selectedProposal.namaInstansi && selectedProposal.namaInstansi.toLowerCase() !== 'perorangan');
+      if (isLembaga && tipeRealisasiLembaga === 'Perorangan') {
+        setRekomendasiNominal(volumeReal * rekomendasiUnitCost);
+      }
+    }
+  }, [tipeRealisasiLembaga, volumeReal, rekomendasiUnitCost, selectedProposal]);
+
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
   const [pilars, setPilars] = useState<any[]>([]);
 
@@ -144,6 +159,12 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setSelectedRkatId('');
     setSelectedSumberKas('Zakat');
     setRekomendasiNominal(item.nominal || 0);
+
+    const initialTipe = (item.volume && item.volume > 1) || (item.penerima_detail && item.penerima_detail.length > 0) ? 'Perorangan' : 'Lembaga';
+    setTipeRealisasiLembaga(initialTipe);
+    setVolumeReal(item.volume || 1);
+    setRekomendasiUnitCost(item.rekomendasi_unit_cost || (item.nominal || 0));
+
     setIsModalOpen(true);
     setLoadingAvailability(true);
     
@@ -166,7 +187,11 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
           'Zakat'
         );
         setSelectedSumberKas(initialSumber);
-        setRekomendasiNominal(item.nominal || (matched ? matched.nominal : 0));
+        const initialNominal = item.nominal || (matched ? matched.nominal : 0);
+        setRekomendasiNominal(initialNominal);
+        if (!item.rekomendasi_unit_cost) {
+          setRekomendasiUnitCost(initialNominal);
+        }
       })
       .catch(err => console.error('Gagal fetch availability:', err))
       .finally(() => setLoadingAvailability(false));
@@ -187,13 +212,33 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setIsSubmitting(true);
     try {
       if (selectedProposal) {
-        await axios.put(`/api/proposals/${selectedProposal.id}`, {
+        const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
+                          selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+                          (selectedProposal.namaInstansi && selectedProposal.namaInstansi.toLowerCase() !== 'perorangan');
+
+        const payload: any = {
           status: 'Persetujuan_Pimpinan',
           catatanKepala: catatan.trim(),
           nominal: Number(rekomendasiNominal),
           tipe_bantuan: selectedSumberKas,
-          rkat_activity_id: selectedRkatId
-        });
+          rkat_activity_id: selectedRkatId,
+        };
+
+        if (isLembaga) {
+          if (tipeRealisasiLembaga === 'Perorangan') {
+            payload.volume = Number(volumeReal);
+            payload.rekomendasi_unit_cost = Number(rekomendasiUnitCost);
+          } else {
+            payload.volume = 1;
+            payload.rekomendasi_unit_cost = Number(rekomendasiNominal);
+          }
+        } else {
+          payload.volume = 1;
+          payload.rekomendasi_unit_cost = Number(rekomendasiNominal);
+        }
+
+        await axios.put(`/api/proposals/${selectedProposal.id}`, payload);
+
         onUpdate(data.map(d => d.id === selectedProposal.id
           ? { 
               ...d, 
@@ -201,7 +246,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
               catatanKepala: catatan.trim(),
               nominal: Number(rekomendasiNominal),
               tipeBantuan: selectedSumberKas as any, 
-              rkatActivityId: selectedRkatId
+              rkatActivityId: selectedRkatId,
+              volume: payload.volume,
+              rekomendasi_unit_cost: payload.rekomendasi_unit_cost
             } : d));
       } else if (selectedSurat) {
         const nextStatus = isPenugasanPass ? 'Selesai' : 'Review_Pimpinan';
@@ -213,7 +260,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
         onUpdateSurat(suratData.map(d => d.id === selectedSurat.id
           ? { 
               ...d, 
-              status: nextStatus.replace(/_/g, ' '), 
+              status: nextStatus.replace(/_/g, ' ') as any, 
               catatanKepala: catatan.trim(),
               assigned_staff: assignedStaff
             } : d));
@@ -841,24 +888,109 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                             </div>
                             </div>
 
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                                Nominal Bantuan:
-                              </label>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
-                                <input
-                                  type="text"
-                                  value={rekomendasiNominal.toLocaleString('id-ID')}
-                                  readOnly
-                                  disabled
-                                  className="w-full text-xs bg-slate-100 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 font-black text-slate-500 cursor-not-allowed outline-none shadow-sm"
-                                />
-                              </div>
-                              <p className="text-[9px] text-slate-400">
-                                *Nominal bantuan bersifat tetap dan hanya dapat diubah oleh Pimpinan pada tahap berikutnya.
-                              </p>
-                            </div>
+                            {(() => {
+                              const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
+                                                selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+                                                (selectedProposal.namaInstansi && selectedProposal.namaInstansi.toLowerCase() !== 'perorangan');
+
+                              return (
+                                <>
+                                  {isLembaga && (
+                                    <div className="col-span-full border-t border-slate-100 pt-4 space-y-4">
+                                      <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                                          Tipe Realisasi Bantuan:
+                                        </label>
+                                        <div className="flex gap-6 p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
+                                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                                            <input
+                                              type="radio"
+                                              name="tipeRealisasiLembaga"
+                                              value="Lembaga"
+                                              checked={tipeRealisasiLembaga === 'Lembaga'}
+                                              onChange={() => setTipeRealisasiLembaga('Lembaga')}
+                                              className="text-primary focus:ring-primary"
+                                            />
+                                            Realisasi Lembaga
+                                          </label>
+                                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                                            <input
+                                              type="radio"
+                                              name="tipeRealisasiLembaga"
+                                              value="Perorangan"
+                                              checked={tipeRealisasiLembaga === 'Perorangan'}
+                                              onChange={() => setTipeRealisasiLembaga('Perorangan')}
+                                              className="text-primary focus:ring-primary"
+                                            />
+                                            Realisasi Perorangan (Bantuan Lembaga tapi dibagikan ke Perorangan)
+                                          </label>
+                                        </div>
+                                      </div>
+
+                                      {tipeRealisasiLembaga === 'Perorangan' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                                              Volume (Jumlah Penerima Bantuan):
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              value={volumeReal}
+                                              onChange={(e) => setVolumeReal(Math.max(1, parseInt(e.target.value) || 1))}
+                                              className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none shadow-sm text-slate-800"
+                                            />
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                                              Rekomendasi Unit Cost (Per Orang):
+                                            </label>
+                                            <div className="relative">
+                                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                                              <input
+                                                type="text"
+                                                value={rekomendasiUnitCost ? rekomendasiUnitCost.toLocaleString('id-ID') : ''}
+                                                onChange={(e) => {
+                                                  const rawVal = e.target.value.replace(/[^0-9]/g, '');
+                                                  setRekomendasiUnitCost(Math.max(0, parseInt(rawVal) || 0));
+                                                }}
+                                                className="w-full text-xs bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none shadow-sm text-slate-800"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div className="space-y-1.5 col-span-full">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                      {isLembaga && tipeRealisasiLembaga === 'Perorangan' ? 'Total Rekomendasi Nominal Bantuan (Volume x Unit Cost):' : 'Nominal Bantuan:'}
+                                    </label>
+                                    <div className="relative">
+                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                                      <input
+                                        type="text"
+                                        value={rekomendasiNominal.toLocaleString('id-ID')}
+                                        readOnly
+                                        disabled
+                                        className={cn(
+                                          "w-full text-xs border rounded-xl pl-9 pr-4 py-2.5 font-black outline-none shadow-sm",
+                                          isLembaga && tipeRealisasiLembaga === 'Perorangan'
+                                            ? "bg-primary/5 border-primary/20 text-primary"
+                                            : "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                                        )}
+                                      />
+                                    </div>
+                                    <p className="text-[9px] text-slate-400">
+                                      {isLembaga && tipeRealisasiLembaga === 'Perorangan'
+                                        ? "*Nominal bantuan dihitung otomatis berdasarkan Volume x Unit Cost."
+                                        : "*Nominal bantuan bersifat tetap dan hanya dapat diubah oleh Pimpinan pada tahap berikutnya."}
+                                    </p>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>

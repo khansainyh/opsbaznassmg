@@ -174,7 +174,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
           catatanPimpinan
         });
         onUpdateSurat(suratData.map(d => d.id === selectedSurat.id
-          ? { ...d, status: nextStatus.replace(/_/g, ' '), catatanPimpinan } : d));
+          ? { ...d, status: nextStatus.replace(/_/g, ' ') as any, catatanPimpinan } : d));
       }
       setApprovedToday(p => p + 1);
       setIsModalOpen(false);

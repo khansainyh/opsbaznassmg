@@ -47,14 +47,18 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
   const [filterKecamatan, setFilterKecamatan] = useState('');
   const [filterKelurahan, setFilterKelurahan] = useState('');
 
-  const penerimaanRows = [
+  const penerimaanRowsAtas = [
     { key: 'penerimaan_zakatMaal', label: '1. Zakat Maal' },
     { key: 'penerimaan_zakatFitrah', label: '2. Zakat Fitrah' },
     { key: 'penerimaan_infakSedekah', label: '3. Infak/ Sedekah (Kotak Infak, Infak Jumat, Qris, Sedekah Subuh, Dll)' },
-    { key: 'penerimaan_infakBarangJasa', label: '4. Infak/ Sedekah Barang/Jasa (Daftar Terlampir)' },
+  ] as const;
+
+  const penerimaanRowsBawah = [
     { key: 'penerimaan_qurban', label: '5. Qurban' },
     { key: 'penerimaan_fidyah', label: '6. Fidyah' }
   ] as const;
+
+  const penerimaanRows = [...penerimaanRowsAtas, ...penerimaanRowsBawah] as const;
 
   const penyaluranRows = [
     { key: 'penyaluran_zakatMaal', label: '1. Zakat Maal' },
@@ -71,32 +75,23 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
     noWa: '',
     alamat: '',
     kecamatan: '',
-    ketuaTakmir: '',
-    bendahara: '',
-    tanggalSemarang: '',
-    picRelawanNama: '',
-    picRelawanNoWa: '',
-    penerimaan_zakatMaal: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-    penerimaan_zakatFitrah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-    penerimaan_infakSedekah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-    penerimaan_infakBarangJasa: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-    penerimaan_qurban: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-    penerimaan_fidyah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    saldoAwal: 0,
+    penerimaan_zakatMaal: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_zakatFitrah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
+    penerimaan_infakSedekah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_infakBarangJasa: { items: [] as { jenisBarang: string; merekSpesifikasi: string; jumlah: string; keterangan: string }[] },
+    penerimaan_qurban: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+    penerimaan_fidyah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
     penyaluran_zakatMaal: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-    penyaluran_zakatFitrah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_zakatFitrah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
     penyaluran_infakSedekah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-    penyaluran_qurban: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-    penyaluran_fidyah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_qurban: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+    penyaluran_fidyah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
   });
 
   const totalPenerimaanSaldoAwal = useMemo(() => {
-    let sum = 0;
-    penerimaanRows.forEach(row => {
-      const rowData = surveyForm[row.key] || { saldoAwal: 0 };
-      sum += Number(rowData.saldoAwal) || 0;
-    });
-    return sum;
-  }, [surveyForm]);
+    return Number(surveyForm.saldoAwal) || 0;
+  }, [surveyForm.saldoAwal]);
 
   const totalPenerimaanJumlahPenerimaan = useMemo(() => {
     let sum = 0;
@@ -269,22 +264,18 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
       noWa: task.noTelpon || '',
       alamat: task.alamat || '',
       kecamatan: task.kecamatan || '',
-      ketuaTakmir: '',
-      bendahara: '',
-      tanggalSemarang: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-      picRelawanNama: user?.name || '',
-      picRelawanNoWa: '',
-      penerimaan_zakatMaal: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-      penerimaan_zakatFitrah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-      penerimaan_infakSedekah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-      penerimaan_infakBarangJasa: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-      penerimaan_qurban: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-      penerimaan_fidyah: { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      saldoAwal: 0,
+      penerimaan_zakatMaal: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_zakatFitrah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
+      penerimaan_infakSedekah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_infakBarangJasa: { items: [] },
+      penerimaan_qurban: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+      penerimaan_fidyah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
       penyaluran_zakatMaal: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-      penyaluran_zakatFitrah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_zakatFitrah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
       penyaluran_infakSedekah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-      penyaluran_qurban: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-      penyaluran_fidyah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_qurban: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+      penyaluran_fidyah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
     });
     setEditingHistory(null);
     setViewMode('surveyForm');
@@ -345,22 +336,18 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
         noWa: task.survey_data.noWa || task.noTelpon || '',
         alamat: task.survey_data.alamat || task.alamat || '',
         kecamatan: task.survey_data.kecamatan || task.kecamatan || '',
-        ketuaTakmir: task.survey_data.ketuaTakmir || '',
-        bendahara: task.survey_data.bendahara || '',
-        tanggalSemarang: task.survey_data.tanggalSemarang || '',
-        picRelawanNama: task.survey_data.picRelawanNama || user?.name || '',
-        picRelawanNoWa: task.survey_data.picRelawanNoWa || '',
-        penerimaan_zakatMaal: task.survey_data.penerimaan_zakatMaal || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-        penerimaan_zakatFitrah: task.survey_data.penerimaan_zakatFitrah || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-        penerimaan_infakSedekah: task.survey_data.penerimaan_infakSedekah || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-        penerimaan_infakBarangJasa: task.survey_data.penerimaan_infakBarangJasa || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-        penerimaan_qurban: task.survey_data.penerimaan_qurban || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
-        penerimaan_fidyah: task.survey_data.penerimaan_fidyah || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        saldoAwal: task.survey_data.saldoAwal || 0,
+        penerimaan_zakatMaal: task.survey_data.penerimaan_zakatMaal || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penerimaan_zakatFitrah: task.survey_data.penerimaan_zakatFitrah || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
+        penerimaan_infakSedekah: task.survey_data.penerimaan_infakSedekah || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+        penerimaan_infakBarangJasa: task.survey_data.penerimaan_infakBarangJasa || { items: [] },
+        penerimaan_qurban: task.survey_data.penerimaan_qurban || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+        penerimaan_fidyah: task.survey_data.penerimaan_fidyah || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
         penyaluran_zakatMaal: task.survey_data.penyaluran_zakatMaal || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-        penyaluran_zakatFitrah: task.survey_data.penyaluran_zakatFitrah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+        penyaluran_zakatFitrah: task.survey_data.penyaluran_zakatFitrah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
         penyaluran_infakSedekah: task.survey_data.penyaluran_infakSedekah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-        penyaluran_qurban: task.survey_data.penyaluran_qurban || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
-        penyaluran_fidyah: task.survey_data.penyaluran_fidyah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+        penyaluran_qurban: task.survey_data.penyaluran_qurban || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+        penyaluran_fidyah: task.survey_data.penyaluran_fidyah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
       });
     }
     setEditingHistory(task);
@@ -457,7 +444,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                 onClick={() => handleOpenNewSurvey(selectedTask)}
                 className="w-full py-4 bg-amber-500 text-white rounded-2xl text-base font-black shadow-xl shadow-amber-500/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
-                <Camera className="size-5" /> Isi Assessment OBS
+                <Camera className="size-5" /> Isi Laporan OBS
               </button>
             )}
           </div>
@@ -489,7 +476,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
           </button>
           <div className="text-center">
             <h3 className="font-black text-slate-800">
-              {isEditMode ? 'Edit Survei OBS' : 'Assessment Off-Balancing'}
+              {isEditMode ? 'Edit Laporan OBS' : 'Laporan OBS'}
             </h3>
             {isEditMode && (
               <p className="text-[10px] text-amber-600 font-bold">Mode Edit Aktif</p>
@@ -504,7 +491,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
 
         <form id="obs-survey-form" onSubmit={handleSubmitSurvey} className="flex-1 overflow-y-auto p-6 space-y-6 pb-32 custom-scrollbar">
           
-          {/* Section 1: Informasi UPZ */}
+          {/* Section 1: Informasi UPZ + Saldo Awal */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
             <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider border-b pb-2">Informasi UPZ Masjid/Musholla</h4>
             
@@ -561,6 +548,22 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-500 outline-none"
                 />
               </div>
+
+              {/* Single global Saldo Awal */}
+              <div className="pt-3 border-t border-slate-100">
+                <label className="text-[10px] font-bold text-emerald-700 uppercase block mb-1">Saldo Awal Periode (Keseluruhan)</label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-xs font-extrabold text-slate-400">Rp</span>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={formatRupiah(surveyForm.saldoAwal)}
+                    onChange={e => setSurveyForm(prev => ({ ...prev, saldoAwal: parseRupiah(e.target.value) }))}
+                    className="w-full bg-emerald-50 border border-emerald-200 focus:bg-white rounded-xl pl-9 pr-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                  />
+                </div>
+                <p className="text-[9px] text-slate-400 mt-1">Saldo kas awal periode (Jan) sebelum penerimaan berjalan.</p>
+              </div>
             </div>
           </div>
 
@@ -571,8 +574,8 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
             </div>
 
             <div className="space-y-4">
-              {penerimaanRows.map((row) => {
-                const rowData = surveyForm[row.key] || { saldoAwal: 0, jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' };
+              {penerimaanRowsAtas.map((row) => {
+                const rowData = surveyForm[row.key] || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' };
                 return (
                   <div key={row.key} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
                     <div className="flex items-center gap-1.5 pb-2 border-b border-slate-50">
@@ -581,20 +584,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Saldo Awal</label>
-                        <div className="relative flex items-center">
-                          <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
-                          <input
-                            type="text"
-                            placeholder="0"
-                            value={formatRupiah(rowData.saldoAwal)}
-                            onChange={e => handlePenerimaanChange(row.key, 'saldoAwal', parseRupiah(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Penerimaan</label>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Penerimaan (Rp)</label>
                         <div className="relative flex items-center">
                           <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
                           <input
@@ -606,8 +596,6 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                           />
                         </div>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2.5">
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase">Donatur (Orang)</label>
                         <input
@@ -618,17 +606,207 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Keterangan</label>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase">Keterangan</label>
+                      <input
+                        type="text"
+                        placeholder="Keterangan..."
+                        value={rowData.keterangan || ''}
+                        onChange={e => handlePenerimaanChange(row.key, 'keterangan', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                    {/* Extra: Beras for Zakat Fitrah */}
+                    {row.key === 'penerimaan_zakatFitrah' && (
+                      <div className="space-y-1 border-t border-slate-50 pt-2">
+                        <label className="text-[9px] font-bold text-emerald-600 uppercase">Beras (kg)</label>
                         <input
-                          type="text"
-                          placeholder="Keterangan..."
-                          value={rowData.keterangan || ''}
-                          onChange={e => handlePenerimaanChange(row.key, 'keterangan', e.target.value)}
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="0"
+                          value={rowData.beras || ''}
+                          onChange={e => handlePenerimaanChange(row.key, 'beras', Number(e.target.value))}
+                          className="w-full bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Infak / Sedekah Barang & Jasa — dynamic items */}
+              {(() => {
+                const items: { jenisBarang: string; merekSpesifikasi: string; jumlah: string; keterangan: string }[] =
+                  surveyForm.penerimaan_infakBarangJasa?.items || [];
+                const setItems = (newItems: typeof items) =>
+                  setSurveyForm(prev => ({ ...prev, penerimaan_infakBarangJasa: { items: newItems } }));
+                return (
+                  <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-50">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                        <span className="font-bold text-slate-800 text-xs">4. Infak/ Sedekah Barang &amp; Jasa</span>
+                      </div>
+                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">{items.length} item</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 italic">Penerimaan yang berupa barang/jasa untuk keperluan Masjid/Musholla.</p>
+                    {items.length === 0 && (
+                      <p className="text-[10px] text-slate-400 text-center py-2">Belum ada item. Klik tombol di bawah untuk menambah.</p>
+                    )}
+                    {items.map((item, idx) => (
+                      <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] font-black text-slate-500 uppercase">Item #{idx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                            className="text-rose-400 hover:text-rose-600 text-[9px] font-bold"
+                          >✕ Hapus</button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Jenis Barang/Jasa</label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: Karpet, AC..."
+                              value={item.jenisBarang}
+                              onChange={e => { const n = [...items]; n[idx] = { ...n[idx], jenisBarang: e.target.value }; setItems(n); }}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Merek / Spesifikasi</label>
+                            <input
+                              type="text"
+                              placeholder="Merek atau spesifikasi..."
+                              value={item.merekSpesifikasi}
+                              onChange={e => { const n = [...items]; n[idx] = { ...n[idx], merekSpesifikasi: e.target.value }; setItems(n); }}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Jumlah</label>
+                            <input
+                              type="text"
+                              placeholder="Contoh: 2 unit..."
+                              value={item.jumlah}
+                              onChange={e => { const n = [...items]; n[idx] = { ...n[idx], jumlah: e.target.value }; setItems(n); }}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Keterangan</label>
+                            <input
+                              type="text"
+                              placeholder="Keterangan..."
+                              value={item.keterangan}
+                              onChange={e => { const n = [...items]; n[idx] = { ...n[idx], keterangan: e.target.value }; setItems(n); }}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setItems([...items, { jenisBarang: '', merekSpesifikasi: '', jumlah: '', keterangan: '' }])}
+                      className="w-full py-2 border-2 border-dashed border-amber-300 text-amber-600 rounded-xl text-xs font-bold hover:bg-amber-50 transition flex items-center justify-center gap-1.5"
+                    >+ Tambah Barang/Jasa</button>
+                  </div>
+                );
+              })()}
+
+              {penerimaanRowsBawah.map((row) => {
+                const rowData = surveyForm[row.key] || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' };
+                return (
+                  <div key={row.key} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
+                    <div className="flex items-center gap-1.5 pb-2 border-b border-slate-50">
+                      <span className="w-1.5 h-3 bg-emerald-500 rounded-full" />
+                      <span className="font-bold text-slate-800 text-xs">{row.label}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Penerimaan (Rp)</label>
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
+                          <input
+                            type="text"
+                            placeholder="0"
+                            value={formatRupiah(rowData.jumlahPenerimaan)}
+                            onChange={e => handlePenerimaanChange(row.key, 'jumlahPenerimaan', parseRupiah(e.target.value))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Donatur (Orang)</label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={rowData.jumlahDonatur || ''}
+                          onChange={e => handlePenerimaanChange(row.key, 'jumlahDonatur', Number(e.target.value))}
                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
                         />
                       </div>
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase">Keterangan</label>
+                      <input
+                        type="text"
+                        placeholder="Keterangan..."
+                        value={rowData.keterangan || ''}
+                        onChange={e => handlePenerimaanChange(row.key, 'keterangan', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                    {/* Extra: Kambing/Domba & Sapi/Kerbau for Qurban */}
+                    {row.key === 'penerimaan_qurban' && (
+                      <div className="grid grid-cols-2 gap-2.5 border-t border-slate-50 pt-2">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-emerald-600 uppercase">Kambing/Domba (ekor)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            value={rowData.kambingDomba || ''}
+                            onChange={e => handlePenerimaanChange(row.key, 'kambingDomba', Number(e.target.value))}
+                            className="w-full bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-emerald-600 uppercase">Sapi/Kerbau (ekor)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            value={rowData.sapiKerbau || ''}
+                            onChange={e => handlePenerimaanChange(row.key, 'sapiKerbau', Number(e.target.value))}
+                            className="w-full bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {/* Extra: Beras for Fidyah */}
+                    {row.key === 'penerimaan_fidyah' && (
+                      <div className="space-y-1 border-t border-slate-50 pt-2">
+                        <label className="text-[9px] font-bold text-emerald-600 uppercase">Beras (kg)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="0"
+                          value={rowData.beras || ''}
+                          onChange={e => handlePenerimaanChange(row.key, 'beras', Number(e.target.value))}
+                          className="w-full bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -636,7 +814,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
               {/* Subtotal Penerimaan */}
               <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 space-y-2 text-xs font-bold text-slate-700">
                 <div className="flex justify-between">
-                  <span>Total Saldo Awal:</span>
+                  <span>Saldo Awal:</span>
                   <span className="text-slate-900">
                     {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalPenerimaanSaldoAwal)}
                   </span>
@@ -711,6 +889,65 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-500"
                       />
                     </div>
+                    {/* Extra: Beras for Zakat Fitrah */}
+                    {row.key === 'penyaluran_zakatFitrah' && (
+                      <div className="space-y-1 border-t border-slate-50 pt-2">
+                        <label className="text-[9px] font-bold text-rose-500 uppercase">Beras (kg)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="0"
+                          value={rowData.beras || ''}
+                          onChange={e => handlePenyaluranChange(row.key, 'beras', Number(e.target.value))}
+                          className="w-full bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-400"
+                        />
+                      </div>
+                    )}
+                    {/* Extra: Kambing/Domba & Sapi/Kerbau for Qurban */}
+                    {row.key === 'penyaluran_qurban' && (
+                      <div className="grid grid-cols-2 gap-2.5 border-t border-slate-50 pt-2">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-rose-500 uppercase">Kambing/Domba (ekor)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            value={rowData.kambingDomba || ''}
+                            onChange={e => handlePenyaluranChange(row.key, 'kambingDomba', Number(e.target.value))}
+                            className="w-full bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-400"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-rose-500 uppercase">Sapi/Kerbau (ekor)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            value={rowData.sapiKerbau || ''}
+                            onChange={e => handlePenyaluranChange(row.key, 'sapiKerbau', Number(e.target.value))}
+                            className="w-full bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-400"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {/* Extra: Beras for Fidyah */}
+                    {row.key === 'penyaluran_fidyah' && (
+                      <div className="space-y-1 border-t border-slate-50 pt-2">
+                        <label className="text-[9px] font-bold text-rose-500 uppercase">Beras (kg)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="0"
+                          value={rowData.beras || ''}
+                          onChange={e => handlePenyaluranChange(row.key, 'beras', Number(e.target.value))}
+                          className="w-full bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:bg-white outline-none focus:ring-1 focus:ring-rose-400"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -742,74 +979,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
             </div>
           </div>
 
-          {/* Section 5: Signature / Pihak Terkait */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-            <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider border-b pb-2">Tanda Tangan Pihak Terkait</h4>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Ketua Takmir Masjid / UPZ</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Nama Ketua Takmir..."
-                  value={surveyForm.ketuaTakmir || ''}
-                  onChange={e => setSurveyForm(prev => ({ ...prev, ketuaTakmir: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
-                />
-              </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Bendahara UPZ</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Nama Bendahara..."
-                  value={surveyForm.bendahara || ''}
-                  onChange={e => setSurveyForm(prev => ({ ...prev, bendahara: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Semarang, Tanggal Laporan</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Tanggal laporan (e.g. 30 Juni 2026)..."
-                  value={surveyForm.tanggalSemarang || ''}
-                  onChange={e => setSurveyForm(prev => ({ ...prev, tanggalSemarang: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
-                />
-              </div>
-
-              <div className="border-t pt-3 mt-2 space-y-3">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Nama PIC Relawan (Penilai)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nama relawan..."
-                    value={surveyForm.picRelawanNama || ''}
-                    onChange={e => setSurveyForm(prev => ({ ...prev, picRelawanNama: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">No. WA PIC Relawan</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="No WA relawan..."
-                    value={surveyForm.picRelawanNoWa || ''}
-                    onChange={e => setSurveyForm(prev => ({ ...prev, picRelawanNoWa: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 transition"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
 
           <div className="p-6 bg-gradient-to-t from-white via-white to-transparent pt-12 pointer-events-auto shrink-0">
             <button
@@ -837,7 +1007,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
     <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 h-screen flex flex-col relative shadow-xl overflow-hidden pb-16">
       {/* Top App Bar — same as TimSurvei */}
       <div className="flex justify-center items-center px-6 py-4 bg-white z-20 shrink-0">
-        <h1 className="text-emerald-600 font-extrabold text-xl tracking-tight">BAZNAS Survei OBS</h1>
+        <h1 className="text-emerald-600 font-extrabold text-xl tracking-tight">BAZNAS Pelaporan OBS</h1>
       </div>
 
       {bottomNav === 'home' ? (
@@ -845,7 +1015,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
           {/* Header + Tab Switcher — exactly TimSurvei style */}
           <div className="px-6 pt-4 pb-4 bg-white shrink-0">
             <h2 className="text-[28px] font-black text-slate-900 leading-tight">Hallo, {userFirstName}!</h2>
-            <p className="text-slate-500 font-medium">Siap assessment OBS hari ini?</p>
+            <p className="text-slate-500 font-medium">Siap pelaporan OBS hari ini?</p>
           </div>
 
           <div className="flex px-4 border-b border-slate-200 bg-white shrink-0">
@@ -872,7 +1042,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
       ) : (
         <div className="px-6 pt-4 pb-4 bg-emerald-600 shrink-0 text-white">
           <h2 className="text-[28px] font-black leading-tight">Riwayat Tugas</h2>
-          <p className="font-medium text-emerald-100">Assessment OBS yang pernah kamu lakukan.</p>
+          <p className="font-medium text-emerald-100">Pelaporan OBS yang pernah kamu lakukan.</p>
         </div>
       )}
 
@@ -964,7 +1134,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
           {bottomNav === 'riwayat' && historyTasks.length === 0 ? (
             <div className="pt-12 flex flex-col items-center justify-center text-slate-400 space-y-4">
               <History className="size-16 opacity-20" />
-              <p className="text-sm font-medium">Belum ada riwayat survei yang selesai.</p>
+              <p className="text-sm font-medium">Belum ada riwayat laporan yang selesai.</p>
             </div>
           ) : bottomNav === 'riwayat' && historyTasks.length > 0 ? (
             historyTasks.map((task) => {
@@ -977,7 +1147,7 @@ export default function SurveiObs({ data, onUpdate }: SurveiObsProps) {
                       UPZ MASJID
                     </div>
                     <span className="text-emerald-600 text-[11px] font-bold flex items-center gap-1">
-                      <CheckCircle2 className="size-3" /> Survei Selesai
+                      <CheckCircle2 className="size-3" /> Laporan Selesai
                     </span>
                   </div>
                   <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">{task.namaPemohon}</h3>

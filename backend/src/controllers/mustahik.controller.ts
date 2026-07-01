@@ -546,3 +546,37 @@ export const cekBantuanNik = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ status: 'error', error: String(error) });
   }
 };
+
+export const getMustahikByNrm = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nrm } = req.params;
+    const mustahik = await prisma.mustahik.findUnique({
+      where: { nrm: String(nrm) }
+    });
+    if (!mustahik) {
+      res.status(404).json({ status: 'error', message: 'NRM tidak ditemukan.' });
+      return;
+    }
+    res.status(200).json({ status: 'success', data: mustahik });
+  } catch (error) {
+    console.error('Error fetching Mustahik by NRM:', error);
+    res.status(500).json({ status: 'error', error: String(error) });
+  }
+};
+
+export const getMustahikByNik = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nik } = req.params;
+    const mustahik = await prisma.mustahik.findUnique({
+      where: { nik: String(nik) }
+    });
+    if (!mustahik) {
+      res.status(404).json({ status: 'error', message: 'NIK tidak ditemukan.' });
+      return;
+    }
+    res.status(200).json({ status: 'success', data: mustahik });
+  } catch (error) {
+    console.error('Error fetching Mustahik by NIK:', error);
+    res.status(500).json({ status: 'error', error: String(error) });
+  }
+};

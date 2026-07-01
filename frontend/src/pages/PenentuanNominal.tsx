@@ -143,9 +143,11 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
     const initialNominals: Record<string, string> = { ...nominalInputs };
     filteredData.forEach(item => {
       if (initialNominals[item.id] === undefined) {
-        const defaultNominal = item.nominal || getRKATBudget(item.programCode || item.jenisPermohonan, item.asnaf, item.rkatActivityId);
-        if (defaultNominal !== undefined) {
-          initialNominals[item.id] = defaultNominal.toString();
+        const defaultVal = item.volume && item.volume > 1
+          ? (item.rekomendasi_unit_cost || (item.nominal ? Math.round(item.nominal / item.volume) : 0) || getRKATBudget(item.programCode || item.jenisPermohonan, item.asnaf, item.rkatActivityId))
+          : (item.nominal || getRKATBudget(item.programCode || item.jenisPermohonan, item.asnaf, item.rkatActivityId));
+        if (defaultVal !== undefined && defaultVal !== null) {
+          initialNominals[item.id] = defaultVal.toString();
         }
       }
     });
@@ -203,18 +205,23 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
     const item = data.find(d => d.id === id);
     if (!item) return;
 
-    const nominalStr = nominalInputs[id] || '0';
-    const nominal = parseInt(nominalStr);
+    const inputValStr = nominalInputs[id] || '0';
+    const inputVal = parseInt(inputValStr);
     const defaultNominal = getRKATBudget(item.programCode || item.jenisPermohonan, item.asnaf, item.rkatActivityId);
     const alasan = alasanInputs[id] || '';
 
-    if (nominal <= 0) {
-      alert('Mohon tentukan nominal bantuan.');
+    const isLembagaPerorangan = !!(item.volume && item.volume > 1);
+    const finalUnitCost = inputVal;
+    const finalNominal = isLembagaPerorangan ? ((item.volume || 1) * inputVal) : inputVal;
+
+    if (inputVal <= 0) {
+      alert(isLembagaPerorangan ? 'Mohon tentukan unit cost bantuan.' : 'Mohon tentukan nominal bantuan.');
       return;
     }
 
-    if (defaultNominal !== undefined && nominal !== defaultNominal && !alasan.trim()) {
-      alert('Mohon isi alasan perubahan nominal karena tidak sesuai dengan RKAT.');
+    const isDifferent = defaultNominal !== undefined && inputVal !== defaultNominal;
+    if (isDifferent && !alasan.trim()) {
+      alert(isLembagaPerorangan ? 'Mohon isi alasan perubahan unit cost karena tidak sesuai dengan RKAT.' : 'Mohon isi alasan perubahan nominal karena tidak sesuai dengan RKAT.');
       return;
     }
 
@@ -225,18 +232,24 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
 
     setIsSubmitting(true);
     try {
-      await axios.put(`/api/proposals/${id}`, {
-        nominal,
-        alasan_perubahan_nominal: (defaultNominal !== undefined && nominal !== defaultNominal) ? alasan : undefined,
+      const payload: any = {
+        nominal: finalNominal,
+        alasan_perubahan_nominal: isDifferent ? alasan : undefined,
         status: 'Pencairan_Dana'
-      });
+      };
+      if (isLembagaPerorangan) {
+        payload.rekomendasi_unit_cost = finalUnitCost;
+      }
+
+      await axios.put(`/api/proposals/${id}`, payload);
 
       const updatedData = data.map(p =>
         p.id === id ? {
           ...p,
-          nominal,
+          nominal: finalNominal,
+          rekomendasi_unit_cost: isLembagaPerorangan ? finalUnitCost : p.rekomendasi_unit_cost,
           status: 'Pencairan Dana' as any,
-          alasanPerubahanNominal: (defaultNominal !== undefined && nominal !== defaultNominal) ? alasan : undefined
+          alasanPerubahanNominal: isDifferent ? alasan : undefined
         } : p
       );
       onUpdate(updatedData);
@@ -353,12 +366,27 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-3">
+                        {item.volume && item.volume > 1 && (
+                          <div className="flex items-center gap-1">
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[9px] font-black uppercase">
+                              Volume: {item.volume}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">Rp</span>
                             <input
                               type="text"
-                              value={nominalInputs[item.id] !== undefined ? nominalInputs[item.id] : (item.nominal?.toString() || '')}
+                              value={
+                                (() => {
+                                  const rawVal = nominalInputs[item.id] !== undefined ? nominalInputs[item.id] : (item.nominal?.toString() || '');
+                                  if (!rawVal) return '';
+                                  const parsed = parseInt(rawVal.replace(/[^0-9]/g, ''));
+                                  return isNaN(parsed) ? '' : parsed.toLocaleString('id-ID');
+                                })()
+                              }
                               onChange={(e) => handleNominalChange(item.id, e.target.value)}
                               placeholder="0"
                               className={cn(
@@ -378,6 +406,12 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                           )}
                         </div>
 
+                        {item.volume && item.volume > 1 && (
+                          <div className="text-[11px] font-black text-primary bg-primary/5 px-2 py-1 rounded border border-primary/10 w-fit">
+                            Total Realisasi: {formatCurrency(item.volume * currentNominal)}
+                          </div>
+                        )}
+
                         <div className="flex flex-col gap-1 text-[10px] font-bold text-slate-400">
                           {item.asnaf && (
                             <span className="text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded w-fit">
@@ -387,7 +421,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                           {defaultNominal !== undefined ? (
                             <div className="flex items-center gap-1">
                               <Info className="size-3 text-slate-400" />
-                              <span>RKAT: {formatCurrency(defaultNominal)}</span>
+                              <span>{item.volume && item.volume > 1 ? 'RKAT (Unit Cost)' : 'RKAT'}: {formatCurrency(defaultNominal)}</span>
                             </div>
                           ) : (
                             <span className="italic">Belum ada budget RKAT</span>
@@ -407,7 +441,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                             <textarea
                               value={alasanInputs[item.id] || ''}
                               onChange={(e) => handleAlasanChange(item.id, e.target.value)}
-                              placeholder="Jelaskan alasan perubahan nominal..."
+                              placeholder={item.volume && item.volume > 1 ? "Jelaskan alasan perubahan unit cost..." : "Jelaskan alasan perubahan nominal..."}
                               className="w-full text-[11px] bg-amber-50/50 border border-amber-200 rounded-lg p-2 focus:ring-amber-500 focus:border-amber-500 outline-none min-h-[60px] resize-none font-medium"
                             />
                           </motion.div>

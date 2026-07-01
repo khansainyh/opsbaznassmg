@@ -19,9 +19,7 @@ import {
   ChevronDown,
   Check,
   Repeat2,
-  FlaskConical,
-  ToggleLeft,
-  ToggleRight
+  FlaskConical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -90,12 +88,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const currentMonthValue = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
-  }, []);
 
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthValue);
+  const [selectedMonth, setSelectedMonth] = useState<string>('Semua');
 
   const monthOptions = useMemo(() => {
     const options = [{ value: 'Semua', label: 'Semua Bulan' }];
@@ -510,6 +504,8 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
   const tasks = useMemo(() => {
     return data.filter(item => {
+      if (item.jenisPengajuan === 'OBS') return false;
+
       const isTaskStatus = ['Monitoring Tugas', 'Proses Disposisi', 'Survei Assessment', 'Survei Selesai', 'Selesai', 'Antrean Bantuan', 'Review Kepala Pelaksana', 'Persetujuan Pimpinan', 'Penentuan Nominal', 'Pencairan Dana', 'Arsip'].includes(item.status);
       if (!isTaskStatus) return false;
 
@@ -571,8 +567,14 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         asnaf: selectedAsnaf,
         rekomendasi_kabag: rekomendasiKabag,
         hasil_identifikasi: hasilIdentifikasi,
-        approval_kabag: true
+        approval_kabag: true,
+        is_rutin: isBantuanBerulang,
+        butuh_survei: perluSurvei
       };
+      if (isBantuanBerulang) {
+        payload.frekuensi_berulang = frekuensiBerulang;
+        payload.tanggal_pencairan = tanggalPencairan;
+      }
       if (changedProgramCode) {
         payload.jenis_permohonan = changedProgramCode;
       }
@@ -586,6 +588,10 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         rekomendasi_kabag: rekomendasiKabag,
         hasil_identifikasi: hasilIdentifikasi,
         approval_kabag: true,
+        is_rutin: isBantuanBerulang,
+        frekuensi_berulang: isBantuanBerulang ? frekuensiBerulang : undefined,
+        tanggal_pencairan: isBantuanBerulang ? tanggalPencairan : undefined,
+        butuh_survei: perluSurvei,
         ...(changedProgramCode && newProg ? {
           programCode: changedProgramCode,
           jenisPermohonan: newProg.name,
@@ -624,11 +630,17 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         payload.frekuensi_berulang = frekuensiBerulang;
         payload.tanggal_pencairan = tanggalPencairan;
       }
-      // If survey is not required, skip the survey step and move to Antrean Bantuan
+      
+      // If survey is not required, transition status to 'Selesai' (waiting for Kabid recommendation)
       if (!perluSurvei) {
-        payload.status = 'Antrean_Bantuan';
-        if (!task.asnaf) payload.asnaf = 'Miskin';
+        payload.status = 'Selesai';
+      } else {
+        // If needs survey is changed back to true and has no recommendation yet, reset status to 'Monitoring Tugas'
+        if (task.status === 'Selesai' && !task.rekomendasi_kabag) {
+          payload.status = 'Monitoring_Tugas';
+        }
       }
+
       await axios.put(`/api/proposals/${task.id}`, payload);
       const updatedTask = {
         ...task,
@@ -636,7 +648,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         frekuensi_berulang: isBantuanBerulang ? frekuensiBerulang : undefined,
         tanggal_pencairan: isBantuanBerulang ? tanggalPencairan : undefined,
         butuh_survei: perluSurvei,
-        ...(!perluSurvei ? { status: 'Antrean Bantuan' } : {})
+        ...(payload.status ? { status: payload.status.replace(/_/g, ' ') } : {})
       };
       const updatedList = data.map(d => d.id === task.id ? updatedTask : d);
       onUpdate(updatedList);
@@ -695,10 +707,6 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     if (!code) return false;
     const tipe = programTipeMap[code];
     return tipe === 'Produktif';
-  });
-  const otherTasks = filteredTasks.filter(t => {
-    const code = getParentProgramCode(t.programCode);
-    return !code;
   });
 
   const renderTaskTable = (title: string, tableTasks: typeof filteredTasks) => {
@@ -930,7 +938,6 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
           <div className="flex-1 overflow-y-auto p-0 custom-scrollbar relative">
             {renderTaskTable('Bantuan Konsumtif', konsumtifTasks)}
             {renderTaskTable('Bantuan Produktif', produktifTasks)}
-            {renderTaskTable('Kategori Lainnya', otherTasks)}
           </div>
         </div>
       ) : (
@@ -1055,7 +1062,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {tasks.slice(0, 5).map((task) => {
+                    {filteredTasks.slice(0, 5).map((task) => {
                       const status = getSurveyStatus(task);
                       return (
                         <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
@@ -1460,7 +1467,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     <div className="col-span-full mt-4 pt-4 border-t border-slate-100 space-y-4">
                       <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                         <SlidersHorizontal className="size-4 text-primary" />
-                        Pengaturan Disposisi
+                        Pengaturan Tindak Lanjut
                       </h4>
 
                       {/* Survei Required Toggle */}
@@ -1483,15 +1490,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             type="button"
                             onClick={() => setPerluSurvei(p => !p)}
                             className={cn(
-                              "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all border",
-                              perluSurvei
-                                ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
-                                : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                              perluSurvei ? "bg-primary" : "bg-slate-200"
                             )}
                           >
-                            {perluSurvei
-                              ? <><ToggleRight className="size-4" /> Ya, Perlu Survei</>
-                              : <><ToggleLeft className="size-4" /> Tidak Perlu Survei</>}
+                            <span
+                              className={cn(
+                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                perluSurvei ? "translate-x-5" : "translate-x-0"
+                              )}
+                            />
                           </button>
                         </div>
                         {!perluSurvei && (
@@ -1522,15 +1530,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             type="button"
                             onClick={() => setIsBantuanBerulang(b => !b)}
                             className={cn(
-                              "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all border",
-                              isBantuanBerulang
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                                : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                              isBantuanBerulang ? "bg-primary" : "bg-slate-200"
                             )}
                           >
-                            {isBantuanBerulang
-                              ? <><ToggleRight className="size-4" /> Aktif</>
-                              : <><ToggleLeft className="size-4" /> Tidak Aktif</>}
+                            <span
+                              className={cn(
+                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                isBantuanBerulang ? "translate-x-5" : "translate-x-0"
+                              )}
+                            />
                           </button>
                         </div>
 
@@ -1585,7 +1594,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                         className="w-full py-2.5 px-4 bg-primary text-white rounded-xl text-sm font-black hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                       >
                         <CheckCircle2 className="size-4" />
-                        Simpan Pengaturan Disposisi
+                        Simpan Pengaturan Tindak Lanjut
                       </button>
                     </div>
                   )}
@@ -1622,7 +1631,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                       </div>
                     </div>
                   ) : (
-                    getSurveyStatus(selectedTask) === 'Selesai' && 
+                    (getSurveyStatus(selectedTask) === 'Selesai' || !perluSurvei) && 
                     (isSuperAdmin || 
                      (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 
                      (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif') ||
@@ -1832,7 +1841,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
                 <button onClick={() => setIsDetailModalOpen(false)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Tutup</button>
-                {getSurveyStatus(selectedTask) === 'Selesai' && (
+                {(getSurveyStatus(selectedTask) === 'Selesai' || !perluSurvei) && (
                   <>
                     {(isSuperAdmin || 
                       (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 

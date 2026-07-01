@@ -162,6 +162,9 @@ model Proposal {
   frekuensi_berulang       Int?
   tanggal_pencairan        Int?
   butuh_survei             Boolean?  @default(true)
+  penerima_detail          Json?
+  volume                   Int?      @default(1)
+  rekomendasi_unit_cost    Int?
   program                  Program?  @relation(fields: [jenis_permohonan], references: [code])
   mustahik                 Mustahik? @relation(fields: [mustahik_id], references: [id])
 
