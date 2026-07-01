@@ -352,6 +352,7 @@ model PenerimaanZis {
   tanggal_pembayaran DateTime         @default(now())
   keterangan         String?          @db.Text
   status_simba       String           @default("PENDING")
+  no_transaksi_simba String?
   transaksi_id       String?
   created_at         DateTime         @default(now())
   updated_at         DateTime         @updatedAt

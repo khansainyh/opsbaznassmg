@@ -5,6 +5,30 @@ import { Prisma } from '@prisma/client';
 export const getPenerimaanZis = async (req: Request, res: Response) => {
   try {
     const list = await prisma.penerimaanZis.findMany({
+      where: {
+        status_simba: {
+          not: 'FAILED'
+        },
+        NOT: [
+          {
+            no_kuitansi: {
+              contains: 'Gagal'
+            }
+          },
+          {
+            AND: [
+              { keterangan: { not: null } },
+              { keterangan: { contains: 'Gagal Potong' } }
+            ]
+          },
+          {
+            AND: [
+              { keterangan: { not: null } },
+              { keterangan: { contains: 'failed_deduction' } }
+            ]
+          }
+        ]
+      },
       include: {
         muzakki: true,
         rkat: true,
@@ -34,7 +58,17 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       };
     }));
 
-    res.status(200).json({ status: 'success', data: listWithCoa });
+    // Double-ensure in-memory filtering for Gagal Potong and FAILED
+    const cleanList = listWithCoa.filter((item: any) => {
+      const k = (item.keterangan || '').toLowerCase();
+      const nk = (item.no_kuitansi || '').toLowerCase();
+      if (item.status_simba === 'FAILED') return false;
+      if (nk.includes('/ gagal /') || nk.includes('gagal potong') || nk.includes('gagal')) return false;
+      if (k.includes('gagal potong') || k.includes('failed_deduction') || k.includes('failed')) return false;
+      return true;
+    });
+
+    res.status(200).json({ status: 'success', data: cleanList });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: String(error) });
@@ -45,7 +79,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
   try {
     const { 
       no_kuitansi, muzakki_id, rkat_id, bank_account_id, nominal, 
-      metode_pembayaran, tanggal_pembayaran, keterangan, coa_code
+      metode_pembayaran, tanggal_pembayaran, keterangan, coa_code, no_transaksi_simba
     } = req.body;
 
     if (!muzakki_id || (!rkat_id && !coa_code) || !bank_account_id || !nominal || Number(nominal) <= 0) {
@@ -307,6 +341,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
           metode_pembayaran: metode_pembayaran || 'TRANSFER',
+          no_transaksi_simba: no_transaksi_simba || null,
           tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
           keterangan: formattedKeterangan,
           status_simba: 'PENDING',
@@ -332,7 +367,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
 export const updateSimbaStatus = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { status_simba } = req.body;
+    const { status_simba, keterangan, no_transaksi_simba } = req.body;
 
     if (!['PENDING', 'SYNCED'].includes(status_simba)) {
       res.status(400).json({ error: 'Status SIMBA tidak valid' });
@@ -348,9 +383,22 @@ export const updateSimbaStatus = async (req: Request, res: Response) => {
       return;
     }
 
+    if (status_simba === 'SYNCED' && existing.metode_pembayaran === 'TUNAI' && (!no_transaksi_simba || !no_transaksi_simba.trim())) {
+      res.status(400).json({ error: 'No Transaksi SIMBA wajib diisi untuk metode pembayaran Kas Tunai!' });
+      return;
+    }
+
+    const dataToUpdate: any = { status_simba };
+    if (keterangan !== undefined) {
+      dataToUpdate.keterangan = keterangan;
+    }
+    if (no_transaksi_simba !== undefined) {
+      dataToUpdate.no_transaksi_simba = no_transaksi_simba;
+    }
+
     const updated = await prisma.penerimaanZis.update({
       where: { id },
-      data: { status_simba },
+      data: dataToUpdate,
       include: {
         muzakki: true,
         rkat: true,
@@ -370,7 +418,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const { 
       muzakki_id, rkat_id, bank_account_id, nominal, 
-      metode_pembayaran, tanggal_pembayaran, keterangan, coa_code 
+      metode_pembayaran, tanggal_pembayaran, keterangan, coa_code, no_transaksi_simba
     } = req.body;
 
     const existing = await prisma.penerimaanZis.findUnique({
@@ -489,6 +537,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
           metode_pembayaran: metode_pembayaran || 'TRANSFER',
+          no_transaksi_simba: no_transaksi_simba || null,
           tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
           keterangan: formattedKeterangan
         },

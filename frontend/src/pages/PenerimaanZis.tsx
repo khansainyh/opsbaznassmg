@@ -16,13 +16,18 @@ import {
   TrendingUp,
   FileSpreadsheet,
   Edit3,
-  BookOpen
+  BookOpen,
+  Printer,
+  FileText,
+  Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // SummaryCard Component
 function SummaryCard({ title, value, subtext, icon, colorClass }: any) {
@@ -56,6 +61,21 @@ export default function PenerimaanZis() {
   const [npwzModalOpen, setNpwzModalOpen] = useState(false);
   const [selectedMuzakkiForNpwz, setSelectedMuzakkiForNpwz] = useState<any>(null);
   const [newNpwzValue, setNewNpwzValue] = useState('');
+  const [isSimbaPromptOpen, setIsSimbaPromptOpen] = useState(false);
+  const [promptSimbaItem, setPromptSimbaItem] = useState<any>(null);
+  const [promptSimbaValue, setPromptSimbaValue] = useState('');
+
+  // States for Cetak Laporan Modal
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportStartDate, setReportStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+  const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [pdfReportDate, setPdfReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [signatories, setSignatories] = useState({
+    kabagKeuangan: '',
+    kabidPengumpulan: '',
+    stafPengumpulan: ''
+  });
   
   const [selectedData, setSelectedData] = useState<any>(null);
   
@@ -83,6 +103,7 @@ export default function PenerimaanZis() {
   const [isOutsideRkat, setIsOutsideRkat] = useState(false);
   const [coaSearch, setCoaSearch] = useState('');
   const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
+  const [noTransaksiSimba, setNoTransaksiSimba] = useState('');
 
   // Quick register muzakki inside modal
   const [showQuickRegister, setShowQuickRegister] = useState(false);
@@ -117,6 +138,27 @@ export default function PenerimaanZis() {
       return () => clearTimeout(timer);
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (isReportModalOpen) {
+      axios.get('/api/users')
+        .then(res => {
+          const uList = res.data || [];
+          setUsers(uList);
+          
+          const kkUser = uList.find((u: any) => u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi');
+          const kpUser = uList.find((u: any) => u.role === 'Kabag_Pengumpulan');
+          const spUser = uList.find((u: any) => u.role === 'Staf_Pengumpulan');
+          
+          setSignatories({
+            kabagKeuangan: kkUser ? kkUser.name : '',
+            kabidPengumpulan: kpUser ? kpUser.name : '',
+            stafPengumpulan: spUser ? spUser.name : ''
+          });
+        })
+        .catch(err => console.error('Error fetching users:', err));
+    }
+  }, [isReportModalOpen]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -173,6 +215,17 @@ export default function PenerimaanZis() {
 
   const filteredData = useMemo(() => {
     return penerimaanData.filter(item => {
+      // Explicitly exclude records with status FAILED or associated Gagal Potong keywords
+      const isFailed = item.status_simba === 'FAILED';
+      const nk = (item.no_kuitansi || '').toLowerCase();
+      const k = (item.keterangan || '').toLowerCase();
+      const isGagalPotong = 
+        isFailed ||
+        nk.includes('/ gagal /') || nk.includes('gagal potong') || nk.includes('gagal') ||
+        k.includes('gagal potong') || k.includes('failed_deduction') || k.includes('failed');
+      
+      if (isGagalPotong) return false;
+
       const matchesSearch = 
         (item.no_kuitansi && item.no_kuitansi.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.muzakki?.nama && item.muzakki.nama.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -327,6 +380,7 @@ export default function PenerimaanZis() {
     }
     setKeterangan(item.keterangan || '');
     setNoKuitansi(item.no_kuitansi || '');
+    setNoTransaksiSimba(item.no_transaksi_simba || '');
     setIsOutsideRkat(!item.rkat_id);
     setCoaSearch('');
     setIsCoaDropdownOpen(false);
@@ -360,19 +414,52 @@ export default function PenerimaanZis() {
     }
   };
 
+  const handleSaveSimbaNo = async () => {
+    if (!promptSimbaValue.trim()) {
+      alert('No Transaksi SIMBA wajib diisi untuk metode pembayaran Kas Tunai!');
+      return;
+    }
+
+    try {
+      const res = await axios.patch(`/api/penerimaan-zis/${promptSimbaItem.id}/simba`, {
+        status_simba: 'SYNCED',
+        no_transaksi_simba: promptSimbaValue.trim()
+      });
+      if (res.data.status === 'success') {
+        setPenerimaanData(prev => prev.map(p => p.id === promptSimbaItem.id ? res.data.data : p));
+        setMessages([{ type: 'success', text: `Status SIMBA berhasil diperbarui ke SYNCED!` }]);
+        setIsSimbaPromptOpen(false);
+        setPromptSimbaItem(null);
+        setPromptSimbaValue('');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Gagal memperbarui status SIMBA.');
+    }
+  };
+
   const toggleSimbaStatus = async (item: any) => {
     const nextStatus = item.status_simba === 'PENDING' ? 'SYNCED' : 'PENDING';
+    
+    if (nextStatus === 'SYNCED' && item.metode_pembayaran === 'TUNAI') {
+      setPromptSimbaItem(item);
+      setPromptSimbaValue(item.no_transaksi_simba || '');
+      setIsSimbaPromptOpen(true);
+      return;
+    }
+
     try {
       const res = await axios.patch(`/api/penerimaan-zis/${item.id}/simba`, {
-        status_simba: nextStatus
+        status_simba: nextStatus,
+        no_transaksi_simba: item.no_transaksi_simba
       });
       if (res.data.status === 'success') {
         setPenerimaanData(prev => prev.map(p => p.id === item.id ? res.data.data : p));
         setMessages([{ type: 'success', text: `Status SIMBA berhasil diperbarui ke ${nextStatus}!` }]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Gagal memperbarui status SIMBA.');
+      alert(err.response?.data?.error || 'Gagal memperbarui status SIMBA.');
     }
   };
 
@@ -409,6 +496,7 @@ export default function PenerimaanZis() {
     setIsOutsideRkat(false);
     setCoaSearch('');
     setIsCoaDropdownOpen(false);
+    setNoTransaksiSimba('');
   };
 
   // Filtered muzakki list for autocomplete dropdown
@@ -434,8 +522,69 @@ export default function PenerimaanZis() {
     );
   }, [coaList, coaSearch]);
 
-  const exportToExcel = () => {
-    const reportData = filteredData.map(item => ({
+  const getIndonesianDayName = (dateStr: string) => {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const date = new Date(dateStr);
+    return days[date.getDay()];
+  };
+
+  const formatIndonesianDate = (dateStr: string) => {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  const getIndonesianMonthName = (monthIdx: number) => {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return months[monthIdx];
+  };
+
+  const getSignatureDateString = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = getIndonesianMonthName(date.getMonth());
+    const year = date.getFullYear();
+    return `Semarang, ${day} ${month} ${year}`;
+  };
+
+  const classifyPenerimaan = (item: any) => {
+    const coa = (item.coa_code || '').trim();
+    const rkatName = (item.rkat?.nama_program || '').toLowerCase();
+    const category = (item.rkat?.kategori || '').toLowerCase();
+    
+    if (category === 'zakat' || coa.startsWith('1.1') || rkatName.includes('zakat')) {
+      return 'ZAKAT';
+    } else if (category === 'infak' || category === 'sedekah' || coa.startsWith('1.2') || rkatName.includes('infak') || rkatName.includes('sedekah')) {
+      return 'INFAK';
+    } else {
+      return 'DONASI';
+    }
+  };
+
+  const handleExportExcel = () => {
+    const start = new Date(reportStartDate);
+    start.setHours(0,0,0,0);
+    const end = new Date(reportEndDate);
+    end.setHours(23,59,59,999);
+
+    const dataFiltered = penerimaanData.filter(item => {
+      const pDate = new Date(item.tanggal_pembayaran);
+      const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
+      if (isFailed) return false;
+      return pDate >= start && pDate <= end;
+    });
+
+    if (dataFiltered.length === 0) {
+      alert('Tidak ada data penerimaan ZIS pada rentang tanggal tersebut.');
+      return;
+    }
+
+    const reportData = dataFiltered.map(item => ({
       'Tanggal Transaksi': new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID'),
       'No Registrasi (NPWZ)': item.muzakki?.npwz || '-',
       'No Kuitansi / BSZ': item.no_kuitansi,
@@ -445,13 +594,161 @@ export default function PenerimaanZis() {
       'via (Kas & Bank)': item.bankAccount?.nama_akun || '-',
       'Program Kegiatan (COA)': item.rkat?.coa_codes || '-',
       'Nominal': Number(item.nominal || 0),
+      'No Transaksi SIMBA': item.no_transaksi_simba || '-',
       'Status SIMBA': item.status_simba
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(reportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Penerimaan ZIS');
-    XLSX.writeFile(workbook, `Penerimaan_ZIS_Laporan_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `Laporan_Penerimaan_ZIS_${reportStartDate}_sd_${reportEndDate}.xlsx`);
+  };
+
+  const handleExportPDFDaily = () => {
+    const targetDateStr = pdfReportDate;
+    const targetDate = new Date(targetDateStr);
+    targetDate.setHours(0,0,0,0);
+    
+    const dataFiltered = penerimaanData.filter(item => {
+      const itemDate = new Date(item.tanggal_pembayaran);
+      const sameDay = itemDate.getFullYear() === targetDate.getFullYear() &&
+                      itemDate.getMonth() === targetDate.getMonth() &&
+                      itemDate.getDate() === targetDate.getDate();
+      const isTunai = item.metode_pembayaran === 'TUNAI';
+      const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
+      return sameDay && isTunai && !isFailed;
+    });
+
+    if (dataFiltered.length === 0) {
+      alert('Tidak ada transaksi Kas Tunai pada tanggal tersebut.');
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('Laporan Kas Masuk', 105, 15, { align: 'center' });
+    doc.text('Via Tunai', 105, 21, { align: 'center' });
+    
+    const dayName = getIndonesianDayName(targetDateStr);
+    const formattedDate = formatIndonesianDate(targetDateStr);
+    doc.text(`Hari ${dayName} Tanggal ${formattedDate}`, 105, 27, { align: 'center' });
+
+    const tableBody: any[] = [];
+    let totalZakat = 0;
+    let totalInfak = 0;
+    let totalDonasi = 0;
+
+    dataFiltered.forEach((item, index) => {
+      const nominal = Number(item.nominal || 0);
+      const category = classifyPenerimaan(item);
+      
+      let zakatCol = 'Rp -';
+      let infakCol = 'Rp -';
+      let donasiCol = 'Rp -';
+
+      if (category === 'ZAKAT') {
+        zakatCol = `Rp ${nominal.toLocaleString('id-ID')}`;
+        totalZakat += nominal;
+      } else if (category === 'INFAK') {
+        infakCol = `Rp ${nominal.toLocaleString('id-ID')}`;
+        totalInfak += nominal;
+      } else {
+        donasiCol = `Rp ${nominal.toLocaleString('id-ID')}`;
+        totalDonasi += nominal;
+      }
+
+      tableBody.push([
+        String(index + 1),
+        item.no_transaksi_simba || '-',
+        item.keterangan || `Terima ZIS dari ${item.muzakki?.nama || '-'}`,
+        zakatCol,
+        infakCol,
+        donasiCol
+      ]);
+    });
+
+    const totalAll = totalZakat + totalInfak + totalDonasi;
+
+    tableBody.push([
+      { content: 'JUMLAH', colSpan: 3, styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+      { content: totalZakat > 0 ? `Rp ${totalZakat.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+      { content: totalInfak > 0 ? `Rp ${totalInfak.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+      { content: totalDonasi > 0 ? `Rp ${totalDonasi.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } }
+    ]);
+
+    tableBody.push([
+      { content: 'TOTAL', colSpan: 3, styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+      { content: `Rp ${totalAll.toLocaleString('id-ID')}`, colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } }
+    ]);
+
+    autoTable(doc, {
+      startY: 35,
+      head: [
+        [
+          { content: 'No', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+          { content: 'No Transaksi', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+          { content: 'Nama', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+          { content: 'Jenis Penerimaan', colSpan: 3, styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } }
+        ],
+        [
+          { content: 'Zakat', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+          { content: 'Infak', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+          { content: 'Donasi', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } }
+        ]
+      ],
+      body: tableBody,
+      theme: 'grid',
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+        lineColor: [0, 0, 0],
+        lineWidth: 0.1
+      },
+      headStyles: {
+        lineColor: [0, 0, 0],
+        lineWidth: 0.1
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 40, halign: 'center' },
+        2: { cellWidth: 'auto', halign: 'left' },
+        3: { cellWidth: 25, halign: 'center' },
+        4: { cellWidth: 25, halign: 'center' },
+        5: { cellWidth: 25, halign: 'center' }
+      },
+      margin: { left: 15, right: 15 }
+    });
+
+    let finalY = (doc as any).lastAutoTable.finalY || 100;
+    if (finalY + 65 > 297) {
+      doc.addPage();
+      finalY = 20;
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(getSignatureDateString(targetDateStr), 195, finalY + 12, { align: 'right' });
+
+    doc.text('Penerima.', 15, finalY + 20);
+    doc.text('Kabag Keuangan', 15, finalY + 25);
+
+    doc.text('Kabid Pengumpulan', 105, finalY + 25, { align: 'center' });
+
+    doc.text('Penyetor,', 195, finalY + 20, { align: 'right' });
+    doc.text('Staff Bid. Pengumpulan', 195, finalY + 25, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(signatories.kabagKeuangan || '........................', 15, finalY + 55);
+    doc.text(signatories.kabidPengumpulan || '........................', 105, finalY + 55, { align: 'center' });
+    doc.text(signatories.stafPengumpulan || '........................', 195, finalY + 55, { align: 'right' });
+
+    doc.save(`Laporan_Kas_Masuk_Tunai_${formattedDate.replace(/\//g, '-')}.pdf`);
   };
 
   return (
@@ -613,11 +910,11 @@ export default function PenerimaanZis() {
 
           <div className="flex gap-2">
             <button 
-              onClick={exportToExcel}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all"
+              onClick={() => setIsReportModalOpen(true)}
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
             >
-              <FileSpreadsheet className="size-4" />
-              Ekspor Excel
+              <Printer className="size-4" />
+              Cetak Laporan
             </button>
             <button 
               onClick={() => { resetForm(); setIsModalOpen(true); }}
@@ -696,9 +993,16 @@ export default function PenerimaanZis() {
                       <td className="px-6 py-4 text-center">
                         <div className="flex justify-center">
                           {item.status_simba === 'SYNCED' ? (
-                            <span className="inline-flex px-2 py-0.5 text-[9px] font-black rounded-lg uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
-                              SYNCED
-                            </span>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="inline-flex px-2 py-0.5 text-[9px] font-black rounded-lg uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                SYNCED
+                              </span>
+                              {item.no_transaksi_simba && (
+                                <span className="text-[9px] text-slate-500 font-mono">
+                                  {item.no_transaksi_simba}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <div className="flex items-center justify-center">
                               {(() => {
@@ -1358,6 +1662,305 @@ export default function PenerimaanZis() {
                   className="w-1/2 py-2.5 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95"
                 >
                   Simpan & Registrasi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Input No Transaksi SIMBA Modal */}
+      <AnimatePresence>
+        {isSimbaPromptOpen && promptSimbaItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => {
+                setIsSimbaPromptOpen(false);
+                setPromptSimbaItem(null);
+                setPromptSimbaValue('');
+              }}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-lg font-black text-slate-900">Input No Transaksi SIMBA</h3>
+                <button 
+                  onClick={() => {
+                    setIsSimbaPromptOpen(false);
+                    setPromptSimbaItem(null);
+                    setPromptSimbaValue('');
+                  }} 
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Muzakki</p>
+                  <p className="font-bold text-slate-800 text-sm">{promptSimbaItem.muzakki?.nama || '-'}</p>
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] mt-2">Nominal</p>
+                  <p className="font-bold text-slate-800 text-sm">
+                    Rp {Number(promptSimbaItem.nominal || 0).toLocaleString('id-ID')}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Transaksi SIMBA *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Masukkan No Transaksi Kas Masuk SIMBA..." 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono font-bold"
+                    value={promptSimbaValue}
+                    onChange={(e) => setPromptSimbaValue(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-slate-100 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsSimbaPromptOpen(false);
+                    setPromptSimbaItem(null);
+                    setPromptSimbaValue('');
+                  }}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleSaveSimbaNo}
+                  className="w-1/2 py-2.5 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95"
+                >
+                  Simpan & Sync
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cetak Laporan Modal */}
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsReportModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 rounded-xl">
+                    <Printer className="size-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900">Cetak Laporan ZIS</h3>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                      Pilih format dan rentang data laporan yang ingin Anda unduh / cetak.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="p-2 hover:bg-white/80 rounded-full transition-colors"
+                >
+                  <X className="size-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                
+                {/* Opsi 1: Laporan Excel */}
+                <div className="border border-slate-200 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <FileSpreadsheet className="size-5" />
+                    <h4 className="text-xs font-black uppercase tracking-wider">Download Laporan Penerimaan (Excel)</h4>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Unduh rekapan penerimaan ZIS dalam format spreadsheet Excel.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dari Tanggal</label>
+                      <input 
+                        type="date"
+                        value={reportStartDate}
+                        onChange={(e) => setReportStartDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sampai Tanggal</label>
+                      <input 
+                        type="date"
+                        value={reportEndDate}
+                        onChange={(e) => setReportEndDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleExportExcel}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <FileSpreadsheet className="size-4" />
+                    Unduh Excel
+                  </button>
+                </div>
+
+                {/* Opsi 2: Laporan Harian PDF */}
+                <div className="border border-slate-200 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-primary">
+                    <FileText className="size-5" />
+                    <h4 className="text-xs font-black uppercase tracking-wider">PDF Laporan Harian (Kas Tunai)</h4>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Cetak Laporan Kas Masuk khusus pembayaran Kas Tunai pada tanggal tertentu dalam format PDF BAZNAS.
+                  </p>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Tanggal Laporan</label>
+                    <input 
+                      type="date"
+                      value={pdfReportDate}
+                      onChange={(e) => setPdfReportDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    />
+                  </div>
+
+                  {/* Penandatangan (Signatories) */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                    <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">
+                      Penandatangan Laporan Harian
+                    </h5>
+
+                    {/* Kabag Keuangan */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-slate-600">Kabag Keuangan</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setSignatories(prev => ({ ...prev, kabagKeuangan: e.target.value }));
+                            }
+                          }}
+                          value={users.some(u => u.name === signatories.kabagKeuangan) ? signatories.kabagKeuangan : ''}
+                        >
+                          <option value="">-- Pilih --</option>
+                          {users.filter(u => u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi').map(u => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={signatories.kabagKeuangan}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, kabagKeuangan: e.target.value }))}
+                          placeholder="Nama..."
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Kabid Pengumpulan */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-slate-600">Kabid Pengumpulan</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setSignatories(prev => ({ ...prev, kabidPengumpulan: e.target.value }));
+                            }
+                          }}
+                          value={users.some(u => u.name === signatories.kabidPengumpulan) ? signatories.kabidPengumpulan : ''}
+                        >
+                          <option value="">-- Pilih --</option>
+                          {users.filter(u => u.role === 'Kabag_Pengumpulan').map(u => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={signatories.kabidPengumpulan}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, kabidPengumpulan: e.target.value }))}
+                          placeholder="Nama..."
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Staff Bid. Pengumpulan */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-slate-600">Staff Bid. Pengumpulan</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setSignatories(prev => ({ ...prev, stafPengumpulan: e.target.value }));
+                            }
+                          }}
+                          value={users.some(u => u.name === signatories.stafPengumpulan) ? signatories.stafPengumpulan : ''}
+                        >
+                          <option value="">-- Pilih --</option>
+                          {users.filter(u => u.role === 'Staf_Pengumpulan').map(u => (
+                            <option key={u.id} value={u.name}>{u.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={signatories.stafPengumpulan}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, stafPengumpulan: e.target.value }))}
+                          placeholder="Nama..."
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <button
+                    onClick={handleExportPDFDaily}
+                    className="w-full py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <FileText className="size-4" />
+                    Cetak Laporan Harian PDF
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+                <button
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                >
+                  Tutup
                 </button>
               </div>
             </motion.div>

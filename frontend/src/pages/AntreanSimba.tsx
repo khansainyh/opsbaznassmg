@@ -368,44 +368,95 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
   };
 
   const downloadExcel = (proposal: ProposalMemo, list: any[]) => {
-    const dataToExport = list.map((p, index) => ({
-      'No': index + 1,
-      'No. Agenda': proposal.agendaNo,
-      'Nama Lembaga': proposal.namaPemohon,
-      'Nama Lengkap': p.nama_lengkap,
-      'NIK': p.nik,
-      'NRM': p.nrm || '-',
-      'Jenis Kelamin': p.jenis_kelamin,
-      'Alamat': p.alamat,
-      'Telepon': p.telepon || '-',
-      'Handphone': p.handphone || '-',
-      'Keterangan': p.keterangan || '-'
+    const todayStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const dataToExport = list.map((p) => ({
+      'Tanggal registrasi': todayStr,
+      'Nama lengkap': p.nama_lengkap || '',
+      'NIK': p.nik || '',
+      'Jenis Kelamin (Pria/Wanita)': p.jenis_kelamin || 'Pria',
+      'Alamat': p.alamat || proposal.alamat || '',
+      'Telepon': p.telepon || p.handphone || '',
+      'Handphone': '',
+      'Email': p.email || '',
+      'Keterangan': p.keterangan || proposal.keterangan || `Penerima By-Name Agenda ${proposal.agendaNo}`
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Penerima By-Name');
-    XLSX.writeFile(workbook, `Penerima_ByName_Agenda_${proposal.agendaNo}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
+    XLSX.writeFile(workbook, `SIMBA_Penerima_ByName_Agenda_${proposal.agendaNo}.xlsx`);
   };
 
   const downloadTemplateExcel = () => {
+    const todayStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
     const templateData = [
       {
-        'Nama Lengkap': 'Ahmad Fauzi',
+        'Tanggal registrasi': todayStr,
+        'Nama lengkap': 'Ahmad Fauzi',
         'NIK': '3374123456789012',
-        'NRM': '12.34567.89012',
-        'Jenis Kelamin': 'Pria',
+        'Jenis Kelamin (Pria/Wanita)': 'Pria',
         'Alamat': 'Jl. Pemuda No. 123, Semarang',
-        'Telepon': '024123456',
-        'Handphone': '081234567890',
+        'Telepon': '081234567890',
+        'Handphone': '',
+        'Email': 'ahmad.fauzi@example.com',
         'Keterangan': 'Penerima Sembako'
       }
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Penerima');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
     XLSX.writeFile(workbook, 'Template_Import_Penerima_ByName.xlsx');
+  };
+
+  const downloadAllPendingSimbaExcel = () => {
+    const listToExport: any[] = [];
+    const todayStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
+    pendingNrmList.forEach(proposal => {
+      const isByName = proposal.jenisPengajuan === 'Lembaga' && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
+      if (isByName) {
+        (proposal.penerima_detail as any[]).forEach(item => {
+          if (!item.nrm) {
+            listToExport.push({
+              'Tanggal registrasi': todayStr,
+              'Nama lengkap': item.nama_lengkap || '',
+              'NIK': item.nik || '',
+              'Jenis Kelamin (Pria/Wanita)': item.jenis_kelamin || 'Pria',
+              'Alamat': item.alamat || proposal.alamat || '',
+              'Telepon': item.telepon || item.handphone || '',
+              'Handphone': '',
+              'Email': item.email || '',
+              'Keterangan': item.keterangan || proposal.keterangan || `Penerima By-Name Agenda ${proposal.agendaNo}`
+            });
+          }
+        });
+      } else {
+        if (!proposal.mustahik?.nrm) {
+          listToExport.push({
+            'Tanggal registrasi': todayStr,
+            'Nama lengkap': proposal.namaPemohon || '',
+            'NIK': proposal.nik || '',
+            'Jenis Kelamin (Pria/Wanita)': proposal.mustahik?.jenis_kelamin || proposal.jenis_kelamin || 'Pria',
+            'Alamat': proposal.mustahik?.alamat || proposal.alamat || '',
+            'Telepon': proposal.mustahik?.telepon || proposal.mustahik?.handphone || proposal.noTelpon || '',
+            'Handphone': '',
+            'Email': proposal.mustahik?.email || '',
+            'Keterangan': proposal.keterangan || ''
+          });
+        }
+      }
+    });
+
+    if (listToExport.length === 0) {
+      alert('Tidak ada data dalam antrean Belum Ada NRM yang bisa diunduh.');
+      return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(listToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
+    XLSX.writeFile(workbook, `SIMBA_Antrean_Belum_Ada_NRM_${todayStr}.xlsx`);
   };
 
   const currentList = activeTab === 'pending' ? pendingNrmList : readyNrmList;
@@ -564,15 +615,26 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
         className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden"
       >
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-            <input 
-              type="text"
-              placeholder="Cari agenda atau nama mustahik..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2 focus:ring-2 focus:ring-primary/20 outline-none font-medium transition-all"
-            />
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+              <input 
+                type="text"
+                placeholder="Cari agenda atau nama mustahik..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2 focus:ring-2 focus:ring-primary/20 outline-none font-medium transition-all"
+              />
+            </div>
+            {activeTab === 'pending' && (
+              <button
+                onClick={downloadAllPendingSimbaExcel}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow active:scale-95 cursor-pointer shrink-0"
+              >
+                <Download className="size-4" />
+                Unduh Template Reg SIMBA
+              </button>
+            )}
           </div>
           
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
@@ -1028,14 +1090,14 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                               continue;
                             }
 
-                            const nama = (cols[0] || '').trim();
-                            const nik = ((cols[1] || '').trim()).replace(/\D/g, '');
-                            const nrm = (cols[2] || '').trim();
+                            const nama = (cols[1] || '').trim();
+                            const nik = ((cols[2] || '').trim()).replace(/\D/g, '');
                             const jkRaw = ((cols[3] || '').trim()).toLowerCase();
                             const alamat = (cols[4] || '').trim();
                             const telpon = (cols[5] || '').trim();
                             const hp = (cols[6] || '').trim();
-                            const keterangan = (cols[7] || '').trim();
+                            const email = (cols[7] || '').trim();
+                            const keterangan = (cols[8] || '').trim();
 
                             if (!nama || !nik || nik.length !== 16 || !alamat) {
                               failCount++;
@@ -1053,11 +1115,12 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                             importedList.push({
                               nama_lengkap: nama,
                               nik: nik,
-                              nrm: nrm,
+                              nrm: '',
                               jenis_kelamin: jk,
                               alamat: alamat,
                               telepon: telpon,
                               handphone: hp,
+                              email: email,
                               keterangan: keterangan
                             });
                             successCount++;
@@ -1068,7 +1131,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                             alert(`Berhasil mengimpor ${successCount} data penerima.${failCount > 0 ? ` Gagal mengimpor ${failCount} baris karena data/format tidak valid.` : ''}`);
                             setExcelPasteText('');
                           } else {
-                            alert('Tidak ada data valid yang ditemukan. Pastikan format kolom: Nama Lengkap, NIK (16 digit), NRM, Jenis Kelamin, Alamat, Telepon, Handphone, Keterangan.');
+                            alert('Tidak ada data valid yang ditemukan. Pastikan format kolom: Tanggal registrasi, Nama lengkap, NIK (16 digit), Jenis Kelamin, Alamat, Telepon, Handphone, Email, Keterangan.');
                           }
                         }}
                         disabled={!excelPasteText.trim()}
