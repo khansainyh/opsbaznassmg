@@ -112,9 +112,11 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const isSuperAdmin = user?.role === 'Super_Admin';
   const isKabagPendistribusian = user?.role === 'Kabag_Pendistribusian';
   const isKabagPendayagunaan = user?.role === 'Kabag_Pendayagunaan';
-  const isStafDistribusi = user?.role === 'Staf_Distribusi';
+  const isStafPendistribusian = user?.role === 'Staf_Pendistribusian';
+  const isStafPendayagunaan = user?.role === 'Staf_Pendayagunaan';
+  const isStafDistribusi = isStafPendistribusian || isStafPendayagunaan;
 
-  const [rekomendasiKabag, setRekomendasiKabag] = useState<'Zakat' | 'Infak Tidak Terikat' | 'Infak Terikat' | 'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Zakat');
+  const [rekomendasiKabag, setRekomendasiKabag] = useState<'Zakat' | 'Infak/Sedekah Tidak Terikat' | 'Infak/Sedekah Terikat' | 'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Zakat');
   const [hasilIdentifikasi, setHasilIdentifikasi] = useState('');
   const [selectedAsnaf, setSelectedAsnaf] = useState('Fakir');
   const [changedProgramCode, setChangedProgramCode] = useState<string>('');
@@ -262,6 +264,17 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     return code.split('.')[0].trim();
   };
 
+  const hasTaskAuthority = (task: any) => {
+    if (!task) return false;
+    const type = programTipeMap[getParentProgramCode(task.programCode)] || 'Konsumtif';
+    if (isSuperAdmin) return true;
+    if (isKabagPendistribusian && type === 'Konsumtif') return true;
+    if (isKabagPendayagunaan && type === 'Produktif') return true;
+    if (isStafPendistribusian && type === 'Konsumtif') return true;
+    if (isStafPendayagunaan && type === 'Produktif') return true;
+    return false;
+  };
+
   const activities = useMemo(() => {
     const list: any[] = [];
     (pilars || []).forEach((pilar) => {
@@ -360,69 +373,6 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     return list;
   }, [selectedTask, activities]);
 
-  const renderSingleRKATInfo = (act: any) => {
-    const targetBudget = act.mustahik * act.frekuensi * act.unitCost;
-    const usedBudget = getActivityUsage(act);
-    const remainingBudget = targetBudget - usedBudget;
-    const isOverBudget = remainingBudget < 0;
-    
-    const formatCurrency = (val: number) => {
-      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
-    };
-
-    return (
-      <div className="bg-gradient-to-br from-slate-50 to-white p-6 rounded-2xl border border-primary/10 shadow-sm space-y-4 relative overflow-hidden">
-        <div className="absolute -right-12 -top-12 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
-        
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <div className="p-1.5 bg-primary/10 text-primary rounded-lg">
-            <ClipboardList className="size-4" />
-          </div>
-          <span className="text-sm font-bold text-slate-800">
-            Status RKAT: <span className="text-primary">{act.programCode} - {act.name}</span>
-          </span>
-        </div>
-
-        {act.keterangan && (
-          <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-xs text-slate-600 font-semibold leading-relaxed">
-            <span className="font-bold text-slate-700 block mb-0.5 text-[10px] uppercase tracking-wider">Keterangan RKAT / Spesifikasi Bantuan:</span>
-            {act.keterangan}
-          </div>
-        )}
-        
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-3 rounded-xl border border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Target Anggaran</p>
-            <p className="text-sm font-black text-slate-800">{formatCurrency(targetBudget)}</p>
-          </div>
-          
-          <div className="bg-white p-3 rounded-xl border border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Realisasi Saat Ini</p>
-            <p className="text-sm font-black text-slate-800">{formatCurrency(usedBudget)}</p>
-          </div>
-          
-          <div className={cn("p-3 rounded-xl border", isOverBudget ? "bg-rose-50/30 border-rose-100" : "bg-emerald-50/30 border-emerald-100")}>
-            <p className={cn("text-[10px] font-black uppercase tracking-wider mb-1", isOverBudget ? "text-rose-500" : "text-emerald-600")}>
-              Sisa Anggaran
-            </p>
-            <div className="flex items-center justify-between gap-1.5">
-              <span className={cn("text-sm font-black", isOverBudget ? "text-rose-600" : "text-emerald-700")}>
-                {formatCurrency(remainingBudget)}
-              </span>
-              <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter shrink-0", isOverBudget ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-800")}>
-                {isOverBudget ? "Over Limit" : "Aman"}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
-          <span className="text-primary font-bold">*</span>
-          <span>Estimasi Unit Cost: <span className="font-bold text-slate-700">{formatCurrency(act.unitCost)}</span> per pencairan bantuan</span>
-        </div>
-      </div>
-    );
-  };
 
   const renderMultipleRKATInfo = (acts: any[]) => {
     const formatCurrency = (val: number) => {
@@ -536,9 +486,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const handleUpdateStatus = async (id: string, newStatus: ProposalMemo['status']) => {
     if (newStatus === 'Review Kepala Pelaksana') {
       const task = data.find(t => t.id === id);
-      if (task && (!task.asnaf || !task.hasil_identifikasi?.trim())) {
-        alert('Gagal: Tugas Survei tidak dapat disetujui tanpa melakukan identifikasi asnaf dan mengisi hasil identifikasi.');
-        return;
+      if (task) {
+        const isZakat = task.rekomendasi_kabag === 'Zakat' || !task.rekomendasi_kabag;
+        if (isZakat && (!task.asnaf || !task.hasil_identifikasi?.trim())) {
+          alert('Gagal: Tugas Survei tidak dapat disetujui tanpa melakukan identifikasi asnaf dan mengisi hasil identifikasi.');
+          return;
+        }
+        if (!isZakat && !task.hasil_identifikasi?.trim()) {
+          alert('Gagal: Tugas Survei tidak dapat disetujui tanpa mengisi hasil identifikasi.');
+          return;
+        }
       }
     }
     try {
@@ -553,7 +510,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   };
 
   const handleApproveKabag = async (task: ProposalMemo) => {
-    if (!selectedAsnaf) {
+    if (rekomendasiKabag === 'Zakat' && !selectedAsnaf) {
       alert('Harap pilih asnaf terlebih dahulu.');
       return;
     }
@@ -564,7 +521,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     try {
       const payload: any = {
         status: 'Review_Kepala_Pelaksana',
-        asnaf: selectedAsnaf,
+        asnaf: rekomendasiKabag === 'Zakat' ? selectedAsnaf : null,
         rekomendasi_kabag: rekomendasiKabag,
         hasil_identifikasi: hasilIdentifikasi,
         approval_kabag: true,
@@ -584,7 +541,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
       const updatedData = data.map(item => item.id === task.id ? { 
         ...item, 
         status: 'Review Kepala Pelaksana',
-        asnaf: selectedAsnaf,
+        asnaf: rekomendasiKabag === 'Zakat' ? selectedAsnaf : undefined,
         rekomendasi_kabag: rekomendasiKabag,
         hasil_identifikasi: hasilIdentifikasi,
         approval_kabag: true,
@@ -825,7 +782,9 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                       {status === 'Selesai' && !isKabagPendistribusian && !isKabagPendayagunaan && (
                         <button 
                           onClick={() => {
-                            if (!task.asnaf || !task.hasil_identifikasi?.trim()) {
+                            const isZakat = task.rekomendasi_kabag === 'Zakat' || !task.rekomendasi_kabag;
+                            const hasAsnaf = !isZakat || task.asnaf;
+                            if (!hasAsnaf || !task.hasil_identifikasi?.trim()) {
                               handleViewDetail(task);
                               return;
                             }
@@ -1463,7 +1422,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   </div>
                   
                   {/* DISPOSISI PANEL - Pendistribusian / Pendayagunaan */}
-                  {(isSuperAdmin || isKabagPendistribusian || isKabagPendayagunaan || isStafDistribusi) && (
+                  {hasTaskAuthority(selectedTask) && (
                     <div className="col-span-full mt-4 pt-4 border-t border-slate-100 space-y-4">
                       <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                         <SlidersHorizontal className="size-4 text-primary" />
@@ -1602,9 +1561,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   {/* RKAT STATUS WIDGET */}
                   {matchedActivities.length > 0 && (
                     <div className="col-span-full mt-4 pt-4 border-t border-slate-100">
-                      {matchedActivities.length === 1 
-                        ? renderSingleRKATInfo(matchedActivities[0]) 
-                        : renderMultipleRKATInfo(matchedActivities)}
+                      {renderMultipleRKATInfo(matchedActivities)}
                     </div>
                   )}
 
@@ -1622,7 +1579,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                          </div>
                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Rekomendasi Dana</p>
-                           <p className={cn("text-sm font-bold", selectedTask.rekomendasi_kabag === 'Zakat' ? "text-emerald-600" : selectedTask.rekomendasi_kabag === 'Infak Tidak Terikat' ? "text-blue-600" : "text-indigo-600")}>{selectedTask.rekomendasi_kabag}</p>
+                           <p className={cn("text-sm font-bold", selectedTask.rekomendasi_kabag === 'Zakat' ? "text-emerald-600" : (selectedTask.rekomendasi_kabag === 'Infak/Sedekah Tidak Terikat' || selectedTask.rekomendasi_kabag === 'Infak Tidak Terikat') ? "text-blue-600" : "text-indigo-600")}>{selectedTask.rekomendasi_kabag}</p>
                          </div>
                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 col-span-full">
                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Hasil Identifikasi</p>
@@ -1632,56 +1589,13 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     </div>
                   ) : (
                     (getSurveyStatus(selectedTask) === 'Selesai' || !perluSurvei) && 
-                    (isSuperAdmin || 
-                     (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 
-                     (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif') ||
-                     (isStafDistribusi && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif')) && (
+                    hasTaskAuthority(selectedTask) && (
                       <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
                         <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                           <ClipboardList className="size-4 text-primary" />
                           Identifikasi & Rekomendasi Kepala Bidang
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2 relative">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Pilih Asnaf</label>
-                            <button 
-                              type="button"
-                              onClick={() => {
-                                setIsAsnafDropdownOpen(!isAsnafDropdownOpen);
-                                setIsRekomendasiDropdownOpen(false);
-                                setIsAlurDropdownOpen(false);
-                              }}
-                              className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100/50 transition-all outline-none"
-                            >
-                              <span>{selectedAsnaf || 'Pilih Asnaf'}</span>
-                              <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isAsnafDropdownOpen && "rotate-180")} />
-                            </button>
-
-                            {isAsnafDropdownOpen && (
-                              <>
-                                <div className="fixed inset-0 z-30" onClick={() => setIsAsnafDropdownOpen(false)} />
-                                <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 max-h-56 overflow-y-auto custom-scrollbar">
-                                  {asnafOptions.map(asnaf => (
-                                    <button
-                                      key={asnaf}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedAsnaf(asnaf);
-                                        setIsAsnafDropdownOpen(false);
-                                      }}
-                                      className={cn(
-                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
-                                        selectedAsnaf === asnaf ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                                      )}
-                                    >
-                                      <span>{asnaf}</span>
-                                      {selectedAsnaf === asnaf && <Check className="size-4 text-primary" />}
-                                    </button>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
                           <div className="space-y-2 relative">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Rekomendasi Dana</label>
                             <button 
@@ -1701,13 +1615,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                               <>
                                 <div className="fixed inset-0 z-30" onClick={() => setIsRekomendasiDropdownOpen(false)} />
                                 <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 overflow-y-auto custom-scrollbar">
-                                  {['Zakat', 'Infak Tidak Terikat', 'Infak Terikat'].map(opt => (
+                                  {['Zakat', 'Infak/Sedekah Tidak Terikat', 'Infak/Sedekah Terikat'].map(opt => (
                                     <button
                                       key={opt}
                                       type="button"
                                       onClick={() => {
                                         setRekomendasiKabag(opt as any);
                                         setIsRekomendasiDropdownOpen(false);
+                                        if (opt !== 'Zakat') {
+                                          setSelectedAsnaf('');
+                                        }
                                       }}
                                       className={cn(
                                         "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
@@ -1716,6 +1633,57 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                                     >
                                       <span>{opt}</span>
                                       {rekomendasiKabag === opt && <Check className="size-4 text-primary" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <div className="space-y-2 relative">
+                            <label className="text-[10px] font-bold text-slate-405 uppercase tracking-widest block">Pilih Asnaf</label>
+                            <button 
+                              type="button"
+                              disabled={rekomendasiKabag !== 'Zakat'}
+                              onClick={() => {
+                                setIsAsnafDropdownOpen(!isAsnafDropdownOpen);
+                                setIsRekomendasiDropdownOpen(false);
+                                setIsAlurDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between p-2.5 border rounded-lg text-sm font-semibold transition-all outline-none",
+                                rekomendasiKabag === 'Zakat'
+                                  ? "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100/50"
+                                  : "bg-slate-100 border-slate-200/80 text-slate-400 cursor-not-allowed"
+                              )}
+                            >
+                              <span>
+                                {rekomendasiKabag === 'Zakat'
+                                  ? (selectedAsnaf || 'Pilih Asnaf')
+                                  : '- (Hanya untuk Zakat)'
+                                }
+                              </span>
+                              <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isAsnafDropdownOpen && "rotate-180")} />
+                            </button>
+
+                            {isAsnafDropdownOpen && rekomendasiKabag === 'Zakat' && (
+                              <>
+                                <div className="fixed inset-0 z-30" onClick={() => setIsAsnafDropdownOpen(false)} />
+                                <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 max-h-56 overflow-y-auto custom-scrollbar">
+                                  {asnafOptions.map(asnaf => (
+                                    <button
+                                      key={asnaf}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedAsnaf(asnaf);
+                                        setIsAsnafDropdownOpen(false);
+                                      }}
+                                      className={cn(
+                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                        selectedAsnaf === asnaf ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                      )}
+                                    >
+                                      <span>{asnaf}</span>
+                                      {selectedAsnaf === asnaf && <Check className="size-4 text-primary" />}
                                     </button>
                                   ))}
                                 </div>
@@ -1843,16 +1811,18 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 <button onClick={() => setIsDetailModalOpen(false)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Tutup</button>
                 {(getSurveyStatus(selectedTask) === 'Selesai' || !perluSurvei) && (
                   <>
-                    {(isSuperAdmin || 
-                      (isKabagPendistribusian && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif') || 
-                      (isKabagPendayagunaan && programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif') ||
-                      (isStafDistribusi && (programTipeMap[getParentProgramCode(selectedTask.programCode)] || 'Konsumtif') === 'Konsumtif')) ? (
+                    {hasTaskAuthority(selectedTask) ? (
                       <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Simpan & Approve → Kep. Pelaksana</button>
                     ) : (!isKabagPendistribusian && !isKabagPendayagunaan && !isStafDistribusi) ? (
                       <button 
                         onClick={() => { 
-                          if (!selectedTask.asnaf || !selectedTask.hasil_identifikasi?.trim()) {
+                          const isZakat = selectedTask.rekomendasi_kabag === 'Zakat' || !selectedTask.rekomendasi_kabag;
+                          if (isZakat && (!selectedTask.asnaf || !selectedTask.hasil_identifikasi?.trim())) {
                             alert('Gagal: Tugas Survei tidak dapat disetujui tanpa melakukan identifikasi asnaf dan mengisi hasil identifikasi.');
+                            return;
+                          }
+                          if (!isZakat && !selectedTask.hasil_identifikasi?.trim()) {
+                            alert('Gagal: Tugas Survei tidak dapat disetujui tanpa mengisi hasil identifikasi.');
                             return;
                           }
                           handleUpdateStatus(selectedTask.id, 'Review Kepala Pelaksana'); 

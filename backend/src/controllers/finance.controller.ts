@@ -302,9 +302,9 @@ export const checkAvailability = async (req: Request, res: Response) => {
     // Robust variation-friendly tag logic
     let tag = 'ZAKAT';
     const rawTag = proposal.tipe_bantuan || proposal.rekomendasi_kabag || 'Zakat';
-    if (rawTag === 'IST' || rawTag === 'Infak Terikat' || rawTag === 'INFAK_TERIKAT') {
+    if (rawTag === 'IST' || rawTag === 'Infak Terikat' || rawTag === 'INFAK_TERIKAT' || rawTag === 'Infak/Sedekah Terikat') {
       tag = 'INFAK_TERIKAT';
-    } else if (rawTag === 'ISTT' || rawTag === 'Infak Tidak Terikat' || rawTag === 'INFAK_TIDAK_TERIKAT') {
+    } else if (rawTag === 'ISTT' || rawTag === 'Infak Tidak Terikat' || rawTag === 'INFAK_TIDAK_TERIKAT' || rawTag === 'Infak/Sedekah Tidak Terikat') {
       tag = 'INFAK_TIDAK_TERIKAT';
     } else if (rawTag === 'APBD') {
       tag = 'APBD';
@@ -524,9 +524,9 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
 
       let tag = 'ZAKAT';
       const rawTag = proposal.tipe_bantuan || proposal.rekomendasi_kabag || 'Zakat';
-      if (rawTag === 'IST' || rawTag === 'Infak Terikat' || rawTag === 'INFAK_TERIKAT') {
+      if (rawTag === 'IST' || rawTag === 'Infak Terikat' || rawTag === 'INFAK_TERIKAT' || rawTag === 'Infak/Sedekah Terikat') {
         tag = 'INFAK_TERIKAT';
-      } else if (rawTag === 'ISTT' || rawTag === 'Infak Tidak Terikat' || rawTag === 'INFAK_TIDAK_TERIKAT') {
+      } else if (rawTag === 'ISTT' || rawTag === 'Infak Tidak Terikat' || rawTag === 'INFAK_TIDAK_TERIKAT' || rawTag === 'Infak/Sedekah Tidak Terikat') {
         tag = 'INFAK_TIDAK_TERIKAT';
       } else if (rawTag === 'APBD') {
         tag = 'APBD';

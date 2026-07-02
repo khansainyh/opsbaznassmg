@@ -151,6 +151,7 @@ model Proposal {
   nominal                  Int?
   tipe_bantuan             String?
   alasan_perubahan_nominal String?   @db.Text
+  alasan_perubahan_dana    String?   @db.Text
   catatanPimpinan          String?   @db.Text
   approval_kabag           Boolean?
   asnaf                    String?
@@ -428,8 +429,10 @@ enum Role {
   Kabag_Pendayagunaan
   Kepala_Pelaksana
   Staf_Administrasi
-  Staf_Distribusi
+  Staf_Pendistribusian
+  Staf_Pendayagunaan
   Staf_Keuangan
+  Kabag_Keuangan
   Staf_Pengumpulan
   Staf_Pelaporan
   Relawan

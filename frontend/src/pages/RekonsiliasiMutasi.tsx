@@ -868,7 +868,7 @@ export default function RekonsiliasiMutasi() {
             <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-3 py-1.5 rounded-md border border-slate-200">
               Peran: <span className="text-primary font-black">{user?.role?.replace('_', ' ')}</span>
             </span>
-            {(user?.role === 'Super_Admin' || user?.role === 'Staf_Keuangan') && (
+            {(user?.role === 'Super_Admin' || user?.role === 'Staf_Keuangan' || user?.role === 'Kabag_Keuangan') && (
               <button
                 onClick={() => {
                   setFormAddType(activeTab === 'PENERIMAAN' ? 'DEBIT' : 'KREDIT');

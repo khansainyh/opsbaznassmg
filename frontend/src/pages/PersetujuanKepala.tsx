@@ -45,6 +45,12 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   const [volumeReal, setVolumeReal] = useState<number>(1);
   const [rekomendasiUnitCost, setRekomendasiUnitCost] = useState<number>(0);
 
+  const [initialSumberKas, setInitialSumberKas] = useState<string>('');
+  const [selectedAsnaf, setSelectedAsnaf] = useState<string>('');
+  const [isAsnafDropdownOpen, setIsAsnafDropdownOpen] = useState(false);
+  const [alasanPerubahanDana, setAlasanPerubahanDana] = useState<string>('');
+  const asnafOptions = ['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharimin', 'Fisabilillah', 'Ibnu Sabil'];
+
   useEffect(() => {
     if (selectedProposal) {
       const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
@@ -182,11 +188,14 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
         setSelectedRkatId(matched ? matched.id : '');
         
         const initialSumber = item.tipeBantuan || (
-          res.data.sumber_dana_yang_dipakai === 'INFAK_TERIKAT' ? 'Infak Terikat' :
-          res.data.sumber_dana_yang_dipakai === 'INFAK_TIDAK_TERIKAT' ? 'Infak Tidak Terikat' :
+          res.data.sumber_dana_yang_dipakai === 'INFAK_TERIKAT' ? 'Infak/Sedekah Terikat' :
+          res.data.sumber_dana_yang_dipakai === 'INFAK_TIDAK_TERIKAT' ? 'Infak/Sedekah Tidak Terikat' :
           'Zakat'
         );
         setSelectedSumberKas(initialSumber);
+        setInitialSumberKas(initialSumber);
+        setSelectedAsnaf(item.asnaf || '');
+        setAlasanPerubahanDana(item.alasan_perubahan_dana || '');
         const initialNominal = item.nominal || (matched ? matched.nominal : 0);
         setRekomendasiNominal(initialNominal);
         if (!item.rekomendasi_unit_cost) {
@@ -212,6 +221,18 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setIsSubmitting(true);
     try {
       if (selectedProposal) {
+        const isFundChanged = selectedSumberKas !== initialSumberKas;
+        if (isFundChanged && !alasanPerubahanDana.trim()) {
+          alert('Alasan perubahan sumber dana wajib diisi!');
+          setIsSubmitting(false);
+          return;
+        }
+        if (selectedSumberKas === 'Zakat' && !selectedAsnaf) {
+          alert('Asnaf wajib dipilih untuk penyaluran dana Zakat!');
+          setIsSubmitting(false);
+          return;
+        }
+
         const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
                           selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
                           (selectedProposal.namaInstansi && selectedProposal.namaInstansi.toLowerCase() !== 'perorangan');
@@ -221,7 +242,10 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
           catatanKepala: catatan.trim(),
           nominal: Number(rekomendasiNominal),
           tipe_bantuan: selectedSumberKas,
+          rekomendasi_kabag: selectedSumberKas,
           rkat_activity_id: selectedRkatId,
+          asnaf: selectedSumberKas === 'Zakat' ? selectedAsnaf : null,
+          alasan_perubahan_dana: isFundChanged ? alasanPerubahanDana.trim() : null
         };
 
         if (isLembaga) {
@@ -246,7 +270,10 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
               catatanKepala: catatan.trim(),
               nominal: Number(rekomendasiNominal),
               tipeBantuan: selectedSumberKas as any, 
+              rekomendasi_kabag: selectedSumberKas,
               rkatActivityId: selectedRkatId,
+              asnaf: selectedSumberKas === 'Zakat' ? selectedAsnaf : undefined,
+              alasan_perubahan_dana: isFundChanged ? alasanPerubahanDana.trim() : undefined,
               volume: payload.volume,
               rekomendasi_unit_cost: payload.rekomendasi_unit_cost
             } : d));
@@ -657,14 +684,14 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                             </div>
                             <div className={cn(
                               "p-3 bg-white border rounded-xl shadow-sm space-y-1 text-center transition-all",
-                              selectedSumberKas === 'Infak Tidak Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
+                              selectedSumberKas === 'Infak/Sedekah Tidak Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
                             )}>
                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana ISTT (Tidak Terikat)</p>
                               <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.istt || 0).toLocaleString('id-ID')}</p>
                             </div>
                             <div className={cn(
                               "p-3 bg-white border rounded-xl shadow-sm space-y-1 text-center transition-all",
-                              selectedSumberKas === 'Infak Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
+                              selectedSumberKas === 'Infak/Sedekah Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
                             )}>
                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana IST (Terikat)</p>
                               <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.ist || 0).toLocaleString('id-ID')}</p>
@@ -846,13 +873,14 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                 onClick={() => {
                                   setIsSumberKasDropdownOpen(!isSumberKasDropdownOpen);
                                   setIsRkatDropdownOpen(false);
+                                  setIsAsnafDropdownOpen(false);
                                 }}
                                 className="w-full flex items-center justify-between text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
                               >
                                 <span>
                                   {selectedSumberKas === 'Zakat' ? 'Dana Zakat' :
-                                   selectedSumberKas === 'Infak Tidak Terikat' ? 'Dana ISTT (Infak Tidak Terikat)' :
-                                   selectedSumberKas === 'Infak Terikat' ? 'Dana IST (Infak Terikat)' : selectedSumberKas}
+                                   selectedSumberKas === 'Infak/Sedekah Tidak Terikat' ? 'Dana ISTT (Infak/Sedekah Tidak Terikat)' :
+                                   selectedSumberKas === 'Infak/Sedekah Terikat' ? 'Dana IST (Infak/Sedekah Terikat)' : selectedSumberKas}
                                 </span>
                                 <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSumberKasDropdownOpen && "rotate-180")} />
                               </button>
@@ -863,8 +891,8 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                   <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-45 p-1.5 overflow-y-auto custom-scrollbar">
                                     {[
                                       { value: 'Zakat', label: 'Dana Zakat' },
-                                      { value: 'Infak Tidak Terikat', label: 'Dana ISTT (Infak Tidak Terikat)' },
-                                      { value: 'Infak Terikat', label: 'Dana IST (Infak Terikat)' }
+                                      { value: 'Infak/Sedekah Tidak Terikat', label: 'Dana ISTT (Infak/Sedekah Tidak Terikat)' },
+                                      { value: 'Infak/Sedekah Terikat', label: 'Dana IST (Infak/Sedekah Terikat)' }
                                     ].map(opt => (
                                       <button
                                         key={opt.value}
@@ -872,6 +900,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                         onClick={() => {
                                           setSelectedSumberKas(opt.value);
                                           setIsSumberKasDropdownOpen(false);
+                                          if (opt.value !== 'Zakat') {
+                                            setSelectedAsnaf('');
+                                          }
                                         }}
                                         className={cn(
                                           "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
@@ -887,6 +918,74 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                               )}
                             </div>
                             </div>
+
+                            {/* Tentukan Asnaf (Only for Zakat) */}
+                            {selectedSumberKas === 'Zakat' && (
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                                  Tentukan Asnaf: <span className="text-rose-500">*</span>
+                                </label>
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsAsnafDropdownOpen(!isAsnafDropdownOpen);
+                                      setIsSumberKasDropdownOpen(false);
+                                      setIsRkatDropdownOpen(false);
+                                    }}
+                                    className="w-full flex items-center justify-between text-xs bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-slate-800"
+                                  >
+                                    <span>{selectedAsnaf || 'Pilih Asnaf'}</span>
+                                    <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isAsnafDropdownOpen && "rotate-180")} />
+                                  </button>
+
+                                  {isAsnafDropdownOpen && (
+                                    <>
+                                      <div className="fixed inset-0 z-30" onClick={() => setIsAsnafDropdownOpen(false)} />
+                                      <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-45 p-1.5 overflow-y-auto max-h-48 custom-scrollbar">
+                                        {asnafOptions.map(opt => (
+                                          <button
+                                            key={opt}
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedAsnaf(opt);
+                                              setIsAsnafDropdownOpen(false);
+                                            }}
+                                            className={cn(
+                                              "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                              selectedAsnaf === opt ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                            )}
+                                          >
+                                            <span>{opt}</span>
+                                            {selectedAsnaf === opt && <Check className="size-4 text-primary shrink-0" />}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Alasan Perubahan Dana */}
+                            {selectedSumberKas !== initialSumberKas && (
+                              <div className="col-span-full p-4 bg-amber-50/50 border border-amber-200 rounded-xl space-y-2">
+                                <div className="flex items-center gap-2 text-amber-800">
+                                  <AlertTriangle className="size-4 shrink-0" />
+                                  <span className="text-xs font-black uppercase tracking-wider">Perubahan Sumber Dana Terdeteksi</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500">
+                                  Anda mengubah rekomendasi sumber dana dari <span className="font-bold text-slate-700">{initialSumberKas}</span> menjadi <span className="font-bold text-slate-700">{selectedSumberKas}</span>. Harap berikan alasan perubahan yang jelas.
+                                </p>
+                                <textarea
+                                  className="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2.5 font-semibold text-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm"
+                                  rows={2}
+                                  placeholder="Masukkan alasan atau dasar keputusan perubahan alokasi sumber dana..."
+                                  value={alasanPerubahanDana}
+                                  onChange={e => setAlasanPerubahanDana(e.target.value)}
+                                />
+                              </div>
+                            )}
 
                             {(() => {
                               const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 

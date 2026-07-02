@@ -104,7 +104,7 @@ export const updateProposal = async (req: Request, res: Response) => {
       'rekomendasi', 'keterangan', 'status', 'file_gdrive_id',
       'file_gdrive_link', 'mustahik_id', 'surveyorName', 'isBeingSurveyed',
       'urgencyLevel', 'score', 'survey_data', 'surveySubmittedAt', 'catatanKepala', 'catatanPimpinan',
-      'nominal', 'tipe_bantuan', 'alasan_perubahan_nominal',
+      'nominal', 'tipe_bantuan', 'alasan_perubahan_nominal', 'alasan_perubahan_dana',
       'asnaf', 'rekomendasi_kabag', 'hasil_identifikasi', 'approval_kabag', 'rkat_activity_id',
       'is_rutin', 'frekuensi_berulang', 'tanggal_pencairan', 'butuh_survei', 'penerima_detail',
       'volume', 'rekomendasi_unit_cost'

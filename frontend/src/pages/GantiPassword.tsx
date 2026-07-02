@@ -161,7 +161,7 @@ export default function GantiPassword() {
               <ShieldCheck className="size-5 text-primary" />
               <div>
                 <p className="font-bold text-slate-800 text-sm">Akun yang aktif</p>
-                <p className="text-xs text-slate-500 font-medium">{user?.name} · <span className="uppercase">{user?.role ? (user.role.startsWith('Kabag') && !user.role.includes('Administrasi') ? user.role.replace('Kabag', 'Kabid').replace(/_/g, ' ') : user.role.replace(/_/g, ' ')) : ''}</span></p>
+                <p className="text-xs text-slate-500 font-medium">{user?.name} · <span className="uppercase">{user?.role ? (user.role.startsWith('Kabag') && !user.role.includes('Administrasi') && !user.role.includes('Keuangan') ? user.role.replace('Kabag', 'Kabid').replace(/_/g, ' ') : user.role.replace(/_/g, ' ')) : ''}</span></p>
               </div>
             </div>
             <div className="px-6 py-4">

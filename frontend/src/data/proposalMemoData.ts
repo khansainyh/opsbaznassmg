@@ -75,6 +75,7 @@ export interface ProposalMemo {
   tipeBantuan?: 'Tunai' | 'Barang';
   program?: string;
   alasanPerubahanNominal?: string;
+  alasan_perubahan_dana?: string;
   deskripsi?: string;
   asnaf?: string;
   hasil_identifikasi?: string;

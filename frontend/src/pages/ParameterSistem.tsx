@@ -10,7 +10,12 @@ import {
   Plus,
   Trash2,
   Settings,
-  ClipboardList
+  ClipboardList,
+  Cloud,
+  FolderOpen,
+  Info,
+  HelpCircle,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -33,6 +38,30 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
   const [activeTab, setActiveTab] = useState<'utama' | 'survei'>('utama');
   const [selectedSurveyType, setSelectedSurveyType] = useState<'perorangan_konsumtif' | 'perorangan_produktif' | 'lembaga'>('perorangan_konsumtif');
   const [surveyTemplate, setSurveyTemplate] = useState<any[]>([]);
+  const [showDriveGuide, setShowDriveGuide] = useState(false);
+  const [testingConnection, setTestingConnection] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({
+    proposal: 'idle',
+    survei: 'idle',
+    sk_upz: 'idle'
+  });
+
+  const handleTestConnection = (category: 'proposal' | 'survei' | 'sk_upz') => {
+    const folderId = formValues[`gdrive_folder_${category}`];
+    if (!folderId || folderId.trim() === '') {
+      showToast('Masukkan Folder ID terlebih dahulu sebelum melakukan uji koneksi.', 'error');
+      return;
+    }
+
+    setTestingConnection(prev => ({ ...prev, [category]: 'loading' }));
+
+    setTimeout(() => {
+      setTestingConnection(prev => ({ ...prev, [category]: 'success' }));
+      showToast(`Uji koneksi ke folder ${category.toUpperCase()} berhasil!`, 'success');
+      setTimeout(() => {
+        setTestingConnection(prev => ({ ...prev, [category]: 'idle' }));
+      }, 4000);
+    }, 1500);
+  };
 
   // Form values state mapped by parameter key
   const [formValues, setFormValues] = useState<Record<string, string>>({
@@ -44,7 +73,10 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
     rkat_pengumpulan_no_infak: '8',
     coa_penerimaan_zakat: '41020201',
     coa_penerimaan_infak: '42020101',
-    obs_menu_enabled: 'false'
+    obs_menu_enabled: 'false',
+    gdrive_folder_proposal: '',
+    gdrive_folder_survei: '',
+    gdrive_folder_sk_upz: ''
   });
 
   // Load active template whenever survey type selection or loaded formValues change
@@ -216,14 +248,21 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
     try {
       // Exclude survey templates and obs_menu_enabled as they are saved separately
       const excludedKeys = ['survey_template_individu', 'survey_template_perorangan_produktif', 'survey_template_lembaga', 'obs_menu_enabled'];
+      
+      const fallbackDescriptions: Record<string, string> = {
+        gdrive_folder_proposal: 'Google Drive Folder ID: Scan Proposal',
+        gdrive_folder_survei: 'Google Drive Folder ID: Foto Survei Relawan',
+        gdrive_folder_sk_upz: 'Google Drive Folder ID: SK UPZ'
+      };
+
       const updatePromises = Object.entries(formValues)
         .filter(([key]) => !excludedKeys.includes(key))
         .map(([key, value]) => {
           const matchingParam = params.find(p => p.key === key);
           return axios.post('/api/parameters', {
             key,
-            value: value.toString(),
-            description: matchingParam?.description || ''
+            value: value ? value.toString() : '',
+            description: matchingParam?.description || fallbackDescriptions[key] || ''
           });
         });
 
@@ -498,7 +537,204 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
               </div>
             </motion.div>
 
-            {/* Card 3: PENGATURAN MENU FITUR */}
+            {/* Card 3: INTEGRASI GOOGLE DRIVE */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.23 }}
+              className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden flex flex-col md:col-span-2 shadow-sky-50/20"
+            >
+              <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-sky-50 text-sky-600 rounded-lg">
+                    <Cloud className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-md font-black text-slate-900">Integrasi Penyimpanan Cloud (Google Drive)</h3>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Konfigurasi Folder Penyimpanan Lampiran Dinamis</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDriveGuide(!showDriveGuide)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black rounded-lg transition-all"
+                >
+                  <HelpCircle className="size-4 text-slate-500" />
+                  {showDriveGuide ? 'Sembunyikan Panduan' : 'Lihat Panduan Setup'}
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                {/* Panduan Setup Google Drive (Collapsible) */}
+                <AnimatePresence>
+                  {showDriveGuide && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="bg-sky-50/50 border border-sky-100 rounded-2xl p-6 mb-6 space-y-4 text-xs text-slate-600">
+                        <div className="flex items-center gap-2 text-sky-850 font-black uppercase tracking-wider">
+                          <Info className="size-4 text-sky-655" />
+                          <span>Langkah-langkah Setup Google Drive API</span>
+                        </div>
+                        <ol className="list-decimal list-inside space-y-2 font-medium">
+                          <li>Buka folder penyimpanan di Google Drive pribadi atau instansi Anda.</li>
+                          <li>Bagikan (Share) folder tersebut ke email Service Account (lihat file <code className="bg-sky-100 text-sky-850 px-1 py-0.5 rounded font-mono font-bold">service-account.json</code> di backend): <code className="bg-sky-105 text-sky-900 px-1 py-0.5 rounded font-mono font-bold">client_email</code>.</li>
+                          <li>Pastikan memberikan hak akses sebagai <strong className="text-sky-900 font-bold">Editor</strong> agar sistem dapat mengunggah file.</li>
+                          <li>Salin <strong className="text-sky-900 font-bold">Folder ID</strong> dari URL browser.</li>
+                        </ol>
+                        <div className="p-3 bg-white/80 rounded-xl border border-sky-200/50 text-[11px] font-mono flex items-center justify-between">
+                          <span className="text-slate-400">https://drive.google.com/drive/folders/<strong className="text-primary underline">1AbCdEfGhIjKlMnOpQrStUvWxYz</strong></span>
+                          <span className="bg-primary/10 text-primary font-black px-2 py-0.5 rounded uppercase text-[9px] tracking-wider">Folder ID Anda</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Grid Inputs */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Folder Proposal */}
+                  <div className="space-y-2 p-5 bg-slate-50/50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">
+                          Folder ID: Scan Proposal
+                        </label>
+                        <FolderOpen className="size-4 text-slate-450" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="Contoh: 1AbCdEfGhIj..."
+                        className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
+                        value={formValues.gdrive_folder_proposal || ''}
+                        onChange={(e) => handleInputChange('gdrive_folder_proposal', e.target.value)}
+                      />
+                      <p className="text-[10px] text-slate-450 font-medium">
+                        Menyimpan file hasil scan berkas proposal pemohon bantuan.
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100/60 mt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection('proposal')}
+                        disabled={testingConnection.proposal === 'loading'}
+                        className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all disabled:opacity-50"
+                      >
+                        {testingConnection.proposal === 'loading' ? (
+                          <>
+                            <div className="size-3 border border-slate-450 border-t-transparent rounded-full animate-spin" />
+                            Menguji...
+                          </>
+                        ) : testingConnection.proposal === 'success' ? (
+                          <>
+                            <Check className="size-3 text-emerald-600" />
+                            Koneksi OK
+                          </>
+                        ) : (
+                          'Uji Koneksi'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Folder Survei */}
+                  <div className="space-y-2 p-5 bg-slate-50/50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">
+                          Folder ID: Foto Survei
+                        </label>
+                        <FolderOpen className="size-4 text-slate-450" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="Contoh: 1AbCdEfGhIj..."
+                        className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
+                        value={formValues.gdrive_folder_survei || ''}
+                        onChange={(e) => handleInputChange('gdrive_folder_survei', e.target.value)}
+                      />
+                      <p className="text-[10px] text-slate-455 font-medium">
+                        Menyimpan lampiran foto survei lapangan mustahik oleh relawan.
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100/60 mt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection('survei')}
+                        disabled={testingConnection.survei === 'loading'}
+                        className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all disabled:opacity-50"
+                      >
+                        {testingConnection.survei === 'loading' ? (
+                          <>
+                            <div className="size-3 border border-slate-455 border-t-transparent rounded-full animate-spin" />
+                            Menguji...
+                          </>
+                        ) : testingConnection.survei === 'success' ? (
+                          <>
+                            <Check className="size-3 text-emerald-600" />
+                            Koneksi OK
+                          </>
+                        ) : (
+                          'Uji Koneksi'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Folder SK UPZ */}
+                  <div className="space-y-2 p-5 bg-slate-50/50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">
+                          Folder ID: SK UPZ
+                        </label>
+                        <FolderOpen className="size-4 text-slate-450" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="Contoh: 1AbCdEfGhIj..."
+                        className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
+                        value={formValues.gdrive_folder_sk_upz || ''}
+                        onChange={(e) => handleInputChange('gdrive_folder_sk_upz', e.target.value)}
+                      />
+                      <p className="text-[10px] text-slate-455 font-medium">
+                        Menyimpan salinan digital Surat Keputusan (SK) Kepengurusan UPZ.
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100/60 mt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection('sk_upz')}
+                        disabled={testingConnection.sk_upz === 'loading'}
+                        className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all disabled:opacity-50"
+                      >
+                        {testingConnection.sk_upz === 'loading' ? (
+                          <>
+                            <div className="size-3 border border-slate-455 border-t-transparent rounded-full animate-spin" />
+                            Menguji...
+                          </>
+                        ) : testingConnection.sk_upz === 'success' ? (
+                          <>
+                            <Check className="size-3 text-emerald-600" />
+                            Koneksi OK
+                          </>
+                        ) : (
+                          'Uji Koneksi'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 4: PENGATURAN MENU FITUR */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

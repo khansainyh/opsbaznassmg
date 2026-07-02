@@ -41,8 +41,10 @@ type Role =
   | 'Kabag_Pendayagunaan'
   | 'Kepala_Pelaksana' 
   | 'Staf_Administrasi' 
-  | 'Staf_Distribusi' 
+  | 'Staf_Pendistribusian' 
+  | 'Staf_Pendayagunaan' 
   | 'Staf_Keuangan'
+  | 'Kabag_Keuangan'
   | 'Staf_Pengumpulan'
   | 'Staf_Pelaporan'
   | 'Relawan'
@@ -78,7 +80,7 @@ const menuGroups = [
   {
     title: "OPERASIONAL",
     items: [
-      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Distribusi"] },
+      { name: "Tracking Proposal", icon: ClipboardCheck, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan", "Kabag_Keuangan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan"] },
       { name: "Tracking Surat", icon: ClipboardCheck, roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
     ]
   },
@@ -102,32 +104,32 @@ const menuGroups = [
   {
     title: "PENDISTRIBUSIAN & PENDAYAGUNAAN",
     items: [
-      { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Antrean Arsip", icon: Archive, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Distribusi"] },
-      { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+      { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+      { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+      { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+      { name: "Antrean Arsip", icon: Archive, roles: ["Super_Admin", "Wakil_Ketua_II", "Staf_Pendistribusian", "Staf_Pendayagunaan"] },
+      { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
     ]
   },
   {
     title: "KEUANGAN",
     items: [
-      { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan"] },
-      { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Staf_Keuangan"] },
-      { name: "Pemindahan Dana", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan"] },
-      { name: "Pengeluaran Manual", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan"] },
-      { name: "Catat Mutasi", icon: Upload, roles: ["Super_Admin", "Staf_Keuangan"] },
-      { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Staf_Keuangan"] },
+      { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
+      { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
+      { name: "Pemindahan Dana", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
+      { name: "Pengeluaran Manual", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
+      { name: "Catat Mutasi", icon: Upload, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
+      { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
     ]
   },
   {
     title: "PELAPORAN",
     items: [
-      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Ketua", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+      { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Kabag_Keuangan", "Ketua", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin"] },
       { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
-      { name: "Off-Balancing", icon: Target, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"], requiresObs: true },
-      { name: "Pelaporan OBS", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Distribusi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
+      { name: "Off-Balancing", icon: Target, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"], requiresObs: true },
+      { name: "Pelaporan OBS", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
     ]
   }
 ];
@@ -284,7 +286,7 @@ export default function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, obs
           <div className="flex items-center justify-between gap-2">
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-slate-800 truncate">{user.name}</span>
-              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">{user.role.startsWith('Kabag') && !user.role.includes('Administrasi') ? user.role.replace('Kabag', 'Kabid').replace(/_/g, ' ') : user.role.replace(/_/g, ' ')}</span>
+              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">{user.role.startsWith('Kabag') && !user.role.includes('Administrasi') && !user.role.includes('Keuangan') ? user.role.replace('Kabag', 'Kabid').replace(/_/g, ' ') : user.role.replace(/_/g, ' ')}</span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <button

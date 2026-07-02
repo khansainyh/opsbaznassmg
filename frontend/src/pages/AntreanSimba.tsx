@@ -27,59 +27,63 @@ interface AntreanSimbaProps {
 const mapRawProposalToMemo = (item: any): ProposalMemo => {
   return {
     id: item.id,
-    agendaNo: item.agenda_no,
-    tanggalMasuk: item.tanggal_masuk ? new Date(item.tanggal_masuk).toISOString().split('T')[0] : '',
-    namaInstansi: item.nama_instansi || '',
-    pimpinanOrganisasi: item.pimpinan_organisasi || '',
-    namaPemohon: item.nama_pemohon || '',
-    namaAnak: item.nama_anak || '',
+    agendaNo: item.agendaNo ?? item.agenda_no,
+    tanggalMasuk: item.tanggalMasuk ?? (item.tanggal_masuk ? new Date(item.tanggal_masuk).toISOString().split('T')[0] : ''),
+    namaInstansi: item.namaInstansi || item.nama_instansi || '',
+    pimpinanOrganisasi: item.pimpinanOrganisasi || item.pimpinan_organisasi || '',
+    namaPemohon: item.namaPemohon || item.nama_pemohon || '',
+    namaAnak: item.namaAnak || item.nama_anak || '',
     nik: item.nik || '',
     alamat: item.alamat || '',
     kelurahan: item.kelurahan || '',
     kecamatan: item.kecamatan || '',
     pekerjaan: item.pekerjaan || '',
-    jenisPermohonan: item.program ? item.program.name : (item.jenis_permohonan || ''),
-    programCode: item.jenis_permohonan || '',
-    noTelpon: item.no_telpon || '',
-    jamPengajuan: item.jam_pengajuan || '',
-    yangMengajukan: item.yang_mengajukan || '',
-    hasMemo: !!item.has_memo,
-    memoSource: item.memo_source || '',
-    jenisPengajuan: item.jenis_ajuan || item.jenis_pengajuan || '',
+    jenisPermohonan: item.jenisPermohonan || (item.program && typeof item.program === 'object' ? item.program.name : (item.jenis_permohonan || '')),
+    programCode: item.programCode || item.jenis_permohonan || '',
+    noTelpon: item.noTelpon || item.no_telpon || '',
+    jamPengajuan: item.jamPengajuan || item.jam_pengajuan || '',
+    yangMengajukan: item.yangMengajukan || item.yang_mengajukan || '',
+    hasMemo: item.hasMemo ?? !!item.has_memo,
+    memoSource: item.memoSource || item.memo_source || '',
+    jenisPengajuan: item.jenisPengajuan || item.jenis_ajuan || item.jenis_pengajuan || '',
     status: item.status ? item.status.replace(/_/g, ' ') : '',
     keterangan: item.keterangan || '',
     rekomendasi: item.rekomendasi || '',
-    fileGdriveLink: item.file_gdrive_link || '',
+    fileGdriveLink: item.fileGdriveLink || item.file_gdrive_link || '',
     surveyorName: item.surveyorName || undefined,
-    isBeingSurveyed: !!item.isBeingSurveyed,
+    isBeingSurveyed: item.isBeingSurveyed ?? !!item.isBeingSurveyed,
     urgencyLevel: item.urgencyLevel || undefined,
     score: item.score || 0,
     surveySubmittedAt: item.surveySubmittedAt || undefined,
     survey_data: item.survey_data || undefined,
     catatanKepala: item.catatanKepala || undefined,
     nominal: item.nominal || 0,
-    tipeBantuan: item.tipe_bantuan || '',
-    alasanPerubahanNominal: item.alasan_perubahan_nominal || '',
+    tipeBantuan: item.tipeBantuan || item.tipe_bantuan || '',
+    alasanPerubahanNominal: item.alasanPerubahanNominal || item.alasan_perubahan_nominal || '',
     asnaf: item.asnaf || undefined,
     hasil_identifikasi: item.hasil_identifikasi || undefined,
     rekomendasi_kabag: item.rekomendasi_kabag || undefined,
-    approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
-    rkatActivityId: item.rkat_activity_id || undefined,
+    approval_kabag: item.approval_kabag !== null && item.approval_kabag !== undefined ? item.approval_kabag : undefined,
+    rkatActivityId: item.rkatActivityId || item.rkat_activity_id || undefined,
     mustahik: item.mustahik || null,
     mustahik_id: item.mustahik_id || null,
-    updatedAt: item.updated_at || '',
+    updatedAt: item.updatedAt || item.updated_at || '',
     is_rutin: item.is_rutin ?? false,
     frekuensi_berulang: item.frekuensi_berulang ?? undefined,
     tanggal_pencairan: item.tanggal_pencairan ?? undefined,
     butuh_survei: item.butuh_survei ?? true,
     penerima_detail: item.penerima_detail || [],
+    volume: item.volume || 1,
+    rekomendasi_unit_cost: item.rekomendasi_unit_cost || undefined,
     program: item.program ? (
-      item.program.pilar_code === '1100' || item.program.pilar_code === '2101' ? 'Semarang Peduli' :
-      item.program.pilar_code === '1200' || item.program.pilar_code === '2201' ? 'Semarang Sehat' :
-      item.program.pilar_code === '1300' || item.program.pilar_code === '2301' ? 'Semarang Cerdas' :
-      item.program.pilar_code === '1400' || item.program.pilar_code === '2501' ? 'Semarang Taqwa' :
-      item.program.pilar_code === '2100' || item.program.pilar_code === '2401' ? 'Semarang Makmur' :
-      undefined
+      typeof item.program === 'string' ? item.program : (
+        item.program.pilar_code === '1100' || item.program.pilar_code === '2101' ? 'Semarang Peduli' :
+        item.program.pilar_code === '1200' || item.program.pilar_code === '2201' ? 'Semarang Sehat' :
+        item.program.pilar_code === '1300' || item.program.pilar_code === '2301' ? 'Semarang Cerdas' :
+        item.program.pilar_code === '1400' || item.program.pilar_code === '2501' ? 'Semarang Taqwa' :
+        item.program.pilar_code === '2100' || item.program.pilar_code === '2401' ? 'Semarang Makmur' :
+        undefined
+      )
     ) : undefined
   };
 };
@@ -91,6 +95,45 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [selectedBantuanFilter, setSelectedBantuanFilter] = useState<string>('Semua');
+
+  // Group into pending NRM and ready NRM (checking by-name sub-records if applicable)
+  const disbursedProposals = useMemo(() => {
+    const list = data || [];
+    return list.filter(p => p.status === 'Selesai & Arsip');
+  }, [data]);
+
+  const readyNrmList = useMemo(() => {
+    return disbursedProposals.filter(p => {
+      const isByName = p.jenisPengajuan === 'Lembaga' && p.volume && p.volume > 1 && p.penerima_detail && Array.isArray(p.penerima_detail) && p.penerima_detail.length > 0;
+      if (isByName) {
+        const list = p.penerima_detail as any[];
+        return list.length > 0 && list.every(item => !!item.nrm);
+      }
+      return !!p.mustahik?.nrm;
+    });
+  }, [disbursedProposals]);
+
+  const pendingNrmList = useMemo(() => {
+    return disbursedProposals.filter(p => {
+      const isByName = p.jenisPengajuan === 'Lembaga' && p.volume && p.volume > 1 && p.penerima_detail && Array.isArray(p.penerima_detail) && p.penerima_detail.length > 0;
+      if (isByName) {
+        return (p.penerima_detail as any[]).some(item => !item.nrm);
+      }
+      return !p.mustahik?.nrm;
+    });
+  }, [disbursedProposals]);
+
+  // Dynamic Program Bantuan filter options
+  const uniqueBantuanOptions = useMemo(() => {
+    const options = new Set<string>();
+    readyNrmList.forEach(p => {
+      if (p.jenisPermohonan) {
+        options.add(p.jenisPermohonan);
+      }
+    });
+    return ['Semua', ...Array.from(options)];
+  }, [readyNrmList]);
 
   // Auto-sync NRMs from Database on mount
   useEffect(() => {
@@ -183,32 +226,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     }
   };
 
-  const disbursedProposals = useMemo(() => {
-    const list = data || [];
-    return list.filter(p => p.status === 'Selesai & Arsip');
-  }, [data]);
 
-  // Group into pending NRM and ready NRM (checking by-name sub-records if applicable)
-  const pendingNrmList = useMemo(() => {
-    return disbursedProposals.filter(p => {
-      const isByName = p.jenisPengajuan === 'Lembaga' && p.penerima_detail && Array.isArray(p.penerima_detail) && p.penerima_detail.length > 0;
-      if (isByName) {
-        return (p.penerima_detail as any[]).some(item => !item.nrm);
-      }
-      return !p.mustahik?.nrm;
-    });
-  }, [disbursedProposals]);
-
-  const readyNrmList = useMemo(() => {
-    return disbursedProposals.filter(p => {
-      const isByName = p.jenisPengajuan === 'Lembaga' && p.penerima_detail && Array.isArray(p.penerima_detail) && p.penerima_detail.length > 0;
-      if (isByName) {
-        const list = p.penerima_detail as any[];
-        return list.length > 0 && list.every(item => !!item.nrm);
-      }
-      return !!p.mustahik?.nrm;
-    });
-  }, [disbursedProposals]);
 
   // Handle NRM input changes
   const handleNrmChange = (proposalId: string, value: string) => {
@@ -414,7 +432,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     const todayStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
     pendingNrmList.forEach(proposal => {
-      const isByName = proposal.jenisPengajuan === 'Lembaga' && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
+      const isByName = proposal.jenisPengajuan === 'Lembaga' && proposal.volume && proposal.volume > 1 && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
       if (isByName) {
         (proposal.penerima_detail as any[]).forEach(item => {
           if (!item.nrm) {
@@ -459,9 +477,150 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     XLSX.writeFile(workbook, `SIMBA_Antrean_Belum_Ada_NRM_${todayStr}.xlsx`);
   };
 
+  const downloadReadySimbaExcel = () => {
+    let listToExport = readyNrmList;
+    if (selectedBantuanFilter !== 'Semua') {
+      listToExport = listToExport.filter(p => p.jenisPermohonan === selectedBantuanFilter);
+    }
+
+    if (listToExport.length === 0) {
+      alert('Tidak ada data dalam antrean Sudah Ada NRM yang sesuai filter jenis bantuan.');
+      return;
+    }
+
+    const rows: any[] = [];
+    let counter = 1;
+
+    listToExport.forEach(proposal => {
+      const isByName = proposal.jenisPengajuan === 'Lembaga' && proposal.volume && proposal.volume > 1 && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
+      
+      const dateStr = proposal.updatedAt
+        ? new Date(proposal.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
+        : new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
+      let fundSource = 'ZAKAT';
+      const possibleSources = [proposal.rekomendasi_kabag, proposal.tipeBantuan];
+      for (const src of possibleSources) {
+        if (!src) continue;
+        const normalized = src.toUpperCase().trim();
+        if (normalized.includes('ZAKAT')) {
+          fundSource = 'ZAKAT';
+          break;
+        } else if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST' || normalized.includes('TERIKAT')) {
+          fundSource = 'INFAK_TERIKAT';
+          break;
+        } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
+          fundSource = 'INFAK_TIDAK_TERIKAT';
+          break;
+        }
+      }
+
+      const isZakat = fundSource === 'ZAKAT';
+      const isIST = fundSource === 'INFAK_TERIKAT';
+      const isISTT = fundSource === 'INFAK_TIDAK_TERIKAT';
+
+      const asnafNormalized = (proposal.asnaf || '').toLowerCase();
+
+      if (isByName) {
+        (proposal.penerima_detail as any[]).forEach(item => {
+          if (item.nrm) {
+            const nominal = proposal.rekomendasi_unit_cost || proposal.nominal || 0;
+            const row: any = {
+              'No': counter++,
+              'Tanggal': dateStr,
+              'NRM': item.nrm,
+              'Nama': item.nama_lengkap || '',
+              'Penerima Manfaat': 1,
+              'Fakir Miskin': '',
+              'Riqab': '',
+              'Gharimin': '',
+              'Muallaf': '',
+              'Fisabilillah': '',
+              'Ibnu Sabil': '',
+              'IST': '',
+              'ISTT': '',
+              'Keterangan': item.keterangan || proposal.keterangan || `Penerima By-Name Agenda ${proposal.agendaNo}`
+            };
+
+            if (isZakat) {
+              if (asnafNormalized === 'riqab') {
+                row['Riqab'] = nominal;
+              } else if (asnafNormalized === 'gharimin') {
+                row['Gharimin'] = nominal;
+              } else if (asnafNormalized === 'muallaf') {
+                row['Muallaf'] = nominal;
+              } else if (asnafNormalized === 'fisabilillah') {
+                row['Fisabilillah'] = nominal;
+              } else if (asnafNormalized === 'ibnu sabil') {
+                row['Ibnu Sabil'] = nominal;
+              } else {
+                row['Fakir Miskin'] = nominal;
+              }
+            } else if (isIST) {
+              row['IST'] = nominal;
+            } else if (isISTT) {
+              row['ISTT'] = nominal;
+            }
+
+            rows.push(row);
+          }
+        });
+      } else {
+        const nominal = proposal.rekomendasi_unit_cost || proposal.nominal || 0;
+        const row: any = {
+          'No': counter++,
+          'Tanggal': dateStr,
+          'NRM': proposal.mustahik?.nrm || '',
+          'Nama': proposal.namaPemohon || '',
+          'Penerima Manfaat': 1,
+          'Fakir Miskin': '',
+          'Riqab': '',
+          'Gharimin': '',
+          'Muallaf': '',
+          'Fisabilillah': '',
+          'Ibnu Sabil': '',
+          'IST': '',
+          'ISTT': '',
+          'Keterangan': proposal.keterangan || ''
+        };
+
+        if (isZakat) {
+          if (asnafNormalized === 'riqab') {
+            row['Riqab'] = nominal;
+          } else if (asnafNormalized === 'gharimin') {
+            row['Gharimin'] = nominal;
+          } else if (asnafNormalized === 'muallaf') {
+            row['Muallaf'] = nominal;
+          } else if (asnafNormalized === 'fisabilillah') {
+            row['Fisabilillah'] = nominal;
+          } else if (asnafNormalized === 'ibnu sabil') {
+            row['Ibnu Sabil'] = nominal;
+          } else {
+            row['Fakir Miskin'] = nominal;
+          }
+        } else if (isIST) {
+          row['IST'] = nominal;
+        } else if (isISTT) {
+          row['ISTT'] = nominal;
+        }
+
+        rows.push(row);
+      }
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
+    XLSX.writeFile(workbook, `SIMBA_Realisasi_${selectedBantuanFilter.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+  };
+
   const currentList = activeTab === 'pending' ? pendingNrmList : readyNrmList;
   const filteredList = useMemo(() => {
-    return currentList.filter(p => {
+    let list = currentList;
+    if (activeTab === 'ready' && selectedBantuanFilter !== 'Semua') {
+      list = list.filter(p => p.jenisPermohonan === selectedBantuanFilter);
+    }
+    return list.filter(p => {
       const agendaStr = p.agendaNo ? String(p.agendaNo) : '';
       const namaPemohonStr = p.namaPemohon ? String(p.namaPemohon).toLowerCase() : '';
       const searchLower = searchTerm.toLowerCase();
@@ -478,7 +637,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
 
       return matchAgenda || matchNama || matchNrm || matchByName;
     });
-  }, [currentList, searchTerm]);
+  }, [currentList, searchTerm, activeTab, selectedBantuanFilter]);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50">
@@ -635,6 +794,28 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                 Unduh Template Reg SIMBA
               </button>
             )}
+            {activeTab === 'ready' && (
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <select
+                  value={selectedBantuanFilter}
+                  onChange={(e) => setSelectedBantuanFilter(e.target.value)}
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none font-bold text-slate-700 w-full sm:w-auto"
+                >
+                  {uniqueBantuanOptions.map(opt => (
+                    <option key={opt} value={opt}>
+                      {opt === 'Semua' ? 'Semua Bantuan' : opt}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={downloadReadySimbaExcel}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow active:scale-95 cursor-pointer shrink-0 w-full sm:w-auto"
+                >
+                  <Download className="size-4" />
+                  Unduh Realisasi SIMBA
+                </button>
+              </div>
+            )}
           </div>
           
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
@@ -663,7 +844,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                     </td>
                   </tr>
                 ) : filteredList.map((item, idx) => {
-                  const isByName = item.jenisPengajuan === 'Lembaga' && item.penerima_detail && Array.isArray(item.penerima_detail) && item.penerima_detail.length > 0;
+                  const isByName = item.jenisPengajuan === 'Lembaga' && item.volume && item.volume > 1 && item.penerima_detail && Array.isArray(item.penerima_detail) && item.penerima_detail.length > 0;
                   const savedNrm = item.mustahik?.nrm || '';
                   const draftNrm = editingNrm[item.id] !== undefined ? editingNrm[item.id] : savedNrm;
                   const isReady = isByName 
@@ -702,15 +883,17 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                         <div className="text-[10px] text-slate-400 mt-0.5 font-semibold">NIK: {item.nik}</div>
                         
                         {/* By Name Button */}
-                        <div className="mt-2">
-                          <button
-                            onClick={() => handleOpenByNameModal(item)}
-                            className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-primary hover:text-primary/80 transition-colors border border-primary/20 bg-primary/5 px-2 py-1 rounded"
-                          >
-                            <Users className="size-3" />
-                            Penerima By-Name ({item.penerima_detail?.length || 0})
-                          </button>
-                        </div>
+                        {isByName && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => handleOpenByNameModal(item)}
+                              className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-primary hover:text-primary/80 transition-colors border border-primary/20 bg-primary/5 px-2 py-1 rounded"
+                            >
+                              <Users className="size-3" />
+                              Penerima By-Name ({item.penerima_detail?.length || 0})
+                            </button>
+                          </div>
+                        )}
                       </td>
                       
                       {/* 4. Tgl Cair Bank */}

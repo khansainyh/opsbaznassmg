@@ -18,8 +18,7 @@ import {
   Edit3,
   BookOpen,
   Printer,
-  FileText,
-  Calendar
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -103,6 +102,7 @@ export default function PenerimaanZis() {
   const [isOutsideRkat, setIsOutsideRkat] = useState(false);
   const [coaSearch, setCoaSearch] = useState('');
   const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
+  // @ts-ignore
   const [noTransaksiSimba, setNoTransaksiSimba] = useState('');
 
   // Quick register muzakki inside modal
@@ -146,7 +146,7 @@ export default function PenerimaanZis() {
           const uList = res.data || [];
           setUsers(uList);
           
-          const kkUser = uList.find((u: any) => u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi');
+          const kkUser = uList.find((u: any) => u.role === 'Kabag_Keuangan') || uList.find((u: any) => u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi');
           const kpUser = uList.find((u: any) => u.role === 'Kabag_Pengumpulan');
           const spUser = uList.find((u: any) => u.role === 'Staf_Pengumpulan');
           
@@ -1871,7 +1871,7 @@ export default function PenerimaanZis() {
                           value={users.some(u => u.name === signatories.kabagKeuangan) ? signatories.kabagKeuangan : ''}
                         >
                           <option value="">-- Pilih --</option>
-                          {users.filter(u => u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi').map(u => (
+                           {users.filter(u => u.role === 'Kabag_Keuangan' || u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi').map(u => (
                             <option key={u.id} value={u.name}>{u.name}</option>
                           ))}
                         </select>

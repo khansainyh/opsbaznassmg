@@ -139,7 +139,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
 
   // Helper to map proposal category to Tag
   const getProposalTag = (proposal: ProposalMemo) => {
-    const rawTag = proposal.tipeBantuan || (proposal as any).rekomendasi_kabag || 'Zakat';
+    const rawTag = proposal.rekomendasi_kabag || proposal.tipeBantuan || 'Zakat';
     const tagUpper = String(rawTag).toUpperCase();
     if (tagUpper.includes('ISTT') || tagUpper.includes('TIDAK TERIKAT') || tagUpper.includes('TIDAK_TERIKAT') || tagUpper.includes('INFAK_TIDAK_TERIKAT')) {
       return 'INFAK_TIDAK_TERIKAT';

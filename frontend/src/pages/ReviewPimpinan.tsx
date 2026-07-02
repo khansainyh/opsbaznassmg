@@ -679,8 +679,8 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                               Saldo Kas Riil ({(() => {
                                 const kasType = availability.sumber_dana_yang_dipakai || 'ZAKAT';
                                 return kasType === 'ZAKAT' ? 'Zakat' :
-                                       kasType === 'INFAK_TIDAK_TERIKAT' ? 'Infak Tidak Terikat' :
-                                       kasType === 'INFAK_TERIKAT' ? 'Infak Terikat' : kasType;
+                                       kasType === 'INFAK_TIDAK_TERIKAT' ? 'Infak/Sedekah Tidak Terikat' :
+                                       kasType === 'INFAK_TERIKAT' ? 'Infak/Sedekah Terikat' : kasType;
                               })()})
                             </p>
                             {(() => {

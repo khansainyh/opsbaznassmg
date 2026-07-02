@@ -40,7 +40,10 @@ const defaultParams = [
   { key: 'rkat_pengumpulan_no_infak', value: '8', description: 'Nomor Urut RKAT Infak/Sedekah UPZ Pengumpulan' },
   { key: 'coa_penerimaan_zakat', value: '41020201', description: 'Kode Akun (COA) Kredit Zakat Maal UPZ Pengumpulan' },
   { key: 'coa_penerimaan_infak', value: '42020101', description: 'Kode Akun (COA) Kredit Infak/Sedekah UPZ Pengumpulan' },
-  { key: 'obs_menu_enabled', value: 'false', description: 'Status Menu Off-Balancing Aktif (true/false)' }
+  { key: 'obs_menu_enabled', value: 'false', description: 'Status Menu Off-Balancing Aktif (true/false)' },
+  { key: 'gdrive_folder_proposal', value: '', description: 'Google Drive Folder ID: Scan Proposal' },
+  { key: 'gdrive_folder_survei',   value: '', description: 'Google Drive Folder ID: Foto Survei Relawan' },
+  { key: 'gdrive_folder_sk_upz',   value: '', description: 'Google Drive Folder ID: SK UPZ' }
 ];
 
 export const getParameters = async (req: Request, res: Response) => {
