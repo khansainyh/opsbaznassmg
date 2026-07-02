@@ -377,3 +377,51 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message || String(error) });
   }
 };
+
+export const deletePengajuan = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = req.query.userId as string | undefined;
+
+    if (!id) {
+      res.status(400).json({ error: 'ID pengajuan wajib disertakan.' });
+      return;
+    }
+
+    const pengajuan = await prisma.pengajuanPencairan.findUnique({
+      where: { id },
+    });
+
+    if (!pengajuan) {
+      res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+      return;
+    }
+
+    if (pengajuan.status === StatusPengajuan.CAIR) {
+      res.status(400).json({ error: 'Pengajuan yang sudah dicairkan tidak dapat dihapus.' });
+      return;
+    }
+
+    if (userId && pengajuan.pengaju_id !== String(userId)) {
+      const user = await prisma.user.findUnique({ where: { id: String(userId) } });
+      if (user?.role !== 'Super_Admin') {
+        res.status(403).json({ error: 'Anda hanya dapat menghapus pengajuan yang Anda buat sendiri.' });
+        return;
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pengajuanLog.deleteMany({
+        where: { pengajuan_id: id },
+      });
+      await tx.pengajuanPencairan.delete({
+        where: { id },
+      });
+    });
+
+    res.status(200).json({ status: 'success', message: 'Pengajuan pencairan berhasil dihapus.' });
+  } catch (error: any) {
+    console.error('Delete Pengajuan Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+};

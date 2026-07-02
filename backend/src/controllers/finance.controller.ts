@@ -1086,7 +1086,7 @@ export const getJournalEntries = async (req: Request, res: Response) => {
 // ==========================================
 export const createManualExpense = async (req: Request, res: Response) => {
   try {
-    const { sourceAccountId, type, nominal, keterangan, tanggalTransaksi, tanggalCatatan } = req.body;
+    const { sourceAccountId, type, nominal, keterangan, tanggalTransaksi, tanggalCatatan, kategoriBiaya } = req.body;
 
     if (!sourceAccountId || !type || !nominal || Number(nominal) <= 0 || !keterangan) {
       res.status(400).json({ error: 'Sumber dana, jenis transaksi (Kredit/Pengeluaran), nominal, dan keterangan wajib diisi' });
@@ -1143,7 +1143,8 @@ export const createManualExpense = async (req: Request, res: Response) => {
       keteranganBank: keterangan.trim(),
       nominal: Number(nominal),
       type: 'KREDIT', // Selalu KREDIT (Pengeluaran)
-      status: 'PENDING'
+      status: 'PENDING',
+      kategori_biaya: kategoriBiaya || 'Lain-lain'
     };
 
     mutations.push(newDraft);

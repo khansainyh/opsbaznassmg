@@ -9,23 +9,25 @@ import {
   XCircle, 
   Eye, 
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  ChevronRight
 } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export default function PengajuanOperasional() {
   const { user } = useAuth();
   
   // List states
   const [pengajuans, setPengajuans] = useState<any[]>([]);
-  const [rkatList, setRkatList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);
 
   // Form states
-  const [kategoriBiaya, setKategoriBiaya] = useState('Operasional Kantor');
+  const [kategoriBiaya, setKategoriBiaya] = useState('');
   const [keterangan, setKeterangan] = useState('');
   const [nominal, setNominal] = useState('');
-  const [selectedRkatId, setSelectedRkatId] = useState('');
+  const [categories, setCategories] = useState<any[]>([]);
 
   // Modal / Detail state
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
@@ -45,21 +47,29 @@ export default function PengajuanOperasional() {
     }
   }, [user]);
 
-  const fetchRkatList = useCallback(async () => {
+  const fetchCategories = useCallback(async () => {
     try {
-      const res = await axios.get('/api/rkat-operasional');
+      const res = await axios.get('/api/kategori-biaya');
       if (res.data.status === 'success') {
-        setRkatList(res.data.data);
+        setCategories(res.data.data);
+        if (res.data.data.length > 0) {
+          setKategoriBiaya(res.data.data[0].nama);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch RKAT Operasional:', err);
+      console.error('Failed to fetch categories:', err);
     }
   }, []);
 
   useEffect(() => {
     fetchMyPengajuans();
-    fetchRkatList();
-  }, [fetchMyPengajuans, fetchRkatList]);
+    fetchCategories();
+  }, [fetchMyPengajuans, fetchCategories]);
+
+  const handleNominalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value.replace(/[^0-9]/g, '');
+    setNominal(rawVal);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,14 +85,13 @@ export default function PengajuanOperasional() {
         kategori_biaya: kategoriBiaya,
         keterangan: keterangan,
         nominal: Number(nominal),
-        rkat_id: selectedRkatId || null
+        rkat_id: null
       });
 
       if (res.data.status === 'success') {
         alert('Pengajuan pencairan berhasil disubmit ke alur persetujuan.');
         setKeterangan('');
         setNominal('');
-        setSelectedRkatId('');
         fetchMyPengajuans();
       }
     } catch (err: any) {
@@ -90,6 +99,23 @@ export default function PengajuanOperasional() {
       alert(err.response?.data?.error || 'Gagal mengirim pengajuan.');
     } finally {
       setIsSubmitLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus/membatalkan pengajuan pencairan ini?')) {
+      return;
+    }
+
+    try {
+      const res = await axios.delete(`/api/pengajuan-pencairan/${id}?userId=${user?.id}`);
+      if (res.data.status === 'success') {
+        alert('Pengajuan pencairan berhasil dihapus.');
+        fetchMyPengajuans();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Gagal menghapus pengajuan.');
     }
   };
 
@@ -127,21 +153,33 @@ export default function PengajuanOperasional() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-            <FileText className="text-primary size-7" /> Pengajuan Pencairan Operasional
-          </h1>
-          <p className="text-slate-500 text-xs mt-1">Ajukan pencairan dana operasional/rutin kantor non-proposal bantuan.</p>
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50">
+      {/* Page Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="border-b border-slate-100 pb-5 no-print"
+      >
+        <div className="space-y-1">
+          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
+            <span className="hover:text-primary transition-colors cursor-pointer">Operasional</span>
+            <ChevronRight className="size-3.5 text-slate-300" />
+            <span className="text-primary font-black">Pengajuan Operasional</span>
+          </nav>
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <FileText className="size-8 text-primary shrink-0" />
+            Pengajuan Operasional
+          </h2>
+          <p className="text-slate-500 font-medium text-xs md:text-sm">
+            Ajukan pencairan dana operasional/rutin kantor non-proposal bantuan BAZNAS Kota Semarang.
+          </p>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Left Side: Form */}
-        <div className="lg:col-span-1 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm h-fit">
-          <h2 className="text-base font-bold text-slate-800 mb-4 border-b pb-3">Form Pengajuan</h2>
+        <div className="lg:col-span-1 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+          <h2 className="text-base font-bold text-slate-800 border-b pb-3">Form Pengajuan</h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Kategori */}
@@ -152,43 +190,22 @@ export default function PengajuanOperasional() {
                 onChange={(e) => setKategoriBiaya(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               >
-                <option value="Operasional Kantor">Operasional Kantor</option>
-                <option value="Alat Tulis Kantor (ATK)">Alat Tulis Kantor (ATK)</option>
-                <option value="Listrik & Air">Listrik & Air</option>
-                <option value="Transport & Perjalanan">Transport & Perjalanan</option>
-                <option value="Kegiatan / Acara">Kegiatan / Acara</option>
-                <option value="Pemeliharaan Gedung/Inventaris">Pemeliharaan Gedung/Inventaris</option>
-                <option value="Lain-lain">Lain-lain</option>
-              </select>
-            </div>
-
-            {/* Link RKAT */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">Link RKAT Operasional (Opsional)</label>
-              <select
-                value={selectedRkatId}
-                onChange={(e) => setSelectedRkatId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-xs"
-              >
-                <option value="">-- Tidak Di-link ke RKAT --</option>
-                {rkatList.map(rkat => (
-                  <option key={rkat.id} value={rkat.id}>
-                    ({rkat.no}) {rkat.nama} - [Sisa: {formatRupiah(Number(rkat.nilai_anggaran || 0) - Number(rkat.realisasi_total || 0))}]
-                  </option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.nama}>{cat.nama}</option>
                 ))}
               </select>
             </div>
 
-            {/* Nominal */}
+             {/* Nominal */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 block">Nominal Pengajuan (Rp)</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">Rp</span>
                 <input
-                  type="number"
-                  value={nominal}
-                  onChange={(e) => setNominal(e.target.value)}
-                  placeholder="Contoh: 750000"
+                  type="text"
+                  value={nominal ? parseInt(nominal).toLocaleString('id-ID') : ''}
+                  onChange={handleNominalChange}
+                  placeholder="Contoh: 750.000"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   required
                 />
@@ -219,8 +236,8 @@ export default function PengajuanOperasional() {
         </div>
 
         {/* Right Side: List History */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col min-h-[500px]">
-          <h2 className="text-base font-bold text-slate-800 mb-4 border-b pb-3">Riwayat Pengajuan Saya</h2>
+        <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col min-h-[500px] space-y-4">
+          <h2 className="text-base font-bold text-slate-800 border-b pb-3">Riwayat Pengajuan Saya</h2>
 
           {isLoading ? (
             <div className="flex-1 flex items-center justify-center text-slate-400">Loading data...</div>
@@ -254,13 +271,24 @@ export default function PengajuanOperasional() {
                       <td className="py-3 px-2 text-right text-xs font-black text-slate-800">{formatRupiah(Number(p.nominal))}</td>
                       <td className="py-3 px-2 text-center">{getStatusBadge(p.status)}</td>
                       <td className="py-3 px-2 text-center">
-                        <button
-                          onClick={() => setSelectedItem(p)}
-                          className="p-1.5 hover:bg-slate-100 text-primary rounded-lg transition-all"
-                          title="Lihat Detail & Logs"
-                        >
-                          <Eye className="size-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => setSelectedItem(p)}
+                            className="p-1.5 hover:bg-slate-100 text-primary rounded-lg transition-all"
+                            title="Lihat Detail & Logs"
+                          >
+                            <Eye className="size-4" />
+                          </button>
+                          {p.status !== 'CAIR' && (
+                            <button
+                              onClick={() => handleDelete(p.id)}
+                              className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition-all"
+                              title="Hapus Pengajuan"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -273,10 +301,10 @@ export default function PengajuanOperasional() {
 
       {/* Detail Modal */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl border border-slate-100 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <div>
                 <h3 className="font-black text-slate-800 text-base">Detail Pengajuan Pencairan</h3>
                 <p className="font-mono text-xs text-slate-400 mt-0.5">{selectedItem.no_pengajuan}</p>

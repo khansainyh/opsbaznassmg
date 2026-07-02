@@ -7,7 +7,8 @@ import {
   HelpCircle,
   ArrowRightLeft,
   ChevronDown,
-  Check
+  Check,
+  ChevronRight
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -106,16 +107,20 @@ export default function PemindahanDana() {
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5"
+        className="border-b border-slate-100 pb-5 no-print"
       >
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-primary font-black uppercase text-xs tracking-widest">
-            <ArrowRightLeft className="size-4" />
-            Keuangan &amp; Akuntansi
-          </div>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Pemindahan Dana</h2>
+          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
+            <span className="hover:text-primary transition-colors cursor-pointer">Keuangan</span>
+            <ChevronRight className="size-3.5 text-slate-300" />
+            <span className="text-primary font-black">Pemindahan Dana</span>
+          </nav>
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <ArrowRightLeft className="size-8 text-primary shrink-0" />
+            Pemindahan Dana
+          </h2>
           <p className="text-slate-500 font-medium text-xs md:text-sm">
-            Layanan transfer internal dari Rekening Bank utama untuk mengisi (top-up) Laci Kasir operasional harian BAZNAS.
+            Layanan transfer internal dari Rekening Bank utama untuk mengisi (top-up) Laci Kasir operasional harian BAZNAS Kota Semarang.
           </p>
         </div>
       </motion.div>
@@ -269,10 +274,13 @@ export default function PemindahanDana() {
                     )}
                   </div>
                   <input
-                    type="number"
+                    type="text"
                     placeholder="Nominal alokasi..."
-                    value={alloc.nominal || ''}
-                    onChange={(e) => handleReplenishAllocationChange(idx, 'nominal', Number(e.target.value))}
+                    value={alloc.nominal ? Number(alloc.nominal).toLocaleString('id-ID') : ''}
+                    onChange={(e) => {
+                      const rawVal = e.target.value.replace(/[^0-9]/g, '');
+                      handleReplenishAllocationChange(idx, 'nominal', Number(rawVal) || 0);
+                    }}
                     required
                     className="w-40 bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold text-right"
                   />

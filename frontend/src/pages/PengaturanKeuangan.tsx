@@ -77,7 +77,7 @@ export default function PengaturanKeuangan() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
 
-  const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'kategori-biaya'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
 
   // DB States
@@ -86,6 +86,9 @@ export default function PengaturanKeuangan() {
   const [rules, setRules] = useState<CoaMappingRuleItem[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
   const [penerimaanMappings, setPenerimaanMappings] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isCategorySubmitLoading, setIsCategorySubmitLoading] = useState(false);
   const [isPenerimaanModalOpen, setIsPenerimaanModalOpen] = useState(false);
   const [penerimaanForm, setPenerimaanForm] = useState({
     kategori: '',
@@ -254,12 +257,13 @@ export default function PengaturanKeuangan() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resCoas, resAccounts, resRules, resPrograms, resPenerimaan] = await Promise.all([
+      const [resCoas, resAccounts, resRules, resPrograms, resPenerimaan, resCategories] = await Promise.all([
         axios.get('/api/finance/coa'),
         axios.get('/api/finance/accounts'),
         axios.get('/api/finance/mapping-rules'),
         axios.get('/api/programs'),
-        axios.get('/api/penerimaan-mapping')
+        axios.get('/api/penerimaan-mapping'),
+        axios.get('/api/kategori-biaya')
       ]);
 
       setCoas(resCoas.data);
@@ -267,6 +271,7 @@ export default function PengaturanKeuangan() {
       setRules(resRules.data);
       setPrograms(resPrograms.data);
       setPenerimaanMappings(resPenerimaan.data.data || []);
+      setCategories(resCategories.data.data || []);
     } catch (error) {
       console.error('Gagal mengambil data keuangan:', error);
     } finally {
@@ -507,6 +512,37 @@ export default function PengaturanKeuangan() {
     }
   };
 
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    try {
+      setIsCategorySubmitLoading(true);
+      const res = await axios.post('/api/kategori-biaya', { nama: newCategoryName });
+      if (res.data.status === 'success') {
+        setNewCategoryName('');
+        setMessages([{ type: 'success', text: 'Kategori biaya berhasil ditambahkan.' }]);
+        fetchData();
+      }
+    } catch (e: any) {
+      alert('Gagal menambah kategori: ' + (e.response?.data?.error || e.message));
+    } finally {
+      setIsCategorySubmitLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!window.confirm('Yakin ingin menghapus kategori biaya ini?')) return;
+    try {
+      const res = await axios.delete(`/api/kategori-biaya/${id}`);
+      if (res.data.status === 'success') {
+        setMessages([{ type: 'success', text: 'Kategori biaya berhasil dihapus.' }]);
+        fetchData();
+      }
+    } catch (e: any) {
+      alert('Gagal menghapus kategori: ' + (e.response?.data?.error || e.message));
+    }
+  };
+
   const handleOpenPenerimaanModal = (item: any = null) => {
     setIsPenerimaanCoasDropdownOpen(false);
     setPenerimaanCoasSearch('');
@@ -678,6 +714,17 @@ export default function PengaturanKeuangan() {
             )}
           >
             Master COA
+          </button>
+          <button
+            onClick={() => { setActiveTab('kategori-biaya'); setSearchTerm(''); }}
+            className={cn(
+              "pb-3 text-sm font-black transition-all border-b-2",
+              activeTab === 'kategori-biaya'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Kategori Biaya
           </button>
 
         </div>
@@ -1209,10 +1256,97 @@ export default function PengaturanKeuangan() {
           </motion.div>
         )}
 
+        {/* ==========================================
+            TAB: KATEGORI BIAYA CRUD
+            ========================================== */}
+        {activeTab === 'kategori-biaya' && (
+          <motion.div
+            key="kategori-biaya"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Form Input Kategori Baru */}
+              <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 p-6 shadow-sm h-fit space-y-4">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <Plus className="size-4 text-primary" />
+                  Tambah Kategori Biaya
+                </h3>
+                <form onSubmit={handleSaveCategory} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kategori</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Contoh: Honorarium Narasumber"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isCategorySubmitLoading || !newCategoryName.trim()}
+                    className="w-full h-11 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 active:scale-95 uppercase tracking-wider disabled:opacity-50"
+                  >
+                    {isCategorySubmitLoading ? 'Menyimpan...' : 'Simpan Kategori'}
+                  </button>
+                </form>
+              </div>
 
-
-
-
+              {/* Daftar Kategori */}
+              <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 bg-slate-50/40">
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-primary animate-pulse" />
+                    Daftar Kategori Biaya Aktif
+                  </h3>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/50">
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kategori</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Dibuat Pada</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                      {categories.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-12 text-center text-slate-400 italic">Tidak ada kategori biaya ditemukan</td>
+                        </tr>
+                      ) : categories.map((cat) => (
+                        <tr key={cat.id} className="hover:bg-slate-50/30 transition-colors">
+                          <td className="px-6 py-5 font-bold text-slate-900">{cat.nama}</td>
+                          <td className="px-6 py-5 text-xs text-slate-400">
+                            {new Date(cat.created_at).toLocaleDateString('id-ID', {
+                              day: '2-digit',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            <button
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              className="p-2 hover:bg-rose-50 rounded-lg text-rose-500 transition-colors"
+                              title="Hapus Kategori"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* ==========================================

@@ -19,7 +19,8 @@ import {
   ChevronDown,
   Check,
   Repeat2,
-  FlaskConical
+  FlaskConical,
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -219,26 +220,53 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     }
   }, [fetchPilars, fetchSurveyors, isKabagPendistribusian, isKabagPendayagunaan, isSuperAdmin]);
 
+  const getParentProgramCode = (code?: string): string => {
+    if (!code) return "";
+    return code.split('.')[0].trim();
+  };
+
+  const getTaskTipe = (task: any) => {
+    if (!task) return 'Konsumtif';
+    const code = task.programCode;
+    const cleanCode = code ? code.trim() : '';
+    
+    // 1. Check direct code mapping
+    if (programTipeMap[cleanCode]) {
+      return programTipeMap[cleanCode];
+    }
+    
+    // 2. Check parent code mapping
+    const parentCode = getParentProgramCode(code);
+    if (programTipeMap[parentCode]) {
+      return programTipeMap[parentCode];
+    }
+    
+    // 3. Fallback: Code-based check (Pilar 4 / Ekonomi is Produktif)
+    if (cleanCode.startsWith('24') || cleanCode.startsWith('14') || cleanCode.startsWith('2401') || cleanCode.startsWith('1401')) {
+      return 'Produktif';
+    }
+    
+    // 4. Fallback: Name-based check
+    const name = task.jenisPermohonan ? task.jenisPermohonan.toLowerCase() : '';
+    const productiveKeywords = [
+      'ekonomi', 'usaha', 'produktif', 'dagang', 'modal', 'kewirausahaan', 
+      'gerobak', 'ternak', 'tani', 'alat kerja', 'pemberdayaan', 'microfinance'
+    ];
+    
+    if (productiveKeywords.some(keyword => name.includes(keyword))) {
+      return 'Produktif';
+    }
+    
+    return 'Konsumtif';
+  };
+
   useEffect(() => {
     const getTemplateKey = () => {
       if (!selectedTask) return 'survey_template_individu';
       const isLembaga = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
       if (isLembaga) return 'survey_template_lembaga';
       
-      const code = selectedTask.programCode;
-      if (!code) return 'survey_template_individu';
-      const cleanCode = code.trim();
-      let tipe = 'Konsumtif';
-      if (programTipeMap[cleanCode]) {
-        tipe = programTipeMap[cleanCode];
-      } else {
-        const parts = cleanCode.split('.');
-        if (parts.length > 2) {
-          const parentCode = `${parts[0]}.${parts[1]}`;
-          if (programTipeMap[parentCode]) tipe = programTipeMap[parentCode];
-        }
-      }
-      
+      const tipe = getTaskTipe(selectedTask);
       if (tipe === 'Produktif') return 'survey_template_perorangan_produktif';
       return 'survey_template_individu';
     };
@@ -259,14 +287,9 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     );
   }, [data]);
 
-  const getParentProgramCode = (code?: string): string => {
-    if (!code) return "";
-    return code.split('.')[0].trim();
-  };
-
   const hasTaskAuthority = (task: any) => {
     if (!task) return false;
-    const type = programTipeMap[getParentProgramCode(task.programCode)] || 'Konsumtif';
+    const type = getTaskTipe(task);
     if (isSuperAdmin) return true;
     if (isKabagPendistribusian && type === 'Konsumtif') return true;
     if (isKabagPendayagunaan && type === 'Produktif') return true;
@@ -654,16 +677,10 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   }, [tasks, statusFilter, getSurveyStatus]);
 
   const konsumtifTasks = filteredTasks.filter(t => {
-    const code = getParentProgramCode(t.programCode);
-    if (!code) return false;
-    const tipe = programTipeMap[code] || 'Konsumtif';
-    return tipe === 'Konsumtif';
+    return getTaskTipe(t) === 'Konsumtif';
   });
   const produktifTasks = filteredTasks.filter(t => {
-    const code = getParentProgramCode(t.programCode);
-    if (!code) return false;
-    const tipe = programTipeMap[code];
-    return tipe === 'Produktif';
+    return getTaskTipe(t) === 'Produktif';
   });
 
   const renderTaskTable = (title: string, tableTasks: typeof filteredTasks) => {
@@ -1242,6 +1259,44 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             })()}
                           </div>
                         </div>
+
+                        {/* Foto / Dokumen Lapangan */}
+                        {selectedTask.survey_data?.fotoSurvei && (
+                          <div className="space-y-3">
+                            <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 flex items-center gap-2">
+                              <Camera className="size-3.5 text-primary" />
+                              Foto / Dokumen Survei
+                            </h4>
+                            {selectedTask.survey_data.fotoSurvei.match(/\.(jpeg|jpg|gif|png)/i) || (!selectedTask.survey_data.fotoSurvei.includes('drive.google.com') && !selectedTask.survey_data.fotoSurvei.includes('http')) ? (
+                              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative flex items-center justify-center p-2">
+                                <img
+                                  src={selectedTask.survey_data.fotoSurvei}
+                                  alt="Foto Lapangan"
+                                  className="max-h-72 object-contain rounded-lg shadow-sm"
+                                />
+                              </div>
+                            ) : toGDriveEmbedUrl(selectedTask.survey_data.fotoSurvei) ? (
+                              <div className="w-full h-[320px] border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-slate-50 relative">
+                                <iframe 
+                                  src={toGDriveEmbedUrl(selectedTask.survey_data.fotoSurvei) || ''}
+                                  className="w-full h-full border-none"
+                                  allow="autoplay"
+                                  title="Foto / Dokumen Lapangan"
+                                />
+                              </div>
+                            ) : (
+                              <a 
+                                href={selectedTask.survey_data.fotoSurvei}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 p-3 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-xs font-bold transition-all border border-primary/10"
+                              >
+                                <ExternalLink className="size-4" />
+                                Buka Foto / Dokumen Survei di Tab Baru
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 

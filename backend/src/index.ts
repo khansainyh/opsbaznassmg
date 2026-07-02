@@ -24,6 +24,8 @@ import upzRoutes from './routes/upz.route';
 import pengajuanPencairanRoutes from './routes/pengajuan-pencairan.route';
 import penerimaanMappingRoutes from './routes/penerimaan-mapping.route';
 import laporanKinerjaRoutes from './routes/laporan-kinerja.route';
+import kategoriBiayaRoutes from './routes/kategori-biaya.route';
+import executiveDashboardRoutes from './routes/executive-dashboard.route';
 
 
 dotenv.config();
@@ -71,6 +73,8 @@ app.use('/api/upz', upzRoutes);
 app.use('/api/pengajuan-pencairan', pengajuanPencairanRoutes);
 app.use('/api/penerimaan-mapping', penerimaanMappingRoutes);
 app.use('/api/laporan-kinerja', laporanKinerjaRoutes);
+app.use('/api/kategori-biaya', kategoriBiayaRoutes);
+app.use('/api/executive-dashboard', executiveDashboardRoutes);
 
 
 

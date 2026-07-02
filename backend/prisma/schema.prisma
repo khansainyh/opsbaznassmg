@@ -499,3 +499,10 @@ enum StatusPengajuan {
   CAIR
   DITOLAK
 }
+
+model KategoriBiaya {
+  id         String   @id @default(uuid())
+  nama       String   @unique
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}

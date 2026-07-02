@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   AreaChart,
@@ -26,6 +26,7 @@ import {
   X,
   MapPin,
 } from 'lucide-react';
+import axios from 'axios';
 import { cn } from '../lib/utils';
 import {
   bigThreeData,
@@ -80,18 +81,49 @@ const PilarTooltip = ({ active, payload }: any) => {
 
 // ─── Main Component ─────────────────────────────────────────
 export default function ExecutiveDashboard() {
-  const { pengumpulan, pendistribusian, sisaAnggaran } = bigThreeData;
-  const [activePilar, setActivePilar] = useState<typeof proporsiPilar[0] | null>(null);
+  const [liveData, setLiveData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const kecamatanData = activePilar ? (sebaranKecamatan[activePilar.kode] ?? []) : [];
+  useEffect(() => {
+    setLoading(true);
+    axios.get(`/api/executive-dashboard?year=${selectedYear}`)
+      .then(res => {
+        setLiveData(res.data);
+      })
+      .catch(err => {
+        console.error('Failed to fetch dashboard data:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [selectedYear]);
+
+  // Fallbacks to dummy data if liveData is not loaded yet
+  const currentTahunAnggaran = liveData?.tahunAnggaran ?? tahunAnggaran;
+  const currentBigThreeData = liveData?.bigThreeData ?? bigThreeData;
+  const currentProporsiPilar = liveData?.proporsiPilar ?? proporsiPilar;
+  const currentTrenBulanan = liveData?.trenBulanan ?? trenBulanan;
+  const currentTopProgram = liveData?.topProgram ?? topProgram;
+  const currentSebaranKecamatan = liveData?.sebaranKecamatan ?? sebaranKecamatan;
+
+  const { pengumpulan, pendistribusian, sisaAnggaran } = currentBigThreeData;
+  const [activePilar, setActivePilar] = useState<any>(null);
+
+  const kecamatanData = activePilar ? (currentSebaranKecamatan[activePilar.kode] ?? []) : [];
 
   const pctPengumpulan = pct(pengumpulan.realisasi, pengumpulan.target);
   const pctDistribusi = pct(pendistribusian.realisasi, pendistribusian.target);
-  const totalPenerima = useMemo(() => proporsiPilar.reduce((a, b) => a + b.penerima, 0), []);
 
-  const pieData = useMemo(() =>
-    proporsiPilar.map(p => ({ ...p, value: p.realisasi })),
-  []);
+  const totalPenerima = useMemo(() => {
+    return currentProporsiPilar.reduce((a: number, b: any) => a + b.penerima, 0);
+  }, [currentProporsiPilar]);
+
+  const pieData = useMemo(() => {
+    return currentProporsiPilar.map((p: any) => ({ ...p, value: p.realisasi }));
+  }, [currentProporsiPilar]);
+
+  const availableYears = [2024, 2025, 2026, 2027];
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
@@ -106,11 +138,29 @@ export default function ExecutiveDashboard() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-2">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Pimpinan</h2>
-            <p className="text-slate-500 font-medium text-sm">Tahun Anggaran {tahunAnggaran} · Posisi per {bigThreeData.pengumpulan.bulan}</p>
+            <p className="text-slate-500 font-medium text-sm">
+              Tahun Anggaran {currentTahunAnggaran} · Posisi per {currentBigThreeData.pengumpulan.bulan}
+            </p>
           </div>
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-            <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-            Data Real-time
+          <div className="flex items-center gap-4">
+            {/* Year Selector */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm">
+              <span className="text-xs font-bold text-slate-500">Tahun:</span>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="text-xs font-black text-slate-800 bg-transparent border-none outline-none cursor-pointer"
+              >
+                {availableYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
+              <span className={`size-2 rounded-full ${loading ? 'bg-amber-400 animate-spin' : 'bg-emerald-400 animate-pulse'}`} />
+              {loading ? 'Memuat...' : 'Data Real-time'}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -141,7 +191,7 @@ export default function ExecutiveDashboard() {
             <div className="mt-4 bg-white/20 rounded-full h-1.5">
               <div className="h-1.5 rounded-full bg-white transition-all" style={{ width: `${Math.min(pctPengumpulan, 100)}%` }} />
             </div>
-            <p className="text-white/50 text-[10px] mt-1.5 font-medium">{pctPengumpulan}% dari target tahun {tahunAnggaran}</p>
+            <p className="text-white/50 text-[10px] mt-1.5 font-medium">{pctPengumpulan}% dari target tahun {currentTahunAnggaran}</p>
           </div>
         </div>
 
@@ -208,12 +258,12 @@ export default function ExecutiveDashboard() {
         <div className="lg:col-span-3 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="font-black text-slate-900">Tren Pengumpulan & Penyaluran</h3>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">Perbandingan bulanan tahun {tahunAnggaran}</p>
+              <h3 className="font-black text-slate-900">Tren Pengumpulan</h3>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Statistik bulanan tahun {currentTahunAnggaran}</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={trenBulanan} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={currentTrenBulanan} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gPengumpulan" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--color-primary, #16a34a)" stopOpacity={0.15} />
@@ -228,7 +278,7 @@ export default function ExecutiveDashboard() {
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-6 mt-4 justify-center">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-primary" />Pengumpulan ZIS</div>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-[#16a34a]" />Pengumpulan ZIS</div>
           </div>
         </div>
 
@@ -236,7 +286,7 @@ export default function ExecutiveDashboard() {
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
           <div className="mb-4">
             <h3 className="font-black text-slate-900">Proporsi per Pilar</h3>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">Realisasi penyaluran {tahunAnggaran}</p>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">Realisasi penyaluran {currentTahunAnggaran}</p>
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <PieChart>
@@ -248,10 +298,10 @@ export default function ExecutiveDashboard() {
                 outerRadius={78}
                 paddingAngle={3}
                 dataKey="value"
-                onClick={(entry: any) => setActivePilar(proporsiPilar.find(p => p.kode === entry.kode) ?? null)}
+                onClick={(entry: any) => setActivePilar(currentProporsiPilar.find((p: any) => p.kode === entry.kode) ?? null)}
                 style={{ cursor: 'pointer' }}
               >
-                {pieData.map((entry, i) => (
+                {pieData.map((entry: any, i: number) => (
                   <Cell
                     key={i}
                     fill={entry.warna}
@@ -266,7 +316,7 @@ export default function ExecutiveDashboard() {
           </ResponsiveContainer>
 
           <div className="space-y-2 mt-2">
-            {proporsiPilar.map(p => (
+            {currentProporsiPilar.map((p: any) => (
               <div key={p.kode} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="size-2.5 rounded-full shrink-0" style={{ background: p.warna }} />
@@ -291,22 +341,18 @@ export default function ExecutiveDashboard() {
             <p className="text-xs text-slate-400 font-medium mt-0.5">Perbandingan penyaluran terhadap pagu program</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={proporsiPilar} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="30%">
+            <BarChart data={currentProporsiPilar} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="30%">
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="nama" tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={v => formatRupiah(v)} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={60} />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="target" name="Target" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="realisasi" name="Realisasi" radius={[4, 4, 0, 0]}>
-                {proporsiPilar.map((entry, i) => (
-                  <Cell key={i} fill={entry.warna} />
-                ))}
-              </Bar>
+              <Bar dataKey="target" name="Target" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="realisasi" name="Realisasi" fill="#16a34a" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-6 mt-4 justify-center">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-slate-200" />Target</div>
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-primary" />Realisasi</div>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-[#cbd5e1]" />Target</div>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-[#16a34a]" />Realisasi</div>
           </div>
         </div>
 
@@ -317,8 +363,8 @@ export default function ExecutiveDashboard() {
             <p className="text-xs text-slate-400 font-medium mt-0.5">Program dengan nilai penyaluran terbesar</p>
           </div>
           <div className="flex-1 space-y-3">
-            {topProgram.map((p, idx) => {
-              const maxTotal = Math.max(...topProgram.map(x => x.total));
+            {currentTopProgram.map((p: any, idx: number) => {
+              const maxTotal = Math.max(...currentTopProgram.map((x: any) => x.total));
               const barWidth = Math.round((p.total / maxTotal) * 100);
               const colors = ['bg-primary', 'bg-emerald-500', 'bg-blue-500', 'bg-violet-500', 'bg-amber-500'];
               return (
@@ -338,7 +384,7 @@ export default function ExecutiveDashboard() {
                     <div className="text-right shrink-0">
                       <p className="text-[11px] font-black text-slate-800">{formatRupiah(p.total)}</p>
                       <p className="text-[9px] text-slate-400 font-medium flex items-center gap-0.5 justify-end">
-                        <Users className="size-2.5" />{p.jumlah} penerima
+                        <Users className="size-2.5" />{p.jumlah} {p.jumlah === 1 ? 'penerima' : 'penerima'}
                       </p>
                     </div>
                   </div>
@@ -386,7 +432,7 @@ export default function ExecutiveDashboard() {
                     Sebaran Wilayah — {activePilar.nama}
                   </h3>
                   <p className="text-xs text-slate-400 font-medium mt-0.5">
-                    {kecamatanData.reduce((a, b) => a + b.jumlah, 0)} proposal · 16 Kecamatan Kota Semarang
+                    {kecamatanData.reduce((a: number, b: any) => a + b.jumlah, 0)} proposal · 16 Kecamatan Kota Semarang
                   </p>
                 </div>
               </div>
@@ -438,7 +484,7 @@ export default function ExecutiveDashboard() {
                   {[...kecamatanData]
                     .sort((a, b) => b.jumlah - a.jumlah)
                     .map((row, idx) => {
-                      const total = kecamatanData.reduce((a, b) => a + b.jumlah, 0);
+                      const total = kecamatanData.reduce((a: number, b: any) => a + b.jumlah, 0);
                       const pctRow = Math.round((row.jumlah / total) * 100);
                       return (
                         <div key={row.kecamatan} className="px-4 py-2 grid grid-cols-3 items-center hover:bg-slate-50/50 transition-colors">
@@ -466,7 +512,7 @@ export default function ExecutiveDashboard() {
 
             {/* Footer */}
             <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
-              <p className="text-[10px] text-slate-400 font-medium">Data dummy · akan terhubung dengan data real</p>
+              <p className="text-[10px] text-slate-400 font-medium">Data real-time dari database BAZNAS Kota Semarang</p>
               <button onClick={() => setActivePilar(null)}
                 className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
                 Tutup

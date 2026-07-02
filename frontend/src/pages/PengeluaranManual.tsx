@@ -58,6 +58,8 @@ export default function PengeluaranManual() {
   const [filterAccountId, setFilterAccountId] = useState('ALL');
   const [isSourceAccountDropdownOpen, setIsSourceAccountDropdownOpen] = useState(false);
   const [isFilterAccountDropdownOpen, setIsFilterAccountDropdownOpen] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [kategoriBiaya, setKategoriBiaya] = useState('');
 
   // Queue tab states
   const [queueList, setQueueList] = useState<any[]>([]);
@@ -83,9 +85,10 @@ export default function PengeluaranManual() {
   // Fetch Direct Payout Data
   const fetchDirectData = async () => {
     try {
-      const [accountsRes, mutationsRes] = await Promise.all([
+      const [accountsRes, mutationsRes, categoriesRes] = await Promise.all([
         axios.get('/api/finance/accounts'),
-        axios.get('/api/mutations')
+        axios.get('/api/mutations'),
+        axios.get('/api/kategori-biaya')
       ]);
 
       setAccounts(accountsRes.data);
@@ -96,6 +99,11 @@ export default function PengeluaranManual() {
       const cashList = accountsRes.data.filter((a: any) => a.tipe_kas === 'TUNAI');
       if (cashList.length > 0 && !sourceAccountId) {
         setSourceAccountId(cashList[0].account_id);
+      }
+
+      setCategories(categoriesRes.data.data || []);
+      if (categoriesRes.data.data && categoriesRes.data.data.length > 0 && !kategoriBiaya) {
+        setKategoriBiaya(categoriesRes.data.data[0].nama);
       }
     } catch (e) {
       console.error(e);
@@ -157,7 +165,8 @@ export default function PengeluaranManual() {
         nominal: numericNominal,
         keterangan: keterangan,
         tanggalTransaksi,
-        tanggalCatatan
+        tanggalCatatan,
+        kategoriBiaya
       };
 
       const res = await axios.post('/api/finance/manual-expense', payload);
@@ -405,6 +414,22 @@ export default function PengeluaranManual() {
                   </div>
                 </div>
 
+                 <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    Kategori Biaya
+                  </label>
+                  <select
+                    value={kategoriBiaya}
+                    onChange={(e) => setKategoriBiaya(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-semibold text-slate-700"
+                    required
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.nama}>{cat.nama}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Keterangan Pengeluaran / Memo</label>
                   <textarea
@@ -505,7 +530,14 @@ export default function PengeluaranManual() {
                       <tr key={dr.id} className="hover:bg-slate-50/50">
                         <td className="px-6 py-3 text-slate-500 font-medium">{new Date(dr.tanggalCatatan).toLocaleDateString('id-ID')}</td>
                         <td className="px-6 py-3 font-semibold text-slate-700">{dr.bankName}</td>
-                        <td className="px-6 py-3 text-slate-900 truncate max-w-xs">{dr.keteranganBank}</td>
+                        <td className="px-6 py-3 text-slate-900 truncate max-w-xs">
+                          <span className="block font-bold">{dr.keteranganBank}</span>
+                          {(dr as any).kategori_biaya && (
+                            <span className="inline-block mt-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
+                              {(dr as any).kategori_biaya}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-3 text-right font-black text-slate-900">Rp {dr.nominal.toLocaleString('id-ID')}</td>
                         <td className="px-6 py-3 text-center">
                           <span className="bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full font-bold">

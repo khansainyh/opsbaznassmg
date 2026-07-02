@@ -6,8 +6,10 @@ import {
   Check, 
   X, 
   HelpCircle,
-  Eye
+  Eye,
+  ChevronRight
 } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export default function PersetujuanOperasional() {
   const { user } = useAuth();
@@ -109,17 +111,31 @@ export default function PersetujuanOperasional() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-          <ShieldCheck className="text-primary size-7" /> Persetujuan Pengajuan Operasional
-        </h1>
-        <p className="text-slate-500 text-xs mt-1">Halaman khusus pimpinan/verifikator untuk meninjau dan menyetujui anggaran operasional.</p>
-      </div>
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50">
+      {/* Page Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="border-b border-slate-100 pb-5 no-print"
+      >
+        <div className="space-y-1">
+          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
+            <span className="hover:text-primary transition-colors cursor-pointer">Operasional</span>
+            <ChevronRight className="size-3.5 text-slate-300" />
+            <span className="text-primary font-black">Persetujuan Operasional</span>
+          </nav>
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+            <ShieldCheck className="size-8 text-primary shrink-0" />
+            Persetujuan Operasional
+          </h2>
+          <p className="text-slate-500 font-medium text-xs md:text-sm">
+            Halaman khusus pimpinan/verifikator untuk meninjau dan menyetujui anggaran operasional BAZNAS Kota Semarang.
+          </p>
+        </div>
+      </motion.div>
 
       {/* Pending List Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col min-h-[500px]">
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col min-h-[500px] space-y-4">
         <div className="flex items-center justify-between mb-4 border-b pb-3">
           <h2 className="text-base font-bold text-slate-800">Antrean Persetujuan Anda ({pendingList.length})</h2>
           <span className="bg-primary/10 text-primary text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider">
@@ -211,10 +227,10 @@ export default function PersetujuanOperasional() {
 
       {/* Modal Actions */}
       {selectedActionItem && actionType && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl border border-slate-100 w-full max-w-lg overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <div>
                 <h3 className="font-black text-slate-800 text-base">
                   {actionType === 'approve' && 'Persetujuan Pengajuan'}
