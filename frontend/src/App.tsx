@@ -115,6 +115,8 @@ function App() {
         { name: "Catat Mutasi", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
         { name: "Pengaturan Keuangan", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
         { name: "Target RKAT", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Keuangan", "Kabag_Keuangan", "Ketua", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+        { name: "Pengajuan Operasional", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Keuangan", "Kabag_Keuangan", "Staf_Pengumpulan", "Staf_Pelaporan", "Humas"] },
+        { name: "Persetujuan Operasional", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_III", "Kepala_Pelaksana", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Keuangan"] },
         { name: "Jurnal Buku Besar", roles: ["Super_Admin"] },
         { name: "Rekonsiliasi Mutasi", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
         { name: "Parameter Sistem", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
