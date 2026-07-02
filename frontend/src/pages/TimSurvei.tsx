@@ -73,9 +73,30 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
   const [pilars, setPilars] = useState<any[]>([]);
 
-  const [photoTabMode, setPhotoTabMode] = useState<'file' | 'link'>('file');
-  const [surveyPhotoFile, setSurveyPhotoFile] = useState<File | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoInputModes, setPhotoInputModes] = useState<Record<string, 'file' | 'link'>>({
+    fotoRumahDepan: 'file',
+    fotoRumahDalam: 'file',
+    fotoMustahik: 'file',
+    fotoKondisiUsaha: 'file',
+    fotoProdukBantuan: 'file',
+    fotoDokumenLainnya: 'file',
+  });
+  const [surveyPhotoFiles, setSurveyPhotoFiles] = useState<Record<string, File | null>>({
+    fotoRumahDepan: null,
+    fotoRumahDalam: null,
+    fotoMustahik: null,
+    fotoKondisiUsaha: null,
+    fotoProdukBantuan: null,
+    fotoDokumenLainnya: null,
+  });
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<Record<string, string | null>>({
+    fotoRumahDepan: null,
+    fotoRumahDalam: null,
+    fotoMustahik: null,
+    fotoKondisiUsaha: null,
+    fotoProdukBantuan: null,
+    fotoDokumenLainnya: null,
+  });
 
   const programTipeMap = useMemo(() => {
     const map: { [code: string]: string } = {};
@@ -153,13 +174,24 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         daerahJangkauan: selectedTask.survey_data.daerahJangkauan ?? '',
         layakJenisKegiatan: selectedTask.survey_data.layakJenisKegiatan ?? '',
         layakJumlahPenerima: selectedTask.survey_data.layakJumlahPenerima ?? '',
-        fotoSurvei: selectedTask.survey_data.fotoSurvei ?? '',
+        fotoRumahDepan: selectedTask.survey_data.fotoRumahDepan ?? '',
+        fotoRumahDalam: selectedTask.survey_data.fotoRumahDalam ?? '',
+        fotoMustahik: selectedTask.survey_data.fotoMustahik ?? '',
+        fotoKondisiUsaha: selectedTask.survey_data.fotoKondisiUsaha ?? '',
+        fotoProdukBantuan: selectedTask.survey_data.fotoProdukBantuan ?? '',
+        fotoDokumenLainnya: selectedTask.survey_data.fotoDokumenLainnya ?? '',
       });
-      if (selectedTask.survey_data.fotoSurvei) {
-        setPhotoTabMode('link');
-      } else {
-        setPhotoTabMode('file');
-      }
+
+      const fields = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik', 'fotoKondisiUsaha', 'fotoProdukBantuan', 'fotoDokumenLainnya'];
+      const newModes = { ...photoInputModes };
+      fields.forEach(f => {
+        if (selectedTask.survey_data?.[f]) {
+          newModes[f] = 'link';
+        } else {
+          newModes[f] = 'file';
+        }
+      });
+      setPhotoInputModes(newModes);
     } else {
       setSurveyForm({
         luasBangunan: 0,
@@ -190,12 +222,39 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         daerahJangkauan: '',
         layakJenisKegiatan: '',
         layakJumlahPenerima: '',
-        fotoSurvei: '',
+        fotoRumahDepan: '',
+        fotoRumahDalam: '',
+        fotoMustahik: '',
+        fotoKondisiUsaha: '',
+        fotoProdukBantuan: '',
+        fotoDokumenLainnya: '',
       });
-      setPhotoTabMode('file');
+      setPhotoInputModes({
+        fotoRumahDepan: 'file',
+        fotoRumahDalam: 'file',
+        fotoMustahik: 'file',
+        fotoKondisiUsaha: 'file',
+        fotoProdukBantuan: 'file',
+        fotoDokumenLainnya: 'file',
+      });
     }
-    setSurveyPhotoFile(null);
-    setPhotoPreviewUrl(null);
+
+    setSurveyPhotoFiles({
+      fotoRumahDepan: null,
+      fotoRumahDalam: null,
+      fotoMustahik: null,
+      fotoKondisiUsaha: null,
+      fotoProdukBantuan: null,
+      fotoDokumenLainnya: null,
+    });
+    setPhotoPreviewUrls({
+      fotoRumahDepan: null,
+      fotoRumahDalam: null,
+      fotoMustahik: null,
+      fotoKondisiUsaha: null,
+      fotoProdukBantuan: null,
+      fotoDokumenLainnya: null,
+    });
     
     // Determine the template key dynamically
     const getTemplateKey = () => {
@@ -275,7 +334,13 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     bidangGarapan: '',
     daerahJangkauan: '',
     layakJenisKegiatan: '',
-    layakJumlahPenerima: ''
+    layakJumlahPenerima: '',
+    fotoRumahDepan: '',
+    fotoRumahDalam: '',
+    fotoMustahik: '',
+    fotoKondisiUsaha: '',
+    fotoProdukBantuan: '',
+    fotoDokumenLainnya: '',
   });
 
   const pendapatanPerKapita = useMemo(() => {
@@ -460,6 +525,36 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       return;
     }
 
+    // Mandatory fields validation
+    const requiredKeys = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik'];
+    const getFieldDisplayLabel = (key: string) => {
+      switch (key) {
+        case 'fotoRumahDepan': return 'Foto Rumah Tampak Depan';
+        case 'fotoRumahDalam': return 'Foto Rumah Tampak Dalam';
+        case 'fotoMustahik': return 'Foto Mustahik';
+        case 'fotoKondisiUsaha': return 'Foto Kondisi Usaha';
+        case 'fotoProdukBantuan': return 'Foto Produk/Bantuan yang Diajukan';
+        default: return key;
+      }
+    };
+
+    const errors: string[] = [];
+    for (const key of requiredKeys) {
+      const mode = photoInputModes[key] || 'file';
+      const hasFile = !!surveyPhotoFiles[key];
+      const hasLink = !!surveyForm[key]?.trim();
+      const hasExistingLink = !!selectedTask.survey_data?.[key];
+      if (mode === 'file' && !hasFile && !hasExistingLink) {
+        errors.push(`${getFieldDisplayLabel(key)} wajib diupload.`);
+      } else if (mode === 'link' && !hasLink) {
+        errors.push(`${getFieldDisplayLabel(key)} wajib diisi link-nya.`);
+      }
+    }
+
+    if (errors.length > 0) {
+      alert(errors.join('\n'));
+      return;
+    }
 
     try {
       const formData = new FormData();
@@ -469,16 +564,22 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
 
       // Prepare final surveyForm data
       const finalSurveyForm = { ...surveyForm };
-      if (photoTabMode === 'file') {
-        if (surveyPhotoFile) {
-          finalSurveyForm.fotoSurvei = '';
-          formData.append('fotoSurvei', surveyPhotoFile);
+      
+      const fileKeys = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik', 'fotoKondisiUsaha', 'fotoProdukBantuan', 'fotoDokumenLainnya'];
+      for (const key of fileKeys) {
+        const mode = photoInputModes[key];
+        if (mode === 'file') {
+          const fileObj = surveyPhotoFiles[key];
+          if (fileObj) {
+            finalSurveyForm[key] = ''; // Will be populated by the backend GDrive link
+            formData.append(key, fileObj);
+          } else {
+            // Keep old link if not overwritten
+            finalSurveyForm[key] = selectedTask.survey_data?.[key] || '';
+          }
         } else {
-          // Keep old file/link if not overwritten
-          finalSurveyForm.fotoSurvei = selectedTask.survey_data?.fotoSurvei || '';
+          // tab mode link: keep link value already in surveyForm
         }
-      } else {
-        // Tab mode is 'link', which is already in surveyForm.fotoSurvei
       }
 
       formData.append('survey_data', JSON.stringify(finalSurveyForm));
@@ -544,8 +645,43 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         daerahJangkauan: task.survey_data.daerahJangkauan ?? '',
         layakJenisKegiatan: task.survey_data.layakJenisKegiatan ?? '',
         layakJumlahPenerima: task.survey_data.layakJumlahPenerima ?? '',
+        fotoRumahDepan: task.survey_data.fotoRumahDepan ?? '',
+        fotoRumahDalam: task.survey_data.fotoRumahDalam ?? '',
+        fotoMustahik: task.survey_data.fotoMustahik ?? '',
+        fotoKondisiUsaha: task.survey_data.fotoKondisiUsaha ?? '',
+        fotoProdukBantuan: task.survey_data.fotoProdukBantuan ?? '',
+        fotoDokumenLainnya: task.survey_data.fotoDokumenLainnya ?? '',
       });
+
+      const fields = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik', 'fotoKondisiUsaha', 'fotoProdukBantuan', 'fotoDokumenLainnya'];
+      const newModes = { ...photoInputModes };
+      fields.forEach(f => {
+        if (task.survey_data?.[f]) {
+          newModes[f] = 'link';
+        } else {
+          newModes[f] = 'file';
+        }
+      });
+      setPhotoInputModes(newModes);
     }
+
+    setSurveyPhotoFiles({
+      fotoRumahDepan: null,
+      fotoRumahDalam: null,
+      fotoMustahik: null,
+      fotoKondisiUsaha: null,
+      fotoProdukBantuan: null,
+      fotoDokumenLainnya: null,
+    });
+    setPhotoPreviewUrls({
+      fotoRumahDepan: null,
+      fotoRumahDalam: null,
+      fotoMustahik: null,
+      fotoKondisiUsaha: null,
+      fotoProdukBantuan: null,
+      fotoDokumenLainnya: null,
+    });
+
     setEditingHistory(task);
     setSelectedTask(task);
     setViewMode('surveyForm');
@@ -671,6 +807,175 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   };
 
   const userNameFirstWord = user?.name?.split(' ')[0] || 'Relawan';
+
+  const renderPhotoSlot = (key: string, label: string, isRequired: boolean) => {
+    const mode = photoInputModes[key] || 'file';
+    const file = surveyPhotoFiles[key];
+    const previewUrl = photoPreviewUrls[key];
+    const existingUrl = selectedTask?.survey_data?.[key];
+
+    const setMode = (m: 'file' | 'link') => {
+      setPhotoInputModes(prev => ({ ...prev, [key]: m }));
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0] || null;
+      if (f) {
+        if (f.size > 5 * 1024 * 1024) {
+          alert('Ukuran file melebihi batas 5MB. Harap kompres atau pilih file yang lebih kecil.');
+          e.target.value = '';
+          return;
+        }
+        setSurveyPhotoFiles(prev => ({ ...prev, [key]: f }));
+        const url = URL.createObjectURL(f);
+        setPhotoPreviewUrls(prev => ({ ...prev, [key]: url }));
+      }
+    };
+
+    const handleRemoveFile = () => {
+      setSurveyPhotoFiles(prev => ({ ...prev, [key]: null }));
+      setPhotoPreviewUrls(prev => ({ ...prev, [key]: null }));
+    };
+
+    return (
+      <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-200/60" key={key}>
+        <div className="flex justify-between items-center">
+          <label className="text-xs font-bold text-slate-800 flex items-center gap-1">
+            {label} {isRequired && <span className="text-rose-500 font-bold">*</span>}
+          </label>
+          
+          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setMode('file')}
+              className={cn(
+                "px-2.5 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1",
+                mode === 'file' ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              <Upload className="size-3" />
+              File
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('link')}
+              className={cn(
+                "px-2.5 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1",
+                mode === 'link' ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              <Link className="size-3" />
+              Link
+            </button>
+          </div>
+        </div>
+
+        {mode === 'file' ? (
+          <div className="space-y-2">
+            <div 
+              onClick={() => document.getElementById(`file-input-${key}`)?.click()}
+              className="border-2 border-dashed border-slate-200 hover:border-emerald-500 bg-white/70 hover:bg-emerald-50/5 rounded-xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 min-h-[90px]"
+            >
+              {file ? (
+                <div className="flex flex-col items-center gap-0.5">
+                  <FileText className="size-6 text-emerald-600" />
+                  <p className="text-[11px] font-bold text-slate-800 truncate max-w-[200px]">{file.name}</p>
+                  <p className="text-[9px] text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                </div>
+              ) : existingUrl && !existingUrl.startsWith('blob:') && !existingUrl.startsWith('data:') ? (
+                <div className="flex flex-col items-center gap-0.5">
+                  <CheckCircle2 className="size-6 text-emerald-600" />
+                  <p className="text-[11px] font-bold text-slate-800">Foto sudah terupload</p>
+                  <a 
+                    href={existingUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[9px] text-emerald-600 hover:underline font-bold flex items-center gap-0.5 mt-0.5"
+                  >
+                    Lihat File Saat Ini <ExternalLink className="size-2.5" />
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <Upload className="size-6 text-slate-300" />
+                  <p className="text-[11px] font-bold text-slate-500">Klik untuk pilih file</p>
+                  <p className="text-[9px] text-slate-400">PDF, JPG, PNG (maks. 5MB)</p>
+                </>
+              )}
+            </div>
+            
+            <input
+              id={`file-input-${key}`}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {previewUrl && file && file.type.startsWith('image/') && (
+              <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 relative">
+                <img 
+                  src={previewUrl} 
+                  alt={`${label} Preview`} 
+                  className="w-full max-h-36 object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoveFile}
+                  className="absolute top-1.5 right-1.5 p-1 bg-rose-600 text-white rounded hover:bg-rose-700 transition-all shadow-md"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            )}
+            
+            {file && !file.type.startsWith('image/') && (
+              <div className="flex items-center justify-between p-2 bg-white border border-slate-200 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <FileText className="size-4 text-slate-400" />
+                  <span className="text-[11px] font-bold text-slate-700 truncate max-w-[180px]">{file.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveFile}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-rose-600 transition-colors"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="relative">
+              <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+              <input
+                type="url"
+                placeholder="https://drive.google.com/file/d/..."
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all font-medium"
+                value={surveyForm[key] || ''}
+                onChange={e => setSurveyForm(prev => ({ ...prev, [key]: e.target.value }))}
+              />
+            </div>
+            <p className="text-[9px] text-slate-400">
+              Pastikan link di Google Drive sudah "Anyone with link can view".
+            </p>
+            
+            {surveyForm[key] && toGDriveEmbedUrl(surveyForm[key]) && (
+              <div className="mt-2 w-full h-[120px] rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                <iframe
+                  src={toGDriveEmbedUrl(surveyForm[key])!}
+                  className="w-full h-full border-none"
+                  allow="autoplay"
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (viewMode === 'detail' && selectedTask) {
     return (
@@ -1027,182 +1332,30 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
             </>
           )}
 
-          {/* BAGIAN D: BUKTI DOKUMENTASI & PROPOSAL */}
+          {/* BAGIAN D: BUKTI DOKUMENTASI */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
             <h4 className="text-lg font-black text-emerald-700 border-b pb-2 flex items-center gap-2">
-              <Camera className="size-5 text-emerald-600" /> Bagian D: Bukti Dokumentasi & Proposal
+              <Camera className="size-5 text-emerald-600" /> Bagian D: Bukti Dokumentasi
             </h4>
             
-            {/* Tab Header */}
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setPhotoTabMode('file')}
-                className={cn(
-                  "flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
-                  photoTabMode === 'file' ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                )}
-              >
-                <Upload className="size-3.5" />
-                Upload File / Foto
-              </button>
-              <button
-                type="button"
-                onClick={() => setPhotoTabMode('link')}
-                className={cn(
-                  "flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
-                  photoTabMode === 'link' ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                )}
-              >
-                <Link className="size-3.5" />
-                Input Link Dokumen
-              </button>
-            </div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+              Unggah bukti foto survei di bawah ini. Rumah Tampak Depan, Rumah Tampak Dalam, dan Foto Mustahik wajib diisi. Untuk program Produktif, terdapat tambahan foto Kondisi Usaha dan Produk/Bantuan (opsional/add-on).
+            </p>
 
-            {/* Tab Contents */}
-            <AnimatePresence mode="wait">
-              {photoTabMode === 'file' ? (
-                <motion.div
-                  key="file-upload-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-3"
-                >
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                    Upload Foto Lapangan atau Dokumen Proposal
-                  </label>
-                  
-                  <div 
-                    onClick={() => document.getElementById('survey-photo-input')?.click()}
-                    className="border-2 border-dashed border-slate-200 hover:border-emerald-500 bg-slate-50/55 hover:bg-emerald-50/10 rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 min-h-[140px]"
-                  >
-                    {surveyPhotoFile ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <FileText className="size-8 text-emerald-600" />
-                        <p className="text-xs font-bold text-slate-800 truncate max-w-[240px]">{surveyPhotoFile.name}</p>
-                        <p className="text-[10px] text-slate-500">{(surveyPhotoFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                      </div>
-                    ) : selectedTask.survey_data?.fotoSurvei && !selectedTask.survey_data.fotoSurvei.startsWith('blob:') && !selectedTask.survey_data.fotoSurvei.startsWith('data:') ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <CheckCircle2 className="size-8 text-emerald-600" />
-                        <p className="text-xs font-bold text-slate-800">Dokumen sudah diupload</p>
-                        <a 
-                          href={selectedTask.survey_data.fotoSurvei} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[10px] text-emerald-600 hover:underline font-bold flex items-center gap-1 mt-1"
-                        >
-                          Lihat File Saat Ini <ExternalLink className="size-3" />
-                        </a>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="size-8 text-slate-300" />
-                        <p className="text-xs font-bold text-slate-500">Klik untuk pilih file</p>
-                        <p className="text-[10px] text-slate-400">PDF, JPG, PNG (maks. 10MB)</p>
-                      </>
-                    )}
-                  </div>
-                  
-                  <input
-                    id="survey-photo-input"
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] || null;
-                      if (f) {
-                        if (f.size > 10 * 1024 * 1024) {
-                          alert('Ukuran file melebihi batas 10MB. Harap kompres atau pilih file yang lebih kecil.');
-                          e.target.value = '';
-                          return;
-                        }
-                        setSurveyPhotoFile(f);
-                        const url = URL.createObjectURL(f);
-                        setPhotoPreviewUrl(url);
-                      }
-                    }}
-                  />
-
-                  {/* Image local preview */}
-                  {photoPreviewUrl && surveyPhotoFile && surveyPhotoFile.type.startsWith('image/') && (
-                    <div className="mt-3 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 relative">
-                      <img 
-                        src={photoPreviewUrl} 
-                        alt="Preview" 
-                        className="w-full max-h-48 object-contain"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSurveyPhotoFile(null);
-                          setPhotoPreviewUrl(null);
-                        }}
-                        className="absolute top-2 right-2 p-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-all shadow-md"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </div>
-                  )}
-                  {surveyPhotoFile && !surveyPhotoFile.type.startsWith('image/') && (
-                    <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <FileText className="size-5 text-slate-400" />
-                        <span className="text-xs font-bold text-slate-700 truncate max-w-[200px]">{surveyPhotoFile.name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSurveyPhotoFile(null);
-                          setPhotoPreviewUrl(null);
-                        }}
-                        className="p-1 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </div>
-                  )}
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="link-input-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-3"
-                >
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                    Link File / Dokumen (Google Drive, dll)
-                  </label>
-                  <div className="relative">
-                    <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-                    <input
-                      type="url"
-                      placeholder="https://drive.google.com/file/d/..."
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all font-medium"
-                      value={surveyForm.fotoSurvei || ''}
-                      onChange={e => setSurveyForm(prev => ({ ...prev, fotoSurvei: e.target.value }))}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400">
-                    Pastikan link file di Google Drive sudah diatur "Anyone with the link can view".
-                  </p>
-                  
-                  {/* Live Embed Preview */}
-                  {surveyForm.fotoSurvei && toGDriveEmbedUrl(surveyForm.fotoSurvei) && (
-                    <div className="mt-3 w-full h-[220px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                      <iframe
-                        src={toGDriveEmbedUrl(surveyForm.fotoSurvei)!}
-                        className="w-full h-full border-none"
-                        allow="autoplay"
-                      />
-                    </div>
-                  )}
-                </motion.div>
+            <div className="space-y-4">
+              {renderPhotoSlot('fotoRumahDepan', 'Foto Rumah Tampak Depan', true)}
+              {renderPhotoSlot('fotoRumahDalam', 'Foto Rumah Tampak Dalam', true)}
+              {renderPhotoSlot('fotoMustahik', 'Foto Mustahik', true)}
+              
+              {getProgramTipe(selectedTask) === 'Produktif' && (
+                <>
+                  {renderPhotoSlot('fotoKondisiUsaha', 'Foto Kondisi Usaha (Produktif Add-on)', false)}
+                  {renderPhotoSlot('fotoProdukBantuan', 'Foto Produk/Bantuan yang Diajukan (Produktif Add-on)', false)}
+                </>
               )}
-            </AnimatePresence>
+              
+              {renderPhotoSlot('fotoDokumenLainnya', 'Foto/Dokumen Pendukung Lainnya (Add-on)', false)}
+            </div>
           </div>
         </form>
 

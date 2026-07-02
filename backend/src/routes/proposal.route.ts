@@ -4,7 +4,7 @@ import { getProposals, getProposalById, createProposal, updateProposal, deletePr
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // Maks 10MB
+  limits: { fileSize: 5 * 1024 * 1024 } // Maks 5MB
 });
 const router = Router();
 

@@ -1261,40 +1261,66 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                         </div>
 
                         {/* Foto / Dokumen Lapangan */}
-                        {selectedTask.survey_data?.fotoSurvei && (
-                          <div className="space-y-3">
+                        {(selectedTask.survey_data?.fotoRumahDepan || 
+                          selectedTask.survey_data?.fotoRumahDalam || 
+                          selectedTask.survey_data?.fotoMustahik ||
+                          selectedTask.survey_data?.fotoKondisiUsaha ||
+                          selectedTask.survey_data?.fotoProdukBantuan ||
+                          selectedTask.survey_data?.fotoDokumenLainnya) && (
+                          <div className="space-y-4">
                             <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 flex items-center gap-2">
                               <Camera className="size-3.5 text-primary" />
-                              Foto / Dokumen Survei
+                              Bukti Dokumentasi Lapangan
                             </h4>
-                            {selectedTask.survey_data.fotoSurvei.match(/\.(jpeg|jpg|gif|png)/i) || (!selectedTask.survey_data.fotoSurvei.includes('drive.google.com') && !selectedTask.survey_data.fotoSurvei.includes('http')) ? (
-                              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative flex items-center justify-center p-2">
-                                <img
-                                  src={selectedTask.survey_data.fotoSurvei}
-                                  alt="Foto Lapangan"
-                                  className="max-h-72 object-contain rounded-lg shadow-sm"
-                                />
-                              </div>
-                            ) : toGDriveEmbedUrl(selectedTask.survey_data.fotoSurvei) ? (
-                              <div className="w-full h-[320px] border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-slate-50 relative">
-                                <iframe 
-                                  src={toGDriveEmbedUrl(selectedTask.survey_data.fotoSurvei) || ''}
-                                  className="w-full h-full border-none"
-                                  allow="autoplay"
-                                  title="Foto / Dokumen Lapangan"
-                                />
-                              </div>
-                            ) : (
-                              <a 
-                                href={selectedTask.survey_data.fotoSurvei}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 p-3 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-xs font-bold transition-all border border-primary/10"
-                              >
-                                <ExternalLink className="size-4" />
-                                Buka Foto / Dokumen Survei di Tab Baru
-                              </a>
-                            )}
+                            
+                            <div className="grid grid-cols-1 gap-4">
+                              {[
+                                { key: 'fotoRumahDepan', label: 'Foto Rumah Tampak Depan' },
+                                { key: 'fotoRumahDalam', label: 'Foto Rumah Tampak Dalam' },
+                                { key: 'fotoMustahik', label: 'Foto Mustahik' },
+                                { key: 'fotoKondisiUsaha', label: 'Foto Kondisi Usaha (Produktif)' },
+                                { key: 'fotoProdukBantuan', label: 'Foto Produk/Bantuan yang Diajukan' },
+                                { key: 'fotoDokumenLainnya', label: 'Foto/Dokumen Pendukung Lainnya' },
+                              ].map(item => {
+                                const url = selectedTask.survey_data?.[item.key];
+                                if (!url) return null;
+                                return (
+                                  <div key={item.key} className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-2">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{item.label}</p>
+                                    {url.match(/\.(jpeg|jpg|gif|png)/i) || (!url.includes('drive.google.com') && !url.includes('http')) ? (
+                                      <div className="rounded-lg overflow-hidden border border-slate-200 bg-white relative flex items-center justify-center p-2">
+                                        <img
+                                          src={url}
+                                          alt={item.label}
+                                          className="max-h-56 object-contain rounded shadow-sm"
+                                        />
+                                      </div>
+                                    ) : toGDriveEmbedUrl(url) ? (
+                                      <div className="w-full h-[200px] border border-slate-200 rounded-lg overflow-hidden shadow-inner bg-white relative">
+                                        <iframe 
+                                          src={toGDriveEmbedUrl(url) || ''}
+                                          className="w-full h-full border-none"
+                                          allow="autoplay"
+                                          title={item.label}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <a 
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-between p-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-lg text-xs font-bold transition-all border border-primary/10"
+                                      >
+                                        <span className="flex items-center gap-1.5">
+                                          <ExternalLink className="size-3.5" />
+                                          Buka Dokumentasi di Tab Baru
+                                        </span>
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

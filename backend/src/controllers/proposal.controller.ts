@@ -174,6 +174,26 @@ export const updateProposal = async (req: Request, res: Response) => {
     }
 
     if (files && files.length > 0) {
+      let existingSurveyData: any = {};
+      const needsExistingData = files.some(f => f.fieldname !== 'file') && !data.survey_data;
+      if (needsExistingData) {
+        const existing = await prisma.proposal.findUnique({
+          where: { id },
+          select: { survey_data: true }
+        });
+        if (existing && existing.survey_data) {
+          try {
+            existingSurveyData = typeof existing.survey_data === 'string'
+              ? JSON.parse(existing.survey_data)
+              : existing.survey_data;
+          } catch {
+            existingSurveyData = existing.survey_data;
+          }
+        }
+      } else if (data.survey_data) {
+        existingSurveyData = data.survey_data;
+      }
+
       for (const f of files) {
         if (f.fieldname === 'file') {
           const gdriveRes = await uploadToDrive(f);
@@ -182,10 +202,11 @@ export const updateProposal = async (req: Request, res: Response) => {
         } else {
           // Asumsi fieldname lain adalah foto dokumentasi (fotoDepan, fotoDalam, dll)
           const gdriveRes = await uploadToDrive(f);
-          if (!data.survey_data) {
-            data.survey_data = {};
+          if (!existingSurveyData) {
+            existingSurveyData = {};
           }
-          data.survey_data[f.fieldname] = gdriveRes.webViewLink;
+          existingSurveyData[f.fieldname] = gdriveRes.webViewLink;
+          data.survey_data = existingSurveyData;
         }
       }
     } else if (file) {
