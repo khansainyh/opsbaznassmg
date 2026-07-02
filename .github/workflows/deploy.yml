@@ -44,20 +44,23 @@ jobs:
             cd backend
             npm install
             
-            echo "3. Updating Database Schema (Prisma)..."
+            echo "3. Migrating Database Roles..."
+            node scripts/migrate-roles.js || true
+            
+            echo "4. Updating Database Schema (Prisma)..."
             npx prisma db push --accept-data-loss
             
-            echo "4. Building Backend..."
+            echo "5. Building Backend..."
             npm run build
             
-            echo "5. Restarting PM2 Backend Process..."
+            echo "6. Restarting PM2 Backend Process..."
             pm2 restart baznas-api || pm2 start dist/src/index.js --name "baznas-api"
             
-            echo "6. Setting up Frontend..."
+            echo "7. Setting up Frontend..."
             cd ../frontend
             npm install --legacy-peer-deps
             
-            echo "7. Building Frontend..."
+            echo "8. Building Frontend..."
             npm run build
             
             echo "==== DEPLOYMENT SUCCESSFUL ===="
