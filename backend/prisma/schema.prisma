@@ -15,6 +15,8 @@ model User {
   role          Role           @default(Super_Admin)
   created_at    DateTime       @default(now())
   notifications Notification[]
+  pengajuans    PengajuanPencairan[] @relation("PengajuUser")
+  action_logs   PengajuanLog[]
 }
 
 model Mustahik {
@@ -390,6 +392,7 @@ model RkatOperasional {
   target_des     Decimal? @db.Decimal(15, 2)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
+  pengajuans     PengajuanPencairan[]
 }
 
 model PenerimaanMapping {
@@ -446,4 +449,53 @@ enum KategoriUPZ {
   Yayasan_Lembaga
   Sekolah
   OPD
+}
+
+model PengajuanPencairan {
+  id               String          @id @default(uuid())
+  no_pengajuan     String          @unique // Format: PP/BLN/THN/XXXX
+  tanggal          DateTime        @default(now())
+  pengaju_id       String
+  pengaju          User            @relation("PengajuUser", fields: [pengaju_id], references: [id])
+  kategori_biaya   String          
+  keterangan       String          @db.Text
+  nominal          Decimal         @db.Decimal(15, 2)
+  rkat_id          String?         
+  rkat             RkatOperasional? @relation(fields: [rkat_id], references: [id])
+  status           StatusPengajuan @default(WAITING_KABID)
+  sumber_dana      String?         
+  bank_account_id  String?         
+  alasan_penolakan String?         @db.Text
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+  logs             PengajuanLog[]
+
+  @@index([pengaju_id])
+  @@index([rkat_id])
+}
+
+model PengajuanLog {
+  id           String             @id @default(uuid())
+  pengajuan_id String
+  pengajuan    PengajuanPencairan @relation(fields: [pengajuan_id], references: [id], onDelete: Cascade)
+  actor_id     String
+  actor        User               @relation(fields: [actor_id], references: [id])
+  action       String             
+  catatan      String?            @db.Text
+  created_at   DateTime           @default(now())
+
+  @@index([pengajuan_id])
+  @@index([actor_id])
+}
+
+enum StatusPengajuan {
+  DRAFT
+  WAITING_KABID
+  WAITING_KAPEL
+  WAITING_WAKA3
+  WAITING_KETUA
+  WAITING_FINANCE_APP
+  APPROVED
+  CAIR
+  DITOLAK
 }

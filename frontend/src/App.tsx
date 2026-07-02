@@ -42,6 +42,8 @@ import IdentifikasiMutasi from '@/src/pages/IdentifikasiMutasi';
 import PenerimaanBankJateng from '@/src/pages/PenerimaanBankJateng';
 import CatatMutasi from '@/src/pages/CatatMutasi';
 import LaporanKinerja from '@/src/pages/LaporanKinerja';
+import PengajuanOperasional from '@/src/pages/PengajuanOperasional';
+import PersetujuanOperasional from '@/src/pages/PersetujuanOperasional';
 
 
 function App() {
@@ -359,6 +361,10 @@ function App() {
 
         {activeMenu === 'Executive' ? (
           <ExecutiveDashboard />
+        ) : activeMenu === 'Pengajuan Operasional' ? (
+          <PengajuanOperasional />
+        ) : activeMenu === 'Persetujuan Operasional' ? (
+          <PersetujuanOperasional />
         ) : activeMenu === 'Laporan Kinerja' ? (
           <LaporanKinerja />
         ) : activeMenu === 'Input Proposal' ? (

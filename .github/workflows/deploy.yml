@@ -45,7 +45,7 @@ jobs:
             npm install
             
             echo "3. Updating Database Schema (Prisma)..."
-            npx prisma db push
+            npx prisma db push --accept-data-loss
             
             echo "4. Building Backend..."
             npm run build

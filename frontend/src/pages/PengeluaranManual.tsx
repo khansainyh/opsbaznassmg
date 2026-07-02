@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ChevronRight, 
   Save, 
@@ -7,15 +7,19 @@ import {
   History, 
   FileText,
   Calendar,
-  BookOpen,
   Coins,
   Filter,
   ChevronDown,
-  Check
+  Check,
+  ListOrdered,
+  Banknote,
+  Send,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 
 interface BankAccount {
   account_id: string;
@@ -35,30 +39,39 @@ interface ManualDraft {
   bankName: string;
   keteranganBank: string;
   nominal: number;
-  type: 'DEBIT' | 'KREDIT'; // DEBIT = Penerimaan, KREDIT = Penyaluran/Penggunaan
+  type: 'DEBIT' | 'KREDIT';
   status: 'PENDING' | 'RECONCILED';
 }
 
 export default function PengeluaranManual() {
+  const { user } = useAuth();
+  const [activeSubTab, setActiveSubTab] = useState<'langsung' | 'antrean'>('langsung');
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [recentDrafts, setRecentDrafts] = useState<ManualDraft[]>([]);
   
-  // Form State
+  // Direct Payout Form States
+  const [recentDrafts, setRecentDrafts] = useState<ManualDraft[]>([]);
   const [tanggalCatatan, setTanggalCatatan] = useState(new Date().toISOString().split('T')[0]);
   const [tanggalTransaksi, setTanggalTransaksi] = useState(new Date().toISOString().split('T')[0]);
-  const type = 'KREDIT'; // Strictly Kredit (Pengeluaran)
   const [sourceAccountId, setSourceAccountId] = useState('');
   const [nominal, setNominal] = useState('');
   const [keterangan, setKeterangan] = useState('');
-
-  // History Filter State
   const [filterAccountId, setFilterAccountId] = useState('ALL');
-
-  // Custom Dropdown Open States
   const [isSourceAccountDropdownOpen, setIsSourceAccountDropdownOpen] = useState(false);
   const [isFilterAccountDropdownOpen, setIsFilterAccountDropdownOpen] = useState(false);
 
-  // Status & Messages
+  // Queue tab states
+  const [queueList, setQueueList] = useState<any[]>([]);
+  const [isQueueLoading, setIsQueueLoading] = useState(false);
+  const [selectedQueueItem, setSelectedQueueItem] = useState<any | null>(null);
+  
+  // Queue Payout Modal States
+  const [payoutBankAccountId, setPayoutBankAccountId] = useState('');
+  const [payoutSumberDana, setPayoutSumberDana] = useState('AMIL');
+  const [payoutCatatan, setPayoutCatatan] = useState('');
+  const [isPayoutSubmitLoading, setIsPayoutSubmitLoading] = useState(false);
+  const [isPayoutDropdownOpen, setIsPayoutDropdownOpen] = useState(false);
+
+  // General Status & Toast
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -67,8 +80,8 @@ export default function PengeluaranManual() {
     setTimeout(() => setToast(null), 4500);
   };
 
-  // Fetch Data
-  const fetchData = async () => {
+  // Fetch Direct Payout Data
+  const fetchDirectData = async () => {
     try {
       const [accountsRes, mutationsRes] = await Promise.all([
         axios.get('/api/finance/accounts'),
@@ -77,11 +90,9 @@ export default function PengeluaranManual() {
 
       setAccounts(accountsRes.data);
       
-      // Filter mutations to show manual drafts (which have tanggalCatatan set)
       const manualDrafts = mutationsRes.data.filter((m: any) => m.tanggalCatatan !== undefined);
       setRecentDrafts(manualDrafts);
 
-      // Set default account if not set (must be a cash account)
       const cashList = accountsRes.data.filter((a: any) => a.tipe_kas === 'TUNAI');
       if (cashList.length > 0 && !sourceAccountId) {
         setSourceAccountId(cashList[0].account_id);
@@ -92,14 +103,29 @@ export default function PengeluaranManual() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
+  // Fetch Queue Data
+  const fetchQueueData = useCallback(async () => {
+    try {
+      setIsQueueLoading(true);
+      const res = await axios.get('/api/pengajuan-pencairan?tab=queue');
+      if (res.data.status === 'success') {
+        setQueueList(res.data.data);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Gagal memuat antrean pengajuan pencairan.', 'error');
+    } finally {
+      setIsQueueLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchDirectData();
+    fetchQueueData();
+  }, [fetchQueueData]);
 
   const selectedAccount = accounts.find(a => a.account_id === sourceAccountId);
   const numericNominal = parseFloat(nominal.replace(/[^0-9]/g, '')) || 0;
-  
-  // Warning if balance is exceeded
   const isOverdrawn = selectedAccount ? numericNominal > selectedAccount.saldo : false;
 
   const handleNominalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,10 +133,9 @@ export default function PengeluaranManual() {
     setNominal(rawVal);
   };
 
-  // Submit Draft
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Submit Direct Draft
+  const handleDirectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!sourceAccountId) {
       showToast('Silakan pilih akun laci kas atau bank sumber.', 'error');
       return;
@@ -125,11 +150,10 @@ export default function PengeluaranManual() {
     }
 
     setIsLoading(true);
-
     try {
       const payload = {
         sourceAccountId,
-        type,
+        type: 'KREDIT',
         nominal: numericNominal,
         keterangan: keterangan,
         tanggalTransaksi,
@@ -137,13 +161,11 @@ export default function PengeluaranManual() {
       };
 
       const res = await axios.post('/api/finance/manual-expense', payload);
-
       if (res.data.success) {
         showToast(res.data.message || 'Transaksi gantung berhasil disimpan.', 'success');
         setNominal('');
         setKeterangan('');
-        // Refresh drafts list and accounts
-        await fetchData();
+        await fetchDirectData();
       } else {
         showToast(res.data.error || 'Gagal menyimpan transaksi gantung.', 'error');
       }
@@ -155,15 +177,63 @@ export default function PengeluaranManual() {
     }
   };
 
-  // Filter history list based on selected Account Filter
+  // Process Payout Disbursement
+  const handlePayoutSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedQueueItem || !payoutBankAccountId) {
+      alert('Pilih rekening bank pembayar terlebih dahulu.');
+      return;
+    }
+
+    const payAcc = accounts.find(a => a.account_id === payoutBankAccountId);
+    if (payAcc && Number(payAcc.saldo) < Number(selectedQueueItem.nominal)) {
+      alert('Saldo rekening terpilih tidak mencukupi.');
+      return;
+    }
+
+    try {
+      setIsPayoutSubmitLoading(true);
+      const res = await axios.post(`/api/pengajuan-pencairan/${selectedQueueItem.id}/disburse`, {
+        actorId: user?.id,
+        bankAccountId: payoutBankAccountId,
+        sumberDana: payoutSumberDana,
+        catatan: payoutCatatan || 'Pencairan operasional disetujui kasir.'
+      });
+
+      if (res.data.status === 'success') {
+        showToast('Dana berhasil dicairkan & Jurnal otomatis terbentuk!', 'success');
+        setSelectedQueueItem(null);
+        setPayoutCatatan('');
+        setPayoutBankAccountId('');
+        fetchQueueData();
+        fetchDirectData();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Gagal mencairkan dana.');
+    } finally {
+      setIsPayoutSubmitLoading(false);
+    }
+  };
+
+  const formatRupiah = (num: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(num);
+  };
+
   const filteredDrafts = recentDrafts.filter(dr => {
     if (filterAccountId === 'ALL') return true;
     return dr.bankAccountId === filterAccountId;
   });
 
+  const selectedPayoutAccount = accounts.find(a => a.account_id === payoutBankAccountId);
+
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
-      {/* Toast Notifikasi */}
+      {/* Toast Notification */}
       <AnimatePresence>
         {toast && (
           <motion.div 
@@ -193,99 +263,224 @@ export default function PengeluaranManual() {
       </motion.div>
 
       {/* Page Header */}
-      <div className="space-y-1">
-        <h2 className="text-3xl font-black tracking-tight text-slate-900">Pencatatan Pengeluaran Manual</h2>
-        <p className="text-slate-500 text-sm font-medium">Catat pengeluaran dana tunai secara manual (Non-Proposal) sebagai draft transaksi gantung yang akan dilabeli COA dan diverifikasi oleh tim Pelaporan.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-black tracking-tight text-slate-900">Pencatatan Pengeluaran Manual</h2>
+          <p className="text-slate-500 text-sm font-medium">Catat pengeluaran tunai secara manual atau proses antrean pengajuan operasional non-proposal.</p>
+        </div>
       </div>
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Form Column (Left 2 Columns) */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Sub-tabs Selection */}
+      <div className="flex border-b border-slate-200">
+        <button
+          onClick={() => setActiveSubTab('langsung')}
+          className={cn(
+            "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
+            activeSubTab === 'langsung' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
+          )}
+        >
+          <FileText className="size-4" /> Pencatatan Langsung (Kas Kecil)
+        </button>
+        <button
+          onClick={() => setActiveSubTab('antrean')}
+          className={cn(
+            "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 relative",
+            activeSubTab === 'antrean' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
+          )}
+        >
+          <ListOrdered className="size-4" /> Antrean Pengajuan Pencairan
+          {queueList.length > 0 && (
+            <span className="absolute top-1 right-1 bg-primary text-white text-[9px] font-black rounded-full size-4 flex items-center justify-center animate-pulse">
+              {queueList.length}
+            </span>
+          )}
+        </button>
+      </div>
 
-          {/* Form Container */}
-          <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 md:p-8 space-y-6">
-            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
-              <FileText className="size-5 text-primary" />
-              Formulir Pencatatan Pengeluaran Manual (Draft)
-            </h3>
+      {activeSubTab === 'langsung' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Form Column (Left 2 Columns) */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 md:p-8 space-y-6">
+              <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <FileText className="size-5 text-primary" />
+                Formulir Pencatatan Pengeluaran Manual (Draft)
+              </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Tanggal Catatan & Tanggal Transaksi */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Calendar className="size-4 text-slate-400" />
-                    Tanggal Catatan
-                  </label>
-                  <input
-                    type="date"
-                    value={tanggalCatatan}
-                    onChange={(e) => setTanggalCatatan(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
-                    required
-                  />
+              <form onSubmit={handleDirectSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="size-4 text-slate-400" />
+                      Tanggal Catatan
+                    </label>
+                    <input
+                      type="date"
+                      value={tanggalCatatan}
+                      onChange={(e) => setTanggalCatatan(e.target.value)}
+                      className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="size-4 text-slate-400" />
+                      Tanggal Transaksi
+                    </label>
+                    <input
+                      type="date"
+                      value={tanggalTransaksi}
+                      onChange={(e) => setTanggalTransaksi(e.target.value)}
+                      className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Calendar className="size-4 text-slate-400" />
-                    Tanggal Transaksi
+                    <Coins className="size-4 text-slate-400" />
+                    Sumber Kas (Sumber Dana Kas)
                   </label>
-                  <input
-                    type="date"
-                    value={tanggalTransaksi}
-                    onChange={(e) => setTanggalTransaksi(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsSourceAccountDropdownOpen(!isSourceAccountDropdownOpen)}
+                      className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-bold text-slate-700 flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {selectedAccount 
+                          ? `${selectedAccount.nama_akun} - (Rp ${Number(selectedAccount.saldo).toLocaleString('id-ID')})`
+                          : '-- Pilih Sumber Kas --'
+                        }
+                      </span>
+                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSourceAccountDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isSourceAccountDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsSourceAccountDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                          {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+                            <button
+                              key={acc.account_id}
+                              type="button"
+                              onClick={() => {
+                                setSourceAccountId(acc.account_id);
+                                setIsSourceAccountDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                sourceAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span className="font-bold">{acc.nama_akun}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-900 font-mono font-bold">Rp {Number(acc.saldo).toLocaleString('id-ID')}</span>
+                                {sourceAccountId === acc.account_id && <Check className="size-4 text-primary shrink-0" />}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    Nominal Transaksi
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Rp</span>
+                    <input
+                      type="text"
+                      value={nominal ? parseInt(nominal).toLocaleString('id-ID') : ''}
+                      onChange={handleNominalChange}
+                      placeholder="Masukkan jumlah nominal..."
+                      className="w-full h-12 pl-12 pr-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-lg font-black text-slate-900"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Keterangan Pengeluaran / Memo</label>
+                  <textarea
+                    value={keterangan}
+                    onChange={(e) => setKeterangan(e.target.value)}
+                    placeholder="Detail penggunaan..."
+                    className="w-full h-24 p-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium resize-none"
                     required
                   />
                 </div>
-              </div>
 
-              {/* Sumber Kas (Sumber Dana Kas) */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Coins className="size-4 text-slate-400" />
-                  Sumber Kas (Sumber Dana Kas)
-                </label>
+                <button
+                  type="submit"
+                  disabled={isLoading || isOverdrawn}
+                  className={cn(
+                    "w-full h-12 rounded-xl text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-98",
+                    isOverdrawn 
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' 
+                      : 'bg-primary hover:bg-primary/95 shadow-primary/25 cursor-pointer'
+                  )}
+                >
+                  <Save className="size-5" />
+                  {isLoading ? 'Menyimpan Draft...' : 'Simpan Draft Pengeluaran'}
+                </button>
+              </form>
+            </div>
+
+            {/* Direct recent drafts table */}
+            <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <History className="size-5 text-primary" />
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Riwayat Draf Transaksi Terkini</h3>
+                </div>
+                
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setIsSourceAccountDropdownOpen(!isSourceAccountDropdownOpen)}
-                    className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-bold text-slate-700 flex items-center justify-between cursor-pointer"
+                    onClick={() => setIsFilterAccountDropdownOpen(!isFilterAccountDropdownOpen)}
+                    className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer"
                   >
-                    <span className="truncate">
-                      {selectedAccount 
-                        ? `${selectedAccount.nama_akun} - (Rp ${Number(selectedAccount.saldo).toLocaleString('id-ID')})`
-                        : '-- Pilih Sumber Kas --'
+                    <Filter className="size-3.5 text-slate-400" />
+                    <span>
+                      {filterAccountId === 'ALL' 
+                        ? 'Semua Akun Kas' 
+                        : accounts.find(a => a.account_id === filterAccountId)?.nama_akun || 'Semua Akun Kas'
                       }
                     </span>
-                    <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSourceAccountDropdownOpen && "rotate-180")} />
+                    <ChevronDown className="size-3 text-slate-400 shrink-0" />
                   </button>
 
-                  {isSourceAccountDropdownOpen && (
+                  {isFilterAccountDropdownOpen && (
                     <>
-                      <div className="fixed inset-0 z-30" onClick={() => setIsSourceAccountDropdownOpen(false)} />
-                      <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                      <div className="fixed inset-0 z-30" onClick={() => setIsFilterAccountDropdownOpen(false)} />
+                      <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilterAccountId('ALL');
+                            setIsFilterAccountDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                        >
+                          Semua Akun Kas
+                        </button>
                         {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
                           <button
                             key={acc.account_id}
                             type="button"
                             onClick={() => {
-                              setSourceAccountId(acc.account_id);
-                              setIsSourceAccountDropdownOpen(false);
+                              setFilterAccountId(acc.account_id);
+                              setIsFilterAccountDropdownOpen(false);
                             }}
-                            className={cn(
-                              "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
-                              sourceAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                            )}
+                            className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50"
                           >
-                            <span className="font-bold">{acc.nama_akun}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-slate-900 font-mono font-bold">Rp {Number(acc.saldo).toLocaleString('id-ID')}</span>
-                              {sourceAccountId === acc.account_id && <Check className="size-4 text-primary shrink-0" />}
-                            </div>
+                            {acc.nama_akun}
                           </button>
                         ))}
                       </div>
@@ -294,260 +489,253 @@ export default function PengeluaranManual() {
                 </div>
               </div>
 
-              {/* Nominal & Format Help */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  Nominal Transaksi
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Rp</span>
-                  <input
-                    type="text"
-                    value={nominal ? parseInt(nominal).toLocaleString('id-ID') : ''}
-                    onChange={handleNominalChange}
-                    placeholder="Masukkan jumlah nominal..."
-                    className="w-full h-12 pl-12 pr-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-lg font-black text-slate-900"
-                    required
-                  />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/20 border-b border-slate-100">
+                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanggal Catat</th>
+                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sumber Kas</th>
+                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Keterangan</th>
+                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Nominal</th>
+                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 text-xs">
+                    {filteredDrafts.map(dr => (
+                      <tr key={dr.id} className="hover:bg-slate-50/50">
+                        <td className="px-6 py-3 text-slate-500 font-medium">{new Date(dr.tanggalCatatan).toLocaleDateString('id-ID')}</td>
+                        <td className="px-6 py-3 font-semibold text-slate-700">{dr.bankName}</td>
+                        <td className="px-6 py-3 text-slate-900 truncate max-w-xs">{dr.keteranganBank}</td>
+                        <td className="px-6 py-3 text-right font-black text-slate-900">Rp {dr.nominal.toLocaleString('id-ID')}</td>
+                        <td className="px-6 py-3 text-center">
+                          <span className="bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full font-bold">
+                            {dr.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Saldo info */}
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 space-y-4">
+              <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-2">
+                <Coins className="size-4 text-primary" />
+                Saldo Laci Kas (Tunai)
+              </h4>
+              <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto custom-scrollbar">
+                {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+                  <div key={acc.account_id} className="py-3 flex justify-between items-center text-xs">
+                    <div>
+                      <p className="font-bold text-slate-700">{acc.nama_akun}</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">COA: {acc.coa_code}</p>
+                    </div>
+                    <p className="font-black text-slate-900">Rp {Number(acc.saldo).toLocaleString('id-ID')}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Queue Tab: Approved Requests List */
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm min-h-[500px] flex flex-col">
+          <div className="flex items-center justify-between border-b pb-3 mb-4">
+            <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <Banknote className="size-5 text-primary" />
+              Antrean Pembayaran Pengajuan Operasional (Approved)
+            </h3>
+          </div>
+
+          {isQueueLoading ? (
+            <div className="flex-1 flex items-center justify-center text-slate-400">Loading antrean...</div>
+          ) : queueList.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-12 space-y-2">
+              <CheckCircle2 className="size-10 text-emerald-400" />
+              <p className="text-xs font-semibold">Semua antrean pengajuan operasional selesai diproses!</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
+                    <th className="py-3 px-3">No Pengajuan</th>
+                    <th className="py-3 px-3">Pengaju</th>
+                    <th className="py-3 px-3">Kategori & Keperluan</th>
+                    <th className="py-3 px-3">Link RKAT</th>
+                    <th className="py-3 px-3 text-right">Nominal</th>
+                    <th className="py-3 px-3 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-600">
+                  {queueList.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 font-mono text-xs text-slate-800">{item.no_pengajuan}</td>
+                      <td className="py-3 px-3">
+                        <p className="font-bold text-slate-700">{item.pengaju?.name}</p>
+                        <p className="text-[9px] text-slate-400 uppercase tracking-widest">{item.pengaju?.role.replace(/_/g, ' ')}</p>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold text-[9px] mb-1 inline-block">
+                          {item.kategori_biaya}
+                        </span>
+                        <p className="font-medium text-slate-600 truncate max-w-xs">{item.keterangan}</p>
+                      </td>
+                      <td className="py-3 px-3 text-slate-555">
+                        {item.rkat ? `(${item.rkat.no}) ${item.rkat.nama}` : <span className="italic text-slate-400 font-normal">Direct Expense</span>}
+                      </td>
+                      <td className="py-3 px-3 text-right font-black text-slate-900 text-sm">{formatRupiah(Number(item.nominal))}</td>
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          onClick={() => {
+                            setSelectedQueueItem(item);
+                            setPayoutSumberDana('AMIL');
+                            setPayoutBankAccountId(accounts[0]?.account_id || '');
+                          }}
+                          className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 mx-auto active:scale-95 transition-all"
+                        >
+                          <Send className="size-3" /> Cairkan Dana
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Payout Processing Dialog Modal */}
+      {selectedQueueItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-slate-800 text-base">Proses Pencairan Operasional</h3>
+                <p className="font-mono text-xs text-slate-400 mt-0.5">{selectedQueueItem.no_pengajuan}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedQueueItem(null)}
+                className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-lg transition-all"
+              >
+                <XCircle className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePayoutSubmit} className="p-6 space-y-4 text-sm">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider">Pengaju</span>
+                  <span className="font-bold text-slate-700">{selectedQueueItem.pengaju?.name}</span>
                 </div>
-                {numericNominal > 0 && (
-                  <p className="text-[11px] font-bold text-slate-400">
-                    Terbilang: <span className="text-primary italic"># {numericNominal.toLocaleString('id-ID')} Rupiah #</span>
-                  </p>
-                )}
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider">Nominal</span>
+                  <span className="font-black text-primary text-sm">{formatRupiah(Number(selectedQueueItem.nominal))}</span>
+                </div>
+                <div className="border-t border-slate-200/60 pt-2 text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Keperluan</span>
+                  <p className="font-medium text-slate-650 italic">"{selectedQueueItem.keterangan}"</p>
+                </div>
               </div>
 
-              {/* Keterangan */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Keterangan Pengeluaran / Memo</label>
+              {/* Rekening Pembayar Select */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Akun Kas / Bank Pembayar</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsPayoutDropdownOpen(!isPayoutDropdownOpen)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between cursor-pointer"
+                  >
+                    <span>
+                      {selectedPayoutAccount 
+                        ? `${selectedPayoutAccount.nama_akun} - Balance: [${formatRupiah(Number(selectedPayoutAccount.saldo))}]`
+                        : '-- Pilih Rekening Pembayar --'
+                      }
+                    </span>
+                    <ChevronDown className="size-4 text-slate-400" />
+                  </button>
+
+                  {isPayoutDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setIsPayoutDropdownOpen(false)} />
+                      <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                        {accounts.map(acc => (
+                          <button
+                            key={acc.account_id}
+                            type="button"
+                            onClick={() => {
+                              setPayoutBankAccountId(acc.account_id);
+                              setIsPayoutDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full text-left px-3 py-2 rounded-lg text-[11px] font-semibold hover:bg-slate-50 flex items-center justify-between mb-0.5",
+                              payoutBankAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                            )}
+                          >
+                            <span>{acc.nama_akun} ({acc.tipe_kas})</span>
+                            <span className="font-bold text-slate-900">{formatRupiah(Number(acc.saldo))}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Tag Dana / Asnaf Select */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Sumber Dana / Tag Dana</label>
+                <select
+                  value={payoutSumberDana}
+                  onChange={(e) => setPayoutSumberDana(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                >
+                  <option value="AMIL">AMIL (Dana Operasional Lembaga)</option>
+                  <option value="ZAKAT">ZAKAT</option>
+                  <option value="INFAK_SEDEKAH_TERIKAT">INFAK / SEDEKAH TERIKAT</option>
+                  <option value="INFAK_SEDEKAH_TIDAK_TERIKAT">INFAK / SEDEKAH TIDAK TERIKAT</option>
+                </select>
+              </div>
+
+              {/* Catatan / Memo */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Catatan Payout</label>
                 <textarea
-                  value={keterangan}
-                  onChange={(e) => setKeterangan(e.target.value)}
-                  placeholder="Detail penggunaan kas tunai. Contoh: Pembelian ATK bulanan laci A, konsumsi rapat koordinasi, atau biaya operational tak terduga..."
-                  className="w-full h-24 p-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium resize-none"
-                  required
+                  value={payoutCatatan}
+                  onChange={(e) => setPayoutCatatan(e.target.value)}
+                  placeholder="Catatan verifikasi pencairan oleh kasir..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
               </div>
 
               {/* Action Buttons */}
-              <button
-                type="submit"
-                disabled={isLoading || isOverdrawn}
-                className={`w-full h-12 rounded-xl text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-98 ${
-                  isOverdrawn 
-                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' 
-                    : 'bg-primary hover:bg-primary/95 shadow-primary/25 cursor-pointer'
-                }`}
-              >
-                <Save className="size-5" />
-                {isLoading ? 'Menyimpan Draft...' : 'Simpan Draft Pengeluaran'}
-              </button>
+              <div className="flex justify-end gap-2 pt-2 border-t mt-4">
+                <button 
+                  type="button" 
+                  onClick={() => setSelectedQueueItem(null)} 
+                  className="px-4 py-2 hover:bg-slate-105 text-slate-600 rounded-xl font-bold text-xs"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPayoutSubmitLoading || !payoutBankAccountId}
+                  className="px-4 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-xs shadow-md shadow-primary/20 flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isPayoutSubmitLoading ? 'Memproses...' : 'Cairkan & Rekam Jurnal'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
-
-        {/* Sidebar Info Column (Right 1 Column) */}
-        <div className="space-y-8">
-          
-          {/* Real-time Balances */}
-          <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 space-y-4">
-            <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-2">
-              <Coins className="size-4 text-primary" />
-              Saldo Laci Kas (Tunai)
-            </h4>
-            <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-              {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
-                <div key={acc.account_id} className="py-3 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-bold text-slate-700">{acc.nama_akun}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">COA: {acc.coa_code}</p>
-                  </div>
-                  <p className="text-sm font-black text-slate-900 shrink-0">
-                    Rp {Number(acc.saldo).toLocaleString('id-ID')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Real-time Accounting Jurnal Preview */}
-          <div className="bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 shadow-2xl p-6 space-y-4">
-            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2 flex items-center gap-2">
-              <BookOpen className="size-4 text-rose-450" />
-              DRAFT MUTASI GANTUNG
-            </h4>
-
-            {numericNominal > 0 ? (
-              <div className="space-y-4 text-xs font-mono">
-                {/* Info Draft */}
-                <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-800 space-y-2">
-                  <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider">Status: Draft Gantung (Pending)</p>
-                  <p className="font-bold text-slate-200">Keterangan: {keterangan || '-'}</p>
-                  <p className="text-slate-350">Akun Kas: {selectedAccount?.nama_akun || '-'}</p>
-                  <p className="text-slate-350">Arah Mutasi: <span className="text-rose-450 font-bold">Pengeluaran (Uang Keluar)</span></p>
-                  <p className="text-right text-slate-200 font-black mt-2 text-sm border-t border-slate-700/50 pt-2">
-                    Nominal: Rp {numericNominal.toLocaleString('id-ID')}
-                  </p>
-                </div>
-
-                {/* Overdrawn warning */}
-                {isOverdrawn && (
-                  <div className="bg-rose-950/40 border border-rose-800/50 p-3 rounded-lg text-rose-300 text-[11px] flex items-start gap-2">
-                    <AlertTriangle className="size-4 shrink-0 mt-0.5 text-rose-450" />
-                    <span>Perhatian: Nominal pengeluaran melebihi saldo kas yang tersedia!</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-slate-500 text-xs font-mono">
-                Masukkan nominal transaksi untuk melihat preview draf gantung.
-              </div>
-            )}
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Recent Manual Expenses Table */}
-      <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <History className="size-5 text-primary" />
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Riwayat Draf Transaksi Terkini</h3>
-          </div>
-          
-          {/* Table Filter by Account */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsFilterAccountDropdownOpen(!isFilterAccountDropdownOpen)}
-              className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer"
-            >
-              <Filter className="size-3.5 text-slate-400" />
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter Akun Kas:</span>
-              <span>
-                {filterAccountId === 'ALL' 
-                  ? 'Semua Akun Kas' 
-                  : accounts.find(a => a.account_id === filterAccountId)?.nama_akun || 'Semua Akun Kas'
-                }
-              </span>
-              <ChevronDown className="size-3 text-slate-400 shrink-0" />
-            </button>
-
-            {isFilterAccountDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setIsFilterAccountDropdownOpen(false)} />
-                <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilterAccountId('ALL');
-                      setIsFilterAccountDropdownOpen(false);
-                    }}
-                    className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
-                      filterAccountId === 'ALL' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                    )}
-                  >
-                    <span>Semua Akun Kas</span>
-                    {filterAccountId === 'ALL' && <Check className="size-4 text-primary shrink-0" />}
-                  </button>
-                  {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
-                    <button
-                      key={acc.account_id}
-                      type="button"
-                      onClick={() => {
-                        setFilterAccountId(acc.account_id);
-                        setIsFilterAccountDropdownOpen(false);
-                      }}
-                      className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
-                        filterAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                      )}
-                    >
-                      <span>{acc.nama_akun}</span>
-                      {filterAccountId === acc.account_id && <Check className="size-4 text-primary shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/20 border-b border-slate-100">
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanggal Catat</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanggal Transaksi</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sumber Kas</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Keterangan</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Jenis</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Nominal</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredDrafts.length > 0 ? (
-                filteredDrafts.map((dr) => (
-                  <tr key={dr.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-3.5 text-xs text-slate-500 font-medium">
-                      {new Date(dr.tanggalCatatan).toLocaleDateString('id-ID', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </td>
-                    <td className="px-6 py-3.5 text-xs text-slate-600 font-bold">
-                      {new Date(dr.tanggal).toLocaleDateString('id-ID', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </td>
-                    <td className="px-6 py-3.5 text-xs font-semibold text-slate-700">
-                      {dr.bankName}
-                    </td>
-                    <td className="px-6 py-3.5 text-xs font-medium text-slate-900 max-w-xs truncate">
-                      {dr.keteranganBank}
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                        dr.type === 'DEBIT' 
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                          : 'bg-rose-50 text-rose-700 border border-rose-100'
-                      }`}>
-                        {dr.type === 'DEBIT' ? 'Penerimaan' : 'Pengeluaran'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-right font-black text-slate-900 text-xs">
-                      Rp {dr.nominal.toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-6 py-3.5 text-center">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        dr.status === 'PENDING' 
-                          ? 'bg-amber-50 text-amber-700 border border-amber-100' 
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {dr.status === 'PENDING' ? 'Gantung' : 'Selesai'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400 text-xs font-medium">
-                    Belum ada riwayat draft transaksi gantung yang sesuai filter.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+      )}
     </div>
   );
 }
