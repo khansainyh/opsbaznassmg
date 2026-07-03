@@ -59,27 +59,27 @@ export default function PilarProgram() {
   const downloadTemplate = () => {
     const worksheet = XLSX.utils.json_to_sheet([
       { 
-        "Kode Pilar": "1100", 
-        "Kode Program": "1101", 
-        "Nama Program": "Bantuan Sembako Dhuafa",
+        "Kode Program": "1100", 
+        "Kode Kegiatan": "1101", 
+        "Nama Kegiatan": "Bantuan Sembako Dhuafa",
         "Tipe": "Konsumtif"
       },
       { 
-        "Kode Pilar": "1100", 
-        "Kode Program": "1102", 
-        "Nama Program": "Bantuan Kebencanaan & Tanggap Darurat",
+        "Kode Program": "1100", 
+        "Kode Kegiatan": "1102", 
+        "Nama Kegiatan": "Bantuan Kebencanaan & Tanggap Darurat",
         "Tipe": "Konsumtif"
       },
       {
-        "Kode Pilar": "1200",
-        "Kode Program": "1201",
-        "Nama Program": "Pemberdayaan Ekonomi Mustahik",
+        "Kode Program": "1200",
+        "Kode Kegiatan": "1201",
+        "Nama Kegiatan": "Pemberdayaan Ekonomi Mustahik",
         "Tipe": "Produktif"
       }
     ]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Format Program");
-    XLSX.writeFile(workbook, "Template_Migrasi_Program.xlsx");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Format Kegiatan");
+    XLSX.writeFile(workbook, "Template_Migrasi_Kegiatan.xlsx");
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,13 +106,13 @@ export default function PilarProgram() {
       const newMessages = [];
       if (res.data.status === 'success') {
         if (res.data.insertedPilars > 0) {
-          newMessages.push({ type: 'success', text: `Berhasil menambahkan ${res.data.insertedPilars} Pilar baru.` });
+          newMessages.push({ type: 'success', text: `Berhasil menambahkan ${res.data.insertedPilars} Program baru.` });
         }
         if (res.data.insertedPrograms > 0) {
-          newMessages.push({ type: 'success', text: `Berhasil menambahkan ${res.data.insertedPrograms} Program baru.` });
+          newMessages.push({ type: 'success', text: `Berhasil menambahkan ${res.data.insertedPrograms} Kegiatan baru.` });
         }
         if (res.data.updatedPrograms > 0) {
-          newMessages.push({ type: 'success', text: `Berhasil memperbarui ${res.data.updatedPrograms} Program.` });
+          newMessages.push({ type: 'success', text: `Berhasil memperbarui ${res.data.updatedPrograms} Kegiatan.` });
         }
         if (res.data.insertedPrograms === 0 && res.data.updatedPrograms === 0 && res.data.insertedPilars === 0) {
           newMessages.push({ type: 'warning', text: `Tidak ada data baru yang diproses.` });
@@ -239,18 +239,18 @@ export default function PilarProgram() {
   };
 
   const handleDeletePilar = async (code: string) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus pilar ini beserta seluruh program di dalamnya?")) {
+    if (window.confirm("Apakah Anda yakin ingin menghapus program ini beserta seluruh kegiatan di dalamnya?")) {
       try {
         await axios.delete(`/api/pilars/${code}`);
         setData(prev => prev.filter(p => p.code !== code));
       } catch (e) {
-        alert('Gagal menghapus pilar.');
+        alert('Gagal menghapus program.');
       }
     }
   };
 
   const handleDeleteProgram = async (pilarCode: string, programCode: string) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus program ini?")) {
+    if (window.confirm("Apakah Anda yakin ingin menghapus kegiatan ini?")) {
       try {
         await axios.delete(`/api/programs/${programCode}`);
         setData(prev => prev.map(p => p.code === pilarCode ? {
@@ -258,7 +258,7 @@ export default function PilarProgram() {
           programs: p.programs.filter(pr => pr.code !== programCode)
         } : p));
       } catch (e) {
-        alert('Gagal menghapus program.');
+        alert('Gagal menghapus kegiatan.');
       }
     }
   };
@@ -283,12 +283,12 @@ export default function PilarProgram() {
         <nav className="flex text-sm gap-2 items-center">
           <span className="text-slate-400">Master Data</span>
           <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Pilar & Program</span>
+          <span className="text-primary font-bold">Program & Kegiatan</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Master Data: Pilar & Program</h2>
-            <p className="text-slate-500 font-medium">Kelola klasifikasi pilar utama dan kode program berdasarkan standar SIMBA BAZNAS.</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Master Data: Program & Kegiatan</h2>
+            <p className="text-slate-500 font-medium">Kelola klasifikasi program utama dan kode kegiatan berdasarkan standar SIMBA BAZNAS.</p>
           </div>
           <div className="flex gap-3">
             <button
@@ -296,14 +296,14 @@ export default function PilarProgram() {
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-slate-200"
             >
               <Upload className="size-4" />
-              Migrasi Program
+              Migrasi Kegiatan
             </button>
             <button
               onClick={handleAddPilar}
               className="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
             >
               <Plus className="size-4" />
-              Tambah Pilar Baru
+              Tambah Program Baru
             </button>
           </div>
         </div>
@@ -317,7 +317,7 @@ export default function PilarProgram() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Cari Kode / Nama Pilar / Nama Program..."
+            placeholder="Cari Kode / Nama Program / Nama Kegiatan..."
             className="w-full h-12 pl-12 pr-4 rounded-xl border border-primary/10 bg-white shadow-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
           />
         </div>
@@ -328,7 +328,7 @@ export default function PilarProgram() {
               <Category className="size-5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Pilar</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Program</p>
               <p className="text-xl font-black text-slate-900">{totalPilar}</p>
             </div>
           </div>
@@ -338,7 +338,7 @@ export default function PilarProgram() {
               <List className="size-5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Program</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Kegiatan</p>
               <p className="text-xl font-black text-slate-900">{totalProgram}</p>
             </div>
           </div>
@@ -351,9 +351,9 @@ export default function PilarProgram() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-primary/5">
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Kode Pilar</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Nama Pilar</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Jumlah Program</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Kode Program</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Nama Program</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Jumlah Kegiatan</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Status</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 text-right">Aksi</th>
               </tr>
@@ -386,7 +386,7 @@ export default function PilarProgram() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
-                        {pilar.programs.length} Program
+                        {pilar.programs.length} Kegiatan
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -405,14 +405,14 @@ export default function PilarProgram() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleEditPilar(pilar); }}
                           className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                          title="Edit Pilar"
+                          title="Edit Program"
                         >
                           <Edit2 className="size-4" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeletePilar(pilar.code); }}
                           className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Hapus Pilar"
+                          title="Hapus Program"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -463,14 +463,14 @@ export default function PilarProgram() {
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleEditProgram(pilar.code, prog); }}
                                       className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-all"
-                                      title="Edit Program"
+                                      title="Edit Kegiatan"
                                     >
                                       <Edit2 className="size-3.5" />
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleDeleteProgram(pilar.code, prog.code); }}
                                       className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
-                                      title="Hapus Program"
+                                      title="Hapus Kegiatan"
                                     >
                                       <Trash2 className="size-3.5" />
                                     </button>
@@ -483,7 +483,7 @@ export default function PilarProgram() {
                               >
                                 <span className="text-xs font-bold text-primary flex items-center gap-2">
                                   <PlusCircle className="size-4" />
-                                  Tambah Program Baru
+                                  Tambah Kegiatan Baru
                                 </span>
                               </div>
                             </div>
@@ -500,7 +500,7 @@ export default function PilarProgram() {
 
         {/* Table Footer */}
         <div className="px-6 py-4 bg-slate-50/50 border-t border-primary/5 flex items-center justify-between">
-          <p className="text-xs text-slate-500 font-bold">Menampilkan {filteredData.length} dari {totalPilar} Pilar Utama</p>
+          <p className="text-xs text-slate-500 font-bold">Menampilkan {filteredData.length} dari {totalPilar} Program Utama</p>
           <div className="flex items-center gap-1">
             <button className="p-2 rounded-lg bg-white border border-primary/10 text-slate-400 cursor-not-allowed">
               <ChevronRight className="size-4 rotate-180" />

@@ -17,6 +17,30 @@ const MEMO_SOURCES = ['Semua', 'Ketua BAZNAS', 'Wakil Ketua I', 'Wakil Ketua II'
 const MONTHS = ['Semua','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const MONTH_MAP: Record<string, string> = { Januari:'01',Februari:'02',Maret:'03',April:'04',Mei:'05',Juni:'06',Juli:'07',Agustus:'08',September:'09',Oktober:'10',November:'11',Desember:'12' };
 
+export function formatStatusDisplay(status: string) {
+  if (!status) return status;
+  const s = status.trim();
+  if (s === 'Review Kabag' || s === 'Review Kabag Admin' || s === 'Review Kabag Administrasi') {
+    return 'Review Kabag Administrasi';
+  }
+  if (s === 'Survei Selesai') {
+    return 'Review Kabid';
+  }
+  if (s === 'Review Pimpinan') {
+    return 'Review Ketua';
+  }
+  if (s === 'Antrean Arsip') {
+    return 'Pengarsipan';
+  }
+  if (s === 'Selesai & Arsip') {
+    return 'Selesai';
+  }
+  if (s === 'Survei Assessment' || s === 'Survei_Assessment' || s === 'Survei/Assesment') {
+    return 'Survei/Assesment';
+  }
+  return s;
+}
+
 const STATUS_ORDER = [
   'Registrasi',
   'Scan Proposal',
@@ -54,13 +78,13 @@ const FILTER_STATUSES = [
 const STEPS = [
   { id: 'ADM',   label: 'ADM',   full: 'Administrasi' },
   { id: 'HUM',   label: 'HUM',   full: 'Humas (Scan)' },
-  { id: 'KDM',   label: 'KDM',   full: 'Kabag Administrasi' },
-  { id: 'SURV',  label: 'SURV',  full: 'Survey' },
+  { id: 'KDM',   label: 'KDM',   full: 'Review Kabag Administrasi' },
+  { id: 'SURV',  label: 'SURV',  full: 'Survei/Assesment' },
   { id: 'KAPEL', label: 'KAPEL', full: 'Kepala Pelaksana' },
-  { id: 'PIMP',  label: 'PIMP',  full: 'Pimpinan' },
+  { id: 'PIMP',  label: 'PIMP',  full: 'Review Ketua' },
   { id: 'KEU',   label: 'KEU',   full: 'Keuangan' },
   { id: 'DIST',  label: 'DIST',  full: 'Distribusi & Dayaguna' },
-  { id: 'Arsip', label: 'Arsip', full: 'Arsip' },
+  { id: 'Arsip', label: 'Arsip', full: 'Pengarsipan' },
   { id: 'DONE',  label: 'DONE',  full: 'Selesai' },
 ];
 
@@ -279,7 +303,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
             {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
           <select className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 outline-none cursor-pointer" value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)}>
-            {FILTER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            {FILTER_STATUSES.map(s => <option key={s} value={s}>{formatStatusDisplay(s)}</option>)}
           </select>
           {/* Filter Memo */}
           <div className="flex items-center gap-2">
@@ -350,7 +374,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                   <td className="px-5 py-3 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-2">
                       <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
-                        {item.status}
+                        {formatStatusDisplay(item.status)}
                       </span>
                       <button onClick={() => setSelectedProposal(item)}
                         className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0">
@@ -416,7 +440,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                   <div className="text-right space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status Saat Ini</p>
                     <span className={cn("inline-block px-3 py-1 text-xs font-black rounded-full uppercase border border-slate-200/60", getStatusColor(selectedProposal.status))}>
-                      {selectedProposal.status}
+                      {formatStatusDisplay(selectedProposal.status)}
                     </span>
                   </div>
                 </div>

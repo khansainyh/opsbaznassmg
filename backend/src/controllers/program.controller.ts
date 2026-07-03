@@ -88,14 +88,14 @@ export const importPrograms = async (req: Request, res: Response): Promise<void>
       }
 
       // Check pilar details
-      const pilarCode = row.pilar_code || row['kode pilar'] || row['kodepilar'] || row['pilar code'];
-      const pilarName = row.pilar_name || row['nama pilar'] || row['namapilar'] || row['pilar name'];
-      const pilarCategory = row.pilar_category || row['kategori pilar'] || row['kategoripilar'] || row['category'];
+      const pilarCode = row.pilar_code || row['kode pilar'] || row['kodepilar'] || row['pilar code'] || row['kode program'] || row['kodeprogram'] || row['program_code'] || row['program code'];
+      const pilarName = row.pilar_name || row['nama pilar'] || row['namapilar'] || row['pilar name'] || row['nama program'] || row['namaprogram'] || row['program_name'] || row['program name'];
+      const pilarCategory = row.pilar_category || row['kategori pilar'] || row['kategoripilar'] || row['category'] || row['kategori program'] || row['kategoriprogram'] || row['program_category'] || row['program category'];
 
       if (!pilarCode) continue;
 
       const pilarCodeStr = String(pilarCode).trim();
-      const defaultPilar = PILAR_NAME_MAP[pilarCodeStr] || { name: 'Pilar Baru', category: 'Kemanusiaan' };
+      const defaultPilar = PILAR_NAME_MAP[pilarCodeStr] || { name: 'Program Baru', category: 'Kemanusiaan' };
       
       const pilarNameStr = pilarName ? String(pilarName).trim() : defaultPilar.name;
       const pilarCategoryStr = pilarCategory ? String(pilarCategory).trim() : defaultPilar.category;
@@ -118,15 +118,15 @@ export const importPrograms = async (req: Request, res: Response): Promise<void>
       }
 
       // 2. Check program details
-      const programCode = row.program_code || row['kode program'] || row['kodeprogram'] || row['program code'];
-      const programName = row.program_name || row['nama program'] || row['namaprogram'] || row['program name'];
+      const programCode = row.program_code || row['kode program'] || row['kodeprogram'] || row['program code'] || row['kode kegiatan'] || row['kodekegiatan'] || row['kegiatan_code'] || row['kegiatan code'];
+      const programName = row.program_name || row['nama program'] || row['namaprogram'] || row['program name'] || row['nama kegiatan'] || row['namakegiatan'] || row['kegiatan_name'] || row['kegiatan name'];
       const budgetRkat = row.budget_rkat || row['pagu rkat'] || row['pagurkat'] || row['budget rkat'] || 0;
       const tipeProgram = row.tipe || row['tipe'] || row['klasifikasi'] || row['jenis'] || 'Konsumtif';
 
       if (!programCode) continue;
 
       const programCodeStr = String(programCode).trim();
-      const programNameStr = programName ? String(programName).trim() : 'Program Baru';
+      const programNameStr = programName ? String(programName).trim() : 'Kegiatan Baru';
       const parsedBudget = parseInt(String(budgetRkat).replace(/[^0-9]/g, '')) || 0;
       const tipeProgramStr = tipeProgram && String(tipeProgram).toLowerCase().includes('produktif') ? 'Produktif' : 'Konsumtif';
 

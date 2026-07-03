@@ -73,11 +73,11 @@ export const proporsiPilar = [
 // TREN BULANAN (Pengumpulan vs Penyaluran)
 // ============================================================
 export const trenBulanan = [
-  { bulan: 'Jan', pengumpulan: 720_000_000, penyaluran: 380_000_000 },
-  { bulan: 'Feb', pengumpulan: 685_000_000, penyaluran: 410_000_000 },
-  { bulan: 'Mar', pengumpulan: 810_000_000, penyaluran: 495_000_000 },
-  { bulan: 'Apr', pengumpulan: 930_000_000, penyaluran: 560_000_000 },
-  { bulan: 'Mei', pengumpulan: 702_250_000, penyaluran: 348_500_000 },
+  { bulan: 'Jan', pengumpulan: 720_000_000, penyaluran: 380_000_000, target: 1_500_000_000 },
+  { bulan: 'Feb', pengumpulan: 685_000_000, penyaluran: 410_000_000, target: 1_500_000_000 },
+  { bulan: 'Mar', pengumpulan: 810_000_000, penyaluran: 495_000_000, target: 1_500_000_000 },
+  { bulan: 'Apr', pengumpulan: 930_000_000, penyaluran: 560_000_000, target: 1_500_000_000 },
+  { bulan: 'Mei', pengumpulan: 702_250_000, penyaluran: 348_500_000, target: 1_500_000_000 },
 ];
 
 // ============================================================

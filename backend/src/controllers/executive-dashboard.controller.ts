@@ -94,6 +94,43 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
       GROUP BY MONTH(tanggal_masuk)
     `;
 
+    const targetSums = await prisma.rkatPengumpulan.aggregate({
+      _sum: {
+        target_jan: true,
+        target_feb: true,
+        target_mar: true,
+        target_apr: true,
+        target_mei: true,
+        target_jun: true,
+        target_jul: true,
+        target_agt: true,
+        target_sep: true,
+        target_okt: true,
+        target_nov: true,
+        target_des: true,
+      }
+    });
+
+    const monthlyTargets = [
+      Number(targetSums._sum.target_jan || 0),
+      Number(targetSums._sum.target_feb || 0),
+      Number(targetSums._sum.target_mar || 0),
+      Number(targetSums._sum.target_apr || 0),
+      Number(targetSums._sum.target_mei || 0),
+      Number(targetSums._sum.target_jun || 0),
+      Number(targetSums._sum.target_jul || 0),
+      Number(targetSums._sum.target_agt || 0),
+      Number(targetSums._sum.target_sep || 0),
+      Number(targetSums._sum.target_okt || 0),
+      Number(targetSums._sum.target_nov || 0),
+      Number(targetSums._sum.target_des || 0),
+    ];
+
+    const totalMonthlyTargetsSum = monthlyTargets.reduce((a, b) => a + b, 0);
+    const finalMonthlyTargets = totalMonthlyTargetsSum > 0 
+      ? monthlyTargets 
+      : Array(12).fill(pengumpulanTarget / 12);
+
     const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
     const trenBulanan = monthsShort.map((month, idx) => {
       const mNum = idx + 1;
@@ -103,6 +140,7 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
         bulan: month,
         pengumpulan: Number(pengKey ? pengKey.total : 0),
         penyaluran: Number(penyKey ? penyKey.total : 0),
+        target: finalMonthlyTargets[idx],
       };
     });
 

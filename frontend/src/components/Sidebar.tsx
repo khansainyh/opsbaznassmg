@@ -63,7 +63,7 @@ const menuGroups = [
   {
     title: "MASTER DATA",
     items: [
-      { name: "Pilar & Program", icon: Network, roles: ["Super_Admin", "Kepala_Pelaksana"] },
+      { name: "Program & Kegiatan", icon: Network, roles: ["Super_Admin", "Kepala_Pelaksana"] },
       { name: "Database UPZ", icon: Building2, roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Administrasi"] },
       { name: "Data Mustahik", icon: Users, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Data Muzakki", icon: Users, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },

@@ -85,7 +85,7 @@ function App() {
       const allItems = [
         { name: "Executive", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Laporan Kinerja", roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
-        { name: "Pilar & Program", roles: ["Super_Admin", "Kepala_Pelaksana"] },
+        { name: "Program & Kegiatan", roles: ["Super_Admin", "Kepala_Pelaksana"] },
         { name: "Database UPZ", roles: ["Super_Admin", "Kepala_Pelaksana", "Staf_Administrasi"] },
         { name: "Data Mustahik", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Data Muzakki", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan"] },
@@ -458,7 +458,7 @@ function App() {
           <RealisasiBantuan data={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Antrean Arsip' ? (
           <AntreanArsip data={proposals} onUpdate={handleUpdateProposals} />
-        ) : activeMenu === 'Pilar & Program' ? (
+        ) : activeMenu === 'Program & Kegiatan' ? (
           <PilarProgram />
         ) : activeMenu === 'Data Mustahik' ? (
           <DataMustahik />

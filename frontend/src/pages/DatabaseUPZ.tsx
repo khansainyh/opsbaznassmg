@@ -296,50 +296,50 @@ export default function DatabaseUPZ() {
     const rows: any[] = [];
     
     // Header information
-    rows.push({ 'Nama UPZ': `REKAPAN HAK SALUR & HAK AMIL UPZ - TAHUN ${year}`, 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
-    rows.push({ 'Nama UPZ': 'BAZNAS KOTA SEMARANG', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
-    rows.push({ 'Nama UPZ': `Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
-    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
+    rows.push({ 'Nama UPZ': `REKAPAN HAK TASARUF & HAK AMIL UPZ - TAHUN ${year}`, 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    rows.push({ 'Nama UPZ': 'BAZNAS KOTA SEMARANG', 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    rows.push({ 'Nama UPZ': `Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    rows.push({ 'Nama UPZ': '', 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
     
     // Table Headers
-    rows.push({ 'Nama UPZ': 'Nama UPZ', 'Hak Salur (IDR)': 'Hak Salur (IDR)', 'Hak Amil UPZ (IDR)': 'Hak Amil UPZ (IDR)' });
+    rows.push({ 'Nama UPZ': 'Nama UPZ', 'Hak Tasaruf (IDR)': 'Hak Tasaruf (IDR)', 'Hak Amil UPZ (IDR)': 'Hak Amil UPZ (IDR)' });
     
-    // Group 1: UPZ Penyaluran
-    rows.push({ 'Nama UPZ': 'UPZ PENYALURAN (PENGUMPULAN)', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    // Group 1: UPZ Pengumpulan
+    rows.push({ 'Nama UPZ': 'UPZ PENGUMPULAN', 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
     penyaluran.forEach((item, index) => {
       rows.push({
         'Nama UPZ': `${index + 1}. ${item.name}`,
-        'Hak Salur (IDR)': item.hak,
+        'Hak Tasaruf (IDR)': item.hak,
         'Hak Amil UPZ (IDR)': item.hakAmil
       });
     });
     rows.push({
-      'Nama UPZ': 'Subtotal UPZ Penyaluran',
-      'Hak Salur (IDR)': totalPenyaluran,
+      'Nama UPZ': 'Subtotal UPZ Pengumpulan',
+      'Hak Tasaruf (IDR)': totalPenyaluran,
       'Hak Amil UPZ (IDR)': totalPenyaluranAmil
     });
-    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
+    rows.push({ 'Nama UPZ': '', 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
     
     // Group 2: UPZ Pembantuan Pendistribusian & Pendayagunaan
-    rows.push({ 'Nama UPZ': 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
+    rows.push({ 'Nama UPZ': 'UPZ PEMBANTUAN PENDISTRIBUSIAN DAN PENDAYAGUNAAN', 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' });
     pembantuan.forEach((item, index) => {
       rows.push({
         'Nama UPZ': `${index + 1}. ${item.name}`,
-        'Hak Salur (IDR)': item.hak,
+        'Hak Tasaruf (IDR)': item.hak,
         'Hak Amil UPZ (IDR)': 0
       });
     });
     rows.push({
       'Nama UPZ': 'Subtotal UPZ Pembantuan Pendistribusian dan Pendayagunaan',
-      'Hak Salur (IDR)': totalPembantuan,
+      'Hak Tasaruf (IDR)': totalPembantuan,
       'Hak Amil UPZ (IDR)': 0
     });
-    rows.push({ 'Nama UPZ': '', 'Hak Salur (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
+    rows.push({ 'Nama UPZ': '', 'Hak Tasaruf (IDR)': '', 'Hak Amil UPZ (IDR)': '' }); // Blank row
     
     // Grand Total Accumulation
     rows.push({
-      'Nama UPZ': 'TOTAL AKUMULASI HAK SALUR & HAK AMIL UPZ',
-      'Hak Salur (IDR)': totalPenyaluran + totalPembantuan,
+      'Nama UPZ': 'TOTAL AKUMULASI HAK TASARUF & HAK AMIL UPZ',
+      'Hak Tasaruf (IDR)': totalPenyaluran + totalPembantuan,
       'Hak Amil UPZ (IDR)': totalPenyaluranAmil
     });
     
@@ -355,8 +355,8 @@ export default function DatabaseUPZ() {
     ];
     
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekapan Hak Salur');
-    XLSX.writeFile(workbook, `Rekapan_Hak_Salur_UPZ_${year}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekapan Hak Tasaruf');
+    XLSX.writeFile(workbook, `Rekapan_Hak_Tasaruf_UPZ_${year}.xlsx`);
   };
  
   const handleExportPDFRecap = (year: number) => {
@@ -373,7 +373,7 @@ export default function DatabaseUPZ() {
     doc.text('BAZNAS KOTA SEMARANG', 105, 15, { align: 'center' });
     
     doc.setFontSize(12);
-    doc.text(`REKAPAN HAK SALUR & HAK AMIL UPZ - TAHUN ${year}`, 105, 21, { align: 'center' });
+    doc.text(`REKAPAN HAK TASARUF & HAK AMIL UPZ - TAHUN ${year}`, 105, 21, { align: 'center' });
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -386,7 +386,7 @@ export default function DatabaseUPZ() {
     const tableBody: any[] = [];
     
     tableBody.push([
-      { content: 'UPZ PENYALURAN (PENGUMPULAN)', colSpan: 3, styles: { fillColor: [220, 235, 252], fontStyle: 'bold' } }
+      { content: 'UPZ PENGUMPULAN', colSpan: 3, styles: { fillColor: [220, 235, 252], fontStyle: 'bold' } }
     ]);
     
     penyaluran.forEach((item, index) => {
@@ -398,7 +398,7 @@ export default function DatabaseUPZ() {
     });
     
     tableBody.push([
-      { content: 'Subtotal UPZ Penyaluran', styles: { fontStyle: 'bold', halign: 'left' } },
+      { content: 'Subtotal UPZ Pengumpulan', styles: { fontStyle: 'bold', halign: 'left' } },
       { content: `Rp ${totalPenyaluran.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } },
       { content: `Rp ${totalPenyaluranAmil.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right' } }
     ]);
@@ -430,14 +430,14 @@ export default function DatabaseUPZ() {
     ]);
     
     tableBody.push([
-      { content: 'TOTAL AKUMULASI HAK SALUR & HAK AMIL UPZ', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: 'TOTAL AKUMULASI HAK TASARUF & HAK AMIL UPZ', styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
       { content: `Rp ${(totalPenyaluran + totalPembantuan).toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } },
       { content: `Rp ${totalPenyaluranAmil.toLocaleString('id-ID')}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } }
     ]);
     
     autoTable(doc, {
       startY: 32,
-      head: [['Nama UPZ', 'Hak Salur', 'Hak Amil UPZ']],
+      head: [['Nama UPZ', 'Hak Tasaruf', 'Hak Amil UPZ']],
       body: tableBody,
       theme: 'grid',
       headStyles: {
@@ -458,7 +458,7 @@ export default function DatabaseUPZ() {
       margin: { left: 15, right: 15 }
     });
     
-    doc.save(`Rekapan_Hak_Salur_&_Amil_UPZ_${year}.pdf`);
+    doc.save(`Rekapan_Hak_Tasaruf_&_Amil_UPZ_${year}.pdf`);
   };
 
 
@@ -2688,7 +2688,7 @@ export default function DatabaseUPZ() {
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
           >
             <Download className="size-4 shrink-0" />
-            Rekapan Hak Salur
+            Rekapan Hak Tasaruf
           </button>
           <button 
             onClick={() => setIsMigrationModalOpen(true)}
@@ -3318,7 +3318,7 @@ export default function DatabaseUPZ() {
               className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Unduh Rekapan Hak Salur</h3>
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Unduh Rekapan Hak Tasaruf</h3>
                 <button onClick={() => setIsDownloadRecapModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
@@ -3328,9 +3328,9 @@ export default function DatabaseUPZ() {
                   <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
                     <Coins className="size-8" />
                   </div>
-                  <h4 className="font-bold text-slate-900">Rekapan Hak Salur UPZ</h4>
+                  <h4 className="font-bold text-slate-900">Rekapan Hak Tasaruf UPZ</h4>
                   <p className="text-xs text-slate-500">
-                    Unduh rekapan Hak Salur UPZ On-Balance (UPZ Penyaluran & UPZ Pembantuan Pendistribusian & Pendayagunaan) dalam format PDF atau Excel.
+                    Unduh rekapan Hak Tasaruf UPZ On-Balance (UPZ Pengumpulan & UPZ Pembantuan Pendistribusian & Pendayagunaan) dalam format PDF atau Excel.
                   </p>
                 </div>
 
@@ -3387,7 +3387,7 @@ export default function DatabaseUPZ() {
                       <span className="text-primary font-bold text-[10px]">i</span>
                     </div>
                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                      Laporan ini akan mengelompokkan UPZ Penyaluran (On-Balance) dan UPZ Pembantuan, serta menampilkan jumlah total hak salur masing-masing di akhir laporan.
+                      Laporan ini akan mengelompokkan UPZ Pengumpulan (On-Balance) dan UPZ Pembantuan, serta menampilkan jumlah total hak tasaruf masing-masing di akhir laporan.
                     </p>
                   </div>
                 </div>
@@ -3795,7 +3795,7 @@ export default function DatabaseUPZ() {
 
                         <div className="p-3 bg-white/60 border border-rose-50 rounded-xl">
                           <p className="text-[10px] text-rose-700/80 leading-relaxed">
-                            * Data nominal ini merupakan akumulasi transaksi gagal potong yang terdeteksi di sistem. Dana ini belum masuk ke kas hak salur UPZ dan membutuhkan pendaftaran muzakki/NPWZ di SIMBA agar dapat direkonsiliasi ulang.
+                            * Data nominal ini merupakan akumulasi transaksi gagal potong yang terdeteksi di sistem. Dana ini belum masuk ke kas hak tasaruf UPZ dan membutuhkan pendaftaran muzakki/NPWZ di SIMBA agar dapat direkonsiliasi ulang.
                           </p>
                         </div>
                       </div>

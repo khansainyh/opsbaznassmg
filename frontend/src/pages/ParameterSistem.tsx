@@ -439,11 +439,11 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
                   </p>
                 </div>
 
-                 {/* Persentase Hak Salur UPZ Pengumpulan */}
+                 {/* Persentase Hak Tasaruf UPZ Pengumpulan */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Hak Salur UPZ Pengumpulan
+                      Hak Tasaruf UPZ Pengumpulan
                     </label>
                     <span className="text-[10px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded">Standard: 30%</span>
                   </div>
@@ -462,11 +462,11 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
                   </div>
                 </div>
 
-                {/* Persentase Hak Salur UPZ Pembantuan */}
+                {/* Persentase Hak Tasaruf UPZ Pembantuan */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Hak Salur UPZ Pembantuan Pendistribusian &amp; Pendayagunaan
+                      Hak Tasaruf UPZ Pembantuan Pendistribusian &amp; Pendayagunaan
                     </label>
                     <span className="text-[10px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded">Standard: 70%</span>
                   </div>

@@ -233,18 +233,9 @@ export default function ExecutiveDashboard() {
                 Saldo
               </div>
             </div>
-            <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-1">Sisa Anggaran Tersedia</p>
+            <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-1">Sisa Dana Tersedia</p>
             <h3 className="text-3xl font-black leading-tight mb-1">{formatRupiah(sisaAnggaran.nilai)}</h3>
             <p className="text-white/60 text-xs font-medium">{sisaAnggaran.keterangan}</p>
-            <div className="mt-4 bg-white/20 rounded-full h-1.5">
-              <div
-                className="h-1.5 rounded-full bg-white transition-all"
-                style={{ width: `${Math.min(pct(sisaAnggaran.nilai, pengumpulan.realisasi), 100)}%` }}
-              />
-            </div>
-            <p className="text-white/50 text-[10px] mt-1.5 font-medium">
-              {pct(sisaAnggaran.nilai, pengumpulan.realisasi)}% dari total pengumpulan
-            </p>
           </div>
         </div>
       </motion.div>
@@ -274,18 +265,20 @@ export default function ExecutiveDashboard() {
               <XAxis dataKey="bulan" tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={v => formatRupiah(v)} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={64} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="pengumpulan" name="Pengumpulan" stroke="#16a34a" strokeWidth={2.5} fill="url(#gPengumpulan)" dot={{ fill: '#16a34a', r: 3 }} />
+              <Area type="monotone" dataKey="pengumpulan" name="Realisasi Pengumpulan" stroke="#16a34a" strokeWidth={2.5} fill="url(#gPengumpulan)" dot={{ fill: '#16a34a', r: 3 }} />
+              <Area type="monotone" dataKey="target" name="Target per Bulan Pengumpulan" stroke="#94a3b8" strokeWidth={2} strokeDasharray="4 4" fill="transparent" dot={{ fill: '#94a3b8', r: 3 }} />
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex items-center gap-6 mt-4 justify-center">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-[#16a34a]" />Pengumpulan ZIS</div>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="size-2.5 rounded-full bg-[#16a34a]" />Realisasi Pengumpulan ZIS</div>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><span className="w-5 h-0.5 border-b-2 border-dashed border-[#94a3b8] self-center" />Target per Bulan Pengumpulan</div>
           </div>
         </div>
 
         {/* Proporsi Pilar - Pie Chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
           <div className="mb-4">
-            <h3 className="font-black text-slate-900">Proporsi per Pilar</h3>
+            <h3 className="font-black text-slate-900">Proporsi per Program</h3>
             <p className="text-xs text-slate-400 font-medium mt-0.5">Realisasi penyaluran {currentTahunAnggaran}</p>
           </div>
           <ResponsiveContainer width="100%" height={180}>
@@ -337,8 +330,8 @@ export default function ExecutiveDashboard() {
         {/* Bar chart realisasi vs target per pilar */}
         <div className="lg:col-span-3 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
           <div className="mb-6">
-            <h3 className="font-black text-slate-900">Realisasi vs Target per Pilar</h3>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">Perbandingan penyaluran terhadap pagu program</p>
+            <h3 className="font-black text-slate-900">Realisasi vs Target per Program</h3>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">Perbandingan penyaluran terhadap pagu kegiatan</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={currentProporsiPilar} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="30%">
@@ -359,8 +352,8 @@ export default function ExecutiveDashboard() {
         {/* Top 5 Program */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col">
           <div className="mb-4">
-            <h3 className="font-black text-slate-900">Top 5 Program Tersalur</h3>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">Program dengan nilai penyaluran terbesar</p>
+            <h3 className="font-black text-slate-900">Top 5 Kegiatan Tersalur</h3>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">Kegiatan dengan nilai penyaluran terbesar</p>
           </div>
           <div className="flex-1 space-y-3">
             {currentTopProgram.map((p: any, idx: number) => {
