@@ -258,7 +258,7 @@ export const scanSurat = async (req: Request, res: Response) => {
         ext
       );
 
-      const gdriveRes = await uploadToDrive(file, namaFile);
+      const gdriveRes = await uploadToDrive(file, namaFile, 'gdrive_folder_surat');
       fileLinkToSave = gdriveRes.webViewLink;
       fileIdToSave = gdriveRes.id;
     } else if (gdrive_link && String(gdrive_link).trim() !== '') {

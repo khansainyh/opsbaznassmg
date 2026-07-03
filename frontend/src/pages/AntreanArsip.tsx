@@ -35,6 +35,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
   const [saving, setSaving] = useState(false);
 
   // File states for the active proposal upload
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [kuitansiTtd, setKuitansiTtd] = useState<File | null>(null);
   const [kuitansiPreview, setKuitansiPreview] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
       setFotoPreview(null);
       setKuitansiPreview(null);
     }
+    setFotoFile(null);
     setKuitansiTtd(null);
   };
 
@@ -101,6 +103,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
     setIsUploadModalOpen(false);
     setSelectedProposal(null);
     setFotoPreview(null);
+    setFotoFile(null);
     setKuitansiTtd(null);
     setKuitansiPreview(null);
   };
@@ -108,6 +111,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setFotoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setFotoPreview(reader.result as string);
@@ -134,22 +138,34 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
     
     setSaving(true);
     try {
-      // Simulate file upload or save base64 / fake url to survey_data
+      const formData = new FormData();
+      formData.append('status', 'Selesai');
+
       const currentSurveyData = (selectedProposal.survey_data as any) || {};
-      
-      // We will save mock link or base64 preview into DB
       const updatedSurveyData = {
         ...currentSurveyData,
-        bukti_foto_realisasi: fotoPreview || '/mock-assets/bukti-foto.jpg',
-        kuitansi_ditandatangani: kuitansiPreview || '/mock-assets/kuitansi.pdf',
+        bukti_foto_realisasi: fotoPreview && !fotoFile ? fotoPreview : '',
+        kuitansi_ditandatangani: kuitansiPreview && !kuitansiTtd ? kuitansiPreview : '',
         archived_at: new Date().toISOString()
       };
 
-      // Call API to update status to 'Selesai' and persist survey_data
-      await axios.put(`/api/proposals/${selectedProposal.id}`, {
-        status: 'Selesai',
-        survey_data: updatedSurveyData
+      if (fotoFile) {
+        formData.append('bukti_foto_realisasi', fotoFile);
+      }
+      if (kuitansiTtd) {
+        formData.append('kuitansi_ditandatangani', kuitansiTtd);
+      }
+
+      formData.append('survey_data', JSON.stringify(updatedSurveyData));
+
+      // Call API to update status to 'Selesai' and persist survey_data with files
+      const response = await axios.put(`/api/proposals/${selectedProposal.id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       });
+
+      const finalSurveyData = response.data.survey_data || updatedSurveyData;
 
       // Update local context
       const updatedData = data.map(item => 
@@ -157,7 +173,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
           ? { 
               ...item, 
               status: 'Selesai' as any,
-              survey_data: updatedSurveyData
+              survey_data: finalSurveyData
             } 
           : item
       );

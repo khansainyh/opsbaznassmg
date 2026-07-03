@@ -67,7 +67,7 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
     let gdriveId = null;
 
     if (file) {
-      const gdriveRes = await uploadToDrive(file);
+      const gdriveRes = await uploadToDrive(file, undefined, 'gdrive_folder_proposal');
       gdriveLink = gdriveRes.webViewLink;
       gdriveId = gdriveRes.id;
     }
@@ -196,12 +196,18 @@ export const updateProposal = async (req: Request, res: Response) => {
 
       for (const f of files) {
         if (f.fieldname === 'file') {
-          const gdriveRes = await uploadToDrive(f);
+          const gdriveRes = await uploadToDrive(f, undefined, 'gdrive_folder_proposal');
           data.file_gdrive_link = gdriveRes.webViewLink;
           data.file_gdrive_id = gdriveRes.id;
         } else {
-          // Asumsi fieldname lain adalah foto dokumentasi (fotoDepan, fotoDalam, dll)
-          const gdriveRes = await uploadToDrive(f);
+          // Asumsi fieldname lain adalah foto dokumentasi (fotoDepan, fotoDalam, dll) atau bukti realisasi / kuitansi
+          const folderKey = f.fieldname === 'bukti_foto_realisasi'
+            ? 'gdrive_folder_penerimaan'
+            : f.fieldname === 'kuitansi_ditandatangani'
+              ? 'gdrive_folder_kuitansi'
+              : 'gdrive_folder_survei';
+
+          const gdriveRes = await uploadToDrive(f, undefined, folderKey);
           if (!existingSurveyData) {
             existingSurveyData = {};
           }
@@ -210,7 +216,7 @@ export const updateProposal = async (req: Request, res: Response) => {
         }
       }
     } else if (file) {
-      const gdriveRes = await uploadToDrive(file);
+      const gdriveRes = await uploadToDrive(file, undefined, 'gdrive_folder_proposal');
       data.file_gdrive_link = gdriveRes.webViewLink;
       data.file_gdrive_id = gdriveRes.id;
     }
@@ -315,8 +321,8 @@ export const scanProposal = async (req: Request, res: Response) => {
         ext
       );
 
-      // Upload ke Google Drive dengan nama + folder dari env
-      const gdriveRes = await uploadToDrive(file, namaFile);
+      // Upload ke Google Drive dengan nama + folder dari database parameter
+      const gdriveRes = await uploadToDrive(file, namaFile, 'gdrive_folder_proposal');
       fileLinkToSave = gdriveRes.webViewLink;
       fileIdToSave = gdriveRes.id;
     } else if (gdrive_link && String(gdrive_link).trim() !== '') {

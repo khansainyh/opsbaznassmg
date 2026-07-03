@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
+import { testDriveConnection } from '../utils/gdrive';
 
 const defaultSurveyTemplate = JSON.stringify([
   { id: 'luasBangunan', section: 'A', sectionTitle: 'Bagian A: Kondisi Rumah', label: 'Luas Bangunan', options: [{ val: 3, label: '≤ 8 m² (Sangat sempit)' }, { val: 2, label: '8 m² - 10 m²' }, { val: 1, label: '> 10 m² (Lebih luas)' }] },
@@ -43,7 +44,10 @@ const defaultParams = [
   { key: 'obs_menu_enabled', value: 'false', description: 'Status Menu Off-Balancing Aktif (true/false)' },
   { key: 'gdrive_folder_proposal', value: '', description: 'Google Drive Folder ID: Scan Proposal' },
   { key: 'gdrive_folder_survei',   value: '', description: 'Google Drive Folder ID: Foto Survei Relawan' },
-  { key: 'gdrive_folder_sk_upz',   value: '', description: 'Google Drive Folder ID: SK UPZ' }
+  { key: 'gdrive_folder_sk_upz',   value: '', description: 'Google Drive Folder ID: SK UPZ' },
+  { key: 'gdrive_folder_surat',    value: '', description: 'Google Drive Folder ID: Surat' },
+  { key: 'gdrive_folder_penerimaan', value: '', description: 'Google Drive Folder ID: Foto Penerimaan' },
+  { key: 'gdrive_folder_kuitansi', value: '', description: 'Google Drive Folder ID: Foto Kuitansi' }
 ];
 
 export const getParameters = async (req: Request, res: Response) => {
@@ -81,8 +85,10 @@ export const getParameters = async (req: Request, res: Response) => {
       }
     }
     
+    console.log(`📤 getParameters called. Checking and returning system parameters...`);
     res.status(200).json(params);
   } catch (error) {
+    console.error('❌ getParameters failed:', error);
     res.status(500).json({ error: 'Failed to fetch parameters' });
   }
 };
@@ -105,13 +111,33 @@ export const getParameterByKey = async (req: Request, res: Response) => {
 export const upsertParameter = async (req: Request, res: Response) => {
   try {
     const { key, value, description } = req.body;
+    console.log(`📥 upsertParameter called with key: "${key}", value: "${value}"`);
     const param = await prisma.systemParameter.upsert({
       where: { key },
       update: { value, description },
       create: { key, value, description }
     });
+    console.log(`💾 upsertParameter successfully saved key: "${key}"`);
     res.status(200).json(param);
   } catch (error) {
+    console.error(`❌ upsertParameter failed for key: "${req.body?.key}":`, error);
     res.status(500).json({ error: 'Failed to save parameter' });
+  }
+};
+
+export const testGDriveConnection = async (req: Request, res: Response) => {
+  try {
+    const { folderId } = req.body;
+    if (!folderId) {
+      return res.status(400).json({ error: 'Folder ID is required' });
+    }
+    const result = await testDriveConnection(folderId);
+    res.status(200).json({ status: 'success', data: result });
+  } catch (error: any) {
+    console.error('Error testing GDrive connection:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error?.message || 'Gagal terhubung ke Google Drive. Pastikan Folder ID benar dan Service Account telah diberi akses.' 
+    });
   }
 };

@@ -22,7 +22,8 @@ import {
   Edit2,
   Trash2,
   Coins,
-  FileText
+  FileText,
+  FileCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -556,6 +557,7 @@ export default function DatabaseUPZ() {
   const [activeSkPreview, setActiveSkPreview] = useState<SKHistory | null>(null);
   const [editScanSkTarget, setEditScanSkTarget] = useState<SKHistory | null>(null);
   const [formEditScanLink, setFormEditScanLink] = useState('');
+  const [uploadingSk, setUploadingSk] = useState(false);
 
   // Form States for Add/Edit
   const [formKecamatan, setFormKecamatan] = useState('');
@@ -948,6 +950,39 @@ export default function DatabaseUPZ() {
     } catch (err) {
       console.error(err);
       alert('Gagal memperbarui Link Scan SK.');
+    }
+  };
+
+  const handleUploadSk = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedUPZ) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran file maksimal adalah 5MB.');
+      return;
+    }
+
+    setUploadingSk(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await axios.post(`/api/upz/${selectedUPZ.id}/upload-sk`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data.status === 'success' && res.data.webViewLink) {
+        setFormEditScanLink(res.data.webViewLink);
+        alert('✅ File berhasil diunggah ke Google Drive dan link telah otomatis terisi!');
+      } else {
+        alert('Gagal mengunggah file.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      const errMsg = err.response?.data?.error || 'Gagal menghubungi server untuk upload file.';
+      alert(errMsg);
+    } finally {
+      setUploadingSk(false);
+      e.target.value = '';
     }
   };
 
@@ -2997,9 +3032,10 @@ export default function DatabaseUPZ() {
                                         setEditScanSkTarget(history);
                                         setFormEditScanLink('');
                                       }}
-                                      className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1 shadow-sm"
+                                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded transition-all"
+                                      title="Upload/Scan SK"
                                     >
-                                      <Plus className="size-3.5" /> Isi Link SK
+                                      <FileCheck className="size-3.5" />
                                     </button>
                                   )}
                                 </div>
@@ -4822,6 +4858,34 @@ export default function DatabaseUPZ() {
                   <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
                     Masukkan link Google Drive file hasil scan SK. Pastikan hak akses file diset ke <strong>"Siapa saja yang memiliki link" (Anyone with the link)</strong> agar dapat dipratinjau dengan benar.
                   </p>
+                </div>
+
+                {/* Upload File Option */}
+                <div className="border-t border-slate-100 pt-4 space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Atau Upload File Baru</label>
+                  <div className="relative border-2 border-dashed border-slate-200 rounded-xl p-4 hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer">
+                    <input 
+                      type="file" 
+                      accept=".pdf,image/*"
+                      onChange={handleUploadSk}
+                      disabled={uploadingSk}
+                      className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    {uploadingSk ? (
+                      <>
+                        <div className="size-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <span className="text-xs font-bold text-slate-500 animate-pulse">Sedang mengunggah ke Google Drive...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="size-8 text-slate-400 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        <span className="text-xs font-bold text-slate-650 group-hover:text-primary transition-colors">Pilih File (PDF atau Gambar)</span>
+                        <span className="text-[10px] text-slate-400">Maksimal ukuran file: 5MB</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">

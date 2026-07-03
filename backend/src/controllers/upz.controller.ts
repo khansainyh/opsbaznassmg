@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
+import path from 'path';
+import { uploadToDrive } from '../utils/gdrive';
 
 export const getUpz = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -132,5 +134,40 @@ export const deleteUpz = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     console.error('Error deleting UPZ:', error);
     res.status(500).json({ status: 'error', error: String(error) });
+  }
+};
+
+export const uploadSkUpz = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'Harap upload file.' });
+    }
+
+    const existing = await prisma.upz.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'UPZ tidak ditemukan.' });
+    }
+
+    // Format nama file: "SK_UPZ_[NamaUPZ]_[Timestamp].ext"
+    const ext = path.extname(file.originalname) || '';
+    const cleanUpzName = (existing.nama_upz || id).replace(/[^a-zA-Z0-9]/g, '_');
+    const namaFile = `SK_UPZ_${cleanUpzName}_${Date.now()}${ext}`;
+
+    // Upload ke Google Drive dengan nama + folder dari database parameter gdrive_folder_sk_upz
+    console.log(`📤 Uploading SK for UPZ ${id} with filename "${namaFile}"...`);
+    const gdriveRes = await uploadToDrive(file, namaFile, 'gdrive_folder_sk_upz');
+    console.log(`✅ Upload SK UPZ berhasil! ID GDrive: ${gdriveRes.id}`);
+    
+    res.status(200).json({ 
+      status: 'success', 
+      webViewLink: gdriveRes.webViewLink, 
+      id: gdriveRes.id 
+    });
+  } catch (error: any) {
+    console.error('Error uploading SK UPZ:', error);
+    res.status(500).json({ error: error?.message || 'Gagal mengupload SK UPZ ke Google Drive.' });
   }
 };

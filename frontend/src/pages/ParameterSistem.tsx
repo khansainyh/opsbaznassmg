@@ -42,10 +42,13 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
   const [testingConnection, setTestingConnection] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({
     proposal: 'idle',
     survei: 'idle',
-    sk_upz: 'idle'
+    sk_upz: 'idle',
+    surat: 'idle',
+    penerimaan: 'idle',
+    kuitansi: 'idle'
   });
 
-  const handleTestConnection = (category: 'proposal' | 'survei' | 'sk_upz') => {
+  const handleTestConnection = async (category: 'proposal' | 'survei' | 'sk_upz' | 'surat' | 'penerimaan' | 'kuitansi') => {
     const folderId = formValues[`gdrive_folder_${category}`];
     if (!folderId || folderId.trim() === '') {
       showToast('Masukkan Folder ID terlebih dahulu sebelum melakukan uji koneksi.', 'error');
@@ -54,13 +57,30 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
 
     setTestingConnection(prev => ({ ...prev, [category]: 'loading' }));
 
-    setTimeout(() => {
-      setTestingConnection(prev => ({ ...prev, [category]: 'success' }));
-      showToast(`Uji koneksi ke folder ${category.toUpperCase()} berhasil!`, 'success');
+    try {
+      const res = await axios.post('/api/parameters/test-gdrive', { folderId });
+      if (res.data.status === 'success') {
+        const info = res.data.data;
+        if (info.simulated) {
+          showToast(`[SIMULASI] Koneksi berhasil (mode simulasi): "${info.name}"`, 'success');
+        } else {
+          showToast(`Uji koneksi berhasil ke folder: "${info.name}"!`, 'success');
+        }
+        setTestingConnection(prev => ({ ...prev, [category]: 'success' }));
+      } else {
+        showToast(res.data.message || 'Uji koneksi gagal.', 'error');
+        setTestingConnection(prev => ({ ...prev, [category]: 'error' }));
+      }
+    } catch (error: any) {
+      console.error(error);
+      const errMsg = error.response?.data?.message || 'Gagal menghubungi server untuk uji koneksi.';
+      showToast(errMsg, 'error');
+      setTestingConnection(prev => ({ ...prev, [category]: 'error' }));
+    } finally {
       setTimeout(() => {
         setTestingConnection(prev => ({ ...prev, [category]: 'idle' }));
       }, 4000);
-    }, 1500);
+    }
   };
 
   // Form values state mapped by parameter key
@@ -76,7 +96,10 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
     obs_menu_enabled: 'false',
     gdrive_folder_proposal: '',
     gdrive_folder_survei: '',
-    gdrive_folder_sk_upz: ''
+    gdrive_folder_sk_upz: '',
+    gdrive_folder_surat: '',
+    gdrive_folder_penerimaan: '',
+    gdrive_folder_kuitansi: ''
   });
 
   // Load active template whenever survey type selection or loaded formValues change
@@ -252,7 +275,10 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
       const fallbackDescriptions: Record<string, string> = {
         gdrive_folder_proposal: 'Google Drive Folder ID: Scan Proposal',
         gdrive_folder_survei: 'Google Drive Folder ID: Foto Survei Relawan',
-        gdrive_folder_sk_upz: 'Google Drive Folder ID: SK UPZ'
+        gdrive_folder_sk_upz: 'Google Drive Folder ID: SK UPZ',
+        gdrive_folder_surat: 'Google Drive Folder ID: Surat',
+        gdrive_folder_penerimaan: 'Google Drive Folder ID: Foto Penerimaan',
+        gdrive_folder_kuitansi: 'Google Drive Folder ID: Foto Kuitansi'
       };
 
       const updatePromises = Object.entries(formValues)
@@ -720,6 +746,141 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
                             Menguji...
                           </>
                         ) : testingConnection.sk_upz === 'success' ? (
+                          <>
+                            <Check className="size-3 text-emerald-600" />
+                            Koneksi OK
+                          </>
+                        ) : (
+                          'Uji Koneksi'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Folder Surat */}
+                  <div className="space-y-2 p-5 bg-slate-50/50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">
+                          Folder ID: Surat
+                        </label>
+                        <FolderOpen className="size-4 text-slate-450" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="Contoh: 1AbCdEfGhIj..."
+                        className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
+                        value={formValues.gdrive_folder_surat || ''}
+                        onChange={(e) => handleInputChange('gdrive_folder_surat', e.target.value)}
+                      />
+                      <p className="text-[10px] text-slate-455 font-medium">
+                        Menyimpan salinan digital berkas surat masuk dan surat keluar.
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100/60 mt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection('surat')}
+                        disabled={testingConnection.surat === 'loading'}
+                        className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all disabled:opacity-50"
+                      >
+                        {testingConnection.surat === 'loading' ? (
+                          <>
+                            <div className="size-3 border border-slate-455 border-t-transparent rounded-full animate-spin" />
+                            Menguji...
+                          </>
+                        ) : testingConnection.surat === 'success' ? (
+                          <>
+                            <Check className="size-3 text-emerald-600" />
+                            Koneksi OK
+                          </>
+                        ) : (
+                          'Uji Koneksi'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Folder Foto Penerimaan */}
+                  <div className="space-y-2 p-5 bg-slate-50/50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">
+                          Folder ID: Foto Penerimaan
+                        </label>
+                        <FolderOpen className="size-4 text-slate-450" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="Contoh: 1AbCdEfGhIj..."
+                        className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
+                        value={formValues.gdrive_folder_penerimaan || ''}
+                        onChange={(e) => handleInputChange('gdrive_folder_penerimaan', e.target.value)}
+                      />
+                      <p className="text-[10px] text-slate-455 font-medium">
+                        Menyimpan dokumentasi foto serah terima bantuan/penerimaan realisasi.
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100/60 mt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection('penerimaan')}
+                        disabled={testingConnection.penerimaan === 'loading'}
+                        className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all disabled:opacity-50"
+                      >
+                        {testingConnection.penerimaan === 'loading' ? (
+                          <>
+                            <div className="size-3 border border-slate-455 border-t-transparent rounded-full animate-spin" />
+                            Menguji...
+                          </>
+                        ) : testingConnection.penerimaan === 'success' ? (
+                          <>
+                            <Check className="size-3 text-emerald-600" />
+                            Koneksi OK
+                          </>
+                        ) : (
+                          'Uji Koneksi'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Folder Foto Kuitansi */}
+                  <div className="space-y-2 p-5 bg-slate-50/50 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-550 uppercase tracking-widest">
+                          Folder ID: Kuitansi
+                        </label>
+                        <FolderOpen className="size-4 text-slate-450" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="Contoh: 1AbCdEfGhIj..."
+                        className="w-full text-xs font-bold bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
+                        value={formValues.gdrive_folder_kuitansi || ''}
+                        onChange={(e) => handleInputChange('gdrive_folder_kuitansi', e.target.value)}
+                      />
+                      <p className="text-[10px] text-slate-455 font-medium">
+                        Menyimpan salinan digital foto kuitansi atau bukti pembayaran.
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100/60 mt-4 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection('kuitansi')}
+                        disabled={testingConnection.kuitansi === 'loading'}
+                        className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all disabled:opacity-50"
+                      >
+                        {testingConnection.kuitansi === 'loading' ? (
+                          <>
+                            <div className="size-3 border border-slate-455 border-t-transparent rounded-full animate-spin" />
+                            Menguji...
+                          </>
+                        ) : testingConnection.kuitansi === 'success' ? (
                           <>
                             <Check className="size-3 text-emerald-600" />
                             Koneksi OK

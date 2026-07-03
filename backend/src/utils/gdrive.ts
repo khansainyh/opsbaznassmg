@@ -3,6 +3,7 @@ import stream from 'stream';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import prisma from './prisma';
 dotenv.config();
 
 let drive: any = null;
@@ -10,8 +11,24 @@ let serviceAccountEmail: string | null = null;
 
 try {
   const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (credPath) {
-    // Resolve path relatif terhadap CWD (direktori backend/)
+  const clientId = process.env.GDRIVE_CLIENT_ID;
+  const clientSecret = process.env.GDRIVE_CLIENT_SECRET;
+  const refreshToken = process.env.GDRIVE_REFRESH_TOKEN;
+
+  if (clientId && clientSecret && refreshToken) {
+    // Mode OAuth2 Client (Akun Personal @gmail.com)
+    const oauth2Client = new google.auth.OAuth2(
+      clientId,
+      clientSecret,
+      "https://developers.google.com/oauthplayground"
+    );
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken
+    });
+    drive = google.drive({ version: 'v3', auth: oauth2Client });
+    console.log(`✅ Google Drive API initialized via OAuth2 Client (Personal Account).`);
+  } else if (credPath) {
+    // Mode Service Account
     const absPath = path.resolve(process.cwd(), credPath);
 
     if (!fs.existsSync(absPath)) {
@@ -32,10 +49,10 @@ try {
         scopes: ['https://www.googleapis.com/auth/drive']
       });
       drive = google.drive({ version: 'v3', auth });
-      console.log(`✅ Google Drive API initialized. Target folder: ${process.env.GDRIVE_FOLDER_ID || '(root)'}`);
+      console.log(`✅ Google Drive API initialized via Service Account. Target folder: ${process.env.GDRIVE_FOLDER_ID || '(root)'}`);
     }
   } else {
-    console.warn("⚠️  GOOGLE_APPLICATION_CREDENTIALS tidak di-set di .env → mode simulasi aktif.");
+    console.warn("⚠️  Google Drive credentials tidak di-set di .env (perlu GOOGLE_APPLICATION_CREDENTIALS atau GDRIVE_CLIENT_ID/SECRET/REFRESH_TOKEN) → mode simulasi aktif.");
   }
 } catch (e) {
   console.error("❌ Gagal initialize Google Drive:", e);
@@ -56,16 +73,41 @@ export function formatScanFileName(agendaNo: string | number, tanggalMasuk: Date
 
 /**
  * Upload file ke Google Drive.
- * @param fileObj   - File dari multer (buffer, originalname, mimetype)
- * @param fileName  - Nama file di Drive (gunakan formatScanFileName)
- * @param folderId  - Override folder ID; default dari GDRIVE_FOLDER_ID di .env
+ * @param fileObj       - File dari multer (buffer, originalname, mimetype)
+ * @param fileName      - Nama file di Drive (gunakan formatScanFileName)
+ * @param folderIdOrKey - Override folder ID atau key dari SystemParameter (misal: 'gdrive_folder_proposal')
  */
 export const uploadToDrive = async (
   fileObj: any,
   fileName?: string,
-  folderId?: string
+  folderIdOrKey?: string
 ) => {
-  const targetFolder = folderId || process.env.GDRIVE_FOLDER_ID || undefined;
+  let targetFolder = folderIdOrKey || undefined;
+
+  // Jika targetFolder dikirimkan sebagai key SystemParameter, ambil nilainya dari database
+  if (targetFolder && targetFolder.startsWith('gdrive_folder_')) {
+    try {
+      const param = await prisma.systemParameter.findUnique({
+        where: { key: targetFolder }
+      });
+      if (param && param.value && param.value.trim() !== '') {
+        targetFolder = param.value.trim();
+        console.log(`ℹ️ Menggunakan Folder ID dari parameter [${folderIdOrKey}]: ${targetFolder}`);
+      } else {
+        targetFolder = undefined;
+        console.log(`⚠️ Parameter [${folderIdOrKey}] kosong di database, menggunakan default/fallback.`);
+      }
+    } catch (e) {
+      console.error(`❌ Gagal mengambil parameter folder ${folderIdOrKey} dari DB:`, e);
+      targetFolder = undefined;
+    }
+  }
+
+  // Fallback ke env jika folder ID tidak didapatkan dari parameter
+  if (!targetFolder) {
+    targetFolder = process.env.GDRIVE_FOLDER_ID || undefined;
+  }
+
   const finalName = fileName || fileObj.originalname;
 
   if (!drive) {
@@ -111,6 +153,31 @@ export const uploadToDrive = async (
       console.warn('⚠️  Gagal set permission file:', permErr?.message || permErr);
     }
   }
+
+  return response.data;
+};
+
+/**
+ * Test koneksi ke folder Google Drive.
+ * Mengembalikan metadata folder jika sukses, atau melempar error jika gagal/tidak ditemukan/tidak ada akses.
+ */
+export const testDriveConnection = async (folderId: string) => {
+  if (!drive) {
+    console.log(`[SIMULATED] Test connection to folder: ${folderId}`);
+    return {
+      id: folderId,
+      name: 'Simulasi Folder (Google Drive Non-Aktif/Simulasi)',
+      mimeType: 'application/vnd.google-apps.folder',
+      simulated: true
+    };
+  }
+
+  console.log(`🔍 Menguji koneksi ke folder Google Drive dengan ID: ${folderId}`);
+  const response = await drive.files.get({
+    fileId: folderId,
+    supportsAllDrives: true,
+    fields: 'id, name, mimeType'
+  });
 
   return response.data;
 };
