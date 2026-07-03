@@ -17,8 +17,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5000000,
       },
       manifest: {
-        name: 'BAZNAS Op Hub',
-        short_name: 'BAZNAS Op Hub',
+        name: 'BAZNAS Operational Hub',
+        short_name: 'BAZNAS Operational Hub',
         description: 'Sistem Operasional BAZNAS',
         theme_color: '#10b981',
         background_color: '#ffffff',
