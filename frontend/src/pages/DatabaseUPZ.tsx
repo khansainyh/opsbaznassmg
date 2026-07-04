@@ -23,7 +23,8 @@ import {
   Trash2,
   Coins,
   FileText,
-  FileCheck
+  FileCheck,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -169,6 +170,7 @@ export default function DatabaseUPZ() {
 
   const [isDownloadRecapModalOpen, setIsDownloadRecapModalOpen] = useState(false);
   const [selectedRecapYear, setSelectedRecapYear] = useState<number>(() => new Date().getFullYear());
+  const [isFabOpen, setIsFabOpen] = useState(false);
 
   const recapYears = useMemo(() => {
     const years = new Set<number>();
@@ -2682,24 +2684,24 @@ export default function DatabaseUPZ() {
             ))}
           </select>
         </div>
-        <div className="flex gap-3">
+        <div className="hidden md:flex gap-3">
           <button 
             onClick={() => setIsDownloadRecapModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+            className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap border border-slate-200 shadow-sm"
           >
-            <Download className="size-4 shrink-0" />
+            <Download className="size-4 shrink-0 text-slate-400" />
             Rekapan Hak Tasaruf
           </button>
           <button 
             onClick={() => setIsMigrationModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+            className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap border border-slate-200 shadow-sm"
           >
-            <Upload className="size-4 shrink-0" />
+            <Upload className="size-4 shrink-0 text-slate-400" />
             Migrasi Data
           </button>
           <button 
             onClick={openAddModal}
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95 cursor-pointer whitespace-nowrap"
+            className="bg-primary hover:bg-primary/95 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95 cursor-pointer whitespace-nowrap"
           >
             <Plus className="size-4 shrink-0" />
             Registrasi UPZ Baru
@@ -2898,19 +2900,16 @@ export default function DatabaseUPZ() {
                      historyView === 'perubahan' ? <Edit2 className="size-6" /> : <PlusCircle className="size-6" />}
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 leading-tight uppercase tracking-tight">
-                      {historyView === 'list' ? 'Riwayat SK & Kepengurusan' :
+                    <h3 className="text-base md:text-lg font-black text-slate-900 leading-tight uppercase tracking-tight">
+                      {historyView === 'list' ? 'Riwayat SK dan Kepengurusan' :
                        historyView === 'perubahan' ? 'Perubahan Kepengurusan' : 'Pembaruan SK'}
                     </h3>
-                    <div className="flex items-center gap-3 mt-1">
-                      <p className="text-xs text-primary font-bold flex items-center gap-1">
-                        <Building2 className="size-3" />{selectedUPZ.name} ({selectedUPZ.code})
-                      </p>
-                      <span className="text-slate-300">|</span>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                        <MapPin className="size-3" />{selectedUPZ.kelurahan}, {selectedUPZ.kecamatan}
-                      </p>
-                    </div>
+                    <p className="text-xs text-primary font-bold flex items-center gap-1 mt-1">
+                      <Building2 className="size-3 shrink-0" />{selectedUPZ.name} ({selectedUPZ.code})
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                      <MapPin className="size-3 shrink-0" />{selectedUPZ.kelurahan}, {selectedUPZ.kecamatan}
+                    </p>
                   </div>
                 </div>
                 <button onClick={() => setIsHistoryModalOpen(false)}
@@ -2921,156 +2920,240 @@ export default function DatabaseUPZ() {
 
               {/* ── VIEW: LIST ── */}
               {historyView === 'list' && (
-                <div className="flex-1 overflow-hidden flex flex-col h-full">
-                  {/* History Table (Full width) */}
-                  <div className="w-full overflow-y-auto p-6 space-y-6 custom-scrollbar flex-1 flex flex-col">
-                    {/* Action buttons */}
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Daftar Rekam Jejak SK</h4>
-                      {(selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
-                        <span className="px-3 py-1.5 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg uppercase tracking-wider">
-                          Aksi Dinonaktifkan (UPZ {selectedUPZ.status || 'Aktif'})
-                        </span>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button onClick={() => setHistoryView('perubahan')}
-                            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-md shadow-amber-500/20">
-                            <Edit2 className="size-4" />Perubahan
-                          </button>
-                          <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'', scanLink: '' }); setHistoryView('pembaruan'); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
-                            <PlusCircle className="size-4" />Pembaruan
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar flex flex-col min-h-0">
+                  {/* Action buttons */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 md:border-0 md:pb-0">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Daftar Rekam Jejak SK</h4>
+                    {(selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
+                      <span className="px-3 py-1.5 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg uppercase tracking-wider text-center w-full sm:w-auto">
+                        Aksi Dinonaktifkan (UPZ {selectedUPZ.status || 'Aktif'})
+                      </span>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <button onClick={() => setHistoryView('perubahan')}
+                          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 w-full sm:w-auto cursor-pointer">
+                          <Edit2 className="size-4" />Perubahan Pengurus
+                        </button>
+                        <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'', scanLink: '' }); setHistoryView('pembaruan'); }}
+                          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/20 w-full sm:w-auto cursor-pointer">
+                          <PlusCircle className="size-4" />Pembaruan SK
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex-1">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
-                            <th className="px-6 py-4">No. SK</th>
-                            <th className="px-6 py-4">Masa Berlaku</th>
-                            <th className="px-6 py-4">Pengurus Utama</th>
-                            <th className="px-6 py-4 text-center">Status</th>
-                            <th className="px-6 py-4 text-center">Scan SK</th>
-                            {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
-                              <th className="px-6 py-4 text-right">Draft SK</th>
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
-                            <tr 
-                              key={history.id} 
-                              className="hover:bg-slate-50/70 transition-colors"
-                            >
-                              <td className="px-6 py-4">
-                                <div className="space-y-1">
-                                  <span className={cn(
-                                    "text-sm font-black",
-                                    (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                                  )}>{history.skNumber}</span>
-                                  <p className="text-[9px] font-bold uppercase tracking-wider"
-                                    style={{ color: (selectedUPZ.status || 'Aktif') !== 'Aktif' ? '#94a3b8' : (isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb') }}>
-                                    {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
-                                  </p>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                                  <Calendar className="size-4 text-slate-400" />
-                                  <span className={cn((selectedUPZ.status || 'Aktif') !== 'Aktif' && "text-slate-400 font-medium")}>
-                                    {new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                                    <User className="size-4" />
-                                  </div>
-                                  <div>
-                                    <p className={cn(
-                                      "text-sm font-bold",
+                    {/* Desktop Table Container */}
+                    <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      {/* Desktop Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                              <th className="px-6 py-4">No. SK</th>
+                              <th className="px-6 py-4">Masa Berlaku</th>
+                              <th className="px-6 py-4">Pengurus Utama</th>
+                              <th className="px-6 py-4 text-center">Status</th>
+                              <th className="px-6 py-4 text-center">Scan SK</th>
+                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
+                                <th className="px-6 py-4 text-right">Draft SK</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
+                              <tr 
+                                key={history.id} 
+                                className="hover:bg-slate-50/70 transition-colors"
+                              >
+                                <td className="px-6 py-4">
+                                  <div className="space-y-1">
+                                    <span className={cn(
+                                      "text-sm font-black",
                                       (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                                    )}>{history.pimpinanName}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Penasehat</p>
+                                    )}>{history.skNumber}</span>
+                                    <p className="text-[9px] font-bold uppercase tracking-wider"
+                                      style={{ color: (selectedUPZ.status || 'Aktif') !== 'Aktif' ? '#94a3b8' : (isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb') }}>
+                                      {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
+                                    </p>
                                   </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-center">
-                                <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
-                                  (history.status === 'Aktif' && (selectedUPZ.status || 'Aktif') === 'Aktif') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
-                                  {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
-                                <div className="flex items-center justify-center gap-2">
-                                  {history.scanLink ? (
-                                    <>
-                                      <button
-                                        onClick={() => setActiveSkPreview(history)}
-                                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 border border-emerald-200 shadow-sm"
-                                      >
-                                        <FileText className="size-3.5 text-emerald-600" /> Dokumen SK
-                                      </button>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                                    <Calendar className="size-4 text-slate-400" />
+                                    <span className={cn((selectedUPZ.status || 'Aktif') !== 'Aktif' && "text-slate-400 font-medium")}>
+                                      {new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                                      <User className="size-4" />
+                                    </div>
+                                    <div>
+                                      <p className={cn(
+                                        "text-sm font-bold",
+                                        (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
+                                      )}>{history.pimpinanName}</p>
+                                      <p className="text-[10px] text-slate-400 font-bold uppercase">Penasehat</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  <span className={cn('px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest',
+                                    (history.status === 'Aktif' && (selectedUPZ.status || 'Aktif') === 'Aktif') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
+                                    {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                  <div className="flex items-center justify-center gap-2">
+                                    {history.scanLink ? (
+                                      <>
+                                        <button
+                                          onClick={() => setActiveSkPreview(history)}
+                                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 border border-emerald-200 shadow-sm"
+                                        >
+                                          <FileText className="size-3.5 text-emerald-600" /> Dokumen SK
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditScanSkTarget(history);
+                                            setFormEditScanLink(history.scanLink || '');
+                                          }}
+                                          className="p-1 text-slate-400 hover:text-primary hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded transition-all"
+                                          title="Ubah Link SK"
+                                        >
+                                          <Edit2 className="size-3.5" />
+                                        </button>
+                                      </>
+                                    ) : (
                                       <button
                                         onClick={() => {
                                           setEditScanSkTarget(history);
-                                          setFormEditScanLink(history.scanLink || '');
+                                          setFormEditScanLink('');
                                         }}
-                                        className="p-1 text-slate-400 hover:text-primary hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded transition-all"
-                                        title="Ubah Link SK"
+                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded transition-all"
+                                        title="Upload/Scan SK"
                                       >
-                                        <Edit2 className="size-3.5" />
+                                        <FileCheck className="size-3.5" />
                                       </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      onClick={() => {
-                                        setEditScanSkTarget(history);
-                                        setFormEditScanLink('');
-                                      }}
-                                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded transition-all"
-                                      title="Upload/Scan SK"
-                                    >
-                                      <FileCheck className="size-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
-                                <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
-                                  <div className="flex items-center justify-end gap-2">
-                                    <button
-                                      onClick={() => openPrintDateModal(history, 'print')}
-                                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded text-[10px] font-black uppercase tracking-wider transition-colors"
-                                      title="Cetak/Pratinjau SK"
-                                    >
-                                      Cetak
-                                    </button>
-                                    <button
-                                      onClick={() => openPrintDateModal(history, 'download')}
-                                      className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded text-[10px] font-black uppercase tracking-wider transition-colors"
-                                      title="Download Word (.doc)"
-                                    >
-                                      Docx
-                                    </button>
+                                    )}
                                   </div>
                                 </td>
+                                {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
+                                  <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => openPrintDateModal(history, 'print')}
+                                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded text-[10px] font-black uppercase tracking-wider transition-colors"
+                                        title="Cetak/Pratinjau SK"
+                                      >
+                                        Cetak
+                                      </button>
+                                      <button
+                                        onClick={() => openPrintDateModal(history, 'download')}
+                                        className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded text-[10px] font-black uppercase tracking-wider transition-colors"
+                                        title="Download Word (.doc)"
+                                      >
+                                        Docx
+                                      </button>
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Mobile Card Layout */}
+                    <div className="block md:hidden space-y-4">
+                        {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
+                          <div key={history.id} className="p-4 bg-white rounded-xl border border-slate-200 space-y-3 shadow-sm">
+                            <div className="flex justify-between items-start gap-2">
+                              <div>
+                                <span className={cn(
+                                  "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded",
+                                  isSKPembentukan(history.skNumber) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                )}>
+                                  {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
+                                </span>
+                                <p className="text-xs font-mono font-bold text-slate-700 mt-2 break-all">{history.skNumber}</p>
+                              </div>
+                              <span className={cn('px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0',
+                                (history.status === 'Aktif' && (selectedUPZ.status || 'Aktif') === 'Aktif') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
+                                {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+                              <div>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Masa Berlaku</p>
+                                <p className="font-bold text-slate-700 mt-0.5">{new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Pengurus Utama</p>
+                                <p className="font-bold text-slate-700 mt-0.5">{history.pimpinanName}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-200" onClick={e => e.stopPropagation()}>
+                              {history.scanLink ? (
+                                <>
+                                  <button
+                                    onClick={() => setActiveSkPreview(history)}
+                                    className="flex-1 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center justify-center gap-1.5 border border-emerald-200 shadow-sm"
+                                  >
+                                    <FileText className="size-3.5 text-emerald-600" /> Dokumen SK
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditScanSkTarget(history);
+                                      setFormEditScanLink(history.scanLink || '');
+                                    }}
+                                    className="px-3 py-2 text-slate-450 hover:text-primary hover:bg-slate-100 border border-slate-200 rounded-lg transition-all flex items-center justify-center"
+                                    title="Ubah Link SK"
+                                  >
+                                    <Edit2 className="size-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setEditScanSkTarget(history);
+                                    setFormEditScanLink('');
+                                  }}
+                                  className="flex-1 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center justify-center gap-1.5 border border-blue-200"
+                                >
+                                  <FileCheck className="size-3.5" /> Upload SK
+                                </button>
                               )}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
+                                <div className="flex gap-2 w-full mt-1">
+                                  <button
+                                    onClick={() => openPrintDateModal(history, 'print')}
+                                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors text-center border border-slate-200"
+                                  >
+                                    Cetak
+                                  </button>
+                                  <button
+                                    onClick={() => openPrintDateModal(history, 'download')}
+                                    className="flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors text-center border border-primary/20"
+                                  >
+                                    Docx
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                     </div>
 
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed mt-4">
                       <span className="font-black text-slate-700">Perubahan</span> = pergantian pengurus, No. SK tetap, masa berlaku tetap. &nbsp;
                       <span className="font-black text-slate-700">Pembaruan</span> = masa berlaku SK habis, No. SK baru diisi manual, masa berlaku baru (5 thn).
                     </div>
-                  </div>
                 </div>
               )}
 
@@ -3092,8 +3175,8 @@ export default function DatabaseUPZ() {
                       <h4 className="text-xs font-black uppercase tracking-widest">Update Struktur Kepengurusan</h4>
                     </div>
                     {(['penasehat', 'ketua', 'sekretaris', 'bendahara', 'anggota1', 'anggota2'] as const).map(jabatan => (
-                      <div key={jabatan} className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="col-span-2">
+                      <div key={jabatan} className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div>
                           <span className="text-[10px] font-black text-primary uppercase tracking-widest">
                             {jabatan === 'anggota1' ? 'Anggota 1' : jabatan === 'anggota2' ? 'Anggota 2' : jabatan.charAt(0).toUpperCase() + jabatan.slice(1)}
                           </span>
@@ -3117,7 +3200,7 @@ export default function DatabaseUPZ() {
                           <button type="button" onClick={addAnggotaTambahan} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
                         </div>
                         {anggotaTambahan.map((a, idx) => (
-                          <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
                               <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
@@ -3145,7 +3228,7 @@ export default function DatabaseUPZ() {
                         className="w-full bg-white border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20" 
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Mulai</label>
                         <input type="number" value={renewalForm.startYear} onChange={e => setRenewalForm(prev => ({ ...prev, startYear: e.target.value }))} className="w-full bg-white border-slate-200 rounded-xl px-4 py-2 text-sm" />
@@ -3164,8 +3247,8 @@ export default function DatabaseUPZ() {
                       <h4 className="text-xs font-black uppercase tracking-widest">Update Struktur Kepengurusan</h4>
                     </div>
                     {(['penasehat', 'ketua', 'sekretaris', 'bendahara', 'anggota1', 'anggota2'] as const).map(jabatan => (
-                      <div key={jabatan} className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="col-span-2">
+                      <div key={jabatan} className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div>
                           <span className="text-[10px] font-black text-primary uppercase tracking-widest">
                             {jabatan === 'anggota1' ? 'Anggota 1' : jabatan === 'anggota2' ? 'Anggota 2' : jabatan.charAt(0).toUpperCase() + jabatan.slice(1)}
                           </span>
@@ -3189,7 +3272,7 @@ export default function DatabaseUPZ() {
                           <button type="button" onClick={addAnggotaTambahan} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
                         </div>
                         {anggotaTambahan.map((a, idx) => (
-                          <div key={idx} className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
                               <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
@@ -3208,12 +3291,12 @@ export default function DatabaseUPZ() {
                 {historyView !== 'list' ? (
                   <>
                     <button onClick={() => setHistoryView('list')}
-                      className="text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-700 transition-all px-4 py-2">
+                      className="text-sm font-bold text-slate-500 hover:text-slate-700 transition-all px-4 py-2 cursor-pointer">
                       ← Kembali
                     </button>
                     <button
                       onClick={historyView === 'perubahan' ? handlePerubahanSK : handleRenewalSK}
-                      className={cn('px-8 py-2.5 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg transition-all',
+                      className={cn('px-8 py-2.5 text-white rounded-xl text-sm font-bold shadow-lg transition-all cursor-pointer',
                         historyView === 'perubahan'
                           ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
                           : 'bg-primary hover:bg-primary/90 shadow-primary/20'
@@ -3223,7 +3306,7 @@ export default function DatabaseUPZ() {
                   </>
                 ) : (
                   <button onClick={() => setIsHistoryModalOpen(false)}
-                    className="ml-auto px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
+                    className="ml-auto px-8 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all cursor-pointer">
                     Tutup
                   </button>
                 )}
@@ -3533,7 +3616,7 @@ export default function DatabaseUPZ() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-                <div className="grid grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                   <div className="space-y-4">
                     <div className="space-y-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama UPZ</p>
@@ -3604,7 +3687,7 @@ export default function DatabaseUPZ() {
                 {selectedUPZ.status === 'Mengundurkan Diri' && (
                   <div className="p-6 bg-rose-50/50 rounded-2xl border border-rose-100 space-y-3">
                     <h4 className="text-xs font-black text-rose-800 uppercase tracking-widest">Detail Pengunduran Diri</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Tanggal Mengundurkan Diri</p>
                         <p className="text-sm font-bold text-slate-900">{selectedUPZ.resignationDate || '-'}</p>
@@ -3645,7 +3728,7 @@ export default function DatabaseUPZ() {
                           )}>{displayStatus}</span>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                         <div className="flex items-center gap-3">
                           <div className="size-10 rounded-full bg-white flex items-center justify-center text-slate-400 shadow-sm">
                             <User className="size-5" />
@@ -3710,7 +3793,7 @@ export default function DatabaseUPZ() {
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                           <div className="space-y-1">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pengumpulan Terakumulasi (Berhasil)</p>
                             <p className="text-lg font-black text-slate-900">
@@ -3748,7 +3831,7 @@ export default function DatabaseUPZ() {
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                             <div className="space-y-1">
                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pengumpulan Terakumulasi</p>
                               <p className="text-lg font-black text-slate-900">
@@ -3803,25 +3886,25 @@ export default function DatabaseUPZ() {
                   );
                 })()}
               </div>
-              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+              <div className="p-4 md:p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-2 justify-between items-center w-full">
                 {(selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
                   <button 
                     onClick={() => handleReactivateUPZ(selectedUPZ)}
-                    className="px-6 py-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-all text-center cursor-pointer"
                   >
                     Aktifkan UPZ Kembali
                   </button>
                 ) : (
                   <button 
                     onClick={() => handleTriggerResignation(selectedUPZ)}
-                    className="px-6 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl text-sm font-bold transition-all text-center cursor-pointer"
                   >
                     Mengundurkan Diri
                   </button>
                 )}
                 <button 
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                  className="w-full sm:w-auto px-8 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all text-center cursor-pointer"
                 >
                   Tutup
                 </button>
@@ -3866,7 +3949,7 @@ export default function DatabaseUPZ() {
                     <Building2 className="size-4" />
                     <h4 className="text-xs font-black uppercase tracking-widest">Profil Utama</h4>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama UPZ</label>
                       <input 
@@ -3912,7 +3995,7 @@ export default function DatabaseUPZ() {
                   </div>
 
                   {formStatus === 'Mengundurkan Diri' && (
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-rose-50/50 rounded-xl border border-rose-100/80">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-rose-50/50 rounded-xl border border-rose-100/80">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Tanggal Mengundurkan Diri</label>
                         <input 
@@ -3995,7 +4078,7 @@ export default function DatabaseUPZ() {
                     <MapPin className="size-4" />
                     <h4 className="text-xs font-black uppercase tracking-widest">Lokasi & Wilayah</h4>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
                       <select 
@@ -4046,7 +4129,7 @@ export default function DatabaseUPZ() {
                     <Info className="size-4" />
                     <h4 className="text-xs font-black uppercase tracking-widest">Data Legalitas (SK)</h4>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. SK Penetapan</label>
                       <input 
@@ -4087,8 +4170,8 @@ export default function DatabaseUPZ() {
 
                   {/* Fixed Roles */}
                   {(['penasehat', 'ketua', 'sekretaris', 'bendahara', 'anggota1', 'anggota2'] as const).map(jabatan => (
-                    <div key={jabatan} className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="col-span-2">
+                    <div key={jabatan} className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <div>
                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">
                           {jabatan === 'anggota1' ? 'Anggota 1' : jabatan === 'anggota2' ? 'Anggota 2' : jabatan.charAt(0).toUpperCase() + jabatan.slice(1)}
                         </span>
@@ -4132,21 +4215,22 @@ export default function DatabaseUPZ() {
                           Tambah Anggota
                         </button>
                       </div>
-                      {anggotaTambahan.map((a, idx) => (
-                        <div key={idx} className="grid grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start">
-                          <div className="col-span-5 space-y-1">
+                       {anggotaTambahan.map((a, idx) => (
+                        <div key={idx} className="flex flex-col md:grid md:grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start w-full">
+                          <div className="w-full md:col-span-5 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anggota {idx + 3}</label>
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
-                          <div className="col-span-6 space-y-1">
+                          <div className="w-full md:col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                               {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
                             <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
-                          <div className="col-span-1 flex items-end justify-end mt-5">
-                            <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-all">
-                              <X className="size-5" />
+                          <div className="w-full md:col-span-1 flex items-end justify-end mt-1 md:mt-5">
+                            <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-55 rounded-lg transition-all w-full md:w-auto flex justify-center border border-rose-200 md:border-0">
+                              <X className="size-5 md:block hidden" />
+                              <span className="md:hidden text-xs font-black uppercase text-rose-600">Hapus Anggota</span>
                             </button>
                           </div>
                         </div>
@@ -4155,7 +4239,7 @@ export default function DatabaseUPZ() {
                   )}
                 </section>
               </div>
-              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center gap-3">
                 <button 
                   type="button" 
                   onClick={async () => {
@@ -4171,20 +4255,12 @@ export default function DatabaseUPZ() {
                       }
                     }
                   }}
-                  className="px-4 py-2.5 text-xs font-black text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="shrink-0 px-3.5 sm:px-4 py-3 text-sm font-bold text-rose-500 border border-rose-200 rounded-xl hover:bg-rose-50 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Trash2 className="size-3.5" />
-                  Hapus UPZ
+                  <Trash2 className="size-4" />
+                  <span>Hapus<span className="hidden sm:inline"> UPZ</span></span>
                 </button>
-                <div className="flex items-center gap-3">
                   <button 
-                    type="button" 
-                    onClick={() => setIsEditModalOpen(false)}
-                    className="px-6 py-2.5 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-rose-500 transition-all cursor-pointer"
-                  >
-                    Batalkan Perubahan
-                  </button>
-                   <button 
                     type="button"
                     onClick={async () => {
                       if (!formNamaUpz.trim()) {
@@ -4243,12 +4319,11 @@ export default function DatabaseUPZ() {
                         alert('Gagal memperbarui data UPZ.');
                       }
                     }}
-                    className="px-10 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all cursor-pointer"
+                    className="flex-1 sm:flex-initial px-4 sm:px-10 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    Simpan Perubahan
+                    <Save className="size-4" />
+                    <span>Simpan<span className="hidden sm:inline"> Perubahan</span></span>
                   </button>
-
-                </div>
               </div>
             </motion.div>
           </div>
@@ -4290,7 +4365,7 @@ export default function DatabaseUPZ() {
                     <Building2 className="size-4" />
                     <h4 className="text-xs font-black uppercase tracking-widest">Profil Utama</h4>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama UPZ</label>
                       <input 
@@ -4384,7 +4459,7 @@ export default function DatabaseUPZ() {
                     <MapPin className="size-4" />
                     <h4 className="text-xs font-black uppercase tracking-widest">Lokasi & Wilayah</h4>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
                       <select 
@@ -4437,7 +4512,7 @@ export default function DatabaseUPZ() {
                     <Info className="size-4" />
                     <h4 className="text-xs font-black uppercase tracking-widest">Data Legalitas (SK)</h4>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. SK Penetapan</label>
                       <input 
@@ -4490,8 +4565,8 @@ export default function DatabaseUPZ() {
 
                   {/* Fixed Roles */}
                   {(['penasehat', 'ketua', 'sekretaris', 'bendahara', 'anggota1', 'anggota2'] as const).map(jabatan => (
-                    <div key={jabatan} className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="col-span-2">
+                    <div key={jabatan} className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <div>
                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">
                           {jabatan === 'anggota1' ? 'Anggota 1' : jabatan === 'anggota2' ? 'Anggota 2' : jabatan.charAt(0).toUpperCase() + jabatan.slice(1)}
                         </span>
@@ -4536,20 +4611,21 @@ export default function DatabaseUPZ() {
                         </button>
                       </div>
                       {anggotaTambahan.map((a, idx) => (
-                        <div key={idx} className="grid grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start">
-                          <div className="col-span-5 space-y-1">
+                        <div key={idx} className="flex flex-col md:grid md:grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start w-full">
+                          <div className="w-full md:col-span-5 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anggota {idx + 3}</label>
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
-                          <div className="col-span-6 space-y-1">
+                          <div className="w-full md:col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                               {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
                             <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
-                          <div className="col-span-1 flex items-end justify-end mt-5">
-                            <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition-all">
-                              <X className="size-5" />
+                          <div className="w-full md:col-span-1 flex items-end justify-end mt-1 md:mt-5">
+                            <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-450 hover:bg-rose-50 rounded-lg transition-all w-full md:w-auto flex justify-center border border-rose-200 md:border-0">
+                              <X className="size-5 md:block hidden" />
+                              <span className="md:hidden text-xs font-black uppercase text-rose-600">Hapus Anggota</span>
                             </button>
                           </div>
                         </div>
@@ -4558,14 +4634,7 @@ export default function DatabaseUPZ() {
                   )}
                 </section>
               </div>
-              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                <button 
-                  type="button" 
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-6 py-2.5 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-rose-500 transition-all"
-                >
-                  Batalkan Registrasi
-                </button>
+              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end items-center">
                 <button 
                   type="button"
                   onClick={async () => {
@@ -4674,9 +4743,10 @@ export default function DatabaseUPZ() {
                     alert('UPZ baru berhasil didaftarkan.');
                     setIsAddModalOpen(false);
                   }}
-                  className="px-10 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+                  className="w-full sm:w-auto px-4 sm:px-10 py-2.5 sm:py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  Daftarkan UPZ
+                  <Save className="size-4" />
+                  <span>Daftarkan<span className="hidden sm:inline"> UPZ</span></span>
                 </button>
               </div>
             </motion.div>
@@ -4736,13 +4806,13 @@ export default function DatabaseUPZ() {
               <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
                 <button 
                   onClick={() => setIsResignModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider transition-colors"
+                  className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button 
                   onClick={handleConfirmResignation}
-                  className="px-6 py-2 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 shadow-lg shadow-rose-600/20 transition-colors"
+                  className="px-6 py-2 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700 shadow-lg shadow-rose-600/20 transition-colors cursor-pointer"
                 >
                   Simpan Status
                 </button>
@@ -4906,6 +4976,63 @@ export default function DatabaseUPZ() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        {/* FAB Options */}
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
+            >
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setIsDownloadRecapModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <Download className="size-4 text-slate-500" />
+                Rekapan Hak Tasaruf
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <Upload className="size-4 text-slate-500" />
+                Migrasi Data
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  openAddModal();
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Registrasi UPZ Baru
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main FAB Trigger */}
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className={cn(
+            "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+            isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+          )}
+        >
+          <Plus className="size-6" />
+        </button>
+      </div>
     </div>
   );
 }

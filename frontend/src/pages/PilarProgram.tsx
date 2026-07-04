@@ -4,7 +4,6 @@ import {
   ChevronDown,
   Plus,
   Edit2,
-  Eye,
   LayoutGrid as Category,
   List,
   History,
@@ -30,6 +29,45 @@ export default function PilarProgram() {
   const [data, setData] = useState<Pilar[]>([]);
   const [expandedPilar, setExpandedPilar] = useState<string | null>("1100");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isFabOpen, setIsFabOpen] = useState(false);
+
+  // Find the latest updated_at among all pilars and programs dynamically
+  const lastUpdatedDateStr = React.useMemo(() => {
+    let maxTime = 0;
+    
+    data.forEach(pilar => {
+      if (pilar.updated_at) {
+        const time = new Date(pilar.updated_at).getTime();
+        if (time > maxTime) maxTime = time;
+      }
+      if (pilar.created_at) {
+        const time = new Date(pilar.created_at).getTime();
+        if (time > maxTime) maxTime = time;
+      }
+      pilar.programs?.forEach(prog => {
+        if (prog.updated_at) {
+          const time = new Date(prog.updated_at).getTime();
+          if (time > maxTime) maxTime = time;
+        }
+        if (prog.created_at) {
+          const time = new Date(prog.created_at).getTime();
+          if (time > maxTime) maxTime = time;
+        }
+      });
+    });
+
+    if (maxTime === 0) {
+      return "4 Juli 2026"; // Fallback to current developer fix date
+    }
+
+    // Format to Indonesian date style, e.g. "4 Juli 2026"
+    const date = new Date(maxTime);
+    const months = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  }, [data]);
 
   // Migration & Notification States
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
@@ -287,75 +325,75 @@ export default function PilarProgram() {
         </nav>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Master Data: Program & Kegiatan</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Program & Kegiatan</h2>
             <p className="text-slate-500 font-medium">Kelola klasifikasi program utama dan kode kegiatan berdasarkan standar SIMBA BAZNAS.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="hidden md:flex gap-3">
             <button
               onClick={() => setIsMigrationModalOpen(true)}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-slate-200"
+              className="bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-slate-200 shadow-sm"
             >
-              <Upload className="size-4" />
+              <Upload className="size-4 text-slate-400" />
               Migrasi Kegiatan
             </button>
             <button
               onClick={handleAddPilar}
-              className="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+              className="bg-primary hover:bg-primary/95 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
             >
               <Plus className="size-4" />
-              Tambah Program Baru
+              Tambah Program
             </button>
           </div>
         </div>
       </motion.div>
 
       {/* Search & Stats */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex-1 relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5 group-focus-within:text-primary transition-colors" />
+      <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+        <div className="flex-1 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Cari Kode / Nama Program / Nama Kegiatan..."
-            className="w-full h-12 pl-12 pr-4 rounded-xl border border-primary/10 bg-white shadow-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
+            className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all text-sm font-semibold shadow-sm bg-white"
           />
         </div>
 
-        <div className="flex gap-4">
-          <div className="bg-white px-6 py-3 rounded-xl border border-primary/10 shadow-sm flex items-center gap-4 min-w-[180px]">
-            <div className="size-10 rounded-lg bg-emerald-100 text-primary flex items-center justify-center shrink-0">
-              <Category className="size-5" />
+        <div className="flex gap-3 shrink-0">
+          <div className="bg-white px-5 py-2.5 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3.5 min-w-[160px]">
+            <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Category className="size-4.5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Program</p>
-              <p className="text-xl font-black text-slate-900">{totalPilar}</p>
+              <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Total Program</p>
+              <p className="text-lg font-black text-slate-900 leading-none mt-0.5">{totalPilar}</p>
             </div>
           </div>
 
-          <div className="bg-white px-6 py-3 rounded-xl border border-primary/10 shadow-sm flex items-center gap-4 min-w-[180px]">
-            <div className="size-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-              <List className="size-5" />
+          <div className="bg-white px-5 py-2.5 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3.5 min-w-[160px]">
+            <div className="size-9 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+              <List className="size-4.5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Kegiatan</p>
-              <p className="text-xl font-black text-slate-900">{totalProgram}</p>
+              <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Total Kegiatan</p>
+              <p className="text-lg font-black text-slate-900 leading-none mt-0.5">{totalProgram}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Table Content */}
-      <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 border-b border-primary/5">
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Kode Program</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Nama Program</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Jumlah Kegiatan</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Status</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 text-right">Aksi</th>
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Kode Program</th>
+                <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Nama Program</th>
+                <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Jumlah Kegiatan</th>
+                <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Status</th>
+                <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -416,13 +454,6 @@ export default function PilarProgram() {
                         >
                           <Trash2 className="size-4" />
                         </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); /* View logic */ }}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                          title="Lihat Detail"
-                        >
-                          <Eye className="size-4" />
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -443,46 +474,46 @@ export default function PilarProgram() {
                                  <div
                                    key={prog.code}
                                    onClick={() => handleEditProgram(pilar.code, prog)}
-                                   className="flex items-start justify-between p-4 bg-white rounded-xl border border-primary/10 hover:border-primary/30 hover:shadow-md transition-all group cursor-pointer animate-fade-in"
+                                   className="flex items-start justify-between p-4 bg-white rounded-xl border border-slate-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all group cursor-pointer animate-fade-in min-h-[92px]"
                                  >
-                                     <div className="flex flex-col flex-1">
-                                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                                         <span className="text-[10px] font-black text-primary uppercase tracking-wider">{prog.code}</span>
-                                         <span className={cn(
-                                           "text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider shrink-0",
-                                           prog.tipe === 'Produktif'
-                                             ? "bg-emerald-50 text-emerald-600 border border-emerald-250/20"
-                                             : "bg-amber-50 text-amber-600 border border-amber-250/20"
-                                         )}>
-                                           {prog.tipe || 'Konsumtif'}
-                                         </span>
-                                       </div>
-                                       <span className="text-sm font-bold text-slate-700 leading-tight">{prog.name}</span>
-                                     </div>
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleEditProgram(pilar.code, prog); }}
-                                      className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-all"
-                                      title="Edit Kegiatan"
-                                    >
-                                      <Edit2 className="size-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteProgram(pilar.code, prog.code); }}
-                                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
-                                      title="Hapus Kegiatan"
-                                    >
-                                      <Trash2 className="size-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
+                                      <div className="flex flex-col flex-1">
+                                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                          <span className="text-[10px] font-black text-primary uppercase tracking-wider">{prog.code}</span>
+                                          <span className={cn(
+                                            "text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 border",
+                                            prog.tipe === 'Produktif'
+                                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                              : "bg-amber-50 text-amber-700 border-amber-250/20"
+                                          )}>
+                                            {prog.tipe || 'Konsumtif'}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-700 leading-tight">{prog.name}</span>
+                                      </div>
+                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                     <button
+                                       onClick={(e) => { e.stopPropagation(); handleEditProgram(pilar.code, prog); }}
+                                       className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-all"
+                                       title="Edit Kegiatan"
+                                     >
+                                       <Edit2 className="size-3.5" />
+                                     </button>
+                                     <button
+                                       onClick={(e) => { e.stopPropagation(); handleDeleteProgram(pilar.code, prog.code); }}
+                                       className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
+                                       title="Hapus Kegiatan"
+                                     >
+                                       <Trash2 className="size-3.5" />
+                                     </button>
+                                   </div>
+                                 </div>
                               ))}
                               <div
                                 onClick={() => handleAddProgram(pilar.code)}
-                                className="flex items-center justify-center p-3 border-2 border-dashed border-primary/20 rounded-xl hover:bg-primary/5 hover:border-primary/40 transition-all cursor-pointer group"
+                                className="flex items-center justify-center p-4 border-2 border-dashed border-slate-200 rounded-xl hover:bg-primary/[0.02] hover:border-primary/40 transition-all cursor-pointer group min-h-[92px]"
                               >
                                 <span className="text-xs font-bold text-primary flex items-center gap-2">
-                                  <PlusCircle className="size-4" />
+                                  <PlusCircle className="size-4 text-primary" />
                                   Tambah Kegiatan Baru
                                 </span>
                               </div>
@@ -590,19 +621,14 @@ export default function PilarProgram() {
 
               </div>
 
-              <div className="p-6 bg-slate-50 flex items-center gap-3">
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 h-11 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold hover:bg-slate-50 transition-all"
-                >
-                  Batal
-                </button>
+              <div className="p-6 bg-slate-50">
                 <button
                   onClick={handleSave}
-                  className="flex-1 h-11 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                  className="w-full h-11 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Save className="size-4" />
-                  Simpan Perubahan
+                  <span className="hidden sm:inline">Simpan Perubahan</span>
+                  <span className="inline sm:hidden">Simpan</span>
                 </button>
               </div>
             </motion.div>
@@ -661,7 +687,7 @@ export default function PilarProgram() {
                     <FileSpreadsheet className="size-8" />
                   </div>
                   <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
-                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom Kode Pilar, Kode Program, Nama Program.</p>
+                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom Kode Program, Kode Kegiatan, Nama Kegiatan.</p>
                 </div>
 
                 <div className="space-y-3">
@@ -699,7 +725,7 @@ export default function PilarProgram() {
                       <span className="text-amber-600 font-bold text-[10px]">!</span>
                     </div>
                     <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
-                      Sistem akan mencocokkan Kode Program. Jika sudah ada, data akan diperbarui (*update*). Jika Pilar belum terdaftar, sistem akan otomatis mendaftarkannya terlebih dahulu.
+                      Sistem akan mencocokkan Kode Kegiatan. Jika sudah ada, data akan diperbarui (update). Jika Program belum terdaftar, sistem akan otomatis mendaftarkannya terlebih dahulu.
                     </p>
                   </div>
                 </div>
@@ -717,8 +743,8 @@ export default function PilarProgram() {
         <div>
           <h5 className="font-bold text-slate-900">Update Terakhir Sistem</h5>
           <p className="text-sm text-slate-600 mt-1">
-            Data pilar dan program disinkronkan terakhir pada <span className="font-bold text-primary">12 Maret 2024</span>.
-            Pastikan kode program sesuai dengan pedoman SIMBA terbaru untuk akurasi pelaporan.
+            Data program dan kegiatan disinkronkan terakhir pada <span className="font-bold text-primary">{lastUpdatedDateStr}</span>.
+            Pastikan kode kegiatan sesuai dengan pedoman SIMBA terbaru untuk akurasi pelaporan.
           </p>
         </div>
       </div>
@@ -731,6 +757,53 @@ export default function PilarProgram() {
           </div>
         </div>
       )}
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3">
+        {/* FAB Options */}
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
+            >
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <Upload className="size-4 text-slate-500" />
+                Migrasi Kegiatan
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  handleAddPilar();
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Tambah Program
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main FAB Trigger */}
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className={cn(
+            "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+            isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+          )}
+        >
+          <Plus className="size-6" />
+        </button>
+      </div>
     </div>
   );
 }

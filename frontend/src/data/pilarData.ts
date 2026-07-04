@@ -18,6 +18,8 @@ export interface Program {
   nominalUmum?: number;
   rkat_details?: AsnafTarget[];
   budget_rkat?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Pilar {
@@ -26,6 +28,8 @@ export interface Pilar {
   category: string;
   status: 'Aktif' | 'Non-aktif';
   programs: Program[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const pilarData: Pilar[] = [

@@ -12,12 +12,12 @@ import {
   Upload,
   Download,
   X,
-  History,
   FileSpreadsheet,
   AlertCircle,
   CheckCircle2,
   Trash2,
-  Building
+  Building,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -46,9 +46,10 @@ export default function DataMustahik() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
-  const [isRiwayatMigrationModalOpen, setIsRiwayatMigrationModalOpen] = useState(false);
+  const [activeMigrationTab, setActiveMigrationTab] = useState<'warga' | 'riwayat'>('warga');
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const [selectedData, setSelectedData] = useState<any>(null);
   const [addTanggalLahirInput, setAddTanggalLahirInput] = useState('');
   const [editTanggalLahirInput, setEditTanggalLahirInput] = useState('');
@@ -177,7 +178,7 @@ export default function DataMustahik() {
 
     setIsLoading(true);
     setMessages([]);
-    setIsRiwayatMigrationModalOpen(false); 
+    setIsMigrationModalOpen(false); 
     
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -481,20 +482,16 @@ export default function DataMustahik() {
               <option value="Lembaga">Lembaga</option>
             </select>
           </div>
-          <div className="flex gap-3">
+          <div className="hidden md:flex gap-3">
             <button 
-              onClick={() => setIsMigrationModalOpen(true)}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95"
+              onClick={() => {
+                setActiveMigrationTab('warga');
+                setIsMigrationModalOpen(true);
+              }}
+              className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap border border-slate-200 shadow-sm"
             >
-              <Upload className="size-4" />
-              Migrasi Warga
-            </button>
-            <button 
-              onClick={() => setIsRiwayatMigrationModalOpen(true)}
-              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-indigo-200"
-            >
-              <History className="size-4" />
-              Migrasi Riwayat
+              <Upload className="size-4 shrink-0 text-slate-400" />
+              Migrasi Mustahik
             </button>
             <button 
               onClick={() => {
@@ -505,9 +502,9 @@ export default function DataMustahik() {
                 setAddTanggalLahirInput('');
                 setIsModalOpen(true);
               }}
-              className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
+              className="bg-primary hover:bg-primary/95 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95 cursor-pointer whitespace-nowrap"
             >
-              <Plus className="size-4" />
+              <Plus className="size-4 shrink-0" />
               Tambah Mustahik
             </button>
           </div>
@@ -592,7 +589,7 @@ export default function DataMustahik() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => { setSelectedData(warga); setDetailNIKRevealed(false); setIsDetailModalOpen(true); }}
                         className="p-1.5 hover:bg-primary/10 text-slate-400 hover:text-primary rounded transition-colors" title="Detail">
@@ -694,7 +691,7 @@ export default function DataMustahik() {
 
               <form onSubmit={handleAddMustahik} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
                 {/* NRM & NIK & Nama */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NO. REGISTER MUSTAHIK (NRM)</label>
                     <input name="nrm" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Masukkan NRM..." />
@@ -716,7 +713,7 @@ export default function DataMustahik() {
 
                 {modalCategory === 'Perorangan' ? (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
                         <input name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kota lahir..." />
@@ -734,7 +731,7 @@ export default function DataMustahik() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
                         <select required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer">
@@ -748,7 +745,7 @@ export default function DataMustahik() {
                         <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Pekerjaan..." />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon *</label>
                         <input required name="telepon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Telepon..." />
@@ -769,7 +766,7 @@ export default function DataMustahik() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pimpinan / Ketua *</label>
                       <input required name="nama_pimpinan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pimpinan..." />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga *</label>
                         <input required name="jenis_lembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan / Panti Asuhan dll..." />
@@ -779,7 +776,7 @@ export default function DataMustahik() {
                         <input name="jumlah_anggota" type="number" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="0" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon *</label>
                         <input required name="telepon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Telepon..." />
@@ -809,11 +806,11 @@ export default function DataMustahik() {
                       className="rounded border-slate-300 text-primary focus:ring-primary size-4"
                     />
                     <label htmlFor="isKtpSemarang" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
-                      Wilayah Kota Semarang (Gunakan Dropdown Administratif)
+                      Wilayah Kota Semarang
                     </label>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Provinsi</label>
                       <input name="provinsi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue="Jawa Tengah" placeholder="Provinsi..." />
@@ -824,7 +821,7 @@ export default function DataMustahik() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
                       {isKtpSemarang ? (
@@ -905,10 +902,10 @@ export default function DataMustahik() {
                   </select>
                 </div>
 
-                <div className="pt-4 flex gap-3 shrink-0">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Batal</button>
-                  <button type="submit" disabled={isLoading} className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
-                    {isLoading ? 'Menyimpan...' : 'Simpan Data'}
+                <div className="pt-4 shrink-0">
+                  <button type="submit" disabled={isLoading} className="w-full px-4 sm:px-10 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer">
+                    <Save className="size-4" />
+                    <span>Simpan<span className="hidden sm:inline"> Data</span></span>
                   </button>
                 </div>
               </form>
@@ -964,7 +961,7 @@ export default function DataMustahik() {
 
               <form key={selectedData.id} onSubmit={handleUpdateMustahik} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
                 {/* NRM & NIK & Nama */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NO. REGISTER MUSTAHIK (NRM)</label>
                     <input defaultValue={selectedData.nrm || ''} name="nrm" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -986,7 +983,7 @@ export default function DataMustahik() {
 
                 {modalCategory === 'Perorangan' ? (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
                         <input defaultValue={selectedData.tempat_lahir || ''} name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1004,7 +1001,7 @@ export default function DataMustahik() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
                         <select defaultValue={selectedData.jenis_kelamin || ''} required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer">
@@ -1018,7 +1015,7 @@ export default function DataMustahik() {
                         <input defaultValue={selectedData.pekerjaan || ''} name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon *</label>
                         <input defaultValue={selectedData.telepon || ''} required name="telepon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1039,7 +1036,7 @@ export default function DataMustahik() {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pimpinan / Ketua *</label>
                       <input defaultValue={selectedData.nama_pimpinan || ''} required name="nama_pimpinan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga *</label>
                         <input defaultValue={selectedData.jenis_lembaga || ''} required name="jenis_lembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1049,7 +1046,7 @@ export default function DataMustahik() {
                         <input defaultValue={selectedData.jumlah_anggota || 0} name="jumlah_anggota" type="number" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon *</label>
                         <input defaultValue={selectedData.telepon || ''} required name="telepon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1079,11 +1076,11 @@ export default function DataMustahik() {
                       className="rounded border-slate-300 text-primary focus:ring-primary size-4"
                     />
                     <label htmlFor="editIsKtpSemarang" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
-                      Wilayah Kota Semarang (Gunakan Dropdown Administratif)
+                      Wilayah Kota Semarang
                     </label>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Provinsi</label>
                       <input name="provinsi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" defaultValue={selectedData.provinsi || "Jawa Tengah"} placeholder="Provinsi..." />
@@ -1094,7 +1091,7 @@ export default function DataMustahik() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
                       {isKtpSemarang ? (
@@ -1176,15 +1173,22 @@ export default function DataMustahik() {
                 </div>
 
                 <div className="pt-4 flex gap-3 shrink-0">
-                  <button type="button" onClick={handleDeleteMustahik} className="px-6 py-3 border border-red-200 bg-red-50 rounded-xl text-sm font-bold text-red-600 hover:bg-red-100 transition-all flex items-center justify-center">
+                  <button 
+                    type="button" 
+                    onClick={handleDeleteMustahik} 
+                    className="px-3.5 sm:px-4 py-3 text-sm font-bold text-rose-500 border border-rose-200 rounded-xl bg-rose-50 hover:bg-rose-100 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
                     <Trash2 className="size-4" />
+                    <span>Hapus<span className="hidden sm:inline"> Mustahik</span></span>
                   </button>
-                  <div className="flex-1 flex gap-3">
-                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Batal</button>
-                    <button type="submit" disabled={isLoading} className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
-                      {isLoading ? 'Menyimpan...' : 'Update Data'}
-                    </button>
-                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={isLoading} 
+                    className="flex-1 px-4 sm:px-10 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Save className="size-4" />
+                    <span>Simpan<span className="hidden sm:inline"> Data</span></span>
+                  </button>
                 </div>
               </form>
             </motion.div>
@@ -1214,7 +1218,7 @@ export default function DataMustahik() {
                 </button>
               </div>
               <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <div>
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori</p>
                      <span className={cn(
@@ -1228,7 +1232,7 @@ export default function DataMustahik() {
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NRM</p>
                      <p className="font-semibold text-slate-800">{selectedData.nrm || '-'}</p>
                    </div>
-                   <div className="col-span-2">
+                   <div className="col-span-1 md:col-span-2">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                        {selectedData.kategori === 'Lembaga' ? 'Nama Lembaga' : 'Nama Lengkap'}
                      </p>
@@ -1301,7 +1305,7 @@ export default function DataMustahik() {
                      <p className="font-semibold text-slate-800 mt-1">{selectedData.email || '-'}</p>
                    </div>
 
-                   <div className="col-span-2 grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">
+                   <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">
                      <div>
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Provinsi</p>
                        <p className="font-semibold text-slate-700 text-xs mt-0.5">{selectedData.provinsi || '-'}</p>
@@ -1320,15 +1324,15 @@ export default function DataMustahik() {
                      </div>
                    </div>
 
-                   <div className="col-span-2">
+                   <div className="col-span-1 md:col-span-2">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Lengkap</p>
                      <p className="font-medium text-slate-600 border border-slate-100 bg-slate-50 p-3 rounded-lg mt-1 text-xs">{selectedData.alamat || '-'}</p>
                    </div>
-                   <div className="col-span-2">
+                   <div className="col-span-1 md:col-span-2">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catatan / Keterangan</p>
                      <p className="font-medium text-slate-600 border border-slate-100 bg-slate-50 p-3 rounded-lg mt-1 text-xs">{selectedData.catatan || '-'}</p>
                    </div>
-                   <div className="col-span-2">
+                   <div className="col-span-1 md:col-span-2">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Graduasi</p>
                      <span className={cn(
                         "inline-block px-2 py-1 mt-1 text-[10px] font-bold rounded uppercase",
@@ -1337,7 +1341,7 @@ export default function DataMustahik() {
                         {selectedData.status_graduasi || 'Belum'}
                       </span>
                    </div>
-                   <div className="col-span-2 mt-4 pt-4 border-t border-slate-100">
+                   <div className="col-span-1 md:col-span-2 mt-4 pt-4 border-t border-slate-100">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Riwayat Bantuan</p>
                      <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
                        {selectedData.proposals?.length > 0 ? (
@@ -1396,22 +1400,58 @@ export default function DataMustahik() {
               className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-xl font-black text-slate-900">Migrasi Data Data Mustahik</h3>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Migrasi Data Mustahik</h3>
                 <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
+
+              {/* Tab Selector */}
+              <div className="flex border-b border-slate-100 bg-slate-50/50">
+                <button
+                  onClick={() => setActiveMigrationTab('warga')}
+                  className={cn(
+                    "flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all",
+                    activeMigrationTab === 'warga' 
+                      ? "border-primary text-primary bg-white" 
+                      : "border-transparent text-slate-400 hover:text-slate-650"
+                  )}
+                >
+                  Migrasi Warga
+                </button>
+                <button
+                  onClick={() => setActiveMigrationTab('riwayat')}
+                  className={cn(
+                    "flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all",
+                    activeMigrationTab === 'riwayat' 
+                      ? "border-primary text-primary bg-white" 
+                      : "border-transparent text-slate-400 hover:text-slate-650"
+                  )}
+                >
+                  Migrasi Riwayat
+                </button>
+              </div>
+
               <div className="p-8 space-y-6">
                 <div className="text-center space-y-2">
                   <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
                     <FileSpreadsheet className="size-8" />
                   </div>
-                  <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
-                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom NIK, NRM, Nama, Alamat, Kategori, Status.</p>
+                  <h4 className="font-bold text-slate-900">
+                    {activeMigrationTab === 'warga' ? 'Impor Data via Excel' : 'Impor Riwayat Bantuan via Excel'}
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    {activeMigrationTab === 'warga' 
+                      ? 'Gunakan file Excel (.xlsx) dengan kolom NIK, NRM, Nama, Alamat, Kategori, Status.' 
+                      : 'Upload file Excel berisi histori bantuan. Data akan langsung terhubung ke NIK.'}
+                  </p>
                 </div>
 
                 <div className="space-y-3">
-                  <button onClick={downloadTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                  <button 
+                    onClick={activeMigrationTab === 'warga' ? downloadTemplate : downloadTemplateRiwayat}
+                    className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all cursor-pointer text-left"
+                  >
                     <div className="flex items-center gap-3">
                       <Download className="size-5 text-primary" />
                       <div className="text-left">
@@ -1426,7 +1466,9 @@ export default function DataMustahik() {
                     <div className="flex items-center gap-3">
                       <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
                       <div className="text-left">
-                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">
+                          {activeMigrationTab === 'warga' ? 'Upload File Data Baru' : 'Upload Riwayat via (.xlsx)'}
+                        </p>
                         <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
                       </div>
                     </div>
@@ -1434,7 +1476,7 @@ export default function DataMustahik() {
                       type="file" 
                       className="hidden" 
                       accept=".xlsx,.xls,.csv" 
-                      onChange={handleFileUpload} 
+                      onChange={activeMigrationTab === 'warga' ? handleFileUpload : handleRiwayatFileUpload} 
                     />
                   </label>
                 </div>
@@ -1445,7 +1487,9 @@ export default function DataMustahik() {
                       <span className="text-amber-600 font-bold text-[10px]">!</span>
                     </div>
                     <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
-                      Pastikan kolom NIK dan NRM tidak kosong. Data duplikat NIK akan otomatis dilewati agar sistem tidak error.
+                      {activeMigrationTab === 'warga' 
+                        ? 'Pastikan kolom NIK dan NRM tidak kosong. Data duplikat NIK akan otomatis dilewati agar sistem tidak error.'
+                        : 'Baris yang menggunakan NIK yang tidak terdaftar di database akan dilewati secara otomatis.'}
                     </p>
                   </div>
                 </div>
@@ -1455,84 +1499,58 @@ export default function DataMustahik() {
         )}
       </AnimatePresence>
 
-      {/* Migration Riwayat Bantuan Modal */}
-      <AnimatePresence>
-        {isRiwayatMigrationModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => setIsRiwayatMigrationModalOpen(false)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        {/* FAB Options */}
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
             >
-              <div className="p-6 border-b border-indigo-100 flex justify-between items-center bg-indigo-50/50">
-                <h3 className="text-xl font-black text-indigo-950 flex items-center gap-2">
-                  <History className="size-5 text-indigo-500" />
-                  Migrasi Riwayat Bantuan
-                </h3>
-                <button onClick={() => setIsRiwayatMigrationModalOpen(false)} className="p-2 hover:bg-indigo-100 rounded-full transition-colors">
-                  <X className="size-5 text-indigo-400" />
-                </button>
-              </div>
-              <div className="p-8 space-y-6">
-                <div className="text-center space-y-2">
-                  <p className="text-sm font-medium text-slate-600 leading-relaxed">
-                    Upload file Excel berisi histori bantuan.<br/>
-                    Pastikan kolom <span className="font-bold">ID_Bantuan, NIK, Tanggal, Jenis_Bantuan</span> tersedia. Data akan langsung terhubung ke NIK.
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <button onClick={downloadTemplateRiwayat} className="w-full flex items-center justify-between p-4 border border-indigo-200 bg-indigo-50/50 rounded-xl group hover:bg-indigo-100 transition-all">
-                    <div className="flex items-center gap-3">
-                      <Download className="size-5 text-indigo-500" />
-                      <div className="text-left">
-                        <p className="text-sm font-bold text-indigo-900">Download Format Template</p>
-                        <p className="text-[10px] text-indigo-500/70 font-medium">Format: .xlsx (Excel)</p>
-                      </div>
-                    </div>
-                    <ChevronRightIcon className="size-4 text-indigo-500 opacity-0 group-hover:opacity-100 transition-all" />
-                  </button>
-
-                  <label className="w-full flex items-center justify-between p-4 border-2 border-indigo-200 border-dashed rounded-xl cursor-pointer hover:bg-indigo-50 transition-all group">
-                    <div className="flex items-center gap-3">
-                      <Upload className="size-5 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
-                      <div className="text-left">
-                        <p className="text-sm font-bold text-indigo-900 group-hover:text-indigo-700 transition-colors">Upload Riwayat via (.xlsx)</p>
-                        <p className="text-[10px] text-indigo-400 font-medium">Pilih file xlsx dari perangkat.</p>
-                      </div>
-                    </div>
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept=".xlsx,.xls,.csv" 
-                      onChange={handleRiwayatFileUpload} 
-                    />
-                  </label>
-                </div>
-
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                  <div className="flex gap-3">
-                    <div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                      <span className="text-amber-600 font-bold text-[10px]">!</span>
-                    </div>
-                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
-                      Baris yang menggunakan NIK yang tidak terdaftar di database akan dilewati secara otomatis.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setActiveMigrationTab('warga');
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <Upload className="size-4 text-slate-500" />
+                Migrasi Mustahik
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setModalCategory('Perorangan');
+                  setSelectedKecamatan('');
+                  setSelectedKelurahan('');
+                  setIsKtpSemarang(true);
+                  setAddTanggalLahirInput('');
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Tambah Mustahik
+              </button>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+
+        {/* Main FAB Trigger */}
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className={cn(
+            "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+            isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+          )}
+        >
+          <Plus className="size-6" />
+        </button>
+      </div>
     </div>
   );
 }

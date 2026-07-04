@@ -92,7 +92,12 @@ const ensureDefaultMappingsExist = async () => {
 export const getLaporanKinerjaMappings = async (req: Request, res: Response) => {
   try {
     await ensureDefaultMappingsExist();
-    const mappings = await prisma.laporanKinerjaMapping.findMany();
+    const mappings = await prisma.laporanKinerjaMapping.findMany({
+      orderBy: [
+        { tab: 'asc' },
+        { row_key: 'asc' }
+      ]
+    });
     res.status(200).json(mappings);
   } catch (error) {
     console.error(error);
@@ -102,14 +107,24 @@ export const getLaporanKinerjaMappings = async (req: Request, res: Response) => 
 
 export const updateLaporanKinerjaMapping = async (req: Request, res: Response) => {
   try {
-    const { row_key, coa_codes } = req.body;
+    const { row_key, coa_codes, tab, row_label } = req.body;
     if (!row_key) {
       return res.status(400).json({ error: 'row_key is required' });
     }
 
-    const mapping = await prisma.laporanKinerjaMapping.update({
+    const mapping = await prisma.laporanKinerjaMapping.upsert({
       where: { row_key },
-      data: { coa_codes }
+      update: { 
+        coa_codes,
+        ...(row_label && { row_label }),
+        ...(tab && { tab })
+      },
+      create: {
+        row_key,
+        row_label: row_label || row_key,
+        tab: tab || 'pengumpulan',
+        coa_codes: coa_codes || ''
+      }
     });
 
     res.status(200).json({ status: 'success', mapping });
@@ -148,17 +163,42 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
     });
 
     // Structure mapping
-    const categories = [
+    const categories: any[] = [
       { key: 'muzakki_individu', code: '3.1', label: 'Muzakki Individu', section: 'Muzakki Individu' },
       { key: 'muzakki_fitrah_individu', code: '3.2', label: 'Muzakki Fitrah Individu', section: 'Muzakki Individu' },
       { key: 'munfiq_individu', code: '3.3', label: 'Munfiq Individu', section: 'Muzakki Individu' },
       { key: 'donatur_qurban', code: '3.4', label: 'Donatur Qurban', section: 'Muzakki Individu' },
       { key: 'donatur_fidyah', code: '3.5', label: 'Donatur Fidyah', section: 'Muzakki Individu' },
       { key: 'donatur_dskl', code: '3.6', label: 'Donatur DSKL', section: 'Muzakki Individu' },
-      { key: 'muzakki_badan', code: '3.6', label: 'Muzakki Badan', section: 'Muzakki Badan' },
-      { key: 'munfiq_badan', code: '3.7', label: 'Munfiq Badan', section: 'Muzakki Badan' },
-      { key: 'donatur_csr', code: '3.8', label: 'Donatur CSR', section: 'Muzakki Badan' }
+      { key: 'muzakki_badan', code: '3.7', label: 'Muzakki Badan', section: 'Muzakki Badan' },
+      { key: 'munfiq_badan', code: '3.8', label: 'Munfiq Badan', section: 'Muzakki Badan' },
+      { key: 'donatur_csr', code: '3.9', label: 'Donatur CSR', section: 'Muzakki Badan' }
     ];
+
+    // Append new mapping keys from DB that are not in default categories
+    dbMappings.forEach(dbm => {
+      const exists = categories.some(c => c.key === dbm.row_key);
+      if (!exists && (dbm.row_key.startsWith('muzakki_') || dbm.row_key.startsWith('munfiq_') || dbm.row_key.startsWith('donatur_'))) {
+        const lowerLabel = dbm.row_label.toLowerCase();
+        const section = lowerLabel.includes('badan') || lowerLabel.includes('perusahaan') ? 'Muzakki Badan' : 'Muzakki Individu';
+        
+        let code = '';
+        const match = dbm.row_label.match(/^(\d+\.\d+)\s+/);
+        if (match) {
+          code = match[1];
+        } else {
+          const countInSection = categories.filter(c => c.section === section).length + 1;
+          code = `3.${countInSection}`;
+        }
+        
+        categories.push({
+          key: dbm.row_key,
+          code,
+          label: dbm.row_label,
+          section
+        });
+      }
+    });
 
     // Initialize monthly values
     const result: Record<string, { code: string; label: string; section: string; monthly: number[] }> = {};
@@ -326,7 +366,7 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
     // ----------------------------------------------------
     // TABLE 1: RKAT Penyaluran (Target vs Realisasi)
     // ----------------------------------------------------
-    const rowsConfig = [
+    const rowsConfig: any[] = [
       // Zakat Ashnaf
       { key: 'zakat_fakir', code: '4.1', label: 'Penyaluran Dana Zakat untuk Fakir', section: 'zakat_ashnaf', type: 'zakat', asnaf: 'Fakir', fallbackTarget: 60000000 },
       { key: 'zakat_miskin', code: '4.2', label: 'Penyaluran Dana Zakat untuk Miskin', section: 'zakat_ashnaf', type: 'zakat', asnaf: 'Miskin', fallbackTarget: 6827160000 },
@@ -384,6 +424,52 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       { key: 'hak_pimpinan_apbn', code: '4.27', label: 'Hak keuangan Pimpinan Baznas Dari APBN', section: 'hak_keuangan_pimpinan', type: 'hak_pimpinan_apbn', fallbackTarget: 0 },
       { key: 'hak_pimpinan_apbd', code: '4.28', label: 'Hak keuangan Pimpinan Baznas Dari APBD Kab/Kota', section: 'hak_keuangan_pimpinan', type: 'hak_pimpinan_apbd', fallbackTarget: 0 }
     ];
+
+    // Let's add any new custom mappings from DB that are not in rowsConfig
+    dbMappings.forEach(dbm => {
+      const existsInT3 = rowsConfig.some(row => row.key === dbm.row_key);
+      if (!existsInT3) {
+        let section = 'zakat_ashnaf';
+        let type = 'zakat';
+        const lowerLabel = dbm.row_label.toLowerCase();
+        
+        if (lowerLabel.includes('fitrah')) {
+          section = 'zakat_fitrah';
+          type = 'fitrah';
+        } else if (lowerLabel.includes('infaq') || lowerLabel.includes('infak') || lowerLabel.includes('sedekah') || lowerLabel.includes('csr') || lowerLabel.includes('qurban') || lowerLabel.includes('fidyah') || lowerLabel.includes('dskl')) {
+          section = 'dana_infaq';
+          type = 'infaq_tidak_terikat';
+        } else if (lowerLabel.includes('titipan')) {
+          section = 'dana_titipan';
+          type = 'titipan_pilar';
+        } else if (lowerLabel.includes('pilar') || lowerLabel.includes('bidang')) {
+          section = 'bidang_program';
+          type = 'pilar';
+        } else if (lowerLabel.includes('operasional')) {
+          section = 'dana_operasional';
+          type = 'operasional_non_sdm';
+        }
+        
+        let code = '';
+        const match = dbm.row_label.match(/^(\d+\.\d+)\s+/);
+        if (match) {
+          code = match[1];
+        } else {
+          const countInSection = rowsConfig.filter(r => r.section === section).length + 1;
+          code = `4.${countInSection}`;
+        }
+
+        rowsConfig.push({
+          key: dbm.row_key,
+          code,
+          label: dbm.row_label,
+          section,
+          type,
+          fallbackTarget: 0,
+          asnaf: lowerLabel.includes('fakir') ? 'Fakir' : lowerLabel.includes('miskin') ? 'Miskin' : undefined
+        });
+      }
+    });
 
     // Compute Targets dynamically from dbPrograms
     const finalRkatList = rowsConfig.map(row => {
@@ -645,7 +731,7 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
       }
     });
 
-    const rowsConfig = [
+    const rowsConfig: any[] = [
       // Penerimaan Zakat
       { key: 'rkat_zakat_maal_badan', no: '1.1', nama_program: 'Zakat Maal Badan', kategori: 'Zakat', section: 'zakat', fallbackTarget: 50000000 },
       { key: 'rkat_zakat_maal_perorangan', no: '1.2', nama_program: 'Zakat Maal Perorangan', kategori: 'Zakat', section: 'zakat', fallbackTarget: 2000000000 },
@@ -671,6 +757,47 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
       // Dana Titipan
       { key: 'rkat_dana_titipan', no: '2.18', nama_program: 'Dana Titipan', kategori: 'Dana Titipan', section: 'titipan', fallbackTarget: 0 }
     ];
+
+    // Let's add any new custom mappings from DB that are not in rowsConfig
+    dbMappings.forEach(dbm => {
+      const exists = rowsConfig.some(row => row.key === dbm.row_key);
+      if (!exists && dbm.row_key.startsWith('rkat_')) {
+        // Find if it belongs to zakat, infak, or dskl/csr based on label/key
+        let section = 'zakat';
+        let kategori = 'Zakat';
+        const lowerLabel = dbm.row_label.toLowerCase();
+        if (lowerLabel.includes('infak') || lowerLabel.includes('sedekah') || lowerLabel.includes('infaq')) {
+          section = 'infak';
+          kategori = 'Infak';
+        } else if (lowerLabel.includes('dskl') || lowerLabel.includes('kurban') || lowerLabel.includes('qurban') || lowerLabel.includes('fidyah') || lowerLabel.includes('csr')) {
+          section = 'dskl';
+          kategori = 'DSKL';
+          if (lowerLabel.includes('csr')) kategori = 'CSR';
+        } else if (lowerLabel.includes('titipan')) {
+          section = 'titipan';
+          kategori = 'Dana Titipan';
+        }
+        
+        let no = '';
+        const match = dbm.row_label.match(/^(\d+\.\d+)\s+/);
+        if (match) {
+          no = match[1];
+        } else {
+          const countInSection = rowsConfig.filter(r => r.section === section).length + 1;
+          const sectionNum = section === 'zakat' ? '1' : section === 'infak' ? '2' : '3';
+          no = `${sectionNum}.${countInSection}`;
+        }
+        
+        rowsConfig.push({
+          key: dbm.row_key,
+          no,
+          nama_program: dbm.row_label,
+          kategori,
+          section,
+          fallbackTarget: 0
+        });
+      }
+    });
 
     const finalRkatList = rowsConfig.map(row => {
       // Find matching item in DB to override targets

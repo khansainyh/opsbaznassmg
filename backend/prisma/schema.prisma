@@ -91,11 +91,13 @@ model Upz {
 }
 
 model Pilar {
-  code     String    @id
-  name     String
-  category String?
-  status   String?   @default("Aktif")
-  programs Program[]
+  code       String    @id
+  name       String
+  category   String?
+  status     String?   @default("Aktif")
+  programs   Program[]
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now()) @updatedAt
 }
 
 model Program {
@@ -107,6 +109,8 @@ model Program {
   tipe         String     @default("Konsumtif")
   pilar        Pilar      @relation(fields: [pilar_code], references: [code])
   proposals    Proposal[]
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @default(now()) @updatedAt
 
   @@index([pilar_code], map: "Program_pilar_code_fkey")
 }

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { 
-  LineChart, 
   TrendingUp, 
   Users, 
   Percent, 
@@ -15,7 +14,8 @@ import {
   Settings2,
   X,
   Save,
-  Edit2
+  Edit2,
+  Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -73,6 +73,18 @@ export default function LaporanKinerja() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [searchMappingQuery, setSearchMappingQuery] = useState('');
   const [mappingFilterTab, setMappingFilterTab] = useState<'pengumpulan' | 'penyaluran'>('pengumpulan');
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  
+  const [newRowKey, setNewRowKey] = useState('');
+  const [newRowLabel, setNewRowLabel] = useState('');
+  const [newCoaCodes, setNewCoaCodes] = useState('');
+
+  const toggleItemExpand = (id: string) => {
+    setExpandedItems(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
 
   const fetchMappings = async () => {
     try {
@@ -112,6 +124,30 @@ export default function LaporanKinerja() {
     } catch (err) {
       console.error('Gagal menyimpan mapping:', err);
       alert('Gagal menyimpan mapping COA');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleAddNewMapping = async () => {
+    if (!newRowKey || !newRowLabel) return;
+    setSaveLoading(true);
+    try {
+      await axios.post('/api/laporan-kinerja/mappings', {
+        row_key: newRowKey,
+        row_label: newRowLabel,
+        tab: mappingFilterTab,
+        coa_codes: newCoaCodes
+      });
+      setNewRowKey('');
+      setNewRowLabel('');
+      setNewCoaCodes('');
+      await fetchMappings();
+      fetchData();
+      alert('Kegiatan baru berhasil ditambahkan.');
+    } catch (err: any) {
+      console.error(err);
+      alert('Gagal menambahkan kegiatan: ' + (err.response?.data?.error || err.message));
     } finally {
       setSaveLoading(false);
     }
@@ -166,6 +202,34 @@ export default function LaporanKinerja() {
     { key: 'nov', label: 'November' },
     { key: 'des', label: 'Desember' }
   ];
+
+  // Create a mapping of row keys to their codes (e.g. 1.1, 3.1, 4.1) based on report lists
+  const mappingCodeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    
+    // RKAT Pengumpulan: item.id -> item.no
+    rkatPengumpulanList.forEach(item => {
+      if (item.id && item.no) {
+        map[item.id] = item.no;
+      }
+    });
+    
+    // Muzakki/Munfiq: item.key -> item.code
+    mustahikGrowthList.forEach(item => {
+      if (item.key && item.code) {
+        map[item.key] = item.code;
+      }
+    });
+    
+    // RKAT Penyaluran: item.id -> item.code
+    rkatPenyaluranList.forEach(item => {
+      if (item.id && item.code) {
+        map[item.id] = item.code;
+      }
+    });
+    
+    return map;
+  }, [rkatPengumpulanList, mustahikGrowthList, rkatPenyaluranList]);
 
   // Filter & Group Realisasi RKAT Pengumpulan
   const groupedRkatData = useMemo(() => {
@@ -604,32 +668,52 @@ export default function LaporanKinerja() {
   return (
     <div className="p-4 md:p-8 space-y-6 bg-slate-50/50 h-full overflow-y-auto w-full custom-scrollbar">
       
-      {/* Top Breadcrumb & Page title */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Pelaporan</span>
-            <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">Laporan Kinerja</span>
-          </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <LineChart className="size-8 text-primary" />
-            Laporan Kinerja
-          </h2>
-          <p className="text-xs font-medium text-slate-500">
-            Monitor realisasi RKAT dan pertumbuhan jumlah donatur Muzakki & Munfiq secara dinamis.
-          </p>
+      {/* Top Page title */}
+      <div className="space-y-1">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+          Laporan Kinerja
+        </h2>
+        <p className="text-slate-500 font-medium">
+          Monitor realisasi RKAT dan pertumbuhan jumlah donatur Muzakki & Munfiq secara dinamis.
+        </p>
+      </div>
+
+      {/* Main Tabs and Actions */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-200 gap-4 pb-3 lg:pb-0">
+        <div className="flex w-full lg:w-auto border-b lg:border-b-0 border-slate-200 lg:border-transparent lg:gap-6">
+          <button
+            onClick={() => setActiveTab('pengumpulan')}
+            className={cn(
+              "flex-1 lg:flex-initial text-center lg:px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex flex-col items-center justify-center min-h-[52px]",
+              activeTab === 'pengumpulan' 
+                ? "border-primary text-primary" 
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <span>Bidang <span className="block sm:inline">Pengumpulan</span></span>
+          </button>
+          <button
+            onClick={() => setActiveTab('penyaluran')}
+            className={cn(
+              "flex-1 lg:flex-initial text-center lg:px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex flex-col items-center justify-center min-h-[52px]",
+              activeTab === 'penyaluran' 
+                ? "border-primary text-primary" 
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <span>Bidang <span className="block sm:inline">Penyaluran</span></span>
+          </button>
         </div>
 
         {/* Filters and export */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto px-4 lg:px-0 pb-3 lg:pb-0">
           {/* Year select */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
-            <Calendar className="size-4 text-slate-400" />
+          <div className="flex-1 sm:flex-initial flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm min-w-[120px]">
+            <Calendar className="size-4 text-slate-400 shrink-0" />
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="text-xs font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
+              className="text-sm sm:text-xs font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer w-full"
             >
               {yearOptions.map(y => (
                 <option key={y} value={y}>Tahun {y}</option>
@@ -640,53 +724,26 @@ export default function LaporanKinerja() {
           {/* Unduh Excel Button */}
           <button
             onClick={exportToExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm sm:text-xs rounded-xl shadow-sm hover:shadow transition-all min-h-[38px]"
             title="Download Laporan Format Excel"
           >
-            <Download className="size-4" />
-            Unduh Excel
+            <Download className="size-4 shrink-0" />
+            <span>Unduh Excel</span>
           </button>
 
           {/* Settings Button (Only for Super Admin) */}
           {user?.role === 'Super_Admin' && (
             <button
               onClick={handleOpenSettings}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm sm:text-xs rounded-xl shadow-sm hover:shadow transition-all min-h-[38px]"
               title="Pengaturan Hubungan COA Laporan Kinerja"
             >
-              <Settings2 className="size-4" />
-              Mapping COA
+              <Settings2 className="size-4 shrink-0" />
+              <span>Setting</span>
             </button>
           )}
         </div>
       </div>
-
-      {/* Main Tabs */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('pengumpulan')}
-          className={cn(
-            "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all",
-            activeTab === 'pengumpulan' 
-              ? "border-primary text-primary" 
-              : "border-transparent text-slate-400 hover:text-slate-600"
-          )}
-        >
-          Bidang Pengumpulan
-        </button>
-        <button
-          onClick={() => setActiveTab('penyaluran')}
-          className={cn(
-            "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all",
-            activeTab === 'penyaluran' 
-              ? "border-primary text-primary" 
-              : "border-transparent text-slate-400 hover:text-slate-600"
-          )}
-        >
-          Bidang Penyaluran
-        </button>
-      </div>
-
       <AnimatePresence mode="wait">
         {activeTab === 'pengumpulan' ? (
           <motion.div
@@ -783,109 +840,218 @@ export default function LaporanKinerja() {
               {loading ? (
                 <div className="p-12 text-center text-slate-400 italic">Memuat data laporan...</div>
               ) : (
-                <div className="overflow-x-auto custom-scrollbar">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                        <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
-                        <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan / Program</th>
-                        <th className="px-4 py-3.5 text-right bg-slate-100/50">RKAT</th>
-                        <th className="px-4 py-3.5 text-right bg-emerald-50/30">Realisasi</th>
-                        <th className="px-4 py-3.5 text-right bg-amber-50/30">Prosentase</th>
-                        {months.map(m => (
-                          <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      {groupedRkatData.map((group) => {
-                        if (group.items.length === 0 && searchQuery) return null;
+                <div>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                    <table className="w-full border-collapse text-left">
+                      <thead>
+                        <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                          <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
+                          <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan / Program</th>
+                          <th className="px-4 py-3.5 text-right bg-slate-100/50">RKAT</th>
+                          <th className="px-4 py-3.5 text-right bg-emerald-50/30">Realisasi</th>
+                          <th className="px-4 py-3.5 text-right bg-amber-50/30">Prosentase</th>
+                          {months.map(m => (
+                            <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {groupedRkatData.map((group) => {
+                          if (group.items.length === 0 && searchQuery) return null;
 
-                        const grpTotals = calculateGroupTotals(group.items);
+                          const grpTotals = calculateGroupTotals(group.items);
 
-                        return (
-                          <React.Fragment key={group.key}>
-                            {/* Group Header Row */}
-                            <tr className="bg-slate-50/50">
-                              <td colSpan={17} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
-                                {group.title}
-                              </td>
-                            </tr>
+                          return (
+                            <React.Fragment key={group.key}>
+                              {/* Group Header Row */}
+                              <tr className="bg-slate-50/50">
+                                <td colSpan={17} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
+                                  {group.title}
+                                </td>
+                              </tr>
 
-                            {/* Data Rows */}
-                            {group.items.map((item) => (
-                              <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
-                                <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                  {item.no}
+                              {/* Data Rows */}
+                              {group.items.map((item) => (
+                                <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
+                                  <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                    {item.no}
+                                  </td>
+                                  <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)] truncate max-w-[260px]">
+                                    {item.nama_program}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-semibold text-slate-600 bg-slate-100/20">
+                                    {formatCurrency(item.nilai_anggaran)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/10">
+                                    {formatCurrency(item.realisasi_total)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 bg-amber-50/10">
+                                    {formatPercent(Number(item.realisasi_total), Number(item.nilai_anggaran))}
+                                  </td>
+                                  {months.map(m => (
+                                    <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-500">
+                                      {Number(item[m.key]) > 0 ? formatCurrency(item[m.key]) : 'Rp0'}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+
+                              {/* Group Sub-Total Row */}
+                              <tr className="bg-slate-50/40 font-bold border-t border-slate-200">
+                                <td className="px-4 py-3 sticky left-0 bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]"></td>
+                                <td className="px-4 py-3 text-slate-700 uppercase tracking-wider text-[10px] sticky left-[64px] bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                  SUBTOTAL {group.title}
                                 </td>
-                                <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)] truncate max-w-[260px]">
-                                  {item.nama_program}
+                                <td className="px-4 py-3 text-right font-mono text-slate-800 bg-slate-100/50">
+                                  {formatCurrency(grpTotals.target)}
                                 </td>
-                                <td className="px-4 py-3 text-right font-mono font-semibold text-slate-600 bg-slate-100/20">
-                                  {formatCurrency(item.nilai_anggaran)}
+                                <td className="px-4 py-3 text-right font-mono text-emerald-800 bg-emerald-50/20">
+                                  {formatCurrency(grpTotals.real)}
                                 </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/10">
-                                  {formatCurrency(item.realisasi_total)}
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 bg-amber-50/10">
-                                  {formatPercent(Number(item.realisasi_total), Number(item.nilai_anggaran))}
+                                <td className="px-4 py-3 text-right font-mono text-amber-800 bg-amber-50/20">
+                                  {formatPercent(grpTotals.real, grpTotals.target)}
                                 </td>
                                 {months.map(m => (
-                                  <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-500">
-                                    {Number(item[m.key]) > 0 ? formatCurrency(item[m.key]) : 'Rp0'}
+                                  <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-700 bg-slate-50/30">
+                                    {formatCurrency(grpTotals.monthlySum[m.key])}
                                   </td>
                                 ))}
                               </tr>
-                            ))}
+                            </React.Fragment>
+                          );
+                        })}
 
-                            {/* Group Sub-Total Row */}
-                            <tr className="bg-slate-50/40 font-bold border-t border-slate-200">
-                              <td className="px-4 py-3 sticky left-0 bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]"></td>
-                              <td className="px-4 py-3 text-slate-700 uppercase tracking-wider text-[10px] sticky left-[64px] bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                SUBTOTAL {group.title}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono text-slate-800 bg-slate-100/50">
-                                {formatCurrency(grpTotals.target)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono text-emerald-800 bg-emerald-50/20">
-                                {formatCurrency(grpTotals.real)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono text-amber-800 bg-amber-50/20">
-                                {formatPercent(grpTotals.real, grpTotals.target)}
-                              </td>
-                              {months.map(m => (
-                                <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-700 bg-slate-50/30">
-                                  {formatCurrency(grpTotals.monthlySum[m.key])}
-                                </td>
-                              ))}
-                            </tr>
-                          </React.Fragment>
-                        );
-                      })}
-
-                      {/* Grand Total Row */}
-                      <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
-                        <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
-                        <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
-                          TOTAL PENGUMPULAN
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-slate-950 bg-slate-200/50">
-                          {formatCurrency(totals.target)}
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-emerald-900 bg-emerald-100/30">
-                          {formatCurrency(totals.real)}
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-slate-900 bg-amber-100/30">
-                          {formatPercent(totals.real, totals.target)}
-                        </td>
-                        {months.map(m => (
-                          <td key={m.key} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
-                            {formatCurrency(totals.monthlySum[m.key])}
+                        {/* Grand Total Row */}
+                        <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
+                          <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
+                          <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
+                            TOTAL PENGUMPULAN
                           </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
+                          <td className="px-4 py-4 text-right font-mono text-slate-950 bg-slate-200/50">
+                            {formatCurrency(totals.target)}
+                          </td>
+                          <td className="px-4 py-4 text-right font-mono text-emerald-900 bg-emerald-100/30">
+                            {formatCurrency(totals.real)}
+                          </td>
+                          <td className="px-4 py-4 text-right font-mono text-slate-900 bg-amber-100/30">
+                            {formatPercent(totals.real, totals.target)}
+                          </td>
+                          {months.map(m => (
+                            <td key={m.key} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
+                              {formatCurrency(totals.monthlySum[m.key])}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden divide-y divide-slate-100 bg-white">
+                    {groupedRkatData.map((group) => {
+                      if (group.items.length === 0 && searchQuery) return null;
+                      const grpTotals = calculateGroupTotals(group.items);
+
+                      return (
+                        <div key={group.key} className="p-4 space-y-4">
+                          <h4 className="font-black text-slate-900 uppercase tracking-wider text-[10px] bg-slate-50 px-3 py-2 rounded-lg">
+                            {group.title}
+                          </h4>
+                          <div className="space-y-3">
+                            {group.items.map((item) => {
+                              const isExpanded = expandedItems[item.id] || false;
+                              return (
+                                <div key={item.id} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm space-y-3">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="space-y-1 pr-2">
+                                      <span className="font-mono text-xs font-bold text-slate-400">{item.no}</span>
+                                      <h5 className="font-bold text-sm text-slate-800 leading-snug">{item.nama_program}</h5>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="text-xs font-mono font-bold text-slate-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                                        {formatPercent(Number(item.realisasi_total), Number(item.nilai_anggaran))}
+                                      </span>
+                                      <button
+                                        onClick={() => toggleItemExpand(item.id)}
+                                        className="p-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg transition-colors border border-slate-100"
+                                      >
+                                        <ChevronRight className={cn("size-4 transition-transform", isExpanded ? "rotate-90" : "")} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="bg-slate-50 p-2 rounded-lg">
+                                      <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">RKAT</span>
+                                      <span className="font-mono font-semibold text-slate-700">{formatCurrency(item.nilai_anggaran)}</span>
+                                    </div>
+                                    <div className="bg-emerald-50/50 p-2 rounded-lg">
+                                      <span className="text-[10px] text-emerald-600 font-bold block uppercase tracking-wider">Realisasi</span>
+                                      <span className="font-mono font-bold text-emerald-700">{formatCurrency(item.realisasi_total)}</span>
+                                    </div>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="pt-2 border-t border-dashed border-slate-100 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-medium text-slate-600">
+                                      {months.map(m => (
+                                        <div key={m.key} className="flex justify-between border-b border-slate-50 pb-1">
+                                          <span className="text-slate-400">{m.label}:</span>
+                                          <span className="font-mono font-semibold text-slate-700">{formatCurrency(item[m.key])}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            
+                            {/* Group Sub-Total Card */}
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/60 space-y-2">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">SUBTOTAL {group.title}</span>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-[9px] text-slate-400 font-bold block uppercase">TARGET</span>
+                                  <span className="font-mono font-bold text-slate-800">{formatCurrency(grpTotals.target)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-slate-400 font-bold block uppercase">REALISASI</span>
+                                  <span className="font-mono font-bold text-emerald-800">{formatCurrency(grpTotals.real)}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center pt-1.5 border-t border-slate-200/60">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">Prosentase</span>
+                                <span className="text-xs font-mono font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full">
+                                  {formatPercent(grpTotals.real, grpTotals.target)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Grand Total Card */}
+                    <div className="p-4 bg-slate-100 border-t border-slate-200 space-y-3">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">TOTAL PENGUMPULAN</span>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black block uppercase">TOTAL TARGET</span>
+                          <span className="text-sm font-mono font-black text-slate-900">{formatCurrency(totals.target)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black block uppercase">TOTAL REALISASI</span>
+                          <span className="text-sm font-mono font-black text-emerald-950">{formatCurrency(totals.real)}</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                        <span className="text-[9px] font-black text-slate-400 uppercase">Grand Prosentase</span>
+                        <span className="text-xs font-mono font-black text-slate-900 bg-amber-100/60 px-3 py-1 rounded-full">
+                          {formatPercent(totals.real, totals.target)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -905,71 +1071,136 @@ export default function LaporanKinerja() {
               {loading ? (
                 <div className="p-12 text-center text-slate-400 italic">Memuat data donatur...</div>
               ) : (
-                <div className="overflow-x-auto custom-scrollbar">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                        <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
-                        <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan</th>
-                        <th className="px-4 py-3.5 text-right bg-slate-100/50">Jumlah</th>
-                        {months.map(m => (
-                          <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      {groupedMuzakkiData.map((group) => {
-                        if (group.items.length === 0 && searchQuery) return null;
+                <div>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                    <table className="w-full border-collapse text-left">
+                      <thead>
+                        <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                          <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
+                          <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan</th>
+                          <th className="px-4 py-3.5 text-right bg-slate-100/50">Jumlah</th>
+                          {months.map(m => (
+                            <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {groupedMuzakkiData.map((group) => {
+                          if (group.items.length === 0 && searchQuery) return null;
 
-                        return (
-                          <React.Fragment key={group.key}>
-                            {/* Group Header Row */}
-                            <tr className="bg-slate-50/50">
-                              <td colSpan={15} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
-                                {group.title}
-                              </td>
-                            </tr>
-
-                            {/* Data Rows */}
-                            {group.items.map((item) => (
-                              <tr key={item.key} className="hover:bg-slate-50/30 transition-colors">
-                                <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                  {item.code}
+                          return (
+                            <React.Fragment key={group.key}>
+                              {/* Group Header Row */}
+                              <tr className="bg-slate-50/50">
+                                <td colSpan={15} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
+                                  {group.title}
                                 </td>
-                                <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                  {item.label}
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-primary bg-slate-100/30">
-                                  {formatNumber(item.total)}
-                                </td>
-                                {item.monthly && item.monthly.map((val: number, idx: number) => (
-                                  <td key={idx} className="px-4 py-3 text-right font-mono text-slate-600">
-                                    {val > 0 ? formatNumber(val) : '0'}
-                                  </td>
-                                ))}
                               </tr>
-                            ))}
-                          </React.Fragment>
-                        );
-                      })}
 
-                      {/* Grand Total Row */}
-                      <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
-                        <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
-                        <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
-                          TOTAL DONATUR
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-primary bg-slate-200/50">
-                          {formatNumber(muzakkiGrandTotals.totalSum)}
-                        </td>
-                        {muzakkiGrandTotals.monthlySum.map((val: number, idx: number) => (
-                          <td key={idx} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
-                            {formatNumber(val)}
+                              {/* Data Rows */}
+                              {group.items.map((item) => (
+                                <tr key={item.key} className="hover:bg-slate-50/30 transition-colors">
+                                  <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                    {item.code}
+                                  </td>
+                                  <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                    {item.label}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-bold text-primary bg-slate-100/30">
+                                    {formatNumber(item.total)}
+                                  </td>
+                                  {item.monthly && item.monthly.map((val: number, idx: number) => (
+                                    <td key={idx} className="px-4 py-3 text-right font-mono text-slate-600">
+                                      {val > 0 ? formatNumber(val) : '0'}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+
+                        {/* Grand Total Row */}
+                        <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
+                          <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
+                          <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
+                            TOTAL DONATUR
                           </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
+                          <td className="px-4 py-4 text-right font-mono text-primary bg-slate-200/50">
+                            {formatNumber(muzakkiGrandTotals.totalSum)}
+                          </td>
+                          {muzakkiGrandTotals.monthlySum.map((val: number, idx: number) => (
+                            <td key={idx} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
+                              {formatNumber(val)}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden divide-y divide-slate-100 bg-white">
+                    {groupedMuzakkiData.map((group) => {
+                      if (group.items.length === 0 && searchQuery) return null;
+
+                      return (
+                        <div key={group.key} className="p-4 space-y-4">
+                          <h4 className="font-black text-slate-900 uppercase tracking-wider text-[10px] bg-slate-50 px-3 py-2 rounded-lg">
+                            {group.title}
+                          </h4>
+                          <div className="space-y-3">
+                            {group.items.map((item) => {
+                              const isExpanded = expandedItems[item.key] || false;
+                              return (
+                                <div key={item.key} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm space-y-3">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="space-y-1 pr-2">
+                                      <span className="font-mono text-xs font-bold text-slate-400">{item.code}</span>
+                                      <h5 className="font-bold text-sm text-slate-800 leading-snug">{item.label}</h5>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <div className="text-right bg-slate-50 px-3 py-1.5 rounded-lg">
+                                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider leading-none mb-0.5">Jumlah</span>
+                                        <span className="text-xs font-mono font-bold text-primary">{formatNumber(item.total)}</span>
+                                      </div>
+                                      <button
+                                        onClick={() => toggleItemExpand(item.key)}
+                                        className="p-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg transition-colors border border-slate-100"
+                                      >
+                                        <ChevronRight className={cn("size-4 transition-transform", isExpanded ? "rotate-90" : "")} />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {isExpanded && item.monthly && (
+                                    <div className="pt-2 border-t border-dashed border-slate-100 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-medium text-slate-600">
+                                      {months.map((m, idx) => (
+                                        <div key={m.key} className="flex justify-between border-b border-slate-50 pb-1">
+                                          <span className="text-slate-400">{m.label}:</span>
+                                          <span className="font-mono font-semibold text-slate-700">{formatNumber(item.monthly[idx] || 0)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Grand Total Card */}
+                    <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-between items-center">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">TOTAL DONATUR</span>
+                      <div className="text-right bg-primary/10 px-4 py-2 rounded-xl">
+                        <span className="text-[9px] text-primary font-black block uppercase tracking-wider leading-none mb-0.5">Total</span>
+                        <span className="text-sm font-mono font-black text-primary">{formatNumber(muzakkiGrandTotals.totalSum)}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1069,109 +1300,218 @@ export default function LaporanKinerja() {
               {loading ? (
                 <div className="p-12 text-center text-slate-400 italic">Memuat data laporan...</div>
               ) : (
-                <div className="overflow-x-auto custom-scrollbar">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                        <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
-                        <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan / Program</th>
-                        <th className="px-4 py-3.5 text-right bg-slate-100/50">RKAT</th>
-                        <th className="px-4 py-3.5 text-right bg-emerald-50/30">Realisasi</th>
-                        <th className="px-4 py-3.5 text-right bg-amber-50/30">Prosentase</th>
-                        {months.map(m => (
-                          <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      {groupedPenyaluranRkatData.map((group) => {
-                        if (group.items.length === 0 && searchQuery) return null;
+                <div>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                    <table className="w-full border-collapse text-left">
+                      <thead>
+                        <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                          <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
+                          <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan / Program</th>
+                          <th className="px-4 py-3.5 text-right bg-slate-100/50">RKAT</th>
+                          <th className="px-4 py-3.5 text-right bg-emerald-50/30">Realisasi</th>
+                          <th className="px-4 py-3.5 text-right bg-amber-50/30">Prosentase</th>
+                          {months.map(m => (
+                            <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {groupedPenyaluranRkatData.map((group) => {
+                          if (group.items.length === 0 && searchQuery) return null;
 
-                        const grpTotals = calculateGroupTotals(group.items);
+                          const grpTotals = calculateGroupTotals(group.items);
 
-                        return (
-                          <React.Fragment key={group.key}>
-                            {/* Group Header Row */}
-                            <tr className="bg-slate-50/50">
-                              <td colSpan={17} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
-                                {group.title}
-                              </td>
-                            </tr>
+                          return (
+                            <React.Fragment key={group.key}>
+                              {/* Group Header Row */}
+                              <tr className="bg-slate-50/50">
+                                <td colSpan={17} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
+                                  {group.title}
+                                </td>
+                              </tr>
 
-                            {/* Data Rows */}
-                            {group.items.map((item) => (
-                              <tr key={item.code} className="hover:bg-slate-50/30 transition-colors">
-                                <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                  {item.code}
+                              {/* Data Rows */}
+                              {group.items.map((item) => (
+                                <tr key={item.code} className="hover:bg-slate-50/30 transition-colors">
+                                  <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                    {item.code}
+                                  </td>
+                                  <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)] truncate max-w-[260px]">
+                                    {item.label}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-semibold text-slate-600 bg-slate-100/20">
+                                    {formatCurrency(item.nilai_anggaran)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/10">
+                                    {formatCurrency(item.realisasi_total)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 bg-amber-50/10">
+                                    {formatPercent(Number(item.realisasi_total), Number(item.nilai_anggaran))}
+                                  </td>
+                                  {months.map(m => (
+                                    <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-500">
+                                      {Number(item[m.key]) > 0 ? formatCurrency(item[m.key]) : 'Rp0'}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+
+                              {/* Group Sub-Total Row */}
+                              <tr className="bg-slate-50/40 font-bold border-t border-slate-200">
+                                <td className="px-4 py-3 sticky left-0 bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]"></td>
+                                <td className="px-4 py-3 text-slate-700 uppercase tracking-wider text-[10px] sticky left-[64px] bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                  SUBTOTAL {group.title}
                                 </td>
-                                <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)] truncate max-w-[260px]">
-                                  {item.label}
+                                <td className="px-4 py-3 text-right font-mono text-slate-800 bg-slate-100/50">
+                                  {formatCurrency(grpTotals.target)}
                                 </td>
-                                <td className="px-4 py-3 text-right font-mono font-semibold text-slate-600 bg-slate-100/20">
-                                  {formatCurrency(item.nilai_anggaran)}
+                                <td className="px-4 py-3 text-right font-mono text-emerald-800 bg-emerald-50/20">
+                                  {formatCurrency(grpTotals.real)}
                                 </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/10">
-                                  {formatCurrency(item.realisasi_total)}
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 bg-amber-50/10">
-                                  {formatPercent(Number(item.realisasi_total), Number(item.nilai_anggaran))}
+                                <td className="px-4 py-3 text-right font-mono text-amber-800 bg-amber-50/20">
+                                  {formatPercent(grpTotals.real, grpTotals.target)}
                                 </td>
                                 {months.map(m => (
-                                  <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-500">
-                                    {Number(item[m.key]) > 0 ? formatCurrency(item[m.key]) : 'Rp0'}
+                                  <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-700 bg-slate-50/30">
+                                    {formatCurrency(grpTotals.monthlySum[m.key])}
                                   </td>
                                 ))}
                               </tr>
-                            ))}
+                            </React.Fragment>
+                          );
+                        })}
 
-                            {/* Group Sub-Total Row */}
-                            <tr className="bg-slate-50/40 font-bold border-t border-slate-200">
-                              <td className="px-4 py-3 sticky left-0 bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]"></td>
-                              <td className="px-4 py-3 text-slate-700 uppercase tracking-wider text-[10px] sticky left-[64px] bg-slate-50/60 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                SUBTOTAL {group.title}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono text-slate-800 bg-slate-100/50">
-                                {formatCurrency(grpTotals.target)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono text-emerald-800 bg-emerald-50/20">
-                                {formatCurrency(grpTotals.real)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono text-amber-800 bg-amber-50/20">
-                                {formatPercent(grpTotals.real, grpTotals.target)}
-                              </td>
-                              {months.map(m => (
-                                <td key={m.key} className="px-4 py-3 text-right font-mono text-slate-700 bg-slate-50/30">
-                                  {formatCurrency(grpTotals.monthlySum[m.key])}
-                                </td>
-                              ))}
-                            </tr>
-                          </React.Fragment>
-                        );
-                      })}
-
-                      {/* Grand Total Row */}
-                      <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
-                        <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
-                        <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
-                          TOTAL PENYALURAN
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-slate-950 bg-slate-200/50">
-                          {formatCurrency(penyaluranTotals.target)}
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-emerald-900 bg-emerald-100/30">
-                          {formatCurrency(penyaluranTotals.real)}
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-slate-900 bg-amber-100/30">
-                          {formatPercent(penyaluranTotals.real, penyaluranTotals.target)}
-                        </td>
-                        {months.map(m => (
-                          <td key={m.key} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
-                            {formatCurrency(penyaluranTotals.monthlySum[m.key])}
+                        {/* Grand Total Row */}
+                        <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
+                          <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
+                          <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
+                            TOTAL PENYALURAN
                           </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
+                          <td className="px-4 py-4 text-right font-mono text-slate-950 bg-slate-200/50">
+                            {formatCurrency(penyaluranTotals.target)}
+                          </td>
+                          <td className="px-4 py-4 text-right font-mono text-emerald-900 bg-emerald-100/30">
+                            {formatCurrency(penyaluranTotals.real)}
+                          </td>
+                          <td className="px-4 py-4 text-right font-mono text-slate-900 bg-amber-100/30">
+                            {formatPercent(penyaluranTotals.real, penyaluranTotals.target)}
+                          </td>
+                          {months.map(m => (
+                            <td key={m.key} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
+                              {formatCurrency(penyaluranTotals.monthlySum[m.key])}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden divide-y divide-slate-100 bg-white">
+                    {groupedPenyaluranRkatData.map((group) => {
+                      if (group.items.length === 0 && searchQuery) return null;
+                      const grpTotals = calculateGroupTotals(group.items);
+
+                      return (
+                        <div key={group.key} className="p-4 space-y-4">
+                          <h4 className="font-black text-slate-900 uppercase tracking-wider text-[10px] bg-slate-50 px-3 py-2 rounded-lg">
+                            {group.title}
+                          </h4>
+                          <div className="space-y-3">
+                            {group.items.map((item) => {
+                              const isExpanded = expandedItems[item.code] || false;
+                              return (
+                                <div key={item.code} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm space-y-3">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="space-y-1 pr-2">
+                                      <span className="font-mono text-xs font-bold text-slate-400">{item.code}</span>
+                                      <h5 className="font-bold text-sm text-slate-800 leading-snug">{item.label}</h5>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="text-xs font-mono font-bold text-slate-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                                        {formatPercent(Number(item.realisasi_total), Number(item.nilai_anggaran))}
+                                      </span>
+                                      <button
+                                        onClick={() => toggleItemExpand(item.code)}
+                                        className="p-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg transition-colors border border-slate-100"
+                                      >
+                                        <ChevronRight className={cn("size-4 transition-transform", isExpanded ? "rotate-90" : "")} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="bg-slate-50 p-2 rounded-lg">
+                                      <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">RKAT</span>
+                                      <span className="font-mono font-semibold text-slate-700">{formatCurrency(item.nilai_anggaran)}</span>
+                                    </div>
+                                    <div className="bg-emerald-50/50 p-2 rounded-lg">
+                                      <span className="text-[10px] text-emerald-600 font-bold block uppercase tracking-wider">Realisasi</span>
+                                      <span className="font-mono font-bold text-emerald-700">{formatCurrency(item.realisasi_total)}</span>
+                                    </div>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="pt-2 border-t border-dashed border-slate-100 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-medium text-slate-600">
+                                      {months.map(m => (
+                                        <div key={m.key} className="flex justify-between border-b border-slate-50 pb-1">
+                                          <span className="text-slate-400">{m.label}:</span>
+                                          <span className="font-mono font-semibold text-slate-700">{formatCurrency(item[m.key])}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            
+                            {/* Group Sub-Total Card */}
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/60 space-y-2">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">SUBTOTAL {group.title}</span>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-[9px] text-slate-400 font-bold block uppercase">TARGET</span>
+                                  <span className="font-mono font-bold text-slate-800">{formatCurrency(grpTotals.target)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-slate-400 font-bold block uppercase">REALISASI</span>
+                                  <span className="font-mono font-bold text-emerald-800">{formatCurrency(grpTotals.real)}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center pt-1.5 border-t border-slate-200/60">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">Prosentase</span>
+                                <span className="text-xs font-mono font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full">
+                                  {formatPercent(grpTotals.real, grpTotals.target)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Grand Total Card */}
+                    <div className="p-4 bg-slate-100 border-t border-slate-200 space-y-3">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">TOTAL PENYALURAN</span>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black block uppercase">TOTAL TARGET</span>
+                          <span className="text-sm font-mono font-black text-slate-900">{formatCurrency(penyaluranTotals.target)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black block uppercase">TOTAL REALISASI</span>
+                          <span className="text-sm font-mono font-black text-emerald-950">{formatCurrency(penyaluranTotals.real)}</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                        <span className="text-[9px] font-black text-slate-400 uppercase">Grand Prosentase</span>
+                        <span className="text-xs font-mono font-black text-slate-900 bg-amber-100/60 px-3 py-1 rounded-full">
+                          {formatPercent(penyaluranTotals.real, penyaluranTotals.target)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1191,71 +1531,136 @@ export default function LaporanKinerja() {
               {loading ? (
                 <div className="p-12 text-center text-slate-400 italic">Memuat data mustahik...</div>
               ) : (
-                <div className="overflow-x-auto custom-scrollbar">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                        <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
-                        <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan</th>
-                        <th className="px-4 py-3.5 text-right bg-slate-100/50">Jumlah</th>
-                        {months.map(m => (
-                          <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      {groupedMustahikData.map((group) => {
-                        if (group.items.length === 0 && searchQuery) return null;
+                <div>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                    <table className="w-full border-collapse text-left">
+                      <thead>
+                        <tr className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                          <th className="px-4 py-3.5 shrink-0 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Kode</th>
+                          <th className="px-4 py-3.5 min-w-[240px] sticky left-[64px] bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">Keterangan</th>
+                          <th className="px-4 py-3.5 text-right bg-slate-100/50">Jumlah</th>
+                          {months.map(m => (
+                            <th key={m.key} className="px-4 py-3.5 text-right font-mono">{m.label.substring(0, 3)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {groupedMustahikData.map((group) => {
+                          if (group.items.length === 0 && searchQuery) return null;
 
-                        return (
-                          <React.Fragment key={group.key}>
-                            {/* Group Header Row */}
-                            <tr className="bg-slate-50/50">
-                              <td colSpan={15} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
-                                {group.title}
-                              </td>
-                            </tr>
-
-                            {/* Data Rows */}
-                            {group.items.map((item) => (
-                              <tr key={item.code} className="hover:bg-slate-50/30 transition-colors">
-                                <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                  {item.code}
+                          return (
+                            <React.Fragment key={group.key}>
+                              {/* Group Header Row */}
+                              <tr className="bg-slate-50/50">
+                                <td colSpan={15} className="px-4 py-2.5 font-black text-slate-900 uppercase tracking-widest text-[9px] bg-slate-50/60 sticky left-0 z-0">
+                                  {group.title}
                                 </td>
-                                <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
-                                  {item.label}
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-primary bg-slate-100/30">
-                                  {formatNumber(item.total)}
-                                </td>
-                                {item.monthly && item.monthly.map((val: number, idx: number) => (
-                                  <td key={idx} className="px-4 py-3 text-right font-mono text-slate-600">
-                                    {val > 0 ? formatNumber(val) : '0'}
-                                  </td>
-                                ))}
                               </tr>
-                            ))}
-                          </React.Fragment>
-                        );
-                      })}
 
-                      {/* Grand Total Row */}
-                      <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
-                        <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
-                        <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
-                          TOTAL MUSTAHIK
-                        </td>
-                        <td className="px-4 py-4 text-right font-mono text-primary bg-slate-200/50">
-                          {formatNumber(mustahikGrandTotals.totalSum)}
-                        </td>
-                        {mustahikGrandTotals.monthlySum.map((val: number, idx: number) => (
-                          <td key={idx} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
-                            {formatNumber(val)}
+                              {/* Data Rows */}
+                              {group.items.map((item) => (
+                                <tr key={item.code} className="hover:bg-slate-50/30 transition-colors">
+                                  <td className="px-4 py-3 font-mono font-bold text-slate-400 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                    {item.code}
+                                  </td>
+                                  <td className="px-4 py-3 font-bold text-slate-800 sticky left-[64px] bg-white z-10 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
+                                    {item.label}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-bold text-primary bg-slate-100/30">
+                                    {formatNumber(item.total)}
+                                  </td>
+                                  {item.monthly && item.monthly.map((val: number, idx: number) => (
+                                    <td key={idx} className="px-4 py-3 text-right font-mono text-slate-600">
+                                      {val > 0 ? formatNumber(val) : '0'}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+
+                        {/* Grand Total Row */}
+                        <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-300">
+                          <td className="px-4 py-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]"></td>
+                          <td className="px-4 py-4 text-slate-900 uppercase tracking-widest text-[10px] sticky left-[64px] bg-slate-100 z-10 shadow-[1px_0_0_0_rgba(203,213,225,1)]">
+                            TOTAL MUSTAHIK
                           </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
+                          <td className="px-4 py-4 text-right font-mono text-primary bg-slate-200/50">
+                            {formatNumber(mustahikGrandTotals.totalSum)}
+                          </td>
+                          {mustahikGrandTotals.monthlySum.map((val: number, idx: number) => (
+                            <td key={idx} className="px-4 py-4 text-right font-mono text-slate-900 bg-slate-200/30">
+                              {formatNumber(val)}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden divide-y divide-slate-100 bg-white">
+                    {groupedMustahikData.map((group) => {
+                      if (group.items.length === 0 && searchQuery) return null;
+
+                      return (
+                        <div key={group.key} className="p-4 space-y-4">
+                          <h4 className="font-black text-slate-900 uppercase tracking-wider text-[10px] bg-slate-50 px-3 py-2 rounded-lg">
+                            {group.title}
+                          </h4>
+                          <div className="space-y-3">
+                            {group.items.map((item) => {
+                              const isExpanded = expandedItems[item.code] || false;
+                              return (
+                                <div key={item.code} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm space-y-3">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="space-y-1 pr-2">
+                                      <span className="font-mono text-xs font-bold text-slate-400">{item.code}</span>
+                                      <h5 className="font-bold text-sm text-slate-800 leading-snug">{item.label}</h5>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <div className="text-right bg-slate-50 px-3 py-1.5 rounded-lg">
+                                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider leading-none mb-0.5">Jumlah</span>
+                                        <span className="text-xs font-mono font-bold text-primary">{formatNumber(item.total)}</span>
+                                      </div>
+                                      <button
+                                        onClick={() => toggleItemExpand(item.code)}
+                                        className="p-1.5 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-lg transition-colors border border-slate-100"
+                                      >
+                                        <ChevronRight className={cn("size-4 transition-transform", isExpanded ? "rotate-90" : "")} />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {isExpanded && item.monthly && (
+                                    <div className="pt-2 border-t border-dashed border-slate-100 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-medium text-slate-600">
+                                      {months.map((m, idx) => (
+                                        <div key={m.key} className="flex justify-between border-b border-slate-50 pb-1">
+                                          <span className="text-slate-400">{m.label}:</span>
+                                          <span className="font-mono font-semibold text-slate-700">{formatNumber(item.monthly[idx] || 0)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Grand Total Card */}
+                    <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-between items-center">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">TOTAL MUSTAHIK</span>
+                      <div className="text-right bg-primary/10 px-4 py-2 rounded-xl">
+                        <span className="text-[9px] text-primary font-black block uppercase tracking-wider leading-none mb-0.5">Total</span>
+                        <span className="text-sm font-mono font-black text-primary">{formatNumber(mustahikGrandTotals.totalSum)}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1273,24 +1678,24 @@ export default function LaporanKinerja() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col border border-slate-100"
             >
-              {/* Modal Header */}
-              <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
-                    <Settings2 className="size-5 text-primary" />
-                    Pengaturan COA Laporan Kinerja
-                  </h3>
-                  <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-                    Hubungkan baris Laporan Kinerja dengan kode COA Akuntansi untuk perhitungan otomatis.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setIsSettingsOpen(false)}
-                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
-                >
-                  <X className="size-5" />
-                </button>
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                  <Settings2 className="size-5 text-primary" />
+                  Pengaturan COA & Perhitungan Laporan Kinerja
+                </h3>
+                <p className="text-[11px] text-slate-300 font-medium mt-0.5">
+                  Kelola pemetaan baris laporan dengan kode COA Akuntansi untuk perhitungan realisasi otomatis dan penambahan poin konfigurasi.
+                </p>
               </div>
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
 
               {/* Modal Subheader/Filters */}
               <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1331,6 +1736,56 @@ export default function LaporanKinerja() {
 
               {/* Modal Body / Table */}
               <div className="flex-1 overflow-y-auto p-6">
+                
+                {/* Form Tambah Kegiatan Baru */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
+                  <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider mb-3 flex items-center gap-1.5">
+                    <Plus className="size-4 text-primary" />
+                    Tambah Kegiatan / Baris Laporan Baru ({mappingFilterTab === 'pengumpulan' ? 'Pengumpulan' : 'Penyaluran'})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Kode Unik / Row Key *</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: rkat_zakat_baru"
+                        value={newRowKey}
+                        onChange={(e) => setNewRowKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary bg-white text-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Nama Kegiatan / Label *</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: 1.7 Zakat Lainnya"
+                        value={newRowLabel}
+                        onChange={(e) => setNewRowLabel(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary bg-white text-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Kode COA (Pisahkan dengan koma)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Contoh: 4110104"
+                          value={newCoaCodes}
+                          onChange={(e) => setNewCoaCodes(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-white text-slate-800"
+                        />
+                        <button
+                          onClick={handleAddNewMapping}
+                          disabled={saveLoading || !newRowKey || !newRowLabel}
+                          className="px-4 bg-primary hover:bg-primary/90 disabled:bg-slate-300 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition-all whitespace-nowrap"
+                        >
+                          Tambah
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -1340,9 +1795,19 @@ export default function LaporanKinerja() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mappings
+                    {[...mappings]
                       .filter(m => m.tab === mappingFilterTab)
                       .filter(m => (m.row_label || '').toLowerCase().includes(searchMappingQuery.toLowerCase()))
+                      .sort((a, b) => {
+                        const codeA = mappingCodeMap[a.row_key] || '';
+                        const codeB = mappingCodeMap[b.row_key] || '';
+                        if (codeA && codeB) {
+                          return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+                        }
+                        if (codeA) return -1;
+                        if (codeB) return 1;
+                        return (a.row_label || '').localeCompare(b.row_label || '');
+                      })
                       .map((item) => {
                         const isEditing = editingMappingKey === item.row_key;
                         return (

@@ -56,8 +56,8 @@ const menuGroups = [
   {
     title: "MENU UTAMA",
     items: [
-      { name: "Executive", icon: LayoutDashboard, active: true, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Laporan Kinerja", icon: LineChart, roles: ["Super_Admin", "Wakil_Ketua_I", "Staf_Pelaporan", "Staf_Pengumpulan"] },
+      { name: "Dashboard", icon: LayoutDashboard, active: true, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Keuangan", "Kabag_Keuangan", "Staf_Pengumpulan", "Staf_Pelaporan", "Tim_Monev", "Humas"] },
+      { name: "Laporan Kinerja", icon: LineChart, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Keuangan", "Staf_Pelaporan"] },
     ]
   },
   {

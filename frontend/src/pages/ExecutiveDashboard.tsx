@@ -16,7 +16,6 @@ import {
   LabelList,
 } from 'recharts';
 import {
-  ChevronRight,
   TrendingUp,
   Minus,
   HandCoins,
@@ -130,14 +129,9 @@ export default function ExecutiveDashboard() {
 
       {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1">
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Dashboard</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Executive</span>
-        </nav>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-2">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Pimpinan</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard</h2>
             <p className="text-slate-500 font-medium text-sm">
               Tahun Anggaran {currentTahunAnggaran} · Posisi per {currentBigThreeData.pengumpulan.bulan}
             </p>

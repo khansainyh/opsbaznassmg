@@ -23,7 +23,8 @@ import {
   Layers,
   FileText,
   DollarSign,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -85,6 +86,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
   
   const [selectedData, setSelectedData] = useState<any>(null);
   const [modalCategory, setModalCategory] = useState<'Perorangan' | 'Lembaga'>('Perorangan');
@@ -520,19 +522,19 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
             </select>
           </div>
           
-          <div className="flex gap-3">
+          <div className="hidden md:flex gap-3">
             <button 
               onClick={() => setIsMigrationModalOpen(true)}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 shadow-sm"
+              className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap border border-slate-200 shadow-sm"
             >
-              <Upload className="size-4 text-slate-500" />
+              <Upload className="size-4 shrink-0 text-slate-400" />
               Migrasi Muzakki
             </button>
             <button 
               onClick={() => { setModalCategory('Perorangan'); setIsModalOpen(true); }}
-              className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
+              className="bg-primary hover:bg-primary/95 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95 cursor-pointer whitespace-nowrap"
             >
-              <Plus className="size-4" />
+              <Plus className="size-4 shrink-0" />
               Tambah Muzakki
             </button>
           </div>
@@ -612,7 +614,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => handleTerimaZis(muzakki)}
                         className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-emerald-600 rounded-xl transition-colors" title="Terima ZIS">
@@ -685,7 +687,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     modalCategory === 'Perorangan' ? "bg-primary text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
                   )}
                 >
-                  Perorangan (Individu)
+                  Perorangan
                 </button>
                 <button 
                   type="button" 
@@ -699,7 +701,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                 </button>
               </div>
               <form onSubmit={handleAddMuzakki} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWZ</label>
                     <input name="npwz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Otomatis..." />
@@ -716,7 +718,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
 
                 {modalCategory === 'Perorangan' ? (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lengkap *</label>
                         <input required name="name" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama..." />
@@ -727,7 +729,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
                         <input name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Tempat lahir..." />
@@ -738,7 +740,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
                         <select required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer">
@@ -752,7 +754,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Handphone *</label>
                         <input required name="handphone" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="No Hp..." />
@@ -763,7 +765,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</label>
                         <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Email..." />
@@ -857,7 +859,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                   </>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lembaga *</label>
                         <input required name="name" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama instansi..." />
@@ -868,7 +870,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Pengukuhan</label>
                         <input name="no_pengukuhan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nomor..." />
@@ -879,7 +881,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Website</label>
                         <input name="website" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="www..." />
@@ -894,7 +896,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Kantor</label>
                         <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Email..." />
@@ -908,7 +910,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                       <span className="text-[9px] font-bold text-primary uppercase tracking-wider block">Bagian Contact Person (CP)</span>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Nama CP *</label>
                           <input required name="cp_nama" type="text" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="Nama..." />
@@ -1016,10 +1018,10 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                   </div>
                 </div>
 
-                <div className="pt-4 flex gap-3 border-t border-slate-100">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Batal</button>
-                  <button type="submit" disabled={isLoading} className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
-                    {isLoading ? 'Menyimpan...' : 'Simpan Data'}
+                <div className="pt-4 border-t border-slate-100">
+                  <button type="submit" disabled={isLoading} className="w-full px-4 sm:px-10 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer">
+                    <Save className="size-4" />
+                    <span>Simpan<span className="hidden sm:inline"> Data</span></span>
                   </button>
                 </div>
               </form>
@@ -1050,7 +1052,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                 </button>
               </div>
               <form onSubmit={handleUpdateMuzakki} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NPWZ</label>
                     <input defaultValue={selectedData.npwz} name="npwz" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1067,7 +1069,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
 
                 {modalCategory === 'Perorangan' ? (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lengkap *</label>
                         <input defaultValue={selectedData.nama} required name="name" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1078,7 +1080,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
                         <input defaultValue={selectedData.tempat_lahir || ''} name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1089,7 +1091,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
                         <select defaultValue={selectedData.jenis_kelamin || 'Pria'} required name="jenis_kelamin" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer">
@@ -1103,7 +1105,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Handphone *</label>
                         <input defaultValue={selectedData.handphone || ''} required name="handphone" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1114,7 +1116,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</label>
                         <input defaultValue={selectedData.email || ''} name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1208,7 +1210,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                   </>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Lembaga *</label>
                         <input defaultValue={selectedData.nama} required name="name" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1219,7 +1221,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Pengukuhan</label>
                         <input defaultValue={selectedData.no_pengukuhan || ''} name="no_pengukuhan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1230,7 +1232,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Website</label>
                         <input defaultValue={selectedData.website || ''} name="website" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1245,7 +1247,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Kantor</label>
                         <input defaultValue={selectedData.email || ''} name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
@@ -1259,7 +1261,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                       <span className="text-[9px] font-bold text-primary uppercase tracking-wider block">Bagian Contact Person (CP)</span>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Nama CP *</label>
                           <input defaultValue={selectedData.cp_nama || ''} required name="cp_nama" type="text" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:ring-primary focus:border-primary outline-none transition-all" />
@@ -1368,15 +1370,22 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                 </div>
 
                 <div className="pt-4 flex gap-3 border-t border-slate-100">
-                  <button type="button" onClick={handleDeleteMuzakki} className="px-6 py-3 border border-red-200 bg-red-50 rounded-xl text-sm font-bold text-red-600 hover:bg-red-100 transition-all flex items-center justify-center">
+                  <button 
+                    type="button" 
+                    onClick={handleDeleteMuzakki} 
+                    className="px-3.5 sm:px-4 py-3 text-sm font-bold text-rose-500 border border-rose-200 rounded-xl bg-rose-50 hover:bg-rose-100 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
                     <Trash2 className="size-4" />
+                    <span>Hapus<span className="hidden sm:inline"> Muzakki</span></span>
                   </button>
-                  <div className="flex-1 flex gap-3">
-                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Batal</button>
-                    <button type="submit" disabled={isLoading} className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50">
-                      {isLoading ? 'Menyimpan...' : 'Simpan Data'}
-                    </button>
-                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={isLoading} 
+                    className="flex-1 px-4 sm:px-10 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Save className="size-4" />
+                    <span>Simpan<span className="hidden sm:inline"> Data</span></span>
+                  </button>
                 </div>
               </form>
             </motion.div>
@@ -1422,7 +1431,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-slate-700">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-700">
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                       <Layers className="size-3.5" /> NPWZ
@@ -1435,7 +1444,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     </p>
                     <p className="text-sm font-semibold text-slate-800 mt-1 font-mono">{selectedData.npwp || '-'}</p>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 md:col-span-2">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                       <FileText className="size-3.5" /> No. Rekening
                     </p>
@@ -1513,13 +1522,13 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                           {selectedData.zakat_per_bulan ? `Rp ${Number(selectedData.zakat_per_bulan).toLocaleString('id-ID')}` : '-'}
                         </p>
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-1 md:col-span-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                           <MapPin className="size-3.5" /> Alamat Rumah
                         </p>
                         <p className="text-sm font-semibold text-slate-800 mt-1">{selectedData.alamat || '-'}</p>
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-1 md:col-span-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                           <MapPin className="size-3.5" /> Alamat Kantor
                         </p>
@@ -1568,14 +1577,14 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                           {selectedData.zakat_per_bulan ? `Rp ${Number(selectedData.zakat_per_bulan).toLocaleString('id-ID')}` : '-'}
                         </p>
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-1 md:col-span-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                           <MapPin className="size-3.5" /> Alamat Lembaga
                         </p>
                         <p className="text-sm font-semibold text-slate-800 mt-1">{selectedData.alamat || '-'}</p>
                       </div>
 
-                      <div className="col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                      <div className="col-span-1 md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
                         <span className="text-[9px] font-bold text-primary uppercase tracking-wider block">Contact Person (CP)</span>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div>
@@ -1595,7 +1604,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     </>
                   )}
 
-                  <div className="col-span-2">
+                  <div className="col-span-1 md:col-span-2">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                       <FileText className="size-3.5" /> Catatan / Keterangan
                     </p>
@@ -1609,9 +1618,9 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                   <button 
                     type="button" 
                     onClick={() => setIsDetailModalOpen(false)}
-                    className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold uppercase tracking-wider transition-all"
+                    className="w-full px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all cursor-pointer"
                   >
-                    Tutup Detail
+                    Tutup
                   </button>
                 </div>
               </div>
@@ -1695,6 +1704,53 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
         )}
       </AnimatePresence>
 
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        {/* FAB Options */}
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
+            >
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <Upload className="size-4 text-slate-500" />
+                Migrasi Muzakki
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setModalCategory('Perorangan');
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Tambah Muzakki
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main FAB Trigger */}
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className={cn(
+            "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+            isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+          )}
+        >
+          <Plus className="size-6" />
+        </button>
+      </div>
     </div>
   );
 
