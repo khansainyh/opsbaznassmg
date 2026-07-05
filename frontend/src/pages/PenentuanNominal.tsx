@@ -9,11 +9,11 @@ import {
   ClipboardList,
   AlertTriangle,
   Banknote,
-  UserCheck,
   Info,
   RotateCcw,
   Home,
-  ExternalLink
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -48,7 +48,8 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
   useEffect(() => {
     const getTemplateKey = () => {
       if (!selectedProposal) return 'survey_template_individu';
-      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok');
+      const jp = (selectedProposal.jenisPengajuan || '').toLowerCase();
+      const isLembaga = jp.includes('lembaga') || jp.includes('kelompok');
       if (isLembaga) return 'survey_template_lembaga';
       
       const code = selectedProposal.programCode;
@@ -284,7 +285,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
           Penentuan Nominal Bantuan
         </h2>
         <p className="text-slate-500 font-medium">
-          Layanan penetapan besaran nominal dan tipe penyaluran bantuan bagi mustahik yang disetujui. Setelah nominal diselaraskan dengan anggaran RKAT, teruskan proposal untuk proses pencairan dana bank.
+          Layanan penetapan besaran nominal dan tipe penyaluran bantuan bagi mustahik yang disetujui.
         </p>
       </motion.div>
 
@@ -489,10 +490,14 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                         <button
                           disabled={isSubmitting}
                           onClick={() => handleApprove(item.id)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white text-[10px] font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
+                          className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-50"
+                          title="Setujui"
                         >
-                          {isSubmitting ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <UserCheck className="size-3" />}
-                          SETUJU
+                          {isSubmitting ? (
+                            <div className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
                         </button>
                       </div>
                     </td>

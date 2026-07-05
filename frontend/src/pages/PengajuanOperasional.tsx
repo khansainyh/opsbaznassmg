@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { 
-  FileText, 
   Plus, 
   Clock, 
   CheckCircle2, 
@@ -154,26 +153,23 @@ export default function PengajuanOperasional() {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50">
-      {/* Page Header */}
+      {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="border-b border-slate-100 pb-5 no-print"
+        className="space-y-2 no-print"
       >
-        <div className="space-y-1">
-          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Operasional</span>
-            <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">Pengajuan Operasional</span>
-          </nav>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <FileText className="size-8 text-primary shrink-0" />
-            Pengajuan Operasional
-          </h2>
-          <p className="text-slate-500 font-medium text-xs md:text-sm">
-            Ajukan pencairan dana operasional/rutin kantor non-proposal bantuan BAZNAS Kota Semarang.
-          </p>
-        </div>
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Operasional</span>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-primary font-bold">Pengajuan Operasional</span>
+        </nav>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+          Pengajuan Operasional
+        </h2>
+        <p className="text-slate-500 font-medium">
+          Ajukan pencairan dana operasional/rutin kantor non-proposal bantuan.
+        </p>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">

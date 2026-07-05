@@ -69,7 +69,8 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
   React.useEffect(() => {
     const getTemplateKey = () => {
       if (!selectedProposal) return 'survey_template_individu';
-      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok');
+      const jp = (selectedProposal.jenisPengajuan || '').toLowerCase();
+      const isLembaga = jp.includes('lembaga') || jp.includes('kelompok');
       if (isLembaga) return 'survey_template_lembaga';
       
       const code = selectedProposal.programCode;
@@ -305,11 +306,11 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
         <nav className="flex text-sm gap-2 items-center">
           <span className="text-slate-400">Persetujuan</span>
           <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Persetujuan Pimpinan</span>
+          <span className="text-primary font-bold">Persetujuan Ketua</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Persetujuan Pimpinan</h2>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Persetujuan Ketua</h2>
         <p className="text-slate-500 font-medium">
-          Layanan otorisasi dan persetujuan akhir oleh Ketua atau Wakil Ketua atas permohonan bantuan serta surat masuk. Setelah disetujui, proposal diteruskan ke tahap penentuan nominal dan surat ditandai selesai.
+          Layanan otorisasi dan persetujuan akhir oleh Ketua atas permohonan bantuan serta surat masuk.
         </p>
       </motion.div>
 
@@ -326,61 +327,70 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
         className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden">
         
         {/* Filter & Bulk Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between bg-white sticky top-0 z-10">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={toggleSelectAll}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200"
-            >
-              {selectedIds.length === (activeTab === 'proposal' ? filteredProposal.length : filteredSurat.length) && (activeTab === 'proposal' ? filteredProposal.length : filteredSurat.length) > 0 ? (
-                <CheckSquare className="size-4 text-primary" />
-              ) : (
-                <Square className="size-4" />
-              )}
-              Pilih Semua
-            </button>
-            {selectedIds.length > 0 && (
-              <div className="flex gap-2">
-                <motion.button 
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  onClick={handleBulkApprove}
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {isSubmitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <UserCheck className="size-4" />}
-                  SETUJUI {selectedIds.length} DATA
-                </motion.button>
-                <motion.button 
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  onClick={handleBulkReject}
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 text-xs font-black rounded-lg hover:bg-rose-100 transition-all active:scale-95 disabled:opacity-50 border border-rose-200"
-                >
-                  {isSubmitting ? <div className="w-4 h-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" /> : <X className="size-4" />}
-                  TOLAK {selectedIds.length} DATA
-                </motion.button>
+        <div className="p-4 border-b border-slate-100 bg-white sticky top-0 z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
+              {/* Tabs */}
+              <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto order-1 sm:order-2">
+                <button onClick={() => { setActiveTab('proposal'); setSelectedIds([]); }} className={cn(
+                  'flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all',
+                  activeTab === 'proposal' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                )}>
+                  Proposal ({antreanProposal.length})
+                </button>
+                <button onClick={() => { setActiveTab('surat'); setSelectedIds([]); }} className={cn(
+                  'flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all',
+                  activeTab === 'surat' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                )}>
+                  Surat ({antreanSurat.length})
+                </button>
               </div>
-            )}
-            <div className="flex bg-slate-100 p-1 rounded-lg">
-              <button onClick={() => { setActiveTab('proposal'); setSelectedIds([]); }} className={cn(
-                'px-4 py-1.5 rounded-md text-xs font-bold transition-all',
-                activeTab === 'proposal' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              )}>
-                Proposal ({antreanProposal.length})
-              </button>
-              <button onClick={() => { setActiveTab('surat'); setSelectedIds([]); }} className={cn(
-                'px-4 py-1.5 rounded-md text-xs font-bold transition-all',
-                activeTab === 'surat' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              )}>
-                Surat ({antreanSurat.length})
-              </button>
-            </div>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-              <input type="text" placeholder="Cari..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" />
+
+              {/* Search input */}
+              <div className="relative w-full sm:w-64 order-2 sm:order-3 sm:ml-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <input type="text" placeholder="Cari..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" />
+              </div>
+
+              {/* Pilih Semua & Bulk Actions */}
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto order-3 sm:order-1">
+                <button 
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200"
+                >
+                  {selectedIds.length === (activeTab === 'proposal' ? filteredProposal.length : filteredSurat.length) && (activeTab === 'proposal' ? filteredProposal.length : filteredSurat.length) > 0 ? (
+                    <CheckSquare className="size-4 text-primary" />
+                  ) : (
+                    <Square className="size-4" />
+                  )}
+                  Pilih Semua
+                </button>
+                {selectedIds.length > 0 && (
+                  <div className="flex gap-2">
+                    <motion.button 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      onClick={handleBulkApprove}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isSubmitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <UserCheck className="size-4" />}
+                      SETUJUI {selectedIds.length} DATA
+                    </motion.button>
+                    <motion.button 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      onClick={handleBulkReject}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 text-xs font-black rounded-lg hover:bg-rose-100 transition-all active:scale-95 disabled:opacity-50 border border-rose-200"
+                    >
+                      {isSubmitting ? <div className="w-4 h-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" /> : <X className="size-4" />}
+                      TOLAK {selectedIds.length} DATA
+                    </motion.button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -433,8 +443,10 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                     </td>
                     <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => openProposalModal(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all mx-auto">
-                        <Eye className="size-3.5" /> Tinjau
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all mx-auto"
+                        title="Lihat Detail"
+                      >
+                        <Eye className="size-4" />
                       </button>
                     </td>
                   </tr>
@@ -463,8 +475,10 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                     </td>
                     <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => openSuratModal(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all mx-auto">
-                        <Eye className="size-3.5" /> Tinjau
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all mx-auto"
+                        title="Lihat Detail"
+                      >
+                        <Eye className="size-4" />
                       </button>
                     </td>
                   </tr>
@@ -806,22 +820,22 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
               </div>
 
               {/* Modal Footer */}
-              <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+              <div className="p-5 md:p-6 border-t border-slate-100 bg-slate-50 flex flex-col-reverse md:flex-row gap-2.5 md:gap-3 shrink-0">
                 <button onClick={() => !isSubmitting && setIsModalOpen(false)} disabled={isSubmitting}
-                  className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50">
+                  className="hidden md:inline-flex px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50">
                   Batal
                 </button>
                 <button onClick={handleReject} disabled={isSubmitting}
-                  className="px-6 py-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm font-bold hover:bg-rose-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  className="w-full md:w-auto px-6 py-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm font-bold hover:bg-rose-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                   <X className="size-4" /> Tolak
                 </button>
                 <button onClick={handleApprove}
                   disabled={isSubmitting}
-                  className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                  className="w-full md:flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                 >
                   {isSubmitting
                     ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Memproses...</>
-                    : <><CheckCircle2 className="size-4" /> Berikan Persetujuan Final</>}
+                    : <><CheckCircle2 className="size-4" /> Setujui &amp; Selesaikan</>}
                 </button>
               </div>
             </motion.div>

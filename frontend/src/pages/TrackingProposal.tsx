@@ -198,7 +198,8 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
   React.useEffect(() => {
     const getTemplateKey = () => {
       if (!selectedProposal) return 'survey_template_individu';
-      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok');
+      const jp = (selectedProposal.jenisPengajuan || '').toLowerCase();
+      const isLembaga = jp.includes('lembaga') || jp.includes('kelompok');
       if (isLembaga) return 'survey_template_lembaga';
       
       const code = selectedProposal.programCode;
@@ -269,7 +270,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           <span className="text-primary font-bold">Tracking Proposal</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Tracking Proposal</h2>
-        <p className="text-slate-500 font-medium">Layanan monitoring dan penelusuran alur disposisi berkas proposal secara real-time. Setelah data terekam, pantau status verifikasi dan hasil assessment lapangan secara berkala untuk mempermudah proses evaluasi kelayakan bantuan.</p>
+        <p className="text-slate-500 font-medium">Layanan monitoring dan penelusuran alur disposisi berkas proposal secara real-time.</p>
       </motion.div>
 
       {/* Stats */}
@@ -306,13 +307,10 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
             {FILTER_STATUSES.map(s => <option key={s} value={s}>{formatStatusDisplay(s)}</option>)}
           </select>
           {/* Filter Memo */}
-          <div className="flex items-center gap-2">
-            <History className="size-4 text-emerald-500" />
-            <select className="text-sm bg-emerald-50 border border-emerald-200 rounded-lg py-2 px-3 outline-none cursor-pointer text-emerald-800 font-semibold"
-              value={selectedMemo} onChange={e => setSelectedMemo(e.target.value)}>
-              {MEMO_SOURCES.map(m => <option key={m} value={m}>{m === 'Semua' ? 'Semua Memo' : m}</option>)}
-            </select>
-          </div>
+          <select className="text-sm bg-emerald-50 border border-emerald-200 rounded-lg py-2 px-3 outline-none cursor-pointer text-emerald-800 font-semibold"
+            value={selectedMemo} onChange={e => setSelectedMemo(e.target.value)}>
+            {MEMO_SOURCES.map(m => <option key={m} value={m}>{m === 'Semua' ? 'Semua Memo' : m}</option>)}
+          </select>
         </div>
 
         {/* Table */}
@@ -377,7 +375,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                         {formatStatusDisplay(item.status)}
                       </span>
                       <button onClick={() => setSelectedProposal(item)}
-                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0">
+                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0">
                         <Eye className="size-4" />
                       </button>
                     </div>
@@ -418,30 +416,27 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
               className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
               {/* Modal Header */}
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                    <Eye className="size-5" />
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                    <FileText className="size-6" />
                   </div>
-                  <h3 className="text-xl font-black text-slate-900">Detail Proposal</h3>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">Detail Proposal</h3>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Agenda #{selectedProposal.agendaNo}</p>
+                  </div>
                 </div>
                 <button onClick={() => setSelectedProposal(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
 
-              <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
-                {/* Agenda & Status Row */}
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No. Agenda</p>
-                    <p className="text-2xl font-black text-primary font-mono">{selectedProposal.agendaNo}</p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status Saat Ini</p>
-                    <span className={cn("inline-block px-3 py-1 text-xs font-black rounded-full uppercase border border-slate-200/60", getStatusColor(selectedProposal.status))}>
-                      {formatStatusDisplay(selectedProposal.status)}
-                    </span>
+              <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
+                {/* Status Banner */}
+                <div className={cn("p-4 rounded-xl flex items-center justify-between", getStatusColor(selectedProposal.status))}>
+                  <div className="flex items-center gap-3">
+                    <Clock className="size-5" />
+                    <span className="text-sm font-black uppercase tracking-wider">Status: {formatStatusDisplay(selectedProposal.status)}</span>
                   </div>
                 </div>
 
@@ -681,9 +676,9 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
 
               </div>
 
-              <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+              <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-end shrink-0">
                 <button onClick={() => setSelectedProposal(null)}
-                  className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                  className="px-6 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all">
                   Tutup
                 </button>
               </div>

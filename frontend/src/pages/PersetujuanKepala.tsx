@@ -53,8 +53,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
 
   useEffect(() => {
     if (selectedProposal) {
-      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
-                        selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+      const jp = (selectedProposal.jenisPengajuan || '').toLowerCase();
+      const isLembaga = jp.includes('lembaga') || 
+                        jp.includes('kelompok') || 
                         (selectedProposal.namaInstansi && selectedProposal.namaInstansi.toLowerCase() !== 'perorangan');
       if (isLembaga && tipeRealisasiLembaga === 'Perorangan') {
         setRekomendasiNominal(volumeReal * rekomendasiUnitCost);
@@ -98,7 +99,8 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
   useEffect(() => {
     const getTemplateKey = () => {
       if (!selectedProposal) return 'survey_template_individu';
-      const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok');
+      const jp = (selectedProposal.jenisPengajuan || '').toLowerCase();
+      const isLembaga = jp.includes('lembaga') || jp.includes('kelompok');
       if (isLembaga) return 'survey_template_lembaga';
       
       const code = selectedProposal.programCode;
@@ -233,8 +235,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
           return;
         }
 
-        const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
-                          selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+        const jp = (selectedProposal.jenisPengajuan || '').toLowerCase();
+        const isLembaga = jp.includes('lembaga') || 
+                          jp.includes('kelompok') || 
                           (selectedProposal.namaInstansi && selectedProposal.namaInstansi.toLowerCase() !== 'perorangan');
 
         const payload: any = {
@@ -318,7 +321,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Persetujuan Kepala Pelaksana</h2>
         <p className="text-slate-500 font-medium">
-          Layanan peninjauan kelayakan dan verifikasi ketersediaan pagu anggaran RKAT atas permohonan bantuan. Berikan rekomendasi nominal serta catatan evaluasi sebelum diteruskan ke tahap persetujuan Pimpinan.
+          Layanan peninjauan kelayakan permohonan bantuan serta disposisi surat masuk oleh Kepala Pelaksana.
         </p>
       </motion.div>
 
@@ -334,21 +337,21 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
         className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between bg-white sticky top-0 z-10">
-          <div className="flex bg-slate-100 p-1 rounded-lg">
+          <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
             <button onClick={() => setActiveTab('proposal')} className={cn(
-              'px-4 py-1.5 rounded-md text-xs font-bold transition-all',
+              'flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all',
               activeTab === 'proposal' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
             )}>
               Proposal ({antreanProposal.length})
             </button>
             <button onClick={() => setActiveTab('surat')} className={cn(
-              'px-4 py-1.5 rounded-md text-xs font-bold transition-all',
+              'flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all',
               activeTab === 'surat' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
             )}>
               Surat ({antreanSurat.length})
             </button>
           </div>
-          <div className="relative w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
             <input type="text" placeholder="Cari..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
               className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" />
@@ -393,8 +396,10 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button onClick={() => openProposalModal(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all mx-auto">
-                        <Eye className="size-3.5" /> Tinjau
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all mx-auto"
+                        title="Lihat Detail"
+                      >
+                        <Eye className="size-4" />
                       </button>
                     </td>
                   </tr>
@@ -421,8 +426,10 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button onClick={() => openSuratModal(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-all mx-auto">
-                        <Eye className="size-3.5" /> {item.status === 'Penugasan Kepala Pelaksana' ? 'Tugaskan' : 'Tinjau'}
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all mx-auto"
+                        title={item.status === 'Penugasan Kepala Pelaksana' ? 'Tugaskan' : 'Lihat Detail'}
+                      >
+                        <Eye className="size-4" />
                       </button>
                     </td>
                   </tr>
@@ -988,8 +995,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                             )}
 
                             {(() => {
-                              const isLembaga = selectedProposal.jenisPengajuan?.toLowerCase().includes('lembaga') || 
-                                                selectedProposal.jenisPengajuan?.toLowerCase().includes('kelompok') || 
+                              const jp = (selectedProposal.jenisPengajuan || '').toLowerCase();
+                              const isLembaga = jp.includes('lembaga') || 
+                                                jp.includes('kelompok') || 
                                                 (selectedProposal.namaInstansi && selectedProposal.namaInstansi.toLowerCase() !== 'perorangan');
 
                               return (
@@ -1294,7 +1302,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
               {/* Modal Footer */}
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                 <button onClick={() => !isSubmitting && setIsModalOpen(false)} disabled={isSubmitting}
-                  className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50">
+                  className="hidden md:inline-flex px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50">
                   Batal
                 </button>
                 <button onClick={handleApprove}
@@ -1308,8 +1316,8 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                   {isSubmitting
                     ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Memproses...</>
                     : (selectedSurat && selectedSurat.status === 'Penugasan Kepala Pelaksana')
-                      ? <><CheckCircle2 className="size-4" /> Selesaikan &amp; Tugaskan Staf</>
-                      : <><Send className="size-4" /> Setujui &amp; Teruskan ke Ketua</>}
+                      ? <><CheckCircle2 className="size-4" /> Setujui &amp; Tugaskan Staf</>
+                      : <><Send className="size-4" /> Setujui &amp; Teruskan</>}
                 </button>
               </div>
             </motion.div>

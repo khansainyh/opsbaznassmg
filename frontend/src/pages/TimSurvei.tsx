@@ -258,7 +258,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     
     // Determine the template key dynamically
     const getTemplateKey = () => {
-      const isLembaga = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
+      const jp = (selectedTask.jenisPengajuan || '').toLowerCase();
+      const isLembaga = jp.includes('lembaga') || jp.includes('kelompok');
       if (isLembaga) return 'survey_template_lembaga';
       
       const tipe = getProgramTipe(selectedTask);
@@ -518,7 +519,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     e.preventDefault();
     if (!selectedTask) return;
 
-    const isLembagaSubmit = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
+    const jp = (selectedTask.jenisPengajuan || '').toLowerCase();
+    const isLembagaSubmit = jp.includes('lembaga') || jp.includes('kelompok');
 
     if (!isLembagaSubmit && totalScore === 0) {
       alert("Harap isi setidaknya satu pertanyaan survei.");
@@ -1111,7 +1113,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
 
   if (viewMode === 'surveyForm' && selectedTask) {
     const isEditMode = !!editingHistory;
-    const isLembaga = selectedTask.jenisPengajuan?.toLowerCase().includes('lembaga') || selectedTask.jenisPengajuan?.toLowerCase().includes('kelompok');
+    const jp = (selectedTask.jenisPengajuan || '').toLowerCase();
+    const isLembaga = jp.includes('lembaga') || jp.includes('kelompok');
 
     return (
       <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 min-h-screen flex flex-col relative shadow-2xl">

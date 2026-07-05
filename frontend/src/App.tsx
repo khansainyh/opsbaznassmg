@@ -96,7 +96,7 @@ function App() {
         { name: "Tracking Surat", roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
         { name: "Persetujuan Kabag Administrasi", roles: ["Super_Admin", "Kabag_Administrasi"] },
         { name: "Persetujuan Kepala Pelaksana", roles: ["Super_Admin", "Kepala_Pelaksana"] },
-        { name: "Persetujuan Pimpinan", roles: ["Super_Admin", "Ketua"] },
+        { name: "Persetujuan Ketua", roles: ["Super_Admin", "Ketua"] },
         { name: "Penentuan Nominal", roles: ["Super_Admin", "Wakil_Ketua_II", "Kepala_Pelaksana"] },
         { name: "Penerimaan ZIS", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan", "Staf_Pelaporan"] },
         { name: "Penerimaan Bank Jateng", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
@@ -411,7 +411,7 @@ function App() {
             suratData={surats}
             onUpdateSurat={setSurats}
           />
-        ) : activeMenu === 'Persetujuan Pimpinan' ? (
+        ) : activeMenu === 'Persetujuan Ketua' ? (
           <ReviewPimpinan
             data={proposals}
             onUpdate={handleUpdateProposals}

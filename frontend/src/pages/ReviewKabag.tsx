@@ -126,7 +126,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
           Persetujuan Kepala Bagian Administrasi
         </h2>
         <p className="text-slate-500 font-medium">
-          Verifikasi, evaluasi, dan pemberian disposisi atau persetujuan awal untuk berkas proposal dan surat masuk yang didelegasikan oleh staf administrasi sebelum diproses lebih lanjut oleh Kepala Pelaksana.
+          Verifikasi, evaluasi, dan pemberian disposisi awal untuk berkas proposal dan surat masuk.
         </p>
       </motion.div>
 
@@ -166,37 +166,35 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
       >
         {/* Filter Bar */}
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between bg-white sticky top-0 z-10">
-          <div className="flex items-center gap-4">
-            <div className="flex bg-slate-100 p-1 rounded-lg">
-              <button 
-                onClick={() => setActiveTab('proposal')}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                  activeTab === 'proposal' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                Proposal ({filteredProposals.length})
-              </button>
-              <button 
-                onClick={() => setActiveTab('surat')}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                  activeTab === 'surat' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                Surat ({filteredSurat.length})
-              </button>
-            </div>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-              <input 
-                type="text"
-                placeholder={activeTab === 'proposal' ? "Cari Agenda / Pemohon / NIK..." : "Cari Agenda / Instansi / Keperluan..."}
-                className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+          <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
+            <button 
+              onClick={() => setActiveTab('proposal')}
+              className={cn(
+                "flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                activeTab === 'proposal' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              Proposal ({filteredProposals.length})
+            </button>
+            <button 
+              onClick={() => setActiveTab('surat')}
+              className={cn(
+                "flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                activeTab === 'surat' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              Surat ({filteredSurat.length})
+            </button>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+            <input 
+              type="text"
+              placeholder={activeTab === 'proposal' ? "Cari Agenda / Pemohon / NIK..." : "Cari Agenda / Instansi / Keperluan..."}
+              className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
 
@@ -456,7 +454,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                 <button 
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  className="hidden md:inline-flex px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   Batal
                 </button>
@@ -469,7 +467,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                   className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                 >
                   <CheckCircle2 className="size-4" />
-                  Setujui
+                  Setujui &amp; Teruskan
                 </button>
               </div>
             </motion.div>

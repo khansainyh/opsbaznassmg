@@ -163,7 +163,7 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
           <span className="text-primary font-bold">Tracking Surat</span>
         </nav>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">Tracking Surat</h2>
-        <p className="text-slate-500 font-medium">Layanan monitoring dan penelusuran alur disposisi berkas surat masuk secara real-time. Setelah data terekam, pantau status ulasan dan penugasan staf secara berkala untuk mempermudah proses koordinasi tindak lanjut undangan.</p>
+        <p className="text-slate-500 font-medium">Layanan monitoring dan penelusuran alur disposisi berkas surat masuk secara real-time.</p>
       </motion.div>
 
       {/* Stats */}
@@ -263,7 +263,7 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                         {formatStatusDisplay(item.status)}
                       </span>
                       <button onClick={() => setSelectedSurat(item)}
-                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100">
                         <Eye className="size-4" />
                       </button>
                     </div>

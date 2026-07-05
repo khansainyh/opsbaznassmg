@@ -91,7 +91,7 @@ const menuGroups = [
     items: [
       { name: "Persetujuan Kabag Administrasi", icon: ShieldCheck, roles: ["Super_Admin", "Kabag_Administrasi"] },
       { name: "Persetujuan Kepala Pelaksana", icon: ShieldCheck, roles: ["Super_Admin", "Kepala_Pelaksana"] },
-      { name: "Persetujuan Pimpinan", icon: PenTool, roles: ["Super_Admin", "Ketua"] },
+      { name: "Persetujuan Ketua", icon: PenTool, roles: ["Super_Admin", "Ketua"] },
       { name: "Penentuan Nominal", icon: ShieldCheck, roles: ["Super_Admin", "Wakil_Ketua_II", "Kepala_Pelaksana"] },
     ]
   },
