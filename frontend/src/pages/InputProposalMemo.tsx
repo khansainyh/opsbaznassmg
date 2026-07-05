@@ -75,6 +75,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   const [scanLinkInput, setScanLinkInput] = useState('');
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Kecamatan/Kelurahan state
@@ -1181,7 +1182,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           Input Proposal
         </h2>
         <p className="text-slate-500 font-medium">
-          Layanan registrasi dan verifikasi berkas proposal permohonan bantuan secara formal. Setelah data terekam, teruskan dokumen ke unit Humas untuk proses pemindaian (scan) dan unggah berkas guna verifikasi lebih lanjut oleh Kepala Bagian Administrasi.
+          Registrasi dan verifikasi berkas proposal permohonan bantuan secara formal.
         </p>
       </motion.div>
 
@@ -1239,7 +1240,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               <span className="text-xs font-bold text-slate-500">Status: Registrasi</span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="hidden md:flex gap-2">
             <button 
               onClick={() => setIsReportModalOpen(true)}
               className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20 active:scale-95"
@@ -1335,17 +1336,17 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => handleDetailClick(item)}
-                        className="p-1.5 hover:bg-primary/10 text-slate-400 hover:text-primary rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-primary rounded-xl transition-colors" 
                         title="Detail"
                       >
                         <Eye className="size-4" />
                       </button>
                       <button 
                         onClick={() => handlePrintBajuSurat(item)}
-                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-xl transition-colors" 
                         title="Print Baju Surat"
                       >
                         <Printer className="size-4" />
@@ -1363,7 +1364,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                               targetId: item.id
                             });
                           }}
-                          className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors" 
+                          className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-emerald-600 rounded-xl transition-colors" 
                           title="Kirim ke Humas"
                         >
                           <Send className="size-4" />
@@ -1374,7 +1375,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       {item.status.toLowerCase().replace(/_/g, ' ') === 'scan proposal' && (
                         <button 
                           onClick={() => handleOpenScanModal(item)}
-                          className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors" 
+                          className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors" 
                           title="Scan Proposal"
                         >
                           <FileCheck className="size-4" />
@@ -1383,7 +1384,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
                       <button 
                         onClick={() => handleEditClick(item)}
-                        className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-500 rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-primary rounded-xl transition-colors" 
                         title="Edit"
                       >
                         <Edit2 className="size-4" />
@@ -1595,16 +1596,9 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               {/* Footer */}
               <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
                 <button
-                  onClick={() => !isScanning && setIsScanModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
-                  disabled={isScanning}
-                >
-                  Batal
-                </button>
-                <button
                   onClick={handleScanSubmit}
                   disabled={isScanning || (scanTabMode === 'file' ? !scanFile : !scanLinkInput.trim())}
-                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isScanning ? (
                     <>
@@ -1657,11 +1651,11 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                 {/* Status Banner */}
                 <div className={cn(
-                  "p-4 rounded-xl flex items-center justify-between border",
+                  "p-4 rounded-xl flex flex-col sm:flex-row gap-4 sm:items-center justify-between border",
                   getStatusColor(selectedProposal.status).replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'border-')
                 )}>
                   <div className="flex items-center gap-3">
-                    <div className={cn("p-2 rounded-lg", getStatusColor(selectedProposal.status))}>
+                    <div className={cn("p-2 rounded-lg shrink-0", getStatusColor(selectedProposal.status))}>
                       <ClipboardList className="size-5" />
                     </div>
                     <div>
@@ -1669,7 +1663,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       <p className="font-bold text-slate-900">{selectedProposal.status}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="sm:text-right pl-11 sm:pl-0">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Tanggal Masuk</p>
                     <p className="font-bold text-slate-900">{selectedProposal.tanggalMasuk}</p>
                   </div>
@@ -1693,60 +1687,59 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Left: Applicant Info */}
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
-                      <div className="space-y-4">
-                        <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
-                        <DetailItem label="NIK" value={selectedProposal.nik} />
-                        {selectedProposal.no_kk && (
-                          <DetailItem label="No. KK" value={selectedProposal.no_kk} />
-                        )}
-                        <DetailItem label="Nama Anak" value={selectedProposal.namaAnak} />
-                        <DetailItem label="Tempat Lahir" value={selectedProposal.tempat_lahir || '-'} />
-                        <DetailItem label="Tanggal Lahir" value={selectedProposal.tanggal_lahir || '-'} />
-                        <DetailItem label="Jenis Kelamin" value={selectedProposal.jenis_kelamin || '-'} />
-                        <DetailItem label="Pekerjaan" value={selectedProposal.pekerjaan || '-'} />
-                        <DetailItem label="Handphone" value={selectedProposal.noTelpon || '-'} />
-                        <DetailItem label="Email" value={selectedProposal.email || '-'} />
-                      </div>
+                <div className="space-y-8">
+                  {/* Data Pemohon */}
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
+                    <div className="space-y-4">
+                      <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
+                      <DetailItem label="NIK" value={selectedProposal.nik} />
+                      {selectedProposal.no_kk && (
+                        <DetailItem label="No. KK" value={selectedProposal.no_kk} />
+                      )}
+                      <DetailItem label="Nama Anak" value={selectedProposal.namaAnak} />
+                      <DetailItem label="Tempat Lahir" value={selectedProposal.tempat_lahir || '-'} />
+                      <DetailItem label="Tanggal Lahir" value={selectedProposal.tanggal_lahir || '-'} />
+                      <DetailItem label="Jenis Kelamin" value={selectedProposal.jenis_kelamin || '-'} />
+                      <DetailItem label="Pekerjaan" value={selectedProposal.pekerjaan || '-'} />
+                      <DetailItem label="Handphone" value={selectedProposal.noTelpon || '-'} />
+                      <DetailItem label="Email" value={selectedProposal.email || '-'} />
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Alamat</h4>
-                      <div className="space-y-4">
-                        <DetailItem label="Alamat Lengkap" value={selectedProposal.alamat} />
-                        <div className="grid grid-cols-2 gap-4">
-                          <DetailItem label="Kelurahan" value={selectedProposal.kelurahan} />
-                          <DetailItem label="Kecamatan" value={selectedProposal.kecamatan} />
-                        </div>
+                  </div>
+
+                  {/* Alamat */}
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Alamat</h4>
+                    <div className="space-y-4">
+                      <DetailItem label="Alamat Lengkap" value={selectedProposal.alamat} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailItem label="Kelurahan" value={selectedProposal.kelurahan} />
+                        <DetailItem label="Kecamatan" value={selectedProposal.kecamatan} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Right: Proposal Info */}
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Pengajuan</h4>
-                      <div className="space-y-4">
-                        <DetailItem label="Jenis Permohonan" value={selectedProposal.jenisPermohonan} />
-                        <DetailItem label="Nama Instansi" value={selectedProposal.namaInstansi || '-'} />
-                        <DetailItem label="Pimpinan" value={selectedProposal.pimpinanOrganisasi || '-'} />
-                        <DetailItem label="Jam Pengajuan" value={selectedProposal.jamPengajuan} />
-                        <DetailItem label="Yang Mengajukan" value={selectedProposal.yangMengajukan || '-'} />
-                      </div>
+                  {/* Informasi Pengajuan */}
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Pengajuan</h4>
+                    <div className="space-y-4">
+                      <DetailItem label="Jenis Permohonan" value={selectedProposal.jenisPermohonan} />
+                      <DetailItem label="Nama Instansi" value={selectedProposal.namaInstansi || '-'} />
+                      <DetailItem label="Pimpinan" value={selectedProposal.pimpinanOrganisasi || '-'} />
+                      <DetailItem label="Jam Pengajuan" value={selectedProposal.jamPengajuan} />
+                      <DetailItem label="Yang Mengajukan" value={selectedProposal.yangMengajukan || '-'} />
                     </div>
-                    {selectedProposal.hasMemo && (
-                      <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <div className="flex items-center gap-2 text-emerald-700 mb-2">
-                          <History className="size-4" />
-                          <span className="text-xs font-black uppercase tracking-widest">Memo Pimpinan</span>
-                        </div>
-                        <p className="text-sm font-bold text-slate-900">Sumber: {selectedProposal.memoSource}</p>
-                      </div>
-                    )}
                   </div>
+
+                  {selectedProposal.hasMemo && (
+                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                        <History className="size-4" />
+                        <span className="text-xs font-black uppercase tracking-widest">Memo Pimpinan</span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-900">Sumber: {selectedProposal.memoSource}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1754,10 +1747,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                 {selectedProposal && (
                   <button 
                     onClick={() => handlePrintBajuSurat(selectedProposal)}
-                    className="px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
                   >
                     <Printer className="size-4" />
-                    Baju Surat
+                    <span className="hidden md:inline">Baju Surat</span>
                   </button>
                 )}
                 <button 
@@ -1768,7 +1761,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                 >
                   <Edit2 className="size-4" />
-                  Edit Data
+                  <span className="hidden md:inline">Edit Data</span>
                 </button>
                 <button 
                   onClick={() => {
@@ -1778,7 +1771,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
                 >
                   <FileCheck className="size-4" />
-                  Scan Proposal
+                  <span className="hidden md:inline">Scan Proposal</span>
                 </button>
               </div>
             </motion.div>
@@ -2079,87 +2072,83 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                           <input required name="namaPemohon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama lengkap..." defaultValue={editingProposal?.namaPemohon || ""} />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anak (Opsional)</label>
-                            <input name="namaAnak" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Jika pendidikan..." defaultValue={editingProposal?.namaAnak || ""} />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
-                            <div className="relative">
-                              <input type="hidden" name="jenis_kelamin" value={selectedGender} required />
-                              <button
-                                type="button"
-                                onClick={() => setIsGenderDropdownOpen(!isGenderDropdownOpen)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
-                              >
-                                <span className={selectedGender ? "text-slate-800 font-medium" : "text-slate-400"}>
-                                  {selectedGender || "Pilih..."}
-                                </span>
-                                <span className="text-slate-400">▼</span>
-                              </button>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anak (Opsional)</label>
+                          <input name="namaAnak" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Jika pendidikan..." defaultValue={editingProposal?.namaAnak || ""} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Kelamin *</label>
+                          <div className="relative">
+                            <input type="hidden" name="jenis_kelamin" value={selectedGender} required />
+                            <button
+                              type="button"
+                              onClick={() => setIsGenderDropdownOpen(!isGenderDropdownOpen)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
+                            >
+                              <span className={selectedGender ? "text-slate-800 font-medium" : "text-slate-400"}>
+                                {selectedGender || "Pilih..."}
+                              </span>
+                              <span className="text-slate-400">▼</span>
+                            </button>
 
-                              {isGenderDropdownOpen && (
-                                <>
-                                  <div className="fixed inset-0 z-40" onClick={() => setIsGenderDropdownOpen(false)} />
-                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 text-left">
-                                    {[
-                                      { value: "Pria", label: "Pria" },
-                                      { value: "Wanita", label: "Wanita" }
-                                    ].map(opt => (
-                                      <button
-                                        key={opt.value}
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedGender(opt.value);
-                                          setIsGenderDropdownOpen(false);
-                                        }}
-                                        className={cn(
-                                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
-                                          selectedGender === opt.value
-                                            ? "bg-primary text-white font-bold"
-                                            : "text-slate-700 hover:bg-slate-100"
-                                        )}
-                                      >
-                                        {opt.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
-                            </div>
+                            {isGenderDropdownOpen && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsGenderDropdownOpen(false)} />
+                                <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 text-left">
+                                  {[
+                                    { value: "Pria", label: "Pria" },
+                                    { value: "Wanita", label: "Wanita" }
+                                  ].map(opt => (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedGender(opt.value);
+                                        setIsGenderDropdownOpen(false);
+                                      }}
+                                      className={cn(
+                                        "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                        selectedGender === opt.value
+                                          ? "bg-primary text-white font-bold"
+                                          : "text-slate-700 hover:bg-slate-100"
+                                      )}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
-                            <input required name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kota" defaultValue={editingProposal?.tempat_lahir || ""} />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Lahir *</label>
-                            <input 
-                              required 
-                              name="tanggal_lahir" 
-                              type="text" 
-                              placeholder="DD-MM-YYYY"
-                              maxLength={10}
-                              value={tanggalLahirInput}
-                              onChange={(e) => {
-                                let val = e.target.value.replace(/\D/g, ''); // Keep only digits
-                                if (val.length > 8) val = val.slice(0, 8);
-                                // Format as DD-MM-YYYY
-                                let formatted = val;
-                                if (val.length > 4) {
-                                  formatted = `${val.slice(0, 2)}-${val.slice(2, 4)}-${val.slice(4)}`;
-                                } else if (val.length > 2) {
-                                  formatted = `${val.slice(0, 2)}-${val.slice(2)}`;
-                                }
-                                setTanggalLahirInput(formatted);
-                              }}
-                              className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono tracking-wider" 
-                            />
-                          </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempat Lahir</label>
+                          <input required name="tempat_lahir" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kota" defaultValue={editingProposal?.tempat_lahir || ""} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Lahir *</label>
+                          <input 
+                            required 
+                            name="tanggal_lahir" 
+                            type="text" 
+                            placeholder="DD-MM-YYYY"
+                            maxLength={10}
+                            value={tanggalLahirInput}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, ''); // Keep only digits
+                              if (val.length > 8) val = val.slice(0, 8);
+                              // Format as DD-MM-YYYY
+                              let formatted = val;
+                              if (val.length > 4) {
+                                formatted = `${val.slice(0, 2)}-${val.slice(2, 4)}-${val.slice(4)}`;
+                              } else if (val.length > 2) {
+                                formatted = `${val.slice(0, 2)}-${val.slice(2)}`;
+                              }
+                              setTanggalLahirInput(formatted);
+                            }}
+                            className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono tracking-wider" 
+                          />
                         </div>
                       </>
                     ) : (
@@ -2178,15 +2167,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                           <input required name="pimpinanOrganisasi" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pimpinan/ketua..." defaultValue={editingProposal?.pimpinanOrganisasi || (editingProposal as any)?.mustahik?.nama_pimpinan || ""} />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga *</label>
-                            <input required name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, Kelompok, dll..." defaultValue={(editingProposal as any)?.mustahik?.jenis_lembaga || (editingProposal as any)?.jenisLembaga || "Lembaga"} />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jumlah Anggota (Opsional)</label>
-                            <input name="jumlahAnggota" type="number" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Jumlah..." defaultValue={(editingProposal as any)?.mustahik?.jumlah_anggota || (editingProposal as any)?.jumlahAnggota || ""} />
-                          </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga *</label>
+                          <input required name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, Kelompok, dll..." defaultValue={(editingProposal as any)?.mustahik?.jenis_lembaga || (editingProposal as any)?.jenisLembaga || "Lembaga"} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jumlah Anggota (Opsional)</label>
+                          <input name="jumlahAnggota" type="number" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Jumlah..." defaultValue={(editingProposal as any)?.mustahik?.jumlah_anggota || (editingProposal as any)?.jumlahAnggota || ""} />
                         </div>
                       </>
                     )}
@@ -2211,7 +2198,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       </div>
 
                       {/* Kecamatan & Kelurahan Dropdown */}
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
                           {isKtpSemarang ? (
@@ -2370,35 +2357,31 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon *</label>
-                          <input required name="telepon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="08xxx..." defaultValue={editingProposal?.noTelpon || ""} />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email (Opsional)</label>
-                          <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="email@..." defaultValue={editingProposal?.email || ""} />
-                        </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon *</label>
+                        <input required name="telepon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="08xxx..." defaultValue={editingProposal?.noTelpon || ""} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email (Opsional)</label>
+                        <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="email@..." defaultValue={editingProposal?.email || ""} />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          {jenisPengajuanState === 'Perorangan' ? (
-                            <>
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
-                              <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Pekerjaan..." defaultValue={editingProposal?.pekerjaan || ""} />
-                            </>
-                          ) : (
-                            <>
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga (Opsional)</label>
-                              <input name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, dll..." defaultValue={(editingProposal as any)?.jenisLembaga || "Lembaga"} />
-                            </>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Yang Mengajukan</label>
-                          <input name="yangMengajukan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pengaju..." defaultValue={editingProposal?.yangMengajukan || ""} />
-                        </div>
+                      <div className="space-y-1">
+                        {jenisPengajuanState === 'Perorangan' ? (
+                          <>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
+                            <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Pekerjaan..." defaultValue={editingProposal?.pekerjaan || ""} />
+                          </>
+                        ) : (
+                          <>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga (Opsional)</label>
+                            <input name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, dll..." defaultValue={(editingProposal as any)?.jenisLembaga || "Lembaga"} />
+                          </>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Yang Mengajukan</label>
+                        <input name="yangMengajukan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pengaju..." defaultValue={editingProposal?.yangMengajukan || ""} />
                       </div>
 
                       <div className="space-y-1">
@@ -2419,16 +2402,6 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       Hapus Proposal
                     </button>
                   )}
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      setEditingProposal(null);
-                    }} 
-                    className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                  >
-                    Batal
-                  </button>
                   <button type="submit" className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
                     {editingProposal ? 'Simpan Perubahan' : 'Simpan Pengajuan'}
                   </button>
@@ -2782,14 +2755,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               {/* Footer */}
               <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
                 <button
-                  onClick={() => setIsReportModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
-                >
-                  Batal
-                </button>
-                <button
                   onClick={handlePrintReport}
-                  className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
                 >
                   <ClipboardList className="size-4" />
                   Cetak / Preview
@@ -2878,6 +2845,62 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
+            >
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setIsReportModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <ClipboardList className="size-4 text-slate-500" />
+                Cetak Laporan / Rekap
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setEditingProposal(null);
+                  setNikCheckStr('');
+                  setNoKk('');
+                  setNikStatus('idle');
+                  setNikMessage('');
+                  setMatchedMustahikId(null);
+                  setSelectedKecamatan('');
+                  setSelectedKelurahan('');
+                  setJenisPengajuanState('Perorangan');
+                  setIsKtpSemarang(true);
+                  setSelectedProgramCode('');
+                  setProgramSearchQuery('');
+                  setTanggalLahirInput('');
+                  setSelectedMemoSource('');
+                  setSelectedGender('');
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Tambah Proposal
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className="size-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+        >
+          <Plus className={cn("size-6 transition-transform duration-300", isFabOpen ? "rotate-45" : "rotate-0")} />
+        </button>
+      </div>
     </div>
   );
 }

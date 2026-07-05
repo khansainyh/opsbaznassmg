@@ -153,7 +153,7 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
           Upload Proposal
         </h2>
         <p className="text-slate-500 font-medium">
-          Layanan pemindaian (scan) dan pengunggahan berkas digital proposal permohonan bantuan. Unggah dokumen fisik yang diterima atau tautan digital untuk memvalidasi proposal sebelum memasuki tahap peninjauan administrasi.
+          Pemindaian dan pengunggahan berkas digital proposal permohonan bantuan.
         </p>
       </motion.div>
 
@@ -191,16 +191,16 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col"
+        className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden flex flex-col"
       >
         {/* Table Header Controls */}
-        <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
             <input 
               type="text" 
               placeholder="Cari Pemohon / Agenda / Instansi..." 
-              className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all font-medium text-slate-700"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -209,15 +209,15 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">No. Agenda</th>
-                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Tanggal Masuk</th>
-                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Pemohon</th>
-                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Permohonan</th>
-                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 text-center text-xs font-black text-slate-400 uppercase tracking-widest">Aksi</th>
+              <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
+                <th className="px-6 py-4">No. Agenda</th>
+                <th className="px-6 py-4">Tanggal Masuk</th>
+                <th className="px-6 py-4">Pemohon</th>
+                <th className="px-6 py-4">Permohonan</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -255,17 +255,17 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => handleDetailClick(item)}
-                        className="p-1.5 hover:bg-primary/10 text-slate-400 hover:text-primary rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-primary rounded-xl transition-colors" 
                         title="Detail"
                       >
                         <Eye className="size-4" />
                       </button>
                       <button 
                         onClick={() => handleOpenScanModal(item)}
-                        className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors" 
                         title="Upload Scan"
                       >
                         <FileCheck className="size-4" />
@@ -569,14 +569,6 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
 
               {/* Footer */}
               <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex gap-3">
-                <button
-                  type="button"
-                  disabled={isScanning}
-                  onClick={() => setIsScanModalOpen(false)}
-                  className="flex-1 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                >
-                  Batal
-                </button>
                 <button
                   type="button"
                   disabled={isScanning || (scanTabMode === 'file' ? !scanFile : !scanLinkInput.trim())}

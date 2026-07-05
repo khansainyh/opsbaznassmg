@@ -86,6 +86,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   const [scanLinkInput, setScanLinkInput] = useState('');
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Report modal state
@@ -412,7 +413,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           Input Surat
         </h2>
         <p className="text-slate-500 font-medium">
-          Layanan registrasi berkas surat masuk, baik berupa surat dinas maupun permohonan umum. Setelah terekam, surat akan diproses secara digital (scan) dan diulas oleh Kepala Bagian Administrasi sebelum diserahkan kepada Pimpinan.
+          Registrasi berkas surat masuk, baik berupa surat dinas maupun permohonan umum.
         </p>
       </motion.div>
 
@@ -467,7 +468,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               <span className="text-xs font-bold text-slate-500">Status: Registrasi</span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="hidden md:flex gap-2">
             <button 
               onClick={() => setIsReportModalOpen(true)}
               className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20 active:scale-95"
@@ -541,24 +542,24 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => handleDetailClick(item)}
-                        className="p-1.5 hover:bg-primary/10 text-slate-400 hover:text-primary rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-primary rounded-xl transition-colors" 
                         title="Detail"
                       >
                         <Eye className="size-4" />
                       </button>
                       <button 
                         onClick={() => handleOpenScanModal(item)}
-                        className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors" 
                         title="Scan Surat → Review Kabag"
                       >
                         <FileCheck className="size-4" />
                       </button>
                       <button 
                         onClick={() => handleEditClick(item)}
-                        className="p-1.5 hover:bg-amber-50 text-slate-400 hover:text-amber-500 rounded transition-colors" 
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-primary rounded-xl transition-colors" 
                         title="Edit"
                       >
                         <Edit2 className="size-4" />
@@ -763,16 +764,9 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
               <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
                 <button
-                  onClick={() => !isScanning && setIsScanModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
-                  disabled={isScanning}
-                >
-                  Batal
-                </button>
-                <button
                   onClick={handleScanSubmit}
                   disabled={isScanning || (scanTabMode === 'file' ? !scanFile : !scanLinkInput.trim())}
-                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isScanning ? (
                     <>
@@ -824,11 +818,11 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               
               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                 <div className={cn(
-                  "p-4 rounded-xl flex items-center justify-between border",
+                  "p-4 rounded-xl flex flex-col sm:flex-row gap-4 sm:items-center justify-between border",
                   getStatusColor(selectedSurat.status).replace('bg-', 'bg-opacity-20 bg-').replace('text-', 'border-')
                 )}>
                   <div className="flex items-center gap-3">
-                    <div className={cn("p-2 rounded-lg", getStatusColor(selectedSurat.status))}>
+                    <div className={cn("p-2 rounded-lg shrink-0", getStatusColor(selectedSurat.status))}>
                       <ClipboardList className="size-5" />
                     </div>
                     <div>
@@ -836,7 +830,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                       <p className="font-bold text-slate-900">{selectedSurat.status}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="sm:text-right pl-11 sm:pl-0">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Tanggal Masuk</p>
                     <p className="font-bold text-slate-900">{selectedSurat.tanggalMasuk}</p>
                   </div>
@@ -859,44 +853,41 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Pengirim</h4>
-                      <div className="space-y-4">
-                        <DetailItem label="Nama Instansi" value={selectedSurat.namaInstansi || '-'} />
-                        <DetailItem label="Pimpinan" value={selectedSurat.pimpinanOrganisasi || '-'} />
-                        <DetailItem label="Kategori" value={selectedSurat.kategori || '-'} />
-                        <DetailItem label="No. Telpon" value={selectedSurat.noTelpon || '-'} />
-                        <DetailItem label="Yang Mengajukan" value={selectedSurat.yangMengajukan || '-'} />
-                      </div>
+                <div className="space-y-8">
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Pengirim</h4>
+                    <div className="space-y-4">
+                      <DetailItem label="Nama Instansi" value={selectedSurat.namaInstansi || '-'} />
+                      <DetailItem label="Pimpinan" value={selectedSurat.pimpinanOrganisasi || '-'} />
+                      <DetailItem label="Kategori" value={selectedSurat.kategori || '-'} />
+                      <DetailItem label="No. Telpon" value={selectedSurat.noTelpon || '-'} />
+                      <DetailItem label="Yang Mengajukan" value={selectedSurat.yangMengajukan || '-'} />
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Lokasi</h4>
-                      <div className="space-y-4">
-                        <DetailItem label="Alamat Lengkap" value={selectedSurat.alamat || '-'} />
-                        <div className="grid grid-cols-2 gap-4">
-                          <DetailItem label="Kelurahan" value={selectedSurat.kelurahan || '-'} />
-                          <DetailItem label="Kecamatan" value={selectedSurat.kecamatan || '-'} />
-                        </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Lokasi</h4>
+                    <div className="space-y-4">
+                      <DetailItem label="Alamat Lengkap" value={selectedSurat.alamat || '-'} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailItem label="Kelurahan" value={selectedSurat.kelurahan || '-'} />
+                        <DetailItem label="Kecamatan" value={selectedSurat.kecamatan || '-'} />
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Isi & Keperluan</h4>
-                      <div className="space-y-4">
-                        <DetailItem label="Keperluan" value={selectedSurat.keperluan} />
-                        {selectedSurat.kategori === 'Undangan' && (
-                          <div className="grid grid-cols-2 gap-4">
-                            <DetailItem label="Tanggal Acara" value={selectedSurat.tanggalAcara ? new Date(selectedSurat.tanggalAcara).toLocaleDateString('id-ID') : '-'} />
-                            <DetailItem label="Jam Acara" value={selectedSurat.jamAcara || '-'} />
-                          </div>
-                        )}
-                        <DetailItem label="Jam Pengajuan" value={selectedSurat.jamPengajuan || '-'} />
-                        <DetailItem label="Arsip / Catatan" value={selectedSurat.arsip || '-'} />
-                      </div>
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Isi & Keperluan</h4>
+                    <div className="space-y-4">
+                      <DetailItem label="Keperluan" value={selectedSurat.keperluan} />
+                      {selectedSurat.kategori === 'Undangan' && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <DetailItem label="Tanggal Acara" value={selectedSurat.tanggalAcara ? new Date(selectedSurat.tanggalAcara).toLocaleDateString('id-ID') : '-'} />
+                          <DetailItem label="Jam Acara" value={selectedSurat.jamAcara || '-'} />
+                        </div>
+                      )}
+                      <DetailItem label="Jam Pengajuan" value={selectedSurat.jamPengajuan || '-'} />
+                      <DetailItem label="Arsip / Catatan" value={selectedSurat.arsip || '-'} />
                     </div>
                   </div>
                 </div>
@@ -911,7 +902,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                 >
                   <Edit2 className="size-4" />
-                  Edit Data
+                  <span className="hidden md:inline">Edit Data</span>
                 </button>
                 <button 
                   onClick={() => {
@@ -921,7 +912,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
                 >
                   <FileCheck className="size-4" />
-                  Scan Surat
+                  <span className="hidden md:inline">Scan Surat</span>
                 </button>
               </div>
             </motion.div>
@@ -1098,26 +1089,22 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                       <input name="alamat" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Alamat lengkap (Opsional)..." defaultValue={editingSurat?.alamat || ""} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
-                        <input name="kecamatan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kecamatan (Opsional)..." defaultValue={editingSurat?.kecamatan || ""} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelurahan</label>
-                        <input name="kelurahan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kelurahan (Opsional)..." defaultValue={editingSurat?.kelurahan || ""} />
-                      </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
+                      <input name="kecamatan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kecamatan (Opsional)..." defaultValue={editingSurat?.kecamatan || ""} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelurahan</label>
+                      <input name="kelurahan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kelurahan (Opsional)..." defaultValue={editingSurat?.kelurahan || ""} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Telpon</label>
-                        <input name="noTelpon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="08xxx (Opsional)..." defaultValue={editingSurat?.noTelpon || ""} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Yang Mengajukan</label>
-                        <input name="yangMengajukan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pengantar (Opsional)..." defaultValue={editingSurat?.yangMengajukan || ""} />
-                      </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Telpon</label>
+                      <input name="noTelpon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="08xxx (Opsional)..." defaultValue={editingSurat?.noTelpon || ""} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Yang Mengajukan</label>
+                      <input name="yangMengajukan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pengantar (Opsional)..." defaultValue={editingSurat?.yangMengajukan || ""} />
                     </div>
 
                     <div className="space-y-1">
@@ -1138,17 +1125,6 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                       Hapus Surat
                     </button>
                   )}
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      setEditingSurat(null);
-                      setSelectedKategori('');
-                    }} 
-                    className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                  >
-                    Batal
-                  </button>
                   <button type="submit" className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
                     {editingSurat ? 'Simpan Perubahan' : 'Simpan Surat'}
                   </button>
@@ -1278,14 +1254,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               {/* Footer */}
               <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
                 <button
-                  onClick={() => setIsReportModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all"
-                >
-                  Batal
-                </button>
-                <button
                   onClick={handlePrintReport}
-                  className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
                 >
                   <ClipboardList className="size-4" />
                   Cetak / Preview
@@ -1295,6 +1265,51 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
+            >
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setIsReportModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <ClipboardList className="size-4 text-slate-500" />
+                Cetak Laporan / Rekap
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setEditingSurat(null);
+                  setSelectedKategori('');
+                  setTanggalAcaraInput('');
+                  setJamAcaraInput('');
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Tambah Surat
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className="size-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+        >
+          <Plus className={cn("size-6 transition-transform duration-300", isFabOpen ? "rotate-45" : "rotate-0")} />
+        </button>
+      </div>
     </div>
   );
 }
