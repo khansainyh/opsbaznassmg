@@ -15,7 +15,8 @@ import {
   Upload,
   Camera,
   Trash2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Archive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -219,18 +220,19 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-          <span className="hover:text-primary transition-colors cursor-pointer">Pendistribusian</span>
-          <ChevronRight className="size-3.5 text-slate-300" />
-          <span className="text-primary font-black">Antrean Arsip</span>
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-primary font-bold">Antrean Arsip</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              Antrean Arsip &amp; Dokumentasi
+              <Archive className="size-8 text-primary shrink-0" />
+              Antrean Arsip
             </h2>
             <p className="text-slate-500 font-medium">
-              Layanan pengarsipan digital atas bantuan yang telah direalisasikan. Unggah bukti foto penyerahan bantuan dan kuitansi resmi bertanda tangan sebelum proposal ditandai selesai.
+              Layanan pengarsipan digital atas dokumen dan bukti penyaluran bantuan yang telah direalisasikan.
             </p>
           </div>
         </div>

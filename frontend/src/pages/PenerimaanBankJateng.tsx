@@ -1162,8 +1162,8 @@ export default function PenerimaanBankJateng() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center text-slate-550">
-          <span>Pengumpulan</span>
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Pengumpulan</span>
           <ChevronRight className="size-4 text-slate-300" />
           <span className="text-primary font-bold">Penerimaan Bank Jateng</span>
         </nav>
@@ -1172,7 +1172,7 @@ export default function PenerimaanBankJateng() {
           Penerimaan Bank Jateng
         </h2>
         <p className="text-slate-500 font-medium max-w-3xl">
-          Modul otomasi rekonsiliasi data penerimaan Bank Jateng (OPD, instansi, potong gaji, payroll). Upload file Excel rekapitulasi, mapping NPWZ secara real-time, dan lakukan posting jurnal pembukuan instan.
+          Mengelola dan merekonsiliasi data penerimaan ZIS dari payroll Bank Jateng secara otomatis.
         </p>
       </motion.div>
 
@@ -2328,12 +2328,21 @@ export default function PenerimaanBankJateng() {
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-3 rounded-xl transition-all mt-4"
-                >
-                  Simpan &amp; Verifikasi Rekening
-                </button>
+                <div className="pt-4 flex flex-col-reverse md:flex-row gap-2.5 md:gap-3 border-t border-slate-100 mt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsRegisterModalOpen(false)} 
+                    className="hidden md:inline-flex justify-center items-center px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="w-full md:flex-1 px-6 py-3 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                  >
+                    Simpan &amp; Verifikasi Rekening
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

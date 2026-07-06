@@ -14,7 +14,8 @@ import {
   Calendar,
   MessageCircle,
   CheckSquare,
-  Square
+  Square,
+  Truck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -220,18 +221,19 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-          <span className="hover:text-primary transition-colors cursor-pointer">Pendistribusian</span>
-          <ChevronRight className="size-3.5 text-slate-300" />
-          <span className="text-primary font-black">Realisasi Bantuan</span>
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-primary font-bold">Realisasi Bantuan</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+              <Truck className="size-8 text-primary shrink-0" />
               Realisasi Bantuan
             </h2>
             <p className="text-slate-500 font-medium">
-              Layanan penyerahan dana atau barang bantuan secara langsung kepada mustahik yang telah disetujui. Setelah bantuan diserahkan, teruskan dokumen bukti penyaluran ke bagian Antrean Arsip.
+              Layanan penyerahan dana atau barang bantuan secara langsung kepada mustahik yang telah disetujui.
             </p>
           </div>
         </div>

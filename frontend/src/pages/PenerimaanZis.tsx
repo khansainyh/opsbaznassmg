@@ -113,6 +113,7 @@ export default function PenerimaanZis() {
   const [quickAddress, setQuickAddress] = useState('');
   const [quickKategori, setQuickKategori] = useState<'Perorangan' | 'Lembaga'>('Perorangan');
   const [quickJenisKelamin, setQuickJenisKelamin] = useState<'Laki-laki' | 'Perempuan'>('Laki-laki');
+  const [isFabOpen, setIsFabOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -768,7 +769,7 @@ export default function PenerimaanZis() {
           Penerimaan ZIS
         </h2>
         <p className="text-slate-500 font-medium">
-          Mencatat dan mengelola penerimaan dana zakat, infak, sedekah, dan dana sosial keagamaan lainnya.
+          Mencatat dan mengelola penerimaan dana zakat, infak, sedekah, dan dana sosial keagamaan.
         </p>
       </motion.div>
 
@@ -908,7 +909,7 @@ export default function PenerimaanZis() {
             </select>
           </div>
 
-          <div className="flex gap-2">
+          <div className="hidden md:flex gap-2">
             <button 
               onClick={() => setIsReportModalOpen(true)}
               className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
@@ -1034,7 +1035,7 @@ export default function PenerimaanZis() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button 
                             onClick={() => handleEditClick(item)}
                             className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-amber-600 rounded-xl transition-colors" title="Edit">
@@ -1093,16 +1094,16 @@ export default function PenerimaanZis() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)]"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                 <h3 className="text-xl font-black text-slate-900">{editingId ? 'Edit Penerimaan ZIS' : 'Input Penerimaan ZIS'}</h3>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
 
-              <form onSubmit={handleAddPenerimaan} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleAddPenerimaan} className="p-4 md:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 
                 {/* Autocomplete Muzakki */}
                 <div className="space-y-1 relative">
@@ -1465,17 +1466,17 @@ export default function PenerimaanZis() {
                   </div>
                 )}
 
-                <div className="pt-4 flex gap-3 border-t border-slate-100">
+                <div className="pt-4 flex flex-col-reverse md:flex-row gap-2.5 md:gap-3 border-t border-slate-100">
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)} 
-                    className="flex-1 px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                    className="hidden md:inline-flex justify-center items-center px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                   >
                     Batal
                   </button>
                   <button 
                     type="submit" 
-                    className="flex-1 px-6 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-all"
+                    className="w-full md:flex-1 px-6 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                   >
                     Simpan Penerimaan
                   </button>
@@ -1502,16 +1503,16 @@ export default function PenerimaanZis() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)]"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                 <h3 className="text-xl font-black text-slate-900">Detail Penerimaan ZIS</h3>
                 <button onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="p-4 md:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kuitansi / BSZ</p>
@@ -1590,7 +1591,7 @@ export default function PenerimaanZis() {
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-100 flex gap-3">
+              <div className="p-4 md:p-6 border-t border-slate-100 flex gap-3 shrink-0">
                 <button 
                   onClick={() => setIsDetailModalOpen(false)}
                   className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
@@ -1618,16 +1619,16 @@ export default function PenerimaanZis() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)]"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                 <h3 className="text-lg font-black text-slate-900">Registrasi NPWZ SIMBA</h3>
                 <button onClick={() => setNpwzModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="p-4 md:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
                   <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Muzakki</p>
                   <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedMuzakkiForNpwz.nama}</p>
@@ -1648,20 +1649,20 @@ export default function PenerimaanZis() {
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-100 flex gap-3">
+              <div className="p-4 md:p-6 border-t border-slate-100 flex flex-col-reverse md:flex-row gap-2.5 md:gap-3 shrink-0">
                 <button 
                   type="button"
                   onClick={() => setNpwzModalOpen(false)}
-                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                  className="hidden md:inline-flex justify-center items-center px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   Batal
                 </button>
                 <button 
                   type="button"
                   onClick={handleSaveNpwz}
-                  className="w-1/2 py-2.5 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95"
+                  className="w-full md:flex-1 px-6 py-3 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
                 >
-                  Simpan & Registrasi
+                  Simpan &amp; Registrasi
                 </button>
               </div>
             </motion.div>
@@ -1688,9 +1689,9 @@ export default function PenerimaanZis() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)]"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
                 <h3 className="text-lg font-black text-slate-900">Input No Transaksi SIMBA</h3>
                 <button 
                   onClick={() => {
@@ -1704,7 +1705,7 @@ export default function PenerimaanZis() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="p-4 md:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
                   <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Muzakki</p>
                   <p className="font-bold text-slate-800 text-sm">{promptSimbaItem.muzakki?.nama || '-'}</p>
@@ -1727,7 +1728,7 @@ export default function PenerimaanZis() {
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-100 flex gap-3">
+              <div className="p-4 md:p-6 border-t border-slate-100 flex flex-col-reverse md:flex-row gap-2.5 md:gap-3 shrink-0">
                 <button 
                   type="button"
                   onClick={() => {
@@ -1735,16 +1736,16 @@ export default function PenerimaanZis() {
                     setPromptSimbaItem(null);
                     setPromptSimbaValue('');
                   }}
-                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                  className="hidden md:inline-flex justify-center items-center px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   Batal
                 </button>
                 <button 
                   type="button"
                   onClick={handleSaveSimbaNo}
-                  className="w-1/2 py-2.5 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95"
+                  className="w-full md:flex-1 px-6 py-3 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
                 >
-                  Simpan & Sync
+                  Simpan &amp; Sync
                 </button>
               </div>
             </motion.div>
@@ -1767,10 +1768,10 @@ export default function PenerimaanZis() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10"
+              className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)] z-10"
             >
               {/* Header */}
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
+              <div className="p-4 md:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-100 rounded-xl">
                     <Printer className="size-5 text-emerald-700" />
@@ -1791,7 +1792,7 @@ export default function PenerimaanZis() {
               </div>
 
               {/* Body */}
-              <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+              <div className="p-4 md:p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1 min-h-0">
                 
                 {/* Opsi 1: Laporan Excel */}
                 <div className="border border-slate-200 rounded-xl p-4 space-y-4">
@@ -1954,11 +1955,10 @@ export default function PenerimaanZis() {
 
               </div>
 
-              {/* Footer */}
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                 <button
                   onClick={() => setIsReportModalOpen(false)}
-                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
                 >
                   Tutup
                 </button>
@@ -1967,6 +1967,48 @@ export default function PenerimaanZis() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
+            >
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setIsReportModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <Printer className="size-4 text-slate-500" />
+                Cetak Laporan
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  resetForm();
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Input Penerimaan ZIS
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className="size-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+        >
+          <Plus className={cn("size-6 transition-transform duration-300", isFabOpen ? "rotate-45" : "rotate-0")} />
+        </button>
+      </div>
     </div>
   );
 }

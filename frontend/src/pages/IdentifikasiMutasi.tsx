@@ -364,22 +364,24 @@ export default function IdentifikasiMutasi() {
       </AnimatePresence>
 
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Pengumpulan</span>
-            <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">Identifikasi Mutasi</span>
-          </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <ArrowRightLeft className="size-8 text-primary shrink-0" />
-            Identifikasi Mutasi Bank
-          </h2>
-          <p className="text-slate-500 font-medium text-xs md:text-sm">
-            Menampilkan data mutasi rekening koran uang masuk (Penerimaan) untuk diidentifikasi oleh tim Pengumpulan.
-          </p>
-        </div>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-2"
+      >
+        <nav className="flex text-sm gap-2 items-center">
+          <span className="text-slate-400">Pengumpulan</span>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-primary font-bold">Identifikasi Mutasi</span>
+        </nav>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+          <ArrowRightLeft className="size-8 text-primary shrink-0" />
+          Identifikasi Mutasi
+        </h2>
+        <p className="text-slate-500 font-medium">
+          Mengidentifikasi data mutasi rekening koran uang masuk untuk alokasi dana ZIS.
+        </p>
+      </motion.div>
 
       {/* Metrics Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -951,17 +953,17 @@ export default function IdentifikasiMutasi() {
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex gap-3 pt-3 border-t border-slate-100">
+                <div className="pt-4 flex flex-col-reverse md:flex-row gap-2.5 md:gap-3 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-3 text-slate-500 hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider"
+                    className="hidden md:inline-flex justify-center items-center px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/20"
+                    className="w-full md:flex-1 px-6 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                   >
                     Simpan Identifikasi
                   </button>

@@ -649,14 +649,17 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
         className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
       >
         <div className="space-y-2">
-          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Pendistribusian</span>
-            <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">Antrean SIMBA</span>
+          <nav className="flex text-sm gap-2 items-center">
+            <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
+            <ChevronRight className="size-4 text-slate-300" />
+            <span className="text-primary font-bold">Antrean SIMBA</span>
           </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Antrean Sinkronisasi SIMBA</h2>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <RefreshCw className="size-8 text-primary shrink-0" />
+            Antrean SIMBA
+          </h2>
           <p className="text-slate-500 font-medium max-w-3xl">
-            Layanan integrasi dan sinkronisasi data mustahik penerima pencairan ke sistem SIMBA Pusat BAZNAS. Setelah data tersinkronisasi, rekam Nomor Register Mustahik (NRM) untuk finalisasi kuitansi.
+            Layanan integrasi dan sinkronisasi data mustahik penerima pencairan ke sistem SIMBA Pusat BAZNAS.
           </p>
         </div>
         <button

@@ -25,7 +25,7 @@ function getSurveyDeadlineInfo(claimedAtStr?: string | null) {
   
   if (diffMs <= 0) {
     return {
-      remainingText: 'KADALUARSA',
+      remainingText: 'KEDALUWARSA',
       isExpired: true,
       diffMs: 0
     };
@@ -981,7 +981,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
 
   if (viewMode === 'detail' && selectedTask) {
     return (
-      <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 min-h-screen flex flex-col relative overflow-hidden shadow-2xl">
+      <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 h-[100dvh] flex flex-col relative overflow-hidden shadow-2xl">
         <div className="bg-emerald-600 pt-12 pb-6 px-6 text-white rounded-b-3xl shrink-0 shadow-lg relative z-10">
           <button
             onClick={() => setViewMode('list')}
@@ -1000,7 +1000,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-32">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {selectedTask.survey_data?.surveyClaimedAt && (
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Informasi Batas Waktu</h3>
@@ -1081,31 +1081,29 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
           )}
         </div>
 
-        <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none flex flex-col justify-end">
-          <div className="p-6 bg-gradient-to-t from-white via-white to-transparent pt-12 pointer-events-auto">
-            {!selectedTask.surveyorName ? (
-              <button
-                onClick={() => handleClaimTask(selectedTask)}
-                className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
-              >
-                <Download className="size-5" /> Ambil Tugas Ini
-              </button>
-            ) : !selectedTask.isBeingSurveyed ? (
-              <button
-                onClick={() => handleStartSurvey(selectedTask)}
-                className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
-              >
-                <Navigation className="size-5" /> Mulai Perjalanan
-              </button>
-            ) : (
-              <button
-                onClick={() => setViewMode('surveyForm')}
-                className="w-full py-4 bg-amber-500 text-white rounded-2xl text-base font-black shadow-xl shadow-amber-500/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
-              >
-                <Camera className="size-5" /> Mulai Asessment
-              </button>
-            )}
-          </div>
+        <div className="p-6 bg-white border-t border-slate-100 shrink-0">
+          {!selectedTask.surveyorName ? (
+            <button
+              onClick={() => handleClaimTask(selectedTask)}
+              className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
+            >
+              <Download className="size-5" /> Ambil Tugas Ini
+            </button>
+          ) : !selectedTask.isBeingSurveyed ? (
+            <button
+              onClick={() => handleStartSurvey(selectedTask)}
+              className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-base font-black shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
+            >
+              <Navigation className="size-5" /> Mulai Perjalanan
+            </button>
+          ) : (
+            <button
+              onClick={() => setViewMode('surveyForm')}
+              className="w-full py-4 bg-amber-500 text-white rounded-2xl text-base font-black shadow-xl shadow-amber-500/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
+            >
+              <Camera className="size-5" /> Mulai Asessment
+            </button>
+          )}
         </div>
       </div>
     );
@@ -1385,7 +1383,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   return (
     <div className="flex-1 w-full max-w-md mx-auto bg-slate-50 h-screen flex flex-col relative shadow-xl overflow-hidden pb-16">
       {/* Top App Bar */}
-      <div className="flex justify-center items-center px-6 py-4 bg-white z-20 shrink-0">
+      <div className="hidden md:flex justify-center items-center px-6 py-4 bg-white z-20 shrink-0">
         <h1 className="text-emerald-600 font-extrabold text-xl tracking-tight">BAZNAS Survei</h1>
       </div>
 

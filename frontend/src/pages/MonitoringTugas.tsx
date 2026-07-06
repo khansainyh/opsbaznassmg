@@ -20,7 +20,8 @@ import {
   Check,
   Repeat2,
   FlaskConical,
-  Camera
+  Camera,
+  UserSearch
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -50,7 +51,7 @@ function getSurveyDeadlineInfo(claimedAtStr?: string | null) {
   
   if (diffMs <= 0) {
     return {
-      remainingText: 'KADALUARSA',
+      remainingText: 'KEDALUWARSA',
       isExpired: true,
       diffMs: 0
     };
@@ -743,7 +744,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             const diffMs = deadline.getTime() - now.getTime();
                             
                             if (diffMs <= 0) {
-                              return <span className="text-rose-600 font-bold block">KADALUARSA</span>;
+                              return <span className="text-rose-600 font-bold block">KEDALUWARSA</span>;
                             }
                             
                             const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
@@ -920,15 +921,18 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
           {/* Breadcrumbs & Title */}
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-            <nav className="flex text-xs font-medium text-slate-400 gap-2 items-center">
-              <span>Pendistribusian & Pendayagunaan</span>
-              <ChevronRight className="size-3" />
+            <nav className="flex text-sm gap-2 items-center">
+              <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
+              <ChevronRight className="size-4 text-slate-300" />
               <span className="text-primary font-bold">Monitoring Tugas</span>
             </nav>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Monitoring Tugas Survei</h2>
-                <p className="text-slate-500 font-medium max-w-2xl">Layanan pemantauan, penugasan, dan verifikasi survei lapangan bagi para mustahik. Setelah survei selesai, lakukan penentuan klasifikasi asnaf sebelum diteruskan ke Kepala Pelaksana.</p>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                  <UserSearch className="size-8 text-primary shrink-0" />
+                  Monitoring Tugas
+                </h2>
+                <p className="text-slate-500 font-medium max-w-2xl">Layanan pemantauan, penugasan, dan verifikasi survei lapangan bagi para mustahik.</p>
               </div>
               <div className="relative shrink-0 self-start md:self-center">
                 <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
@@ -1080,7 +1084,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                                     const diffMs = deadline.getTime() - now.getTime();
                                     
                                     if (diffMs <= 0) {
-                                      return <span className="text-rose-600 font-bold block">KADALUARSA</span>;
+                                      return <span className="text-rose-600 font-bold block">KEDALUWARSA</span>;
                                     }
                                     
                                     const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));

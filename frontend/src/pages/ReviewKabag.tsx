@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import axios from 'axios';
-import { 
-  Search, 
-  ChevronRight, 
-  Eye, 
-  CheckCircle2, 
-  Clock, 
+import {
+  Search,
+  ChevronRight,
+  Eye,
+  CheckCircle2,
+  Clock,
   FileText,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
@@ -37,10 +37,10 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   const filteredProposals = useMemo(() => {
     return data.filter(item => {
       const isReviewKabag = item.status === 'Review Kabag Admin' || item.status === 'Review Kabag Administrasi';
-      const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
-                         item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                         (item.nik || '').includes(searchTerm);
+      const searchMatch = item.agendaNo.toString().includes(searchTerm) ||
+        item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (item.nik || '').includes(searchTerm);
       return isReviewKabag && searchMatch;
     });
   }, [data, searchTerm]);
@@ -49,9 +49,9 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   const filteredSurat = useMemo(() => {
     return suratData.filter(item => {
       const isReviewKabag = item.status === 'Review Kabag Admin' || (item.status as any) === 'Review Kabag Administrasi';
-      const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
-                         (item.namaInstansi && item.namaInstansi.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                         item.keperluan.toLowerCase().includes(searchTerm.toLowerCase());
+      const searchMatch = item.agendaNo.toString().includes(searchTerm) ||
+        (item.namaInstansi && item.namaInstansi.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        item.keperluan.toLowerCase().includes(searchTerm.toLowerCase());
       return isReviewKabag && searchMatch;
     });
   }, [suratData, searchTerm]);
@@ -71,7 +71,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
       await axios.put(`/api/proposals/${id}`, {
         status: 'Monitoring_Tugas'
       });
-      const updatedData = data.map(item => 
+      const updatedData = data.map(item =>
         item.id === id ? { ...item, status: 'Monitoring Tugas' as const } : item
       );
       onUpdate(updatedData as ProposalMemo[]);
@@ -87,7 +87,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
       await axios.put(`/api/surats/${id}`, {
         status: 'Review_Kepala_Pelaksana'
       });
-      const updatedData = suratData.map(item => 
+      const updatedData = suratData.map(item =>
         item.id === id ? { ...item, status: 'Review Kepala Pelaksana' as const } : item
       );
       onUpdateSurat(updatedData as Surat[]);
@@ -112,7 +112,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Breadcrumbs & Title */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
@@ -131,34 +131,34 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
       </motion.div>
 
       {/* Stats Cards */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="grid grid-cols-1 md:grid-cols-3 gap-6"
       >
-        <StatCard 
-          title="Menunggu Proposal" 
-          value={stats.proposal.toString()} 
+        <StatCard
+          title="Menunggu Proposal"
+          value={stats.proposal.toString()}
           icon={<FileText className="size-5" />}
           color="primary"
         />
-        <StatCard 
-          title="Menunggu Surat" 
-          value={stats.surat.toString()} 
+        <StatCard
+          title="Menunggu Surat"
+          value={stats.surat.toString()}
           icon={<Clock className="size-5" />}
           color="amber"
         />
-        <StatCard 
-          title="Disetujui Hari Ini" 
-          value={stats.completed.toString()} 
+        <StatCard
+          title="Disetujui Hari Ini"
+          value={stats.completed.toString()}
           icon={<CheckCircle2 className="size-5" />}
           color="emerald"
         />
       </motion.div>
 
       {/* Table Section */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -167,7 +167,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
         {/* Filter Bar */}
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between bg-white sticky top-0 z-10">
           <div className="flex bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
-            <button 
+            <button
               onClick={() => setActiveTab('proposal')}
               className={cn(
                 "flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all",
@@ -176,7 +176,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
             >
               Proposal ({filteredProposals.length})
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('surat')}
               className={cn(
                 "flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-xs font-bold transition-all",
@@ -188,7 +188,7 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
           </div>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-            <input 
+            <input
               type="text"
               placeholder={activeTab === 'proposal' ? "Cari Agenda / Pemohon / NIK..." : "Cari Agenda / Instansi / Keperluan..."}
               className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
@@ -228,14 +228,14 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
-                        <button 
+                        <button
                           onClick={() => handleDetailClick(item)}
                           className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                           title="Lihat Detail"
                         >
                           <Eye className="size-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleApproveProposal(item.id)}
                           className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
                           title="Setujui"
@@ -273,14 +273,14 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
-                        <button 
+                        <button
                           onClick={() => handleDetailClick(item)}
                           className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                           title="Lihat Detail"
                         >
                           <Eye className="size-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleApproveSurat(item.id)}
                           className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
                           title="Setujui"
@@ -326,14 +326,14 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
       <AnimatePresence>
         {isDetailModalOpen && (selectedProposal || selectedSurat) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
               onClick={() => setIsDetailModalOpen(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -344,14 +344,14 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                   <h3 className="text-xl font-black text-slate-900">Detail {selectedProposal ? 'Proposal' : 'Surat'}</h3>
                   <p className="text-xs text-slate-500 font-medium mt-1">No. Agenda: {selectedProposal?.agendaNo || selectedSurat?.agendaNo}</p>
                 </div>
-                <button 
-                  onClick={() => setIsDetailModalOpen(false)} 
+                <button
+                  onClick={() => setIsDetailModalOpen(false)}
                   className="p-2 hover:bg-slate-200 rounded-full transition-colors"
                 >
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                 {selectedProposal ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -394,8 +394,8 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                       {selectedProposal.fileGdriveLink && (
                         <div className="mt-4">
                           <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Dokumen Rekaman</h4>
-                          <iframe 
-                            src={selectedProposal.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')} 
+                          <iframe
+                            src={selectedProposal.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')}
                             className="w-full h-80 rounded-xl border border-slate-200 shadow-sm"
                             allow="autoplay"
                           ></iframe>
@@ -439,8 +439,8 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                       {selectedSurat.fileGdriveLink && (
                         <div className="mt-4">
                           <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Dokumen Rekaman</h4>
-                          <iframe 
-                            src={selectedSurat.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')} 
+                          <iframe
+                            src={selectedSurat.fileGdriveLink.replace(/\/view.*?(\?|$)/, '/preview$1')}
                             className="w-full h-80 rounded-xl border border-slate-200 shadow-sm"
                             allow="autoplay"
                           ></iframe>
@@ -452,13 +452,13 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
-                <button 
+                <button
                   onClick={() => setIsDetailModalOpen(false)}
                   className="hidden md:inline-flex px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   Batal
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     if (selectedProposal) handleApproveProposal(selectedProposal.id);
                     else if (selectedSurat) handleApproveSurat(selectedSurat.id);
@@ -487,9 +487,9 @@ function DetailItem({ label, value }: { label: string, value: string }) {
   );
 }
 
-function StatCard({ title, value, icon, color }: { 
-  title: string, 
-  value: string, 
+function StatCard({ title, value, icon, color }: {
+  title: string,
+  value: string,
   icon: React.ReactNode,
   color: 'primary' | 'emerald' | 'amber'
 }) {
