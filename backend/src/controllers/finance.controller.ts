@@ -1263,3 +1263,25 @@ export const checkLedgerHealth = async (req: Request, res: Response) => {
     res.status(500).json({ error: String(error) });
   }
 };
+
+export const getReplenishments = async (req: Request, res: Response) => {
+  try {
+    const list = await prisma.cashMutation.findMany({
+      include: {
+        sourceAccount: true,
+        details: {
+          include: {
+            targetAccount: true
+          }
+        }
+      },
+      orderBy: {
+        tanggal: 'desc'
+      }
+    });
+    res.status(200).json(list);
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+};
+

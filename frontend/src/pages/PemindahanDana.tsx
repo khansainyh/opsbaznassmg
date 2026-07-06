@@ -3,12 +3,12 @@ import axios from 'axios';
 import { 
   Plus, 
   Trash2, 
-  CheckCircle2, 
-  HelpCircle,
   ArrowRightLeft,
   ChevronDown,
   Check,
-  ChevronRight
+  ChevronRight,
+  History,
+  Search
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -25,6 +25,8 @@ const formatCurrency = (value: number) => {
 export default function PemindahanDana() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [replenishments, setReplenishments] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Form states - Replenishment
   const [replenishBank, setReplenishBank] = useState('');
@@ -34,6 +36,16 @@ export default function PemindahanDana() {
   ]);
   const [isSourceBankDropdownOpen, setIsSourceBankDropdownOpen] = useState(false);
   const [openTargetDropdownIdx, setOpenTargetDropdownIdx] = useState<number | null>(null);
+
+  // Fetch replenishments history
+  const fetchReplenishments = async () => {
+    try {
+      const res = await axios.get('/api/finance/replenish');
+      setReplenishments(res.data);
+    } catch (e) {
+      console.error('Gagal mengambil riwayat pemindahan dana:', e);
+    }
+  };
 
   // Fetch accounts on mount
   const fetchAccounts = async () => {
@@ -47,7 +59,30 @@ export default function PemindahanDana() {
 
   useEffect(() => {
     fetchAccounts();
+    fetchReplenishments();
   }, []);
+
+  const filteredReplenishments = replenishments.filter(rep => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return true;
+    
+    const dateStr = new Date(rep.tanggal).toLocaleDateString('id-ID').toLowerCase();
+    const sourceName = (rep.sourceAccount?.nama_akun || '').toLowerCase();
+    const desc = (rep.keterangan || '').toLowerCase();
+    const nominalTotal = rep.nominal_total.toString();
+    
+    const detailsMatch = rep.details?.some((det: any) => {
+      const targetName = (det.targetAccount?.nama_akun || '').toLowerCase();
+      const nominalAlloc = det.nominal_alokasi.toString();
+      return targetName.includes(query) || nominalAlloc.includes(query);
+    });
+
+    return dateStr.includes(query) || 
+           sourceName.includes(query) || 
+           desc.includes(query) || 
+           nominalTotal.includes(query) ||
+           detailsMatch;
+  });
 
   // Cash Replenishment (Tarik Tunai / Pemindahan Dana Split)
   const handleAddReplenishAllocation = () => {
@@ -94,6 +129,7 @@ export default function PemindahanDana() {
       setReplenishKeterangan('');
       setReplenishAllocations([{ targetAccountId: '', nominal: 0 }]);
       fetchAccounts(); // refresh balances
+      fetchReplenishments(); // refresh history
     } catch (error: any) {
       alert('Gagal melakukan pemindahan dana: ' + (error.response?.data?.error || error.message));
     } finally {
@@ -102,36 +138,34 @@ export default function PemindahanDana() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Page Header */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="border-b border-slate-100 pb-5 no-print"
+        className="space-y-2 no-print"
       >
-        <div className="space-y-1">
-          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Keuangan</span>
-            <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">Pemindahan Dana</span>
-          </nav>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <ArrowRightLeft className="size-8 text-primary shrink-0" />
-            Pemindahan Dana
-          </h2>
-          <p className="text-slate-500 font-medium text-xs md:text-sm">
-            Layanan transfer internal dari Rekening Bank utama untuk mengisi (top-up) Laci Kasir operasional harian BAZNAS Kota Semarang.
-          </p>
-        </div>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="hover:text-primary transition-colors cursor-pointer text-slate-400 shrink-0">Keuangan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Pemindahan Dana</span>
+        </nav>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+          <ArrowRightLeft className="size-8 text-primary shrink-0" />
+          Pemindahan Dana
+        </h2>
+        <p className="text-slate-500 font-medium">
+          Layanan transfer internal dari rekening bank utama untuk mengisi saldo laci kasir harian BAZNAS Kota Semarang.
+        </p>
       </motion.div>
 
-      {/* Centered Premium Container */}
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Split Replenishment form */}
+      {/* Premium Split Layout Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column - Form */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6"
+          className="lg:col-span-7 bg-white p-6 md:p-8 rounded-xl border border-primary/10 shadow-sm space-y-6"
         >
           <div>
             <h3 className="text-lg font-black text-slate-900">Alokasi Transfer Bank ke Laci Kasir</h3>
@@ -215,12 +249,12 @@ export default function PemindahanDana() {
               </div>
 
               {replenishAllocations.map((alloc, idx) => (
-                <div key={idx} className="flex gap-3 items-center">
+                <div key={idx} className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center p-4 sm:p-0 bg-slate-50 sm:bg-transparent rounded-2xl border border-slate-100 sm:border-none">
                   <div className="flex-1 relative">
                     <button
                       type="button"
                       onClick={() => setOpenTargetDropdownIdx(openTargetDropdownIdx === idx ? null : idx)}
-                      className="w-full flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800 text-left cursor-pointer"
+                      className="w-full flex items-center justify-between text-xs bg-white sm:bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800 text-left cursor-pointer"
                     >
                       <span className="truncate">
                         {accounts.find(a => a.account_id === alloc.targetAccountId)
@@ -273,26 +307,28 @@ export default function PemindahanDana() {
                       </>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Nominal alokasi..."
-                    value={alloc.nominal ? Number(alloc.nominal).toLocaleString('id-ID') : ''}
-                    onChange={(e) => {
-                      const rawVal = e.target.value.replace(/[^0-9]/g, '');
-                      handleReplenishAllocationChange(idx, 'nominal', Number(rawVal) || 0);
-                    }}
-                    required
-                    className="w-40 bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold text-right"
-                  />
-                  {replenishAllocations.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveReplenishAllocation(idx)}
-                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  )}
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder="Nominal alokasi..."
+                      value={alloc.nominal ? Number(alloc.nominal).toLocaleString('id-ID') : ''}
+                      onChange={(e) => {
+                        const rawVal = e.target.value.replace(/[^0-9]/g, '');
+                        handleReplenishAllocationChange(idx, 'nominal', Number(rawVal) || 0);
+                      }}
+                      required
+                      className="flex-1 sm:w-40 bg-white sm:bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary/20 outline-none font-bold text-right"
+                    />
+                    {replenishAllocations.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveReplenishAllocation(idx)}
+                        className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all border border-slate-200 sm:border-none bg-white sm:bg-transparent shrink-0"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -325,57 +361,132 @@ export default function PemindahanDana() {
           </form>
         </motion.div>
 
-        {/* Replenishment Ledger Guide - Moved to bottom and styled horizontally */}
+        {/* Right Column - Monitor & Ledger Guide */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-slate-900 text-slate-200 p-8 rounded-3xl border border-slate-800 shadow-md space-y-6"
+          transition={{ delay: 0.1 }}
+          className="lg:col-span-5 bg-white p-6 md:p-8 rounded-xl border border-primary/10 shadow-sm space-y-6"
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-800/80">
+          {/* Monitor Saldo Terkini */}
+          <div className="space-y-4">
             <div className="space-y-1">
-              <span className="px-2.5 py-1 bg-primary/20 text-primary border border-primary/30 rounded-lg text-[9px] font-black uppercase tracking-wider">
-                Logika Akuntansi Buku Besar
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                Monitor Saldo Terkini
               </span>
-              <h4 className="text-lg font-black text-white mt-1.5">Skema Double-Entry Pemindahan Dana</h4>
-              <p className="text-slate-400 text-xs leading-relaxed font-medium">
-                Sistem akan memotong saldo bank riil (Kredit) sekaligus memindahkan saldo fisik ke masing-masing laci kasir (Debit) secara transaksional aman dan akurat.
-              </p>
+              <h4 className="text-sm font-black text-slate-900 mt-1.5 uppercase tracking-wider">Keadaan Saldo Kas &amp; Bank</h4>
             </div>
-            <div className="flex items-center gap-2 bg-slate-850 px-4 py-2.5 rounded-2xl border border-slate-800 shrink-0 self-start md:self-center">
-              <CheckCircle2 className="size-4 text-emerald-500" />
-              <span className="text-xs font-black text-slate-200">Balanced (Buku Besar Seimbang)</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex gap-4 items-start bg-slate-950/40 p-5 rounded-2xl border border-slate-800/60">
-              <div className="size-10 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-black shrink-0 text-sm">D</div>
-              <div className="space-y-1">
-                <p className="text-xs font-black text-white uppercase tracking-wider">Entri Debit (Penambahan Aset Kas Fisik)</p>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-                  Mendebit COA Kas Tunai (misal 111010101) dari masing-masing laci kasir penerima sesuai nominal alokasi split.
-                </p>
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Rekening Bank Penyimpanan (Kredit)</p>
+                <div className="space-y-1.5">
+                  {accounts.filter(a => a.tipe_kas === 'BANK').length === 0 ? (
+                    <div className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-lg border border-primary/5">Belum ada rekening bank terdaftar</div>
+                  ) : (
+                    accounts.filter(a => a.tipe_kas === 'BANK').map(a => (
+                      <div key={a.account_id} className="flex justify-between items-center bg-slate-50/50 px-3 py-2 rounded-lg text-xs border border-primary/5">
+                        <span className="font-semibold text-slate-700">{a.nama_akun}</span>
+                        <span className="font-mono font-bold text-slate-900">{formatCurrency(Number(a.saldo))}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Laci Kasir Operasional (Debit)</p>
+                <div className="space-y-1.5">
+                  {accounts.filter(a => a.tipe_kas === 'TUNAI').length === 0 ? (
+                    <div className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-lg border border-primary/5">Belum ada laci kasir terdaftar</div>
+                  ) : (
+                    accounts.filter(a => a.tipe_kas === 'TUNAI').map(a => (
+                      <div key={a.account_id} className="flex justify-between items-center bg-slate-50/50 px-3 py-2 rounded-lg text-xs border border-primary/5">
+                        <span className="font-semibold text-slate-700">{a.nama_akun}</span>
+                        <span className="font-mono font-bold text-slate-900">{formatCurrency(Number(a.saldo))}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-
-            <div className="flex gap-4 items-start bg-slate-950/40 p-5 rounded-2xl border border-slate-800/60">
-              <div className="size-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center font-black shrink-0 text-sm">K</div>
-              <div className="space-y-1">
-                <p className="text-xs font-black text-white uppercase tracking-wider">Entri Kredit (Pengurangan Aset Bank Sumber)</p>
-                <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-                  Mengkredit COA Bank (misal 111010201) milik Rekening Bank sumber sebesar akumulasi total penarikan.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-850/30 p-4 rounded-2xl border border-slate-800/60 flex items-center gap-4">
-            <HelpCircle className="size-6 text-primary shrink-0" />
-            <p className="text-[11px] text-slate-400 leading-normal font-medium">
-              Transaksi pemindahan dana ini didaftarkan sebagai mutasi kas internal dan dicatat langsung ke dalam buku besar akuntansi BAZNAS Kota Semarang.
-            </p>
           </div>
         </motion.div>
+      </div>
+
+      {/* Riwayat Pemindahan Dana - Widened to span full width */}
+      <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <History className="size-5 text-primary" />
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Riwayat Pemindahan Dana</h3>
+          </div>
+          
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+            <input
+              type="text"
+              placeholder="Cari riwayat pemindahan..."
+              className="w-full text-xs bg-white border border-primary/10 rounded-xl pl-9 pr-4 py-1.5 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/20 border-b border-slate-100">
+                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanggal</th>
+                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Bank Sumber (Kredit)</th>
+                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Laci Tujuan (Debit)</th>
+                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Keterangan</th>
+                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Total Nominal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 text-xs">
+              {filteredReplenishments.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400 font-medium">
+                    Belum ada riwayat pemindahan dana.
+                  </td>
+                </tr>
+              ) : (
+                filteredReplenishments.map((rep) => (
+                  <tr key={rep.mutation_id} className="hover:bg-slate-50/50">
+                    <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
+                      {new Date(rep.tanggal).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-700">
+                      {rep.sourceAccount?.nama_akun || 'Unknown Bank'}
+                    </td>
+                    <td className="px-6 py-4 text-slate-700">
+                      <div className="space-y-1">
+                        {rep.details?.map((det: any) => (
+                          <div key={det.detail_id} className="flex items-center gap-2">
+                            <span className="font-semibold">{det.targetAccount?.nama_akun}:</span>
+                            <span className="font-bold text-slate-900">{formatCurrency(Number(det.nominal_alokasi))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 max-w-xs truncate" title={rep.keterangan}>
+                      {rep.keterangan || '-'}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black text-slate-900 whitespace-nowrap">
+                      {formatCurrency(Number(rep.nominal_total))}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

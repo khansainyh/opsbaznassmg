@@ -165,13 +165,14 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-          <span className="hover:text-primary transition-colors cursor-pointer">Keuangan</span>
-          <ChevronRight className="size-3.5 text-slate-300" />
-          <span className="text-primary font-black">Antrean Pencairan</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="hover:text-primary transition-colors cursor-pointer text-slate-400 shrink-0">Keuangan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Antrean Pencairan</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-          Antrean Pencairan Dana
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+          <Banknote className="size-8 text-primary shrink-0" />
+          Antrean Pencairan
         </h2>
         <p className="text-slate-500 font-medium">
           Daftar bantuan yang menunggu proses pencairan dana oleh bagian keuangan.

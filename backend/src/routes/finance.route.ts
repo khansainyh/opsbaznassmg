@@ -19,7 +19,8 @@ import {
    executeReplenishment,
    getJournalEntries,
    createManualExpense,
-   checkLedgerHealth
+   checkLedgerHealth,
+   getReplenishments
  } from '../controllers/finance.controller';
 
 const router = Router();
@@ -47,6 +48,7 @@ router.get('/check-availability/:proposalId', checkAvailability);
 router.post('/check-availability-batch', checkAvailabilityBatch);
 router.post('/disburse/preview', previewDisbursement);
 router.post('/disburse/execute', executeDisbursement);
+router.get('/replenish', getReplenishments);
 router.post('/replenish', executeReplenishment);
 router.post('/manual-expense', createManualExpense);
 

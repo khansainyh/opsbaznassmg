@@ -67,6 +67,7 @@ export default function CatatMutasi() {
   // Modal Controls
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
 
   // Manual Form States (Used for both Create and Edit)
   const [editMutationId, setEditMutationId] = useState<string | null>(null);
@@ -399,51 +400,28 @@ export default function CatatMutasi() {
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8">
-      {/* Breadcrumbs & Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="space-y-1.5">
-          <nav className="flex text-xs gap-2 items-center">
-            <span className="text-slate-400">Modul Keuangan</span>
-            <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-bold">Catat Mutasi</span>
+      {/* Page Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+      >
+        <div className="space-y-2">
+          <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+            <span className="hover:text-primary transition-colors cursor-pointer text-slate-400 shrink-0">Keuangan</span>
+            <ChevronRight className="size-4 text-slate-300 shrink-0" />
+            <span className="text-primary font-bold shrink-0">Catat Mutasi</span>
           </nav>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <Upload className="size-8 text-primary shrink-0" />
             Catat Mutasi Bank
           </h2>
-          <p className="text-xs text-slate-500 font-semibold">
+          <p className="text-slate-500 font-medium">
             Pencatatan manual dan migrasi bulk rekening koran ke dalam staging mutasi bank.
           </p>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex gap-3 w-full md:w-auto">
-          <button 
-            onClick={() => {
-              setEditMutationId(null);
-              setFormBankId('');
-              setFormTanggal(new Date().toISOString().split('T')[0]);
-              setFormType('DEBIT');
-              setFormNominal('');
-              setFormKeterangan('');
-              setIsManualModalOpen(true);
-            }}
-            className="flex-1 md:flex-none px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all flex items-center justify-center gap-2 uppercase tracking-wider"
-          >
-            <Plus className="size-4" /> Catat Manual
-          </button>
-          <button 
-            onClick={() => {
-              setMigrationBankId('');
-              setParsedMutations([]);
-              setFileName('');
-              setIsMigrationModalOpen(true);
-            }}
-            className="flex-1 md:flex-none px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-wider"
-          >
-            <FileSpreadsheet className="size-4" /> Migrasi Koran
-          </button>
-        </div>
-      </div>
+      </motion.div>
 
       {/* Toast Notifications */}
       <AnimatePresence>
@@ -675,6 +653,41 @@ export default function CatatMutasi() {
 
       {/* Main Table Layout */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {/* Table Header with Actions for Desktop */}
+        <div className="hidden md:flex px-6 py-4 border-b border-slate-100 items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Layers className="size-5 text-primary" />
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Daftar Transaksi Mutasi Bank</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => {
+                setEditMutationId(null);
+                setFormBankId('');
+                setFormTanggal(new Date().toISOString().split('T')[0]);
+                setFormType('DEBIT');
+                setFormNominal('');
+                setFormKeterangan('');
+                setIsManualModalOpen(true);
+              }}
+              className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer"
+            >
+              <Plus className="size-4" /> Catat Manual
+            </button>
+            <button 
+              onClick={() => {
+                setMigrationBankId('');
+                setParsedMutations([]);
+                setFileName('');
+                setIsMigrationModalOpen(true);
+              }}
+              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black shadow-md shadow-slate-950/10 hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer"
+            >
+              <FileSpreadsheet className="size-4" /> Migrasi Koran
+            </button>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -733,7 +746,7 @@ export default function CatatMutasi() {
                           ? "bg-slate-100 text-slate-500" 
                           : "bg-amber-50 text-amber-600 border border-amber-100"
                       )}>
-                        {m.status}
+                        {m.status === 'RECONCILED' ? 'TEREKONSILIASI' : m.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -1150,6 +1163,62 @@ export default function CatatMutasi() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        {/* FAB Options */}
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              className="flex flex-col items-end gap-3"
+            >
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setMigrationBankId('');
+                  setParsedMutations([]);
+                  setFileName('');
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+              >
+                <FileSpreadsheet className="size-4 text-slate-500" />
+                Migrasi Koran
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
+                  setEditMutationId(null);
+                  setFormBankId('');
+                  setFormTanggal(new Date().toISOString().split('T')[0]);
+                  setFormType('DEBIT');
+                  setFormNominal('');
+                  setFormKeterangan('');
+                  setIsManualModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+              >
+                <Plus className="size-4" />
+                Catat Manual
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main FAB Trigger */}
+        <button
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className={cn(
+            "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+            isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+          )}
+        >
+          <Plus className="size-6" />
+        </button>
+      </div>
     </div>
   );
 }

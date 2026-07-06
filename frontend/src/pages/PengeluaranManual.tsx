@@ -14,7 +14,10 @@ import {
   ListOrdered,
   Banknote,
   Send,
-  XCircle
+  XCircle,
+  Plus,
+  X,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -46,6 +49,7 @@ interface ManualDraft {
 export default function PengeluaranManual() {
   const { user } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'langsung' | 'antrean'>('langsung');
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   
   // Direct Payout Form States
@@ -56,6 +60,7 @@ export default function PengeluaranManual() {
   const [nominal, setNominal] = useState('');
   const [keterangan, setKeterangan] = useState('');
   const [filterAccountId, setFilterAccountId] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isSourceAccountDropdownOpen, setIsSourceAccountDropdownOpen] = useState(false);
   const [isFilterAccountDropdownOpen, setIsFilterAccountDropdownOpen] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
@@ -80,6 +85,162 @@ export default function PengeluaranManual() {
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4500);
+  };
+
+  const renderFormContent = (isMobile = false) => {
+    const numericNominal = parseFloat(nominal.replace(/[^0-9]/g, '')) || 0;
+    const selectedAccount = accounts.find(a => a.account_id === sourceAccountId);
+    const isOverdrawn = selectedAccount ? numericNominal > selectedAccount.saldo : false;
+
+    return (
+      <form 
+        onSubmit={async (e) => {
+          await handleDirectSubmit(e);
+          if (isMobile) {
+            setIsFormModalOpen(false);
+          }
+        }} 
+        className="space-y-6"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="size-4 text-slate-400" />
+              Tanggal Catatan
+            </label>
+            <input
+              type="date"
+              value={tanggalCatatan}
+              onChange={(e) => setTanggalCatatan(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="size-4 text-slate-400" />
+              Tanggal Transaksi
+            </label>
+            <input
+              type="date"
+              value={tanggalTransaksi}
+              onChange={(e) => setTanggalTransaksi(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Coins className="size-4 text-slate-400" />
+            Sumber Kas (Sumber Dana Kas)
+          </label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsSourceAccountDropdownOpen(!isSourceAccountDropdownOpen)}
+              className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-bold text-slate-700 flex items-center justify-between cursor-pointer"
+            >
+              <span className="truncate">
+                {selectedAccount 
+                  ? `${selectedAccount.nama_akun} - (Rp ${Number(selectedAccount.saldo).toLocaleString('id-ID')})`
+                  : '-- Pilih Sumber Kas --'
+                }
+              </span>
+              <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSourceAccountDropdownOpen && "rotate-180")} />
+            </button>
+
+            {isSourceAccountDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setIsSourceAccountDropdownOpen(false)} />
+                <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
+                  {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+                    <button
+                      key={acc.account_id}
+                      type="button"
+                      onClick={() => {
+                        setSourceAccountId(acc.account_id);
+                        setIsSourceAccountDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                        sourceAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                      )}
+                    >
+                      <span className="font-bold">{acc.nama_akun}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-900 font-mono font-bold">Rp {Number(acc.saldo).toLocaleString('id-ID')}</span>
+                        {sourceAccountId === acc.account_id && <Check className="size-4 text-primary shrink-0" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            Nominal Transaksi
+          </label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Rp</span>
+            <input
+              type="text"
+              value={nominal ? parseInt(nominal).toLocaleString('id-ID') : ''}
+              onChange={handleNominalChange}
+              placeholder="Masukkan jumlah nominal..."
+              className="w-full h-12 pl-12 pr-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-lg font-black text-slate-900"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            Kategori Biaya
+          </label>
+          <select
+            value={kategoriBiaya}
+            onChange={(e) => setKategoriBiaya(e.target.value)}
+            className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-semibold text-slate-700"
+            required
+          >
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.nama}>{cat.nama}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Keterangan Pengeluaran / Memo</label>
+          <textarea
+            value={keterangan}
+            onChange={(e) => setKeterangan(e.target.value)}
+            placeholder="Detail penggunaan..."
+            className="w-full h-24 p-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium resize-none"
+            required
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isLoading || isOverdrawn}
+          className={cn(
+            "w-full h-12 rounded-xl text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-98 cursor-pointer",
+            isOverdrawn 
+              ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' 
+              : 'bg-primary hover:bg-primary/95 shadow-primary/25'
+          )}
+        >
+          <Save className="size-5" />
+          {isLoading ? 'Menyimpan Draft...' : 'Simpan Draft Pengeluaran'}
+        </button>
+      </form>
+    );
   };
 
   // Fetch Direct Payout Data
@@ -234,8 +395,16 @@ export default function PengeluaranManual() {
   };
 
   const filteredDrafts = recentDrafts.filter(dr => {
-    if (filterAccountId === 'ALL') return true;
-    return dr.bankAccountId === filterAccountId;
+    const matchesAccount = filterAccountId === 'ALL' || dr.bankAccountId === filterAccountId;
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return matchesAccount;
+    
+    const matchesQuery = (dr.keteranganBank || '').toLowerCase().includes(query) ||
+      (dr.bankName || '').toLowerCase().includes(query) ||
+      (dr as any).kategori_biaya && ((dr as any).kategori_biaya || '').toLowerCase().includes(query) ||
+      dr.nominal.toString().includes(query);
+
+    return matchesAccount && matchesQuery;
   });
 
   const selectedPayoutAccount = accounts.find(a => a.account_id === payoutBankAccountId);
@@ -260,204 +429,92 @@ export default function PengeluaranManual() {
         )}
       </AnimatePresence>
 
-      {/* Breadcrumb */}
-      <motion.div
+      {/* Page Header */}
+      <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-2 text-xs font-medium text-slate-500"
+        className="space-y-2"
       >
-        <span className="hover:text-primary transition-colors cursor-pointer">Keuangan</span>
-        <ChevronRight className="size-3 text-slate-400" />
-        <span className="text-primary font-bold">Pencatatan Pengeluaran Manual</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="hover:text-primary transition-colors cursor-pointer text-slate-400 shrink-0">Keuangan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Pengeluaran Manual</span>
+        </nav>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+          <Banknote className="size-8 text-primary shrink-0" />
+          Pencatatan Pengeluaran Manual
+        </h2>
+        <p className="text-slate-500 font-medium">
+          Catat pengeluaran tunai secara manual atau proses antrean pengajuan operasional non-proposal.
+        </p>
       </motion.div>
 
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black tracking-tight text-slate-900">Pencatatan Pengeluaran Manual</h2>
-          <p className="text-slate-500 text-sm font-medium">Catat pengeluaran tunai secara manual atau proses antrean pengajuan operasional non-proposal.</p>
+      {/* Desktop View */}
+      <div className="hidden md:block space-y-8">
+        {/* Sub-tabs Selection */}
+        <div className="flex border-b border-slate-200">
+          <button
+            onClick={() => setActiveSubTab('langsung')}
+            className={cn(
+              "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
+              activeSubTab === 'langsung' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
+            )}
+          >
+            <FileText className="size-4" /> Pencatatan Langsung (Kas Kecil)
+          </button>
+          <button
+            onClick={() => setActiveSubTab('antrean')}
+            className={cn(
+              "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 relative",
+              activeSubTab === 'antrean' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
+            )}
+          >
+            <ListOrdered className="size-4" /> Antrean Pengajuan Pencairan
+            {queueList.length > 0 && (
+              <span className="absolute top-1 right-1 bg-primary text-white text-[9px] font-black rounded-full size-4 flex items-center justify-center animate-pulse">
+                {queueList.length}
+              </span>
+            )}
+          </button>
         </div>
-      </div>
 
-      {/* Sub-tabs Selection */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveSubTab('langsung')}
-          className={cn(
-            "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
-            activeSubTab === 'langsung' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
-          )}
-        >
-          <FileText className="size-4" /> Pencatatan Langsung (Kas Kecil)
-        </button>
-        <button
-          onClick={() => setActiveSubTab('antrean')}
-          className={cn(
-            "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 relative",
-            activeSubTab === 'antrean' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
-          )}
-        >
-          <ListOrdered className="size-4" /> Antrean Pengajuan Pencairan
-          {queueList.length > 0 && (
-            <span className="absolute top-1 right-1 bg-primary text-white text-[9px] font-black rounded-full size-4 flex items-center justify-center animate-pulse">
-              {queueList.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {activeSubTab === 'langsung' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Form Column (Left 2 Columns) */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 md:p-8 space-y-6">
-              <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
-                <FileText className="size-5 text-primary" />
-                Formulir Pencatatan Pengeluaran Manual (Draft)
-              </h3>
-
-              <form onSubmit={handleDirectSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Calendar className="size-4 text-slate-400" />
-                      Tanggal Catatan
-                    </label>
-                    <input
-                      type="date"
-                      value={tanggalCatatan}
-                      onChange={(e) => setTanggalCatatan(e.target.value)}
-                      className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Calendar className="size-4 text-slate-400" />
-                      Tanggal Transaksi
-                    </label>
-                    <input
-                      type="date"
-                      value={tanggalTransaksi}
-                      onChange={(e) => setTanggalTransaksi(e.target.value)}
-                      className="w-full h-11 px-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium"
-                      required
-                    />
-                  </div>
+        {activeSubTab === 'langsung' ? (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Form Column (Left 2 Columns) */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 md:p-8 space-y-6">
+                  <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
+                    <FileText className="size-5 text-primary" />
+                    Formulir Pencatatan Pengeluaran Manual (Draft)
+                  </h3>
+                  {renderFormContent(false)}
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Coins className="size-4 text-slate-400" />
-                    Sumber Kas (Sumber Dana Kas)
-                  </label>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setIsSourceAccountDropdownOpen(!isSourceAccountDropdownOpen)}
-                      className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-bold text-slate-700 flex items-center justify-between cursor-pointer"
-                    >
-                      <span className="truncate">
-                        {selectedAccount 
-                          ? `${selectedAccount.nama_akun} - (Rp ${Number(selectedAccount.saldo).toLocaleString('id-ID')})`
-                          : '-- Pilih Sumber Kas --'
-                        }
-                      </span>
-                      <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSourceAccountDropdownOpen && "rotate-180")} />
-                    </button>
-
-                    {isSourceAccountDropdownOpen && (
-                      <>
-                        <div className="fixed inset-0 z-30" onClick={() => setIsSourceAccountDropdownOpen(false)} />
-                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
-                          {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
-                            <button
-                              key={acc.account_id}
-                              type="button"
-                              onClick={() => {
-                                setSourceAccountId(acc.account_id);
-                                setIsSourceAccountDropdownOpen(false);
-                              }}
-                              className={cn(
-                                "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
-                                sourceAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                              )}
-                            >
-                              <span className="font-bold">{acc.nama_akun}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-slate-900 font-mono font-bold">Rp {Number(acc.saldo).toLocaleString('id-ID')}</span>
-                                {sourceAccountId === acc.account_id && <Check className="size-4 text-primary shrink-0" />}
-                              </div>
-                            </button>
-                          ))}
+              {/* Right Column: Saldo info */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 space-y-4">
+                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-2">
+                    <Coins className="size-4 text-primary" />
+                    Saldo Laci Kas (Tunai)
+                  </h4>
+                  <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto custom-scrollbar">
+                    {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+                      <div key={acc.account_id} className="py-3 flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-bold text-slate-700">{acc.nama_akun}</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">COA: {acc.coa_code}</p>
                         </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    Nominal Transaksi
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Rp</span>
-                    <input
-                      type="text"
-                      value={nominal ? parseInt(nominal).toLocaleString('id-ID') : ''}
-                      onChange={handleNominalChange}
-                      placeholder="Masukkan jumlah nominal..."
-                      className="w-full h-12 pl-12 pr-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-lg font-black text-slate-900"
-                      required
-                    />
-                  </div>
-                </div>
-
-                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    Kategori Biaya
-                  </label>
-                  <select
-                    value={kategoriBiaya}
-                    onChange={(e) => setKategoriBiaya(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-semibold text-slate-700"
-                    required
-                  >
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.nama}>{cat.nama}</option>
+                        <p className="font-black text-slate-900">Rp {Number(acc.saldo).toLocaleString('id-ID')}</p>
+                      </div>
                     ))}
-                  </select>
+                  </div>
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Keterangan Pengeluaran / Memo</label>
-                  <textarea
-                    value={keterangan}
-                    onChange={(e) => setKeterangan(e.target.value)}
-                    placeholder="Detail penggunaan..."
-                    className="w-full h-24 p-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium resize-none"
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading || isOverdrawn}
-                  className={cn(
-                    "w-full h-12 rounded-xl text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-98",
-                    isOverdrawn 
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' 
-                      : 'bg-primary hover:bg-primary/95 shadow-primary/25 cursor-pointer'
-                  )}
-                >
-                  <Save className="size-5" />
-                  {isLoading ? 'Menyimpan Draft...' : 'Simpan Draft Pengeluaran'}
-                </button>
-              </form>
+              </div>
             </div>
 
-            {/* Direct recent drafts table */}
+            {/* Direct recent drafts table - Widened to span full width */}
             <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-2">
@@ -465,21 +522,33 @@ export default function PengeluaranManual() {
                   <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Riwayat Draf Transaksi Terkini</h3>
                 </div>
                 
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsFilterAccountDropdownOpen(!isFilterAccountDropdownOpen)}
-                    className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer"
-                  >
-                    <Filter className="size-3.5 text-slate-400" />
-                    <span>
-                      {filterAccountId === 'ALL' 
-                        ? 'Semua Akun Kas' 
-                        : accounts.find(a => a.account_id === filterAccountId)?.nama_akun || 'Semua Akun Kas'
-                      }
-                    </span>
-                    <ChevronDown className="size-3 text-slate-400 shrink-0" />
-                  </button>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-60">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                    <input
+                      type="text"
+                      placeholder="Cari transaksi..."
+                      className="w-full text-xs bg-white border border-primary/10 rounded-xl pl-9 pr-4 py-1.5 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsFilterAccountDropdownOpen(!isFilterAccountDropdownOpen)}
+                      className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer h-[34px]"
+                    >
+                      <Filter className="size-3.5 text-slate-400" />
+                      <span>
+                        {filterAccountId === 'ALL' 
+                          ? 'Semua Akun Kas' 
+                          : accounts.find(a => a.account_id === filterAccountId)?.nama_akun || 'Semua Akun Kas'
+                        }
+                      </span>
+                      <ChevronDown className="size-3 text-slate-400 shrink-0" />
+                    </button>
 
                   {isFilterAccountDropdownOpen && (
                     <>
@@ -513,6 +582,7 @@ export default function PengeluaranManual() {
                   )}
                 </div>
               </div>
+            </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -540,8 +610,13 @@ export default function PengeluaranManual() {
                         </td>
                         <td className="px-6 py-3 text-right font-black text-slate-900">Rp {dr.nominal.toLocaleString('id-ID')}</td>
                         <td className="px-6 py-3 text-center">
-                          <span className="bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full font-bold">
-                            {dr.status}
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full font-bold text-[10px]",
+                            dr.status === 'RECONCILED' 
+                              ? "bg-slate-100 text-slate-500" 
+                              : "bg-amber-50 text-amber-700 border border-amber-100"
+                          )}>
+                            {dr.status === 'RECONCILED' ? 'Terekonsiliasi' : dr.status}
                           </span>
                         </td>
                       </tr>
@@ -551,96 +626,241 @@ export default function PengeluaranManual() {
               </div>
             </div>
           </div>
-
-          {/* Right Column: Saldo info */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 space-y-4">
-              <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-2">
-                <Coins className="size-4 text-primary" />
-                Saldo Laci Kas (Tunai)
-              </h4>
-              <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto custom-scrollbar">
-                {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
-                  <div key={acc.account_id} className="py-3 flex justify-between items-center text-xs">
-                    <div>
-                      <p className="font-bold text-slate-700">{acc.nama_akun}</p>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">COA: {acc.coa_code}</p>
-                    </div>
-                    <p className="font-black text-slate-900">Rp {Number(acc.saldo).toLocaleString('id-ID')}</p>
-                  </div>
-                ))}
-              </div>
+        ) : (
+          /* Queue Tab: Approved Requests List */
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm min-h-[500px] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3 mb-4">
+              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <Banknote className="size-5 text-primary" />
+                Antrean Pembayaran Pengajuan Operasional (Approved)
+              </h3>
             </div>
+
+            {isQueueLoading ? (
+              <div className="flex-1 flex items-center justify-center text-slate-400">Loading antrean...</div>
+            ) : queueList.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-12 space-y-2">
+                <CheckCircle2 className="size-10 text-emerald-400" />
+                <p className="text-xs font-semibold">Semua antrean pengajuan operasional selesai diproses!</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
+                      <th className="py-3 px-3">No Pengajuan</th>
+                      <th className="py-3 px-3">Pengaju</th>
+                      <th className="py-3 px-3">Kategori & Keperluan</th>
+                      <th className="py-3 px-3">Link RKAT</th>
+                      <th className="py-3 px-3 text-right">Nominal</th>
+                      <th className="py-3 px-3 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-600">
+                    {queueList.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-3 font-mono text-xs text-slate-800">{item.no_pengajuan}</td>
+                        <td className="py-3 px-3">
+                          <p className="font-bold text-slate-700">{item.pengaju?.name}</p>
+                          <p className="text-[9px] text-slate-400 uppercase tracking-widest">{item.pengaju?.role.replace(/_/g, ' ')}</p>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold text-[9px] mb-1 inline-block">
+                            {item.kategori_biaya}
+                          </span>
+                          <p className="font-medium text-slate-600 truncate max-w-xs">{item.keterangan}</p>
+                        </td>
+                        <td className="py-3 px-3 text-slate-555">
+                          {item.rkat ? `(${item.rkat.no}) ${item.rkat.nama}` : <span className="italic text-slate-400 font-normal">Direct Expense</span>}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 text-sm">{formatRupiah(Number(item.nominal))}</td>
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => {
+                              setSelectedQueueItem(item);
+                              setPayoutSumberDana('AMIL');
+                              setPayoutBankAccountId(accounts[0]?.account_id || '');
+                            }}
+                            className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 mx-auto active:scale-95 transition-all"
+                          >
+                            <Send className="size-3" /> Cairkan Dana
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
-      ) : (
-        /* Queue Tab: Approved Requests List */
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm min-h-[500px] flex flex-col">
-          <div className="flex items-center justify-between border-b pb-3 mb-4">
-            <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <Banknote className="size-5 text-primary" />
-              Antrean Pembayaran Pengajuan Operasional (Approved)
+        )}
+      </div>
+
+      {/* Mobile View */}
+      <div className="block md:hidden space-y-6">
+        {/* 1. Antrean Pengajuan Pencairan (List) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b pb-3">
+            <h3 className="text-sm font-black text-slate-800 flex items-center gap-2 uppercase tracking-wider">
+              <ListOrdered className="size-4.5 text-primary" />
+              Antrean Pengajuan ({queueList.length})
             </h3>
           </div>
 
           {isQueueLoading ? (
-            <div className="flex-1 flex items-center justify-center text-slate-400">Loading antrean...</div>
+            <div className="text-center py-6 text-slate-400 text-xs">Memuat antrean...</div>
           ) : queueList.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-12 space-y-2">
-              <CheckCircle2 className="size-10 text-emerald-400" />
-              <p className="text-xs font-semibold">Semua antrean pengajuan operasional selesai diproses!</p>
+            <div className="flex flex-col items-center justify-center text-slate-400 py-6 space-y-2">
+              <CheckCircle2 className="size-8 text-emerald-500" />
+              <p className="text-[11px] font-bold">Semua antrean selesai diproses!</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-3">No Pengajuan</th>
-                    <th className="py-3 px-3">Pengaju</th>
-                    <th className="py-3 px-3">Kategori & Keperluan</th>
-                    <th className="py-3 px-3">Link RKAT</th>
-                    <th className="py-3 px-3 text-right">Nominal</th>
-                    <th className="py-3 px-3 text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-600">
-                  {queueList.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-3 font-mono text-xs text-slate-800">{item.no_pengajuan}</td>
-                      <td className="py-3 px-3">
-                        <p className="font-bold text-slate-700">{item.pengaju?.name}</p>
-                        <p className="text-[9px] text-slate-400 uppercase tracking-widest">{item.pengaju?.role.replace(/_/g, ' ')}</p>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold text-[9px] mb-1 inline-block">
-                          {item.kategori_biaya}
-                        </span>
-                        <p className="font-medium text-slate-600 truncate max-w-xs">{item.keterangan}</p>
-                      </td>
-                      <td className="py-3 px-3 text-slate-555">
-                        {item.rkat ? `(${item.rkat.no}) ${item.rkat.nama}` : <span className="italic text-slate-400 font-normal">Direct Expense</span>}
-                      </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-900 text-sm">{formatRupiah(Number(item.nominal))}</td>
-                      <td className="py-3 px-3 text-center">
-                        <button
-                          onClick={() => {
-                            setSelectedQueueItem(item);
-                            setPayoutSumberDana('AMIL');
-                            setPayoutBankAccountId(accounts[0]?.account_id || '');
-                          }}
-                          className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 mx-auto active:scale-95 transition-all"
-                        >
-                          <Send className="size-3" /> Cairkan Dana
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+              {queueList.map((item) => (
+                <div key={item.id} className="p-3 bg-slate-50/50 rounded-xl border border-slate-150 space-y-2">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="font-mono text-slate-500 font-bold">{item.no_pengajuan}</span>
+                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                      {item.kategori_biaya}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-700">
+                    <p className="font-bold text-slate-900">{item.pengaju?.name}</p>
+                    <p className="text-[11px] text-slate-600 font-medium mt-0.5">{item.keterangan}</p>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-black uppercase">Nominal</p>
+                      <p className="font-black text-slate-950 text-xs">{formatRupiah(Number(item.nominal))}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedQueueItem(item);
+                        setPayoutSumberDana('AMIL');
+                        setPayoutBankAccountId(accounts[0]?.account_id || '');
+                      }}
+                      className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 active:scale-95 transition-all"
+                    >
+                      <Send className="size-3" /> Cairkan
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-      )}
+
+        {/* 2. Saldo Laci Kas */}
+        <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-5 space-y-4">
+          <h4 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2 uppercase tracking-wider">
+            <Coins className="size-4.5 text-primary" />
+            Saldo Laci Kas (Tunai)
+          </h4>
+          <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto custom-scrollbar">
+            {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+              <div key={acc.account_id} className="py-2.5 flex justify-between items-center text-xs">
+                <div>
+                  <p className="font-bold text-slate-700">{acc.nama_akun}</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">COA: {acc.coa_code}</p>
+                </div>
+                <p className="font-black text-slate-900">Rp {Number(acc.saldo).toLocaleString('id-ID')}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 3. Riwayat Draf */}
+        <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <History className="size-4.5 text-primary" />
+              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Riwayat Draf Transaksi Terkini</h4>
+            </div>
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+              <input
+                type="text"
+                placeholder="Cari transaksi..."
+                className="w-full text-xs bg-white border border-primary/10 rounded-xl pl-9 pr-4 py-2 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto custom-scrollbar">
+            {filteredDrafts.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs">Tidak ada riwayat draf.</div>
+            ) : (
+              filteredDrafts.map(dr => (
+                <div key={dr.id} className="p-4 text-xs space-y-2 hover:bg-slate-50/20 transition-colors">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                    <span>{new Date(dr.tanggalCatatan).toLocaleDateString('id-ID')}</span>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full font-bold text-[9px]",
+                      dr.status === 'RECONCILED' 
+                        ? "bg-slate-100 text-slate-500" 
+                        : "bg-amber-50 text-amber-700 border border-amber-100"
+                    )}>
+                      {dr.status === 'RECONCILED' ? 'Terekonsiliasi' : dr.status}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-slate-800">
+                    <p className="font-bold text-slate-900">{dr.keteranganBank}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Sumber: {dr.bankName}</p>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100/50">
+                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold">
+                      {(dr as any).kategori_biaya || 'Operasional'}
+                    </span>
+                    <span className="font-black text-slate-950 text-xs">Rp {dr.nominal.toLocaleString('id-ID')}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* FAB (Floating Action Button) - mobile only */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          onClick={() => setIsFormModalOpen(true)}
+          className="size-14 rounded-full bg-primary text-white shadow-xl flex items-center justify-center hover:bg-primary/95 active:scale-95 transition-all cursor-pointer border-none outline-none"
+        >
+          <Plus className="size-7" />
+        </button>
+      </div>
+
+      {/* Form Modal for Mobile */}
+      <AnimatePresence>
+        {isFormModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl border border-slate-150 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <FileText className="size-4.5 text-primary" />
+                  Formulir Pencatatan Pengeluaran
+                </h3>
+                <button 
+                  onClick={() => setIsFormModalOpen(false)} 
+                  className="text-slate-400 hover:text-slate-650 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+                {renderFormContent(true)}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Payout Processing Dialog Modal */}
       {selectedQueueItem && (

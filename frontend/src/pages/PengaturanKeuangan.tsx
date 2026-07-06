@@ -121,6 +121,8 @@ export default function PengaturanKeuangan() {
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isMigrationCOAModalOpen, setIsMigrationCOAModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   // Custom Dropdown & Search States
   const [isFormKelompokDanaDropdownOpen, setIsFormKelompokDanaDropdownOpen] = useState(false);
@@ -652,16 +654,20 @@ export default function PengaturanKeuangan() {
       </AnimatePresence>
 
       {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-6"
+      >
         <div className="space-y-2">
-          <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-            <span className="hover:text-primary transition-colors cursor-pointer">Pelaporan Keuangan</span>
-            <ChevronRight className="size-3.5 text-slate-300" />
-            <span className="text-primary font-black">Pengaturan Keuangan</span>
+          <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+            <span className="hover:text-primary transition-colors cursor-pointer text-slate-400 shrink-0">Keuangan</span>
+            <ChevronRight className="size-4 text-slate-300 shrink-0" />
+            <span className="text-primary font-bold shrink-0">Pengaturan Keuangan</span>
           </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <SlidersHorizontal className="size-8 text-primary" />
-            Pengaturan &amp; Pelaporan Keuangan
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+            <SlidersHorizontal className="size-8 text-primary shrink-0" />
+            <span className="shrink-0">Pengaturan &amp; Pelaporan Keuangan</span>
           </h2>
           <p className="text-slate-500 font-medium">
             Kelola posisi kas, aturan pemetaan COA otomatis, replenishment laci kas kecil, dan eksekusi pencairan bantuan.
@@ -677,10 +683,10 @@ export default function PengaturanKeuangan() {
             <RefreshCw className={cn("size-5 text-slate-500", loading && "animate-spin")} />
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Tabs Menu Navigation */}
-      <div className="flex border-b border-slate-200 w-full max-w-6xl overflow-x-auto custom-scrollbar shrink-0 pb-px mb-4">
+      <div className="flex border-b border-slate-200 w-full max-w-6xl overflow-x-auto scrollbar-none shrink-0 pb-px mb-4">
         <div className="flex flex-row gap-6 w-full min-w-max">
           <button
             onClick={() => { setActiveTab('accounts'); setSearchTerm(''); }}
@@ -803,7 +809,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenAccountModal(null, 'TUNAI')}
-                    className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                    className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Kas
                   </button>
@@ -847,7 +853,7 @@ export default function PengaturanKeuangan() {
                           {formatCurrency(Number(item.saldo))}
                         </td>
                         <td className="px-6 py-5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                             <button 
                               onClick={() => handleOpenAccountModal(item)}
                               className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
@@ -879,7 +885,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenAccountModal(null, 'BANK')}
-                    className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                    className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Bank
                   </button>
@@ -917,7 +923,7 @@ export default function PengaturanKeuangan() {
                           {formatCurrency(Number(item.saldo))}
                         </td>
                         <td className="px-6 py-5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                             <button 
                               onClick={() => handleOpenAccountModal(item)}
                               className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
@@ -965,7 +971,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenRuleModal()}
-                    className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider"
+                    className="hidden md:flex px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Rule Penyaluran
                   </button>
@@ -1017,7 +1023,7 @@ export default function PengaturanKeuangan() {
                             <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{item.kreditCoa?.nama_akun || 'Akun Kas'}</span>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                               <button 
                                 onClick={() => handleOpenRuleModal(item)}
                                 className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
@@ -1053,7 +1059,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenPenerimaanModal()}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/10 hover:bg-blue-700 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider"
+                    className="hidden md:flex px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/10 hover:bg-blue-700 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Rule Penerimaan
                   </button>
@@ -1124,7 +1130,7 @@ export default function PengaturanKeuangan() {
                             <span className="block text-[10px] text-slate-400 mt-1 font-semibold">{coas.find(c => c.coa_code === item.coa_kredit_utang)?.nama_akun || 'Utang Hak Amil UPZ'}</span>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                               <button 
                                 onClick={() => handleOpenPenerimaanModal(item)}
                                 className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
@@ -1173,16 +1179,16 @@ export default function PengaturanKeuangan() {
                   />
                 </div>
                 {isSuperAdmin && (
-                  <div className="flex gap-2">
+                  <div className="hidden md:flex gap-2">
                     <button 
                       onClick={() => setIsMigrationCOAModalOpen(true)}
-                      className="px-4 py-2.5 bg-white border border-primary text-primary rounded-xl text-xs font-black hover:bg-primary/5 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                      className="px-4 py-2.5 bg-white border border-primary text-primary rounded-xl text-xs font-black hover:bg-primary/5 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
                     >
                       <Upload className="size-3.5" /> Migrasi COA
                     </button>
                     <button 
                       onClick={() => handleOpenCOAModal()}
-                      className="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0"
+                      className="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
                     >
                       <Plus className="size-3.5" /> Tambah COA
                     </button>
@@ -1232,7 +1238,7 @@ export default function PengaturanKeuangan() {
                           {formatCurrency(Number(item.saldo_awal || 0))}
                         </td>
                         <td className="px-6 py-5">
-                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                             <button 
                               onClick={() => handleOpenCOAModal(item)}
                               className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
@@ -1269,7 +1275,7 @@ export default function PengaturanKeuangan() {
           >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Form Input Kategori Baru */}
-              <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 p-6 shadow-sm h-fit space-y-4">
+              <div className="hidden lg:block lg:col-span-1 bg-white rounded-3xl border border-slate-100 p-6 shadow-sm h-fit space-y-4">
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <Plus className="size-4 text-primary" />
                   Tambah Kategori Biaya
@@ -1297,7 +1303,7 @@ export default function PengaturanKeuangan() {
               </div>
 
               {/* Daftar Kategori */}
-              <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="col-span-1 lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100 bg-slate-50/40">
                   <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                     <span className="size-2 rounded-full bg-primary animate-pulse" />
@@ -2603,6 +2609,187 @@ export default function PengaturanKeuangan() {
         )}
       </AnimatePresence>
 
+      {/* 5. Category Add Modal (Mobile only) */}
+      <AnimatePresence>
+        {isCategoryModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsCategoryModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col z-50 text-left"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Plus className="size-5 text-primary" />
+                  Tambah Kategori Biaya
+                </h3>
+                <button onClick={() => setIsCategoryModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              <form 
+                onSubmit={async (e) => {
+                  await handleSaveCategory(e);
+                  setIsCategoryModalOpen(false);
+                }} 
+                className="p-6 space-y-4"
+              >
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kategori</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Contoh: Honorarium Narasumber"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
+                  />
+                </div>
+                <div className="pt-4 border-t border-slate-100 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(false)}
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCategorySubmitLoading || !newCategoryName.trim()}
+                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                  >
+                    {isCategorySubmitLoading ? 'Menyimpan...' : 'Simpan Kategori'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      {isSuperAdmin && (
+        <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+          <AnimatePresence>
+            {isFabOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 15, scale: 0.9 }}
+                className="flex flex-col items-end gap-3"
+              >
+                {activeTab === 'accounts' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        handleOpenAccountModal(null, 'BANK');
+                      }}
+                      className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap cursor-pointer"
+                    >
+                      <Plus className="size-4 text-primary" />
+                      Tambah Bank
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        handleOpenAccountModal(null, 'TUNAI');
+                      }}
+                      className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap cursor-pointer"
+                    >
+                      <Plus className="size-4" />
+                      Tambah Kas
+                    </button>
+                  </>
+                )}
+
+                {activeTab === 'mapping' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        handleOpenPenerimaanModal();
+                      }}
+                      className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap cursor-pointer"
+                    >
+                      <Plus className="size-4 text-blue-600" />
+                      Tambah Rule Penerimaan
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        handleOpenRuleModal();
+                      }}
+                      className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap cursor-pointer"
+                    >
+                      <Plus className="size-4" />
+                      Tambah Rule Penyaluran
+                    </button>
+                  </>
+                )}
+
+                {activeTab === 'coa' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        setIsMigrationCOAModalOpen(true);
+                      }}
+                      className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap cursor-pointer"
+                    >
+                      <Upload className="size-4 text-slate-500" />
+                      Migrasi COA
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        handleOpenCOAModal();
+                      }}
+                      className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap cursor-pointer"
+                    >
+                      <Plus className="size-4" />
+                      Tambah COA
+                    </button>
+                  </>
+                )}
+
+                {activeTab === 'kategori-biaya' && (
+                  <button
+                    onClick={() => {
+                      setIsFabOpen(false);
+                      setIsCategoryModalOpen(true);
+                    }}
+                    className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap cursor-pointer"
+                  >
+                    <Plus className="size-4" />
+                    Tambah Kategori Biaya
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Main FAB Trigger */}
+          <button
+            onClick={() => setIsFabOpen(!isFabOpen)}
+            className={cn(
+              "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+              isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+            )}
+          >
+            <Plus className="size-6" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

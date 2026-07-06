@@ -355,16 +355,17 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-xs font-bold text-slate-400 gap-2 items-center mb-1">
-          <span className="hover:text-primary transition-colors cursor-pointer">Keuangan</span>
-          <ChevronRight className="size-3.5 text-slate-300" />
-          <span className="text-primary font-black">Simulator Eksekusi Pencairan</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="hover:text-primary transition-colors cursor-pointer text-slate-400 shrink-0">Keuangan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Simulator Pencairan</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+          <ShieldCheck className="size-8 text-primary shrink-0" />
           Simulator Eksekusi &amp; Jurnal BKO
         </h2>
         <p className="text-slate-500 font-medium">
-          Kelola simulasi pencairan dana secara multi-proposal (batch) maupun satuan. Tinjau alokasi anggaran RKAT, ketersediaan saldo kas, dan preview pencatatan akuntansi sebelum difinalisasi.
+          Simulasi pencairan dana multi-proposal atau satuan beserta tinjauan ketersediaan saldo kas dan jurnal BKO sebelum difinalisasi.
         </p>
       </motion.div>
 
