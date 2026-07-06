@@ -59,6 +59,29 @@ try {
 }
 
 /**
+ * Mengekstrak Google Drive Folder ID dari URL jika berupa URL penuh.
+ */
+export function extractFolderId(input: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  
+  // Match standard folders URL: /folders/ID
+  const foldersMatch = trimmed.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+  if (foldersMatch && foldersMatch[1]) {
+    return foldersMatch[1];
+  }
+  
+  // Match query parameter: ?id=ID or &id=ID
+  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+  if (idMatch && idMatch[1]) {
+    return idMatch[1];
+  }
+
+  // Fallback: return input as is (assuming it's a raw ID)
+  return trimmed;
+}
+
+/**
  * Format nama file scan proposal.
  * Contoh output: "429 (16 April 2025).pdf"
  */
@@ -108,6 +131,10 @@ export const uploadToDrive = async (
     targetFolder = process.env.GDRIVE_FOLDER_ID || undefined;
   }
 
+  if (targetFolder) {
+    targetFolder = extractFolderId(targetFolder);
+  }
+
   const finalName = fileName || fileObj.originalname;
 
   if (!drive) {
@@ -121,24 +148,55 @@ export const uploadToDrive = async (
 
   console.log(`📤 Uploading "${finalName}" ke folder: ${targetFolder || 'root (tidak ada folder ID)'}`);
 
+  // Cari apakah file dengan nama ini sudah ada di folder target untuk di-overwrite (hindari duplikasi)
+  let existingFileId: string | undefined = undefined;
+  if (targetFolder) {
+    try {
+      const listResponse = await drive.files.list({
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        q: `name = '${finalName.replace(/'/g, "\\'")}' and '${targetFolder}' in parents and trashed = false`,
+        fields: 'files(id)'
+      });
+      if (listResponse.data.files && listResponse.data.files.length > 0) {
+        existingFileId = listResponse.data.files[0].id;
+        console.log(`ℹ️ File "${finalName}" sudah ada di GDrive dengan ID: ${existingFileId}. Akan di-update (overwrite).`);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Gagal memeriksa keberadaan file "${finalName}":`, e);
+    }
+  }
+
   const bufferStream = new stream.PassThrough();
   bufferStream.end(fileObj.buffer);
 
-  const response = await drive.files.create({
-    // supportsAllDrives: true diperlukan jika menggunakan Shared Drive
-    supportsAllDrives: true,
-    requestBody: {
-      name: finalName,
-      parents: targetFolder ? [targetFolder] : undefined
-    },
-    media: {
-      mimeType: fileObj.mimetype,
-      body: bufferStream
-    },
-    fields: 'id, webViewLink, webContentLink, name, parents'
-  });
-
-  console.log(`✅ Upload berhasil! File ID: ${response.data.id}, Nama: ${response.data.name}`);
+  let response;
+  if (existingFileId) {
+    response = await drive.files.update({
+      fileId: existingFileId,
+      supportsAllDrives: true,
+      media: {
+        mimeType: fileObj.mimetype,
+        body: bufferStream
+      },
+      fields: 'id, webViewLink, webContentLink, name, parents'
+    });
+    console.log(`✅ File "${finalName}" berhasil di-overwrite (ID: ${existingFileId}).`);
+  } else {
+    response = await drive.files.create({
+      supportsAllDrives: true,
+      requestBody: {
+        name: finalName,
+        parents: targetFolder ? [targetFolder] : undefined
+      },
+      media: {
+        mimeType: fileObj.mimetype,
+        body: bufferStream
+      },
+      fields: 'id, webViewLink, webContentLink, name, parents'
+    });
+    console.log(`✅ File "${finalName}" berhasil di-upload.`);
+  }
 
   // Set permission agar siapapun dengan link bisa lihat
   if (response.data.id) {
@@ -161,7 +219,8 @@ export const uploadToDrive = async (
  * Test koneksi ke folder Google Drive.
  * Mengembalikan metadata folder jika sukses, atau melempar error jika gagal/tidak ditemukan/tidak ada akses.
  */
-export const testDriveConnection = async (folderId: string) => {
+export const testDriveConnection = async (rawFolderId: string) => {
+  const folderId = extractFolderId(rawFolderId);
   if (!drive) {
     console.log(`[SIMULATED] Test connection to folder: ${folderId}`);
     return {
@@ -180,4 +239,84 @@ export const testDriveConnection = async (folderId: string) => {
   });
 
   return response.data;
+};
+
+/**
+ * Membuat folder baru di Google Drive jika belum ada.
+ */
+export const createFolderInDrive = async (folderName: string, parentFolderIdOrKey: string): Promise<string> => {
+  let parentFolderId = parentFolderIdOrKey;
+  if (parentFolderId && parentFolderId.startsWith('gdrive_folder_')) {
+    try {
+      const param = await prisma.systemParameter.findUnique({
+        where: { key: parentFolderId }
+      });
+      if (param && param.value && param.value.trim() !== '') {
+        parentFolderId = param.value.trim();
+      } else {
+        parentFolderId = '';
+      }
+    } catch (e) {
+      console.error(`❌ Gagal mengambil parameter folder ${parentFolderIdOrKey} dari DB:`, e);
+      parentFolderId = '';
+    }
+  }
+
+  if (!parentFolderId) {
+    parentFolderId = process.env.GDRIVE_FOLDER_ID || '';
+  }
+
+  if (parentFolderId) {
+    parentFolderId = extractFolderId(parentFolderId);
+  }
+
+  if (!drive) {
+    // Mode simulasi
+    console.log(`[SIMULATED] Create folder "${folderName}" inside parent "${parentFolderId}"`);
+    return `simulated-folder-id-${Date.now()}`;
+  }
+
+  // Cari apakah folder dengan nama ini sudah ada di parent folder ini untuk menghindari duplikasi
+  try {
+    const listResponse = await drive.files.list({
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      q: `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed = false`,
+      fields: 'files(id)'
+    });
+    if (listResponse.data.files && listResponse.data.files.length > 0) {
+      const existingId = listResponse.data.files[0].id;
+      console.log(`ℹ️ Folder "${folderName}" sudah ada dengan ID: ${existingId}`);
+      return existingId;
+    }
+  } catch (e) {
+    console.warn(`⚠️ Gagal memeriksa keberadaan folder:`, e);
+  }
+
+  console.log(`📁 Creating folder "${folderName}" inside parent: ${parentFolderId || 'root'}`);
+  const response = await drive.files.create({
+    supportsAllDrives: true,
+    requestBody: {
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: parentFolderId ? [parentFolderId] : undefined
+    },
+    fields: 'id'
+  });
+
+  // Set permission agar siapapun dengan link bisa lihat
+  if (response.data.id) {
+    try {
+      await drive.permissions.create({
+        supportsAllDrives: true,
+        fileId: response.data.id,
+        requestBody: { role: 'reader', type: 'anyone' }
+      });
+      console.log(`✅ Folder Permission "anyone with link" berhasil di-set.`);
+    } catch (permErr: any) {
+      console.warn('⚠️ Gagal set permission folder:', permErr?.message || permErr);
+    }
+  }
+
+  return response.data.id!;
 };

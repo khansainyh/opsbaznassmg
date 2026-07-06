@@ -4,6 +4,7 @@ import {
   Search, 
   Filter, 
   ChevronRight, 
+  ChevronDown,
   Eye, 
   CheckCircle2, 
   FileText,
@@ -221,10 +222,10 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Realisasi Bantuan</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Pendistribusian &amp; Pendayagunaan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Realisasi Bantuan</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -309,36 +310,37 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         </div>
 
         {/* Filter Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
             <button 
               onClick={toggleSelectAll}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200"
+              className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold text-slate-650 hover:bg-slate-50 rounded-lg transition-all border border-slate-200 bg-white"
             >
               {selectedIds.length === filteredData.length && filteredData.length > 0 ? (
                 <CheckSquare className="size-4 text-primary" />
               ) : (
-                <Square className="size-4" />
+                <Square className="size-4 text-slate-400" />
               )}
               Pilih Semua
             </button>
-            <div className="relative w-72">
+            <div className="relative w-full md:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input 
                 type="text"
                 placeholder="Cari No. Agenda / Nama / NIK..."
-                className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-semibold"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {selectedIds.length > 0 && (
               <motion.button 
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all mr-2"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all w-full sm:w-auto"
               >
                 <DownloadCloud className="size-4" />
                 EXPORT LAPORAN ({selectedIds.length})
@@ -346,28 +348,31 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
             )}
 
             {/* Search Dropdown for Pilar */}
-            <div className="relative">
-              <div className="flex items-center gap-1.5">
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full">
                 <button 
                   onClick={() => setIsPilarDropdownOpen(!isPilarDropdownOpen)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border",
+                    "flex items-center justify-between sm:justify-start gap-2 px-3 py-2.5 text-xs font-bold rounded-lg transition-all border w-full",
                     selectedPilarFilter 
                       ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
                       : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
                   )}
                 >
-                  <Filter className={cn("size-4", selectedPilarFilter ? "text-primary animate-pulse" : "text-slate-400")} />
-                  <span className="max-w-[150px] truncate">
-                    {selectedPilarFilter ? `Pilar: ${selectedPilarFilter}` : "Pilih Pilar Bantuan"}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter className={cn("size-4 shrink-0", selectedPilarFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                    <span className="truncate">
+                      {selectedPilarFilter ? `Pilar: ${selectedPilarFilter}` : "Pilih Pilar Bantuan"}
+                    </span>
+                  </div>
+                  <ChevronDown className="size-4 text-slate-400 sm:hidden" />
                 </button>
                 {selectedPilarFilter && (
                   <button 
                     onClick={() => {
                       handlePilarChange('');
                     }}
-                    className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm"
+                    className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm shrink-0"
                     title="Hapus Filter Pilar"
                   >
                     <X className="size-4" />
@@ -378,7 +383,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
               {isPilarDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsPilarDropdownOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
+                  <div className="absolute right-0 mt-2 w-full sm:w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
                     <button 
                       onClick={() => {
                         handlePilarChange('');
@@ -412,25 +417,28 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
             </div>
 
             {/* Search Dropdown for Program */}
-            <div className="relative">
-              <div className="flex items-center gap-1.5">
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full">
                 <button 
                   onClick={() => setIsProgramDropdownOpen(!isProgramDropdownOpen)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border",
+                    "flex items-center justify-between sm:justify-start gap-2 px-3 py-2.5 text-xs font-bold rounded-lg transition-all border w-full",
                     selectedProgramFilter 
                       ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
                       : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
                   )}
                 >
-                  <Filter className={cn("size-4", selectedProgramFilter ? "text-primary animate-pulse" : "text-slate-400")} />
-                  <span className="max-w-[200px] truncate">
-                    {selectedProgramFilter ? (
-                      <span>Program: {allPrograms.find(p => p.code === selectedProgramFilter)?.name || selectedProgramFilter}</span>
-                    ) : (
-                      <span>Pilih Program Bantuan</span>
-                    )}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter className={cn("size-4 shrink-0", selectedProgramFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                    <span className="truncate">
+                      {selectedProgramFilter ? (
+                        <span>Program: {allPrograms.find(p => p.code === selectedProgramFilter)?.name || selectedProgramFilter}</span>
+                      ) : (
+                        <span>Pilih Program Bantuan</span>
+                      )}
+                    </span>
+                  </div>
+                  <ChevronDown className="size-4 text-slate-400 sm:hidden" />
                 </button>
                 {selectedProgramFilter && (
                   <button 
@@ -438,7 +446,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                       setSelectedProgramFilter('');
                       setSearchProgramQuery('');
                     }}
-                    className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm"
+                    className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm shrink-0"
                     title="Hapus Filter Program"
                   >
                     <X className="size-4" />
@@ -449,7 +457,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
               {isProgramDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsProgramDropdownOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-96 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-2">
+                  <div className="absolute right-0 mt-2 w-full sm:w-96 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-2">
                     <input 
                       type="text"
                       placeholder="Cari program..."
@@ -500,8 +508,8 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Desktop View: Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
@@ -654,6 +662,173 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: Card Stack */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {filteredData.length > 0 ? (
+            <div className="p-4 space-y-4">
+              {filteredData.map((item) => {
+                const statusStep = getStatusStep(item);
+                const isSelected = selectedIds.includes(item.id);
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "p-4 rounded-xl border transition-all space-y-3 relative bg-white",
+                      isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-slate-200 hover:border-slate-350"
+                    )}
+                    onClick={() => toggleSelect(item.id)}
+                  >
+                    {/* Header Row: Checkbox, Agenda, and Status */}
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelect(item.id);
+                          }}
+                          className="p-1 -ml-1"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="size-5 text-primary" />
+                          ) : (
+                            <Square className="size-5 text-slate-300" />
+                          )}
+                        </button>
+                        <span className="text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                          Agenda {item.agendaNo}
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider",
+                          statusStep.color
+                        )}>
+                          {statusStep.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Body Row: Mustahik, Program, and Nominal */}
+                    <div className="space-y-2.5 text-xs">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mustahik</p>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">{item.namaPemohon}</p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">NIK: {item.nik}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Program</p>
+                          <div className="flex gap-1 items-center mt-1 flex-wrap">
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
+                              item.program === 'Semarang Sehat' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                              item.program === 'Semarang Taqwa' ? "bg-indigo-50 text-indigo-600 border border-indigo-100" :
+                              item.program === 'Semarang Cerdas' ? "bg-blue-50 text-blue-600 border border-blue-100" :
+                              item.program === 'Semarang Makmur' ? "bg-amber-50 text-amber-600 border border-amber-100" :
+                              "bg-slate-50 text-slate-600 border border-slate-150"
+                            )}>
+                              {item.program || 'Umum'}
+                            </span>
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded text-[9px] font-bold border",
+                              (programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif') === 'Produktif'
+                                ? "bg-purple-50 text-purple-600 border-purple-100"
+                                : "bg-blue-50/50 text-blue-500 border-blue-100/50"
+                            )}>
+                              {(programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif').substring(0, 4)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nominal Bantuan</p>
+                          <p className="text-sm font-black text-slate-900 mt-1">{formatCurrency(item.nominal || 0)}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipe Bantuan</p>
+                          <span className={cn(
+                            "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border mt-1",
+                            item.tipeBantuan === 'Tunai' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            item.tipeBantuan === 'Barang' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                            "bg-slate-50 text-slate-400 border-slate-200"
+                          )}>
+                            {item.tipeBantuan || '-'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Jadwal Realisasi</p>
+                          <p className="text-[11px] font-bold text-slate-700 mt-1">
+                            {item.jadwalRealisasi 
+                              ? new Date(item.jadwalRealisasi).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                              : 'Belum Dijadwalkan'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        <button 
+                          onClick={() => {
+                            setSelectedProposal(item);
+                            setIsScheduleModalOpen(true);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/50 rounded-lg text-[10px] font-black uppercase transition-all shadow-sm"
+                        >
+                          <Calendar className="size-3.5" />
+                          Jadwal
+                        </button>
+                        <button 
+                          onClick={() => handleWhatsApp(item)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-250/50 rounded-lg text-[10px] font-black uppercase transition-all shadow-sm"
+                        >
+                          <MessageCircle className="size-3.5" />
+                          WhatsApp
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button 
+                          onClick={() => handleComplete(item.id)}
+                          className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 rounded-lg transition-all shadow-sm"
+                          title="Kirim ke Antrean Arsip"
+                        >
+                          <CheckCircle2 className="size-4 text-emerald-650" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedProposal(item);
+                            setIsDetailModalOpen(true);
+                          }}
+                          className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-650 rounded-lg transition-all shadow-sm"
+                          title="Lihat Detail"
+                        >
+                          <Eye className="size-4 text-primary" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-6 py-12 text-center text-slate-400">
+              <div className="flex flex-col items-center gap-2">
+                <ClipboardList className="size-12 opacity-10" />
+                <p className="text-sm font-medium">Tidak ada bantuan yang siap direalisasikan.</p>
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
 

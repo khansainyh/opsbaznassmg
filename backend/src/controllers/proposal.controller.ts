@@ -1,6 +1,6 @@
 import { Request, Response, RequestHandler } from 'express';
 import prisma from '../utils/prisma';
-import { uploadToDrive, formatScanFileName } from '../utils/gdrive';
+import { uploadToDrive, formatScanFileName, createFolderInDrive } from '../utils/gdrive';
 import path from 'path';
 
 export const getProposals = async (req: Request, res: Response) => {
@@ -194,13 +194,52 @@ export const updateProposal = async (req: Request, res: Response) => {
         existingSurveyData = data.survey_data;
       }
 
+      // Pre-fetch agendaNo and create survey subfolder if we have survey photos
+      const surveyPhotoFields = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik', 'fotoKondisiUsaha', 'fotoProdukBantuan', 'fotoDokumenLainnya'];
+      const suffixMap: Record<string, string> = {
+        fotoRumahDepan: ' - Foto Rumah Tampak Depan',
+        fotoRumahDalam: ' - Foto Rumah Tampak Dalam',
+        fotoMustahik: ' - Foto Mustahik',
+        fotoKondisiUsaha: ' - Foto Kondisi Usaha',
+        fotoProdukBantuan: ' - Foto Produk Bantuan',
+        fotoDokumenLainnya: ' - Foto Dokumen Lainnya'
+      };
+
+      const hasSurveyPhotos = files.some(f => surveyPhotoFields.includes(f.fieldname));
+      let agendaNo = '';
+      let surveyFolderId = '';
+
+      if (hasSurveyPhotos) {
+        try {
+          const proposalRecord = await prisma.proposal.findUnique({
+            where: { id },
+            select: { agenda_no: true }
+          });
+          agendaNo = proposalRecord?.agenda_no ? String(proposalRecord.agenda_no) : id;
+          surveyFolderId = await createFolderInDrive(agendaNo, 'gdrive_folder_survei');
+        } catch (err) {
+          console.error('Error preparing survey folder/agenda number:', err);
+        }
+      }
+
       for (const f of files) {
         if (f.fieldname === 'file') {
           const gdriveRes = await uploadToDrive(f, undefined, 'gdrive_folder_proposal');
           data.file_gdrive_link = gdriveRes.webViewLink;
           data.file_gdrive_id = gdriveRes.id;
+        } else if (surveyPhotoFields.includes(f.fieldname)) {
+          // Survey photo: Upload to custom subfolder with custom name
+          const ext = path.extname(f.originalname) || '';
+          const customFileName = `${agendaNo}${suffixMap[f.fieldname] || ''}${ext}`;
+          
+          const gdriveRes = await uploadToDrive(f, customFileName, surveyFolderId || 'gdrive_folder_survei');
+          if (!existingSurveyData) {
+            existingSurveyData = {};
+          }
+          existingSurveyData[f.fieldname] = gdriveRes.webViewLink;
+          data.survey_data = existingSurveyData;
         } else {
-          // Asumsi fieldname lain adalah foto dokumentasi (fotoDepan, fotoDalam, dll) atau bukti realisasi / kuitansi
+          // Asumsi fieldname lain adalah bukti realisasi / kuitansi
           const folderKey = f.fieldname === 'bukti_foto_realisasi'
             ? 'gdrive_folder_penerimaan'
             : f.fieldname === 'kuitansi_ditandatangani'

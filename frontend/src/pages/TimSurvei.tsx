@@ -51,7 +51,7 @@ function getSurveyDeadlineInfo(claimedAtStr?: string | null) {
   };
 }
 import {
-  MapPin, Phone, Camera, CheckCircle2, FileText, Navigation, ChevronLeft, X, Send, AlertCircle, Search, Map, Eye, Download, Home, History, FileEdit, ExternalLink, Upload, Link
+  MapPin, Phone, Camera, CheckCircle2, FileText, Navigation, ChevronLeft, X, Send, AlertCircle, Search, Map, Eye, Download, Home, History, FileEdit, ExternalLink, Upload, Link, Cloud
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -64,6 +64,7 @@ interface TimSurveiProps {
 export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
   const { user } = useAuth();
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'detail' | 'surveyForm'>('list');
   const [activeTab, setActiveTab] = useState<'tersedia' | 'tugasSaya'>('tersedia');
   const [bottomNav, setBottomNav] = useState<'home' | 'riwayat'>('home');
@@ -144,7 +145,28 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     }
     
     // Auto populate or clear form
-    if (selectedTask.survey_data) {
+    const draftKey = `surveyForm_draft_${selectedTask.id}`;
+    const savedDraft = localStorage.getItem(draftKey);
+
+    if (savedDraft) {
+      try {
+        const parsed = JSON.parse(savedDraft);
+        setSurveyForm(parsed);
+        
+        const fields = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik', 'fotoKondisiUsaha', 'fotoProdukBantuan', 'fotoDokumenLainnya'];
+        const newModes = { ...photoInputModes };
+        fields.forEach(f => {
+          if (parsed[f] && typeof parsed[f] === 'string' && parsed[f].startsWith('http')) {
+            newModes[f] = 'link';
+          } else {
+            newModes[f] = 'file';
+          }
+        });
+        setPhotoInputModes(newModes);
+      } catch (e) {
+        console.error('Error loading survey form draft:', e);
+      }
+    } else if (selectedTask.survey_data) {
       setSurveyForm({
         luasBangunan: selectedTask.survey_data.luasBangunan ?? 0,
         jenisLantai: selectedTask.survey_data.jenisLantai ?? 0,
@@ -229,14 +251,13 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
         fotoProdukBantuan: '',
         fotoDokumenLainnya: '',
       });
-      setPhotoInputModes({
-        fotoRumahDepan: 'file',
-        fotoRumahDalam: 'file',
-        fotoMustahik: 'file',
-        fotoKondisiUsaha: 'file',
-        fotoProdukBantuan: 'file',
-        fotoDokumenLainnya: 'file',
+      
+      const fields = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik', 'fotoKondisiUsaha', 'fotoProdukBantuan', 'fotoDokumenLainnya'];
+      const newModes = { ...photoInputModes };
+      fields.forEach(f => {
+        newModes[f] = 'file';
       });
+      setPhotoInputModes(newModes);
     }
 
     setSurveyPhotoFiles({
@@ -343,6 +364,13 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     fotoProdukBantuan: '',
     fotoDokumenLainnya: '',
   });
+
+  // Auto-save survey form changes to localStorage
+  React.useEffect(() => {
+    if (selectedTask && surveyForm) {
+      localStorage.setItem(`surveyForm_draft_${selectedTask.id}`, JSON.stringify(surveyForm));
+    }
+  }, [surveyForm, selectedTask]);
 
   const pendapatanPerKapita = useMemo(() => {
     const total = parseInt(surveyForm.pendapatanTotal?.replace(/\D/g, '') || '0') || 0;
@@ -527,8 +555,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       return;
     }
 
-    // Mandatory fields validation
-    const requiredKeys = ['fotoRumahDepan', 'fotoRumahDalam', 'fotoMustahik'];
+    // Mandatory fields validation (all photos are optional now)
+    const requiredKeys: string[] = [];
     const getFieldDisplayLabel = (key: string) => {
       switch (key) {
         case 'fotoRumahDepan': return 'Foto Rumah Tampak Depan';
@@ -558,6 +586,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.append('status', 'Survei_Selesai');
@@ -604,6 +633,9 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
       } : d);
       onUpdate(updated);
 
+      // Remove draft from local storage
+      localStorage.removeItem(`surveyForm_draft_${selectedTask.id}`);
+
       // Reset edit mode
       setEditingHistory(null);
       setViewMode('list');
@@ -612,6 +644,8 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     } catch (err) {
       console.error(err);
       alert('Gagal mengirim hasil survei');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -840,70 +874,85 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
     };
 
     return (
-      <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-200/60" key={key}>
-        <div className="flex justify-between items-center">
-          <label className="text-xs font-bold text-slate-800 flex items-center gap-1">
+      <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-200/60 space-y-2.5" key={key}>
+        <div className="flex justify-between items-center gap-2">
+          <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
             {label} {isRequired && <span className="text-rose-500 font-bold">*</span>}
           </label>
           
-          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
             <button
               type="button"
               onClick={() => setMode('file')}
               className={cn(
-                "px-2.5 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1",
+                "px-2 py-0.5 text-[9px] font-bold rounded-md transition-all flex items-center gap-0.5",
                 mode === 'file' ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
               )}
             >
-              <Upload className="size-3" />
+              <Upload className="size-2.5" />
               File
             </button>
             <button
               type="button"
               onClick={() => setMode('link')}
               className={cn(
-                "px-2.5 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1",
+                "px-2 py-0.5 text-[9px] font-bold rounded-md transition-all flex items-center gap-0.5",
                 mode === 'link' ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
               )}
             >
-              <Link className="size-3" />
+              <Link className="size-2.5" />
               Link
             </button>
           </div>
         </div>
 
         {mode === 'file' ? (
-          <div className="space-y-2">
-            <div 
-              onClick={() => document.getElementById(`file-input-${key}`)?.click()}
-              className="border-2 border-dashed border-slate-200 hover:border-emerald-500 bg-white/70 hover:bg-emerald-50/5 rounded-xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 min-h-[90px]"
-            >
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2.5">
               {file ? (
-                <div className="flex flex-col items-center gap-0.5">
-                  <FileText className="size-6 text-emerald-600" />
-                  <p className="text-[11px] font-bold text-slate-800 truncate max-w-[200px]">{file.name}</p>
-                  <p className="text-[9px] text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                <div className="flex items-center gap-2 text-xs">
+                  <FileText className="size-4 text-emerald-600 shrink-0" />
+                  <span className="font-bold text-slate-700 truncate max-w-[150px]">{file.name}</span>
+                  <span className="text-[10px] text-slate-400">({(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFile}
+                    className="text-[10px] text-rose-600 hover:underline font-bold ml-1"
+                  >
+                    Hapus
+                  </button>
                 </div>
               ) : existingUrl && !existingUrl.startsWith('blob:') && !existingUrl.startsWith('data:') ? (
-                <div className="flex flex-col items-center gap-0.5">
-                  <CheckCircle2 className="size-6 text-emerald-600" />
-                  <p className="text-[11px] font-bold text-slate-800">Foto sudah terupload</p>
+                <div className="flex items-center gap-2 text-xs">
+                  <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                  <span className="font-bold text-slate-600">Terunggah</span>
                   <a 
                     href={existingUrl} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-[9px] text-emerald-600 hover:underline font-bold flex items-center gap-0.5 mt-0.5"
+                    className="text-[10px] text-emerald-600 hover:underline font-bold flex items-center gap-0.5 ml-1"
                   >
-                    Lihat File Saat Ini <ExternalLink className="size-2.5" />
+                    Lihat <ExternalLink className="size-2.5" />
                   </a>
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(`file-input-${key}`)?.click()}
+                    className="text-[10px] text-slate-500 hover:text-emerald-600 hover:underline font-bold ml-2"
+                  >
+                    Ganti
+                  </button>
                 </div>
               ) : (
-                <>
-                  <Upload className="size-6 text-slate-300" />
-                  <p className="text-[11px] font-bold text-slate-500">Klik untuk pilih file</p>
-                  <p className="text-[9px] text-slate-400">PDF, JPG, PNG (maks. 5MB)</p>
-                </>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(`file-input-${key}`)?.click()}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 shadow-sm active:scale-95"
+                  >
+                    <Upload className="size-3" /> Pilih File
+                  </button>
+                  <span className="text-[9px] text-slate-400">PDF, JPG, PNG (maks. 5MB)</span>
+                </div>
               )}
             </div>
             
@@ -916,56 +965,36 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
             />
 
             {previewUrl && file && file.type.startsWith('image/') && (
-              <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 relative">
+              <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 relative w-fit mt-1">
                 <img 
                   src={previewUrl} 
                   alt={`${label} Preview`} 
-                  className="w-full max-h-36 object-contain"
+                  className="h-14 w-20 object-cover"
                 />
                 <button
                   type="button"
                   onClick={handleRemoveFile}
-                  className="absolute top-1.5 right-1.5 p-1 bg-rose-600 text-white rounded hover:bg-rose-700 transition-all shadow-md"
+                  className="absolute top-0.5 right-0.5 p-0.5 bg-rose-600 text-white rounded hover:bg-rose-700 transition-all shadow-md"
                 >
-                  <X className="size-3" />
-                </button>
-              </div>
-            )}
-            
-            {file && !file.type.startsWith('image/') && (
-              <div className="flex items-center justify-between p-2 bg-white border border-slate-200 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <FileText className="size-4 text-slate-400" />
-                  <span className="text-[11px] font-bold text-slate-700 truncate max-w-[180px]">{file.name}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRemoveFile}
-                  className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-rose-600 transition-colors"
-                >
-                  <X className="size-3.5" />
+                  <X className="size-2.5" />
                 </button>
               </div>
             )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="relative">
-              <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+              <ExternalLink className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-slate-400" />
               <input
                 type="url"
                 placeholder="https://drive.google.com/file/d/..."
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all font-medium"
+                className="w-full pl-7 pr-3 py-1 bg-white border border-slate-200 rounded-lg text-[10.5px] focus:ring-1 focus:ring-emerald-500/20 focus:border-emerald-300 outline-none transition-all font-medium"
                 value={surveyForm[key] || ''}
                 onChange={e => setSurveyForm(prev => ({ ...prev, [key]: e.target.value }))}
               />
             </div>
-            <p className="text-[9px] text-slate-400">
-              Pastikan link di Google Drive sudah "Anyone with link can view".
-            </p>
-            
             {surveyForm[key] && toGDriveEmbedUrl(surveyForm[key]) && (
-              <div className="mt-2 w-full h-[120px] rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+              <div className="w-fit h-[60px] max-w-[120px] rounded-lg overflow-hidden border border-slate-200 bg-slate-50 mt-1">
                 <iframe
                   src={toGDriveEmbedUrl(surveyForm[key])!}
                   className="w-full h-full border-none"
@@ -1339,14 +1368,14 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
               <Camera className="size-5 text-emerald-600" /> Bagian D: Bukti Dokumentasi
             </h4>
             
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
-              Unggah bukti foto survei di bawah ini. Rumah Tampak Depan, Rumah Tampak Dalam, dan Foto Mustahik wajib diisi. Untuk program Produktif, terdapat tambahan foto Kondisi Usaha dan Produk/Bantuan (opsional/add-on).
+            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              Unggah bukti foto survei di bawah ini (opsional/jika ada). Untuk program Produktif, terdapat tambahan foto Kondisi Usaha dan Produk/Bantuan.
             </p>
 
             <div className="space-y-4">
-              {renderPhotoSlot('fotoRumahDepan', 'Foto Rumah Tampak Depan', true)}
-              {renderPhotoSlot('fotoRumahDalam', 'Foto Rumah Tampak Dalam', true)}
-              {renderPhotoSlot('fotoMustahik', 'Foto Mustahik', true)}
+              {renderPhotoSlot('fotoRumahDepan', 'Foto Rumah Tampak Depan', false)}
+              {renderPhotoSlot('fotoRumahDalam', 'Foto Rumah Tampak Dalam', false)}
+              {renderPhotoSlot('fotoMustahik', 'Foto Mustahik', false)}
               
               {getProgramTipe(selectedTask) === 'Produktif' && (
                 <>
@@ -1364,15 +1393,22 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
           <button
             type="submit"
             form="survey-form"
+            disabled={isSubmitting}
             className={cn(
-              "w-full py-4 text-white rounded-2xl text-base font-black shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all",
+              "w-full py-4 text-white rounded-2xl text-base font-black shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none",
               editingHistory
                 ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/30"
                 : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
             )}
           >
-            {editingHistory ? <FileEdit className="size-5" /> : <Send className="size-5" />}
-            {editingHistory ? 'Perbarui Hasil Survei' : 'Simpan Hasil Survei'}
+            {isSubmitting ? (
+              <div className="size-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : editingHistory ? (
+              <FileEdit className="size-5" />
+            ) : (
+              <Send className="size-5" />
+            )}
+            {isSubmitting ? 'Mengirim...' : editingHistory ? 'Perbarui Hasil Survei' : 'Simpan Hasil Survei'}
           </button>
         </div>
       </div>
@@ -1630,6 +1666,25 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
           )}
         </button>
       </div>
+
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative flex items-center justify-center">
+              <div className="size-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
+              <div className="absolute size-8 bg-emerald-50 rounded-full flex items-center justify-center">
+                <Cloud className="size-4 text-emerald-600 animate-pulse" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-black text-slate-900">Mengirim Hasil Survei</h4>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                Sedang memproses, membuat folder, dan mengunggah foto ke Google Drive. Harap tunggu sebentar...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

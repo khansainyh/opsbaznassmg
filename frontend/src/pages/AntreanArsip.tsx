@@ -220,10 +220,10 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Antrean Arsip</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Pendistribusian &amp; Pendayagunaan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Antrean Arsip</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -273,49 +273,49 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
         className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden"
       >
         {/* Filter Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <button 
               onClick={toggleSelectAll}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-55 rounded-lg transition-all border border-slate-200"
+              className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold text-slate-650 hover:bg-slate-50 rounded-lg transition-all border border-slate-200 bg-white"
             >
               {selectedIds.length === filteredData.length && filteredData.length > 0 ? (
                 <CheckSquare className="size-4 text-primary" />
               ) : (
-                <Square className="size-4" />
+                <Square className="size-4 text-slate-400" />
               )}
               Pilih Semua
             </button>
-            <div className="relative w-72">
+            <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input 
                 type="text"
                 placeholder="Cari No. Agenda / Nama / NIK..."
-                className="w-full text-xs bg-slate-50 border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all"
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-semibold"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {selectedIds.length > 0 && (
               <motion.button 
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all"
               >
                 <DownloadCloud className="size-4" />
                 EXPORT LAPORAN ({selectedIds.length})
               </motion.button>
             )}
-            <button className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-slate-200">
+            <button className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-slate-200 bg-white shrink-0">
               <Filter className="size-4" />
             </button>
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Desktop View: Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
@@ -437,6 +437,132 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: Card Stack */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {filteredData.length > 0 ? (
+            <div className="p-4 space-y-4">
+              {filteredData.map((item) => {
+                const isUploaded = !!item.survey_data && (item.survey_data as any).bukti_foto_realisasi;
+                const isSelected = selectedIds.includes(item.id);
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "p-4 rounded-xl border transition-all space-y-3 relative bg-white",
+                      isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-slate-200 hover:border-slate-350"
+                    )}
+                    onClick={() => toggleSelect(item.id)}
+                  >
+                    {/* Header Row */}
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelect(item.id);
+                          }}
+                          className="p-1 -ml-1"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="size-5 text-primary" />
+                          ) : (
+                            <Square className="size-5 text-slate-300" />
+                          )}
+                        </button>
+                        <span className="text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                          Agenda {item.agendaNo}
+                        </span>
+                      </div>
+                      
+                      <span className={cn(
+                        "px-2 py-0.5 rounded text-[9px] font-black uppercase border",
+                        isUploaded 
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
+                          : "bg-rose-50 text-rose-600 border-rose-100 animate-pulse"
+                      )}>
+                        {isUploaded ? 'DOKUMEN LENGKAP' : 'BELUM UPLOAD'}
+                      </span>
+                    </div>
+
+                    {/* Details Row */}
+                    <div className="space-y-2.5 text-xs">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mustahik</p>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">{item.namaPemohon}</p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">NIK: {item.nik}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Program</p>
+                          <span className={cn(
+                            "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase mt-1",
+                            item.program === 'Semarang Sehat' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                            item.program === 'Semarang Taqwa' ? "bg-indigo-50 text-indigo-600 border border-indigo-100" :
+                            item.program === 'Semarang Cerdas' ? "bg-blue-50 text-blue-600 border border-blue-100" :
+                            item.program === 'Semarang Makmur' ? "bg-amber-50 text-amber-600 border border-amber-100" :
+                            "bg-slate-50 text-slate-650 border border-slate-150"
+                          )}>
+                            {item.program || 'Umum'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nominal Bantuan</p>
+                          <p className="text-sm font-black text-slate-900 mt-1">{formatCurrency(item.nominal || 0)}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipe Bantuan</p>
+                          <span className={cn(
+                            "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border mt-1",
+                            item.tipeBantuan === 'Tunai' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            item.tipeBantuan === 'Barang' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                            "bg-slate-50 text-slate-400 border-slate-200"
+                          )}>
+                            {item.tipeBantuan || '-'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => openUploadModal(item)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-md shadow-primary/10"
+                      >
+                        <Upload className="size-3.5" />
+                        Upload Arsip
+                      </button>
+
+                      <button 
+                        onClick={() => {
+                          setSelectedProposal(item);
+                          setIsDetailModalOpen(true);
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-black uppercase transition-all shadow-sm text-slate-705"
+                      >
+                        <Eye className="size-3.5 text-primary" />
+                        Detail
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-6 py-12 text-center text-slate-400">
+              <div className="flex flex-col items-center gap-2">
+                <ClipboardList className="size-12 opacity-10" />
+                <p className="text-sm font-medium">Tidak ada bantuan yang mengantre arsip.</p>
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
 

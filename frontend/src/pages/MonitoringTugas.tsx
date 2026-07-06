@@ -89,6 +89,18 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [statusFilter, setStatusFilter] = useState<SurveyStatus | 'Semua'>('Semua');
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [showAllKecamatan, setShowAllKecamatan] = useState(false);
+  const [programTypeFilter, setProgramTypeFilter] = useState<'Semua' | 'Konsumtif' | 'Produktif'>('Semua');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
 
   const [selectedMonth, setSelectedMonth] = useState<string>('Semua');
@@ -669,13 +681,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
       'Selesai': 4,
       'Disetujui': 5
     };
-    const list = tasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
+    let list = tasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
+    if (programTypeFilter !== 'Semua') {
+      list = list.filter(t => getTaskTipe(t) === programTypeFilter);
+    }
     return [...list].sort((a, b) => {
       const orderA = statusOrder[getSurveyStatus(a)] || 99;
       const orderB = statusOrder[getSurveyStatus(b)] || 99;
       return orderA - orderB;
     });
-  }, [tasks, statusFilter, getSurveyStatus]);
+  }, [tasks, statusFilter, programTypeFilter, getSurveyStatus, getTaskTipe]);
 
   const konsumtifTasks = filteredTasks.filter(t => {
     return getTaskTipe(t) === 'Konsumtif';
@@ -691,7 +706,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         <div className="bg-slate-50 px-6 py-3 border-y border-slate-200 sticky top-0 z-20">
           <h4 className="text-xs font-black text-slate-600 uppercase tracking-widest">{title} ({tableTasks.length})</h4>
         </div>
-        <table className="w-full text-left bg-white">
+        <table className="hidden md:table w-full text-left bg-white">
           <thead className="bg-white text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
             <tr>
               <th className="px-6 py-4">No. Agenda</th>
@@ -827,6 +842,132 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
             })}
           </tbody>
         </table>
+
+        {/* Mobile Card List (Visible on Mobile Only) */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {tableTasks.map((task) => {
+            const status = getSurveyStatus(task);
+            return (
+              <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors flex flex-col gap-3">
+                {/* Header: No Agenda & Status */}
+                <div className="flex justify-between items-center">
+                  <span className="px-2.5 py-1 bg-slate-50 text-slate-650 rounded border border-slate-150 font-mono font-bold text-[10px]">
+                    {task.agendaNo}
+                  </span>
+                  <div className="flex flex-col gap-1 items-end">
+                    <span className={cn(
+                      "px-2.5 py-0.5 text-[9px] font-black rounded-full uppercase border",
+                      getStatusBadge(status)
+                    )}>
+                      {getStatusLabel(status)}
+                    </span>
+                    {(['Selesai', 'Disetujui'].includes(status)) && (task.score !== null || task.survey_data) && (
+                      <div className={cn(
+                        "text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-1 w-fit",
+                        task.urgencyLevel === 'Sangat Kritis' ? "bg-rose-50 text-rose-600" :
+                        task.urgencyLevel === 'Tinggi' ? "bg-orange-50 text-orange-600" :
+                        "bg-emerald-50 text-emerald-600"
+                      )}>
+                        <AlertCircle className="size-3" />
+                        {task.urgencyLevel} {task.score ? `(${task.score})` : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Body: Mustahik & Alamat */}
+                <div className="space-y-1">
+                  <p className="font-bold text-slate-955 text-sm">{task.namaPemohon}</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
+                </div>
+
+                {/* Surveyor info & Actions */}
+                <div className="flex items-center justify-between border-t border-slate-50 pt-2.5 mt-1">
+                  <div className="flex items-center gap-2">
+                    {task.surveyorName ? (
+                      <>
+                        <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-7 h-7 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-slate-700">{task.surveyorName}</span>
+                          {task.survey_data?.surveyClaimedAt && (
+                            <span className="text-[9px] text-slate-400 font-semibold">
+                              {(() => {
+                                const claimedAt = new Date(task.survey_data.surveyClaimedAt);
+                                const now = new Date();
+                                const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+                                const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
+                                const diffMs = deadline.getTime() - now.getTime();
+                                
+                                if (diffMs <= 0) {
+                                  return <span className="text-rose-600 font-bold">KEDALUWARSA</span>;
+                                }
+                                
+                                const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+                                const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                                const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+                                
+                                let text = '';
+                                if (diffDays > 0) {
+                                  text = `${diffDays}h ${diffHours}j`;
+                                } else if (diffHours > 0) {
+                                  text = `${diffHours}j ${diffMinutes}m`;
+                                } else {
+                                  text = `${diffMinutes}m`;
+                                }
+                                return `Tenggat: ${text}`;
+                              })()}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-1 text-slate-400 italic">
+                        <UserRound className="size-3.5" />
+                        <span className="text-[11px]">Belum Ditugaskan</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5">
+                    {status === 'Antrean Tugas' && (
+                      <button 
+                        onClick={() => handleUpdateStatus(task.id, 'Survei Assessment')}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg active:scale-95 transition-all"
+                      >
+                        <Send className="size-3" />
+                        Tampilkan
+                      </button>
+                    )}
+                    {status === 'Selesai' && !isKabagPendistribusian && !isKabagPendayagunaan && (
+                      <button 
+                        onClick={() => {
+                          const isZakat = task.rekomendasi_kabag === 'Zakat' || !task.rekomendasi_kabag;
+                          const hasAsnaf = !isZakat || task.asnaf;
+                          if (!hasAsnaf || !task.hasil_identifikasi?.trim()) {
+                            handleViewDetail(task);
+                            return;
+                          }
+                          handleUpdateStatus(task.id, 'Review Kepala Pelaksana');
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg active:scale-95 transition-all"
+                      >
+                        <CheckCircle className="size-3" />
+                        Approve
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => handleViewDetail(task)}
+                      className="p-1.5 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-lg active:scale-95 transition-all border border-slate-100 bg-slate-50"
+                    >
+                      <Eye className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -837,34 +978,34 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden">
       {viewMode === 'all-tasks' ? (
         <div className="flex-1 flex flex-col h-full bg-slate-50/50">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
+          <div className="p-4 md:p-6 border-b border-slate-100 flex flex-col md:flex-row md:justify-between md:items-center gap-4 shrink-0 bg-white shadow-sm">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg text-primary">
                 <ClipboardList className="size-5" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-slate-900">Semua Tugas Survei</h3>
-                <p className="text-xs text-slate-500 font-medium mt-1">Total {tasks.length} data dalam antrean</p>
+                <h3 className="text-lg md:text-xl font-black text-slate-900">Semua Tugas Survei</h3>
+                <p className="text-[10px] md:text-xs text-slate-500 font-medium mt-0.5">Total {tasks.length} data dalam antrean</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
               <div className="relative">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Periode:</span>
+                  <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Periode:</span>
                   <button 
                     onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
-                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border text-slate-700 bg-white hover:bg-slate-50 border-slate-200 shadow-sm"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-2 text-[11px] md:text-xs font-bold rounded-lg transition-all border text-slate-700 bg-white hover:bg-slate-50 border-slate-200 shadow-sm"
                   >
-                    <Calendar className="size-4 text-primary" />
+                    <Calendar className="size-3.5 text-primary" />
                     <span>{activeMonthLabel}</span>
-                    <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", isMonthDropdownOpen && "rotate-180")} />
+                    <ChevronDown className={cn("size-3 text-slate-400 transition-transform", isMonthDropdownOpen && "rotate-180")} />
                   </button>
                 </div>
 
                 {isMonthDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setIsMonthDropdownOpen(false)} />
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-64 overflow-y-auto custom-scrollbar">
+                    <div className="absolute right-0 mt-2 w-48 md:w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-64 overflow-y-auto custom-scrollbar">
                       {monthOptions.map(opt => (
                         <button
                           key={opt.value}
@@ -873,7 +1014,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             setIsMonthDropdownOpen(false);
                           }}
                           className={cn(
-                            "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                            "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-[11px] md:text-xs font-semibold text-left",
                             selectedMonth === opt.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                           )}
                         >
@@ -887,29 +1028,63 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
               </div>
               <button 
                 onClick={() => setViewMode('dashboard')} 
-                className="px-4 py-2 hover:bg-slate-100 rounded-lg transition-colors flex font-bold text-sm items-center gap-2 text-slate-500 hover:text-slate-800"
+                className="px-3 py-1.5 md:px-4 md:py-2 hover:bg-slate-100 rounded-lg transition-colors flex font-bold text-xs md:text-sm items-center gap-1.5 text-slate-500 hover:text-slate-800 border border-slate-200 md:border-transparent bg-slate-50 md:bg-transparent"
               >
-                <ChevronLeft className="size-4 text-slate-400" /> Kembali
+                <ChevronLeft className="size-3.5 text-slate-400" /> Kembali
               </button>
             </div>
           </div>
 
-          <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0 shadow-sm z-10">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2 shrink-0">Filter Status:</span>
-            {['Semua', 'Antrean Tugas', 'Pending', 'On Progress', 'Selesai', 'Disetujui'].map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status as any)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap border",
-                  statusFilter === status 
-                    ? "bg-primary text-white border-primary shadow-sm shadow-primary/20" 
-                    : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                )}
-              >
-                {status}
-              </button>
-            ))}
+          <div className="px-4 py-3 md:px-6 md:py-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 shadow-sm z-10">
+            {/* Desktop Filters (Hidden on Mobile) */}
+            <div className="hidden md:flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2 shrink-0">Filter Status:</span>
+              {['Semua', 'Antrean Tugas', 'Pending', 'On Progress', 'Selesai', 'Disetujui'].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status as any)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap border",
+                    statusFilter === status 
+                      ? "bg-primary text-white border-primary shadow-sm shadow-primary/20" 
+                      : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                  )}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+
+            {/* Mobile Filters (Hidden on Desktop) */}
+            <div className="flex md:hidden items-center gap-3 w-full">
+              {/* Dropdown Status */}
+              <div className="flex-1 relative">
+                <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Filter Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                >
+                  {['Semua', 'Antrean Tugas', 'Pending', 'On Progress', 'Selesai', 'Disetujui'].map((status) => (
+                    <option key={status} value={status}>{status === 'Semua' ? 'Semua Status' : status}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Dropdown Tipe Bantuan */}
+              <div className="flex-1 relative">
+                <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Tipe Bantuan</label>
+                <select
+                  value={programTypeFilter}
+                  onChange={(e) => setProgramTypeFilter(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                >
+                  <option value="Semua">Semua Tipe</option>
+                  <option value="Konsumtif">Konsumtif</option>
+                  <option value="Produktif">Produktif</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-0 custom-scrollbar relative">
@@ -921,10 +1096,10 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
           {/* Breadcrumbs & Title */}
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-            <nav className="flex text-sm gap-2 items-center">
-              <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
-              <ChevronRight className="size-4 text-slate-300" />
-              <span className="text-primary font-bold">Monitoring Tugas</span>
+            <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+              <span className="text-slate-400 shrink-0">Pendistribusian &amp; Pendayagunaan</span>
+              <ChevronRight className="size-4 text-slate-300 shrink-0" />
+              <span className="text-primary font-bold shrink-0">Monitoring Tugas</span>
             </nav>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
@@ -1009,18 +1184,29 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 </div>
               </div>
               <div className="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-                {kecamatans.map((kec) => (
+                {((isMobile && !showAllKecamatan) ? kecamatans.slice(0, 4) : kecamatans).map((kec) => (
                   <div key={kec} className="p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer group">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter group-hover:text-primary transition-colors">Kecamatan</p>
                     <p className="text-xs font-black text-slate-700 mt-0.5 min-h-[2rem] flex items-center leading-tight whitespace-normal break-words" title={kec}>{kec}</p>
                     <div className="mt-2 flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-100">
+                      <span className="text-[9px] font-bold text-slate-405 bg-white px-1.5 py-0.5 rounded border border-slate-100">
                         {tasks.filter(t => t.kecamatan === kec).length} Aktif
                       </span>
                       <ChevronRight className="size-3 text-slate-300 group-hover:text-primary transition-colors" />
                     </div>
                   </div>
                 ))}
+
+                {isMobile && (
+                  <div className="col-span-2 flex justify-center mt-1">
+                    <button
+                      onClick={() => setShowAllKecamatan(!showAllKecamatan)}
+                      className="text-xs text-primary font-bold hover:underline flex items-center gap-1.5 py-2.5 px-4 rounded-xl bg-primary/5 border border-primary/10 w-full justify-center active:scale-[0.98] transition-all"
+                    >
+                      {showAllKecamatan ? 'Sembunyikan Wilayah' : 'Lihat Selengkapnya (16 Kecamatan)'}
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
 
@@ -1030,7 +1216,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 <h3 className="font-bold text-slate-800">Daftar Tugas Terbaru</h3>
                 <button onClick={() => setViewMode('all-tasks')} className="text-xs text-primary font-bold hover:underline">Lihat Semua</button>
               </div>
-              <div className="overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -1125,6 +1311,89 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card List (Visible on Mobile Only) */}
+              <div className="block md:hidden divide-y divide-slate-100 bg-white">
+                {filteredTasks.slice(0, 5).map((task) => {
+                  const status = getSurveyStatus(task);
+                  return (
+                    <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors flex flex-col gap-3">
+                      {/* Header: No Agenda & Status */}
+                      <div className="flex justify-between items-center">
+                        <span className="px-2 py-1 bg-slate-50 text-slate-600 rounded border border-slate-100 font-mono font-bold text-[10px]">
+                          {task.agendaNo}
+                        </span>
+                        <div className="flex flex-col gap-1 items-end">
+                          <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-full uppercase border", getStatusBadge(status))}>{getStatusLabel(status)}</span>
+                          {(['Selesai', 'Disetujui'].includes(status)) && (task.score !== null || task.survey_data) && (
+                            <div className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 flex items-center gap-1 w-fit">
+                              <AlertCircle className="size-2.5" /> SCORE: {task.score}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Body: Mustahik & Alamat */}
+                      <div className="space-y-1">
+                        <p className="font-semibold text-slate-900 text-sm">{task.namaPemohon}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
+                      </div>
+
+                      {/* Petugas & Actions */}
+                      <div className="flex items-center justify-between border-t border-slate-50 pt-2.5 mt-1">
+                        <div className="flex items-center gap-2">
+                          {task.surveyorName ? (
+                            <>
+                              <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-6.5 h-6.5 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-slate-700">{task.surveyorName}</span>
+                                {task.surveyorName && task.survey_data?.surveyClaimedAt && (
+                                  <span className="text-[9px] text-slate-400 font-semibold">
+                                    {(() => {
+                                      const claimedAt = new Date(task.survey_data.surveyClaimedAt);
+                                      const now = new Date();
+                                      const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+                                      const deadline = new Date(claimedAt.getTime() + threeDaysInMs);
+                                      const diffMs = deadline.getTime() - now.getTime();
+                                      
+                                      if (diffMs <= 0) {
+                                        return <span className="text-rose-600 font-bold">KEDALUWARSA</span>;
+                                      }
+                                      
+                                      const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+                                      const diffHours = Math.floor((diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                                      const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+                                      
+                                      let text = '';
+                                      if (diffDays > 0) {
+                                        text = `${diffDays}h ${diffHours}j`;
+                                      } else if (diffHours > 0) {
+                                        text = `${diffHours}j ${diffMinutes}m`;
+                                      } else {
+                                        text = `${diffMinutes}m`;
+                                      }
+                                      return `Tenggat: ${text}`;
+                                    })()}
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-slate-400 italic">
+                              <UserRound className="size-3.5" />
+                              <span className="text-[11px]">Belum Ditugaskan</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <button onClick={() => handleViewDetail(task)} className="p-1.5 bg-slate-50 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-lg active:scale-95 transition-all border border-slate-100">
+                          <Eye className="size-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </motion.div>
           </div>
@@ -1263,70 +1532,6 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             })()}
                           </div>
                         </div>
-
-                        {/* Foto / Dokumen Lapangan */}
-                        {(selectedTask.survey_data?.fotoRumahDepan || 
-                          selectedTask.survey_data?.fotoRumahDalam || 
-                          selectedTask.survey_data?.fotoMustahik ||
-                          selectedTask.survey_data?.fotoKondisiUsaha ||
-                          selectedTask.survey_data?.fotoProdukBantuan ||
-                          selectedTask.survey_data?.fotoDokumenLainnya) && (
-                          <div className="space-y-4">
-                            <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 flex items-center gap-2">
-                              <Camera className="size-3.5 text-primary" />
-                              Bukti Dokumentasi Lapangan
-                            </h4>
-                            
-                            <div className="grid grid-cols-1 gap-4">
-                              {[
-                                { key: 'fotoRumahDepan', label: 'Foto Rumah Tampak Depan' },
-                                { key: 'fotoRumahDalam', label: 'Foto Rumah Tampak Dalam' },
-                                { key: 'fotoMustahik', label: 'Foto Mustahik' },
-                                { key: 'fotoKondisiUsaha', label: 'Foto Kondisi Usaha (Produktif)' },
-                                { key: 'fotoProdukBantuan', label: 'Foto Produk/Bantuan yang Diajukan' },
-                                { key: 'fotoDokumenLainnya', label: 'Foto/Dokumen Pendukung Lainnya' },
-                              ].map(item => {
-                                const url = selectedTask.survey_data?.[item.key];
-                                if (!url) return null;
-                                return (
-                                  <div key={item.key} className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-2">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{item.label}</p>
-                                    {url.match(/\.(jpeg|jpg|gif|png)/i) || (!url.includes('drive.google.com') && !url.includes('http')) ? (
-                                      <div className="rounded-lg overflow-hidden border border-slate-200 bg-white relative flex items-center justify-center p-2">
-                                        <img
-                                          src={url}
-                                          alt={item.label}
-                                          className="max-h-56 object-contain rounded shadow-sm"
-                                        />
-                                      </div>
-                                    ) : toGDriveEmbedUrl(url) ? (
-                                      <div className="w-full h-[200px] border border-slate-200 rounded-lg overflow-hidden shadow-inner bg-white relative">
-                                        <iframe 
-                                          src={toGDriveEmbedUrl(url) || ''}
-                                          className="w-full h-full border-none"
-                                          allow="autoplay"
-                                          title={item.label}
-                                        />
-                                      </div>
-                                    ) : (
-                                      <a 
-                                        href={url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center justify-between p-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-lg text-xs font-bold transition-all border border-primary/10"
-                                      >
-                                        <span className="flex items-center gap-1.5">
-                                          <ExternalLink className="size-3.5" />
-                                          Buka Dokumentasi di Tab Baru
-                                        </span>
-                                      </a>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 
@@ -1504,6 +1709,70 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                         </div>
                       )}
                     </div>
+
+                    {/* Foto / Dokumen Lapangan */}
+                    {(selectedTask.survey_data?.fotoRumahDepan || 
+                      selectedTask.survey_data?.fotoRumahDalam || 
+                      selectedTask.survey_data?.fotoMustahik ||
+                      selectedTask.survey_data?.fotoKondisiUsaha ||
+                      selectedTask.survey_data?.fotoProdukBantuan ||
+                      selectedTask.survey_data?.fotoDokumenLainnya) && (
+                      <div className="space-y-4 mt-6">
+                        <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 flex items-center gap-2">
+                          <Camera className="size-3.5 text-primary" />
+                          Bukti Dokumentasi Lapangan
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 gap-4">
+                          {[
+                            { key: 'fotoRumahDepan', label: 'Foto Rumah Tampak Depan' },
+                            { key: 'fotoRumahDalam', label: 'Foto Rumah Tampak Dalam' },
+                            { key: 'fotoMustahik', label: 'Foto Mustahik' },
+                            { key: 'fotoKondisiUsaha', label: 'Foto Kondisi Usaha (Produktif)' },
+                            { key: 'fotoProdukBantuan', label: 'Foto Produk/Bantuan yang Diajukan' },
+                            { key: 'fotoDokumenLainnya', label: 'Foto/Dokumen Pendukung Lainnya' },
+                          ].map(item => {
+                            const url = selectedTask.survey_data?.[item.key];
+                            if (!url) return null;
+                            return (
+                              <div key={item.key} className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-2">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{item.label}</p>
+                                {url.match(/\.(jpeg|jpg|gif|png)/i) || (!url.includes('drive.google.com') && !url.includes('http')) ? (
+                                  <div className="rounded-lg overflow-hidden border border-slate-200 bg-white relative flex items-center justify-center p-2">
+                                    <img
+                                      src={url}
+                                      alt={item.label}
+                                      className="max-h-56 object-contain rounded shadow-sm"
+                                    />
+                                  </div>
+                                ) : toGDriveEmbedUrl(url) ? (
+                                  <div className="w-full h-[200px] border border-slate-200 rounded-lg overflow-hidden shadow-inner bg-white relative">
+                                    <iframe 
+                                      src={toGDriveEmbedUrl(url) || ''}
+                                      className="w-full h-full border-none"
+                                      allow="autoplay"
+                                      title={item.label}
+                                    />
+                                  </div>
+                                ) : (
+                                  <a 
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-between p-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-lg text-xs font-bold transition-all border border-primary/10"
+                                  >
+                                    <span className="flex items-center gap-1.5">
+                                      <ExternalLink className="size-3.5" />
+                                      Buka Dokumentasi di Tab Baru
+                                    </span>
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   {/* DISPOSISI PANEL - Pendistribusian / Pendayagunaan */}

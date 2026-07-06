@@ -7,6 +7,7 @@ import {
   Save,
   Check,
   ChevronRight,
+  ChevronDown,
   AlertCircle,
   Users,
   Plus,
@@ -96,6 +97,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [selectedBantuanFilter, setSelectedBantuanFilter] = useState<string>('Semua');
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
 
   // Group into pending NRM and ready NRM (checking by-name sub-records if applicable)
   const disbursedProposals = useMemo(() => {
@@ -649,10 +651,10 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
         className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
       >
         <div className="space-y-2">
-          <nav className="flex text-sm gap-2 items-center">
-            <span className="text-slate-400">Pendistribusian &amp; Pendayagunaan</span>
-            <ChevronRight className="size-4 text-slate-300" />
-            <span className="text-primary font-bold">Antrean SIMBA</span>
+          <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+            <span className="text-slate-400 shrink-0">Pendistribusian &amp; Pendayagunaan</span>
+            <ChevronRight className="size-4 text-slate-300 shrink-0" />
+            <span className="text-primary font-bold shrink-0">Antrean SIMBA</span>
           </nav>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <RefreshCw className="size-8 text-primary shrink-0" />
@@ -707,68 +709,86 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
         </div>
       </div>
 
-      {/* Tabs Selector */}
-      <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-black gap-1 self-start w-fit">
-        <button
-          onClick={() => { setActiveTab('pending'); setSearchTerm(''); }}
-          className={cn(
-            "px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-bold",
-            activeTab === 'pending'
-              ? "bg-rose-600 text-white shadow-sm"
-              : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
-          )}
-        >
-          <span className="w-2 h-2 rounded-full bg-rose-250" />
-          Belum Ada NRM ({pendingNrmList.length})
-        </button>
+      {/* Container with responsive ordering */}
+      <div className="flex flex-col gap-6 md:gap-8">
+        {/* Tabs Selector */}
+        <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-black gap-1 self-start w-fit order-2 md:order-1">
+          <button
+            onClick={() => { setActiveTab('pending'); setSearchTerm(''); }}
+            className={cn(
+              "px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-bold",
+              activeTab === 'pending'
+                ? "bg-rose-600 text-white shadow-sm"
+                : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-250" />
+            Belum Ada NRM ({pendingNrmList.length})
+          </button>
 
-        <button
-          onClick={() => { setActiveTab('ready'); setSearchTerm(''); }}
-          className={cn(
-            "px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-bold",
-            activeTab === 'ready'
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
-          )}
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-250" />
-          Sudah Ada NRM ({readyNrmList.length})
-        </button>
+          <button
+            onClick={() => { setActiveTab('ready'); setSearchTerm(''); }}
+            className={cn(
+              "px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-bold",
+              activeTab === 'ready'
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-250" />
+            Sudah Ada NRM ({readyNrmList.length})
+          </button>
+        </div>
+
+        {/* Instruction Alert Card (Toggleable, and positioned above tabs on mobile) */}
+        <div className="order-1 md:order-2 bg-white border border-primary/10 rounded-2xl shadow-sm overflow-hidden">
+          <button
+            onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
+            className="w-full p-4 md:p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors text-left outline-none"
+          >
+            <div className="flex items-center gap-2">
+              <HelpCircle className="size-5 text-primary shrink-0" />
+              <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Petunjuk Sinkronisasi SIMBA</h4>
+            </div>
+            <ChevronDown className={cn("size-5 text-slate-400 transition-transform duration-200", isInstructionsOpen && "rotate-180")} />
+          </button>
+          
+          <AnimatePresence initial={false}>
+            {isInstructionsOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden border-t border-slate-100"
+              >
+                <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs bg-slate-50/30">
+                  <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 1</span>
+                    <p className="font-bold text-slate-800">Daftarkan Mustahik</p>
+                    <p className="text-[11px] text-slate-500 leading-normal">Buka web SIMBA resmi BAZNAS di tab terpisah dan daftarkan mustahik.</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 2</span>
+                    <p className="font-bold text-slate-800">Salin NRM</p>
+                    <p className="text-[11px] text-slate-500 leading-normal">Setelah didaftarkan, salin Nomor Register Mustahik (NRM) dari sistem SIMBA.</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 3</span>
+                    <p className="font-bold text-slate-800">Simpan NRM</p>
+                    <p className="text-[11px] text-slate-500 leading-normal">Tempelkan NRM ke input proposal bersangkutan di tabel bawah, lalu simpan.</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 4</span>
+                    <p className="font-bold text-slate-800">Finalisasi</p>
+                    <p className="text-[11px] text-slate-500 leading-normal">Cetak kuitansi resmi di SIMBA, kemudian klik tombol "Selesai" di aplikasi.</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-
-      {/* Instruction Alert Card */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white border border-primary/10 p-6 rounded-2xl shadow-sm space-y-4"
-      >
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <HelpCircle className="size-5 text-primary" />
-          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Petunjuk Sinkronisasi SIMBA</h4>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-          <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 1</span>
-            <p className="font-bold text-slate-800">Daftarkan Mustahik</p>
-            <p className="text-[11px] text-slate-500 leading-normal">Buka web SIMBA resmi BAZNAS di tab terpisah dan daftarkan mustahik.</p>
-          </div>
-          <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 2</span>
-            <p className="font-bold text-slate-800">Salin NRM</p>
-            <p className="text-[11px] text-slate-500 leading-normal">Setelah didaftarkan, salin Nomor Register Mustahik (NRM) dari sistem SIMBA.</p>
-          </div>
-          <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 3</span>
-            <p className="font-bold text-slate-800">Simpan NRM</p>
-            <p className="text-[11px] text-slate-500 leading-normal">Tempelkan NRM ke input proposal bersangkutan di tabel bawah, lalu simpan.</p>
-          </div>
-          <div className="p-4 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Langkah 4</span>
-            <p className="font-bold text-slate-800">Finalisasi</p>
-            <p className="text-[11px] text-slate-500 leading-normal">Cetak kuitansi resmi di SIMBA, kemudian klik tombol "Selesai" di aplikasi.</p>
-          </div>
-        </div>
-      </motion.div>
 
       {/* Filter and Queue Table Card */}
       <motion.div
@@ -983,15 +1003,15 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                         <button
                           onClick={() => handleCompleteSync(item.id)}
                           disabled={syncingId === item.id || !isReady}
-                          className="w-full max-w-[100px] mx-auto py-2 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-black rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1"
+                          className="w-fit md:w-full max-w-[100px] mx-auto p-2 md:py-2 md:px-3 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-black rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1"
                           title={!isReady ? (isByName ? 'Lengkapi NRM seluruh Mustahik di tombol By-Name terlebih dahulu' : 'Masukkan NRM terlebih dahulu') : 'Selesai Cetak Kuitansi SIMBA'}
                         >
                           {syncingId === item.id ? (
-                            <RefreshCw className="size-3 animate-spin" />
+                            <RefreshCw className="size-4 md:size-3 animate-spin" />
                           ) : (
                             <>
-                              <Check className="size-3" />
-                              Selesai
+                              <Check className="size-4 md:size-3" />
+                              <span className="hidden md:inline">Selesai</span>
                             </>
                           )}
                         </button>
@@ -1024,49 +1044,44 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
             >
               
               {/* Modal Header */}
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="p-4 md:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50 relative pr-12">
                 <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
                     <Users className="size-5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                        {activeTab === 'ready' ? 'Detail Penerima By-Name' : 'Kelola Penerima By-Name'}
-                      </h3>
-                      {activeTab === 'ready' && (
-                        <span className="px-2 py-0.5 text-[9px] font-black bg-emerald-100 text-emerald-700 border border-emerald-250 rounded uppercase tracking-wider">
-                          Read-Only
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 font-medium">
+                    <h3 className="text-md md:text-lg font-black text-slate-900 uppercase tracking-tight">
+                      Kelola Penerima By-Name
+                    </h3>
+                    <p className="text-[11px] md:text-xs text-slate-500 font-medium mt-0.5 leading-normal">
                       Agenda No: {String(selectedProposal.agendaNo).padStart(3, '0')} | Lembaga: {selectedProposal.namaPemohon}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {byNameList.length > 0 && activeTab !== 'ready' && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {byNameList.length > 0 && (
                     <button
                       onClick={() => downloadExcel(selectedProposal, byNameList)}
-                      className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all flex items-center gap-1.5 border border-slate-200"
+                      className="w-full sm:w-auto justify-center px-3.5 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all flex items-center gap-1.5 border border-slate-200 shadow-sm"
                     >
                       <Download className="size-3.5" />
                       Download Excel
                     </button>
                   )}
-                  <button onClick={() => setSelectedProposal(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                    <X className="size-5 text-slate-400" />
-                  </button>
                 </div>
+                <button 
+                  onClick={() => setSelectedProposal(null)} 
+                  className="absolute right-4 top-4 md:top-6 p-2 hover:bg-slate-200/60 rounded-full transition-colors"
+                >
+                  <X className="size-5 text-slate-400" />
+                </button>
               </div>
 
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-6 flex flex-col lg:flex-row gap-8">
                 
                 {/* Form Add (Left Column) */}
-                {activeTab !== 'ready' && (
-                  <div className="w-full lg:w-[440px] shrink-0 bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-5 h-fit">
+                <div className="w-full lg:w-[440px] shrink-0 bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-5 h-fit">
                   <div className="flex bg-slate-100 p-1.5 rounded-xl text-xs font-bold gap-1.5 border border-slate-200/50">
                     <button
                       type="button"
@@ -1329,7 +1344,6 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                     </div>
                   )}
                 </div>
-                )}
 
                 {/* List Table (Right Column) */}
                 <div className="flex-1 flex flex-col min-h-[300px]">
@@ -1358,13 +1372,13 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                             <th className="px-4 py-3">Telepon</th>
                             <th className="px-4 py-3">Handphone</th>
                             <th className="px-4 py-3">Keterangan</th>
-                            {activeTab !== 'ready' && <th className="px-4 py-3 text-center w-16">Aksi</th>}
+                            <th className="px-4 py-3 text-center w-16">Aksi</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs">
                           {byNameList.length === 0 ? (
                             <tr>
-                              <td colSpan={activeTab === 'ready' ? 9 : 10} className="px-4 py-16 text-center text-slate-400 italic">
+                              <td colSpan={10} className="px-4 py-16 text-center text-slate-400 italic">
                                 Belum ada data penerima by-name. Isi form di sebelah kiri atau paste dari Excel untuk menambahkan.
                               </td>
                             </tr>
@@ -1375,22 +1389,16 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                                 <td className="px-4 py-3 font-bold text-slate-900">{p.nama_lengkap}</td>
                                 <td className="px-4 py-3 font-mono font-semibold text-slate-650">{p.nik}</td>
                                 <td className="px-4 py-2">
-                                  {activeTab === 'ready' ? (
-                                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-center block w-fit mx-auto">
-                                      {p.nrm || '-'}
-                                    </span>
-                                  ) : (
-                                    <input 
-                                      type="text"
-                                      placeholder="Ketik NRM..."
-                                      value={p.nrm || ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setByNameList(prev => prev.map((item, i) => i === idx ? { ...item, nrm: val } : item));
-                                      }}
-                                      className="w-32 text-xs font-mono font-bold bg-white border border-slate-200 rounded px-2.5 py-1 focus:ring-2 focus:ring-primary/20 outline-none text-center"
-                                    />
-                                  )}
+                                  <input 
+                                    type="text"
+                                    placeholder="Ketik NRM..."
+                                    value={p.nrm || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setByNameList(prev => prev.map((item, i) => i === idx ? { ...item, nrm: val } : item));
+                                    }}
+                                    className="w-32 text-xs font-mono font-bold bg-white border border-slate-200 rounded px-2.5 py-1 focus:ring-2 focus:ring-primary/20 outline-none text-center"
+                                  />
                                 </td>
                                 <td className="px-4 py-3 font-medium text-slate-600">{p.jenis_kelamin}</td>
                                 <td className="px-4 py-3 font-medium text-slate-500 max-w-[120px] truncate" title={p.alamat}>
@@ -1401,17 +1409,15 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                                 <td className="px-4 py-3 font-medium text-slate-500 max-w-[120px] truncate" title={p.keterangan}>
                                   {p.keterangan || '-'}
                                 </td>
-                                {activeTab !== 'ready' && (
-                                  <td className="px-4 py-3 text-center">
-                                    <button
-                                      onClick={() => handleRemoveByName(idx)}
-                                      className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded transition-all"
-                                      title="Hapus penerima"
-                                    >
-                                      <Trash2 className="size-3.5" />
-                                    </button>
-                                  </td>
-                                )}
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={() => handleRemoveByName(idx)}
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded transition-all"
+                                    title="Hapus penerima"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </td>
                               </tr>
                             ))
                           )}
@@ -1425,35 +1431,24 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
 
               {/* Modal Footer */}
               <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
-                {activeTab === 'ready' ? (
-                  <button
-                    onClick={() => setSelectedProposal(null)}
-                    className="px-5 py-2 text-xs font-black uppercase bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-all shadow-sm"
-                  >
-                    Tutup
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setSelectedProposal(null)}
-                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-all border border-slate-200"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      onClick={handleSaveByName}
-                      disabled={isSavingByName}
-                      className="px-5 py-2 text-xs font-black uppercase bg-primary hover:bg-primary/95 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-                    >
-                      {isSavingByName ? (
-                        <RefreshCw className="size-3.5 animate-spin" />
-                      ) : (
-                        <Save className="size-3.5" />
-                      )}
-                      Simpan Penerima
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => setSelectedProposal(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-all border border-slate-200"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSaveByName}
+                  disabled={isSavingByName}
+                  className="px-5 py-2 text-xs font-black uppercase bg-primary hover:bg-primary/95 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  {isSavingByName ? (
+                    <RefreshCw className="size-3.5 animate-spin" />
+                  ) : (
+                    <Save className="size-3.5" />
+                  )}
+                  Simpan Penerima
+                </button>
               </div>
 
             </motion.div>

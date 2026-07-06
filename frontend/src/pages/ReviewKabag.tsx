@@ -117,12 +117,13 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Persetujuan</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Persetujuan Kepala Bagian Administrasi</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Persetujuan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Persetujuan Kepala Bagian Administrasi</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+          <ClipboardList className="size-8 text-primary shrink-0" />
           Persetujuan Kepala Bagian Administrasi
         </h2>
         <p className="text-slate-500 font-medium">
