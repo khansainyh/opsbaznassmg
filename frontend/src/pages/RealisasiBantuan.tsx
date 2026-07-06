@@ -15,8 +15,7 @@ import {
   Calendar,
   MessageCircle,
   CheckSquare,
-  Square,
-  Truck
+  Square
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -229,8 +228,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
         </nav>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <Truck className="size-8 text-primary shrink-0" />
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
               Realisasi Bantuan
             </h2>
             <p className="text-slate-500 font-medium">
@@ -617,22 +615,22 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                             setSelectedProposal(item);
                             setIsScheduleModalOpen(true);
                           }}
-                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
                           title="Jadwalkan"
                         >
                           <Calendar className="size-4" />
                         </button>
                         <button 
                           onClick={() => handleWhatsApp(item)}
-                          className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
+                          className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
                           title="Hubungi WhatsApp"
                         >
                           <MessageCircle className="size-4" />
                         </button>
                         <button 
                           onClick={() => handleComplete(item.id)}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                          title="Kirim ke Antrean Arsip"
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                          title="Kirim ke Pengarsipan"
                         >
                           <CheckCircle2 className="size-4" />
                         </button>
@@ -641,7 +639,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                             setSelectedProposal(item);
                             setIsDetailModalOpen(true);
                           }}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                           title="Lihat Detail"
                         >
                           <Eye className="size-4" />
@@ -879,15 +877,9 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                 <button 
-                  onClick={() => setIsScheduleModalOpen(false)}
-                  className="flex-1 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                >
-                  Batal
-                </button>
-                <button 
                   onClick={handleSchedule}
                   disabled={!scheduleDate}
-                  className="flex-1 px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Simpan Jadwal
                 </button>

@@ -13,7 +13,9 @@ import {
   Database,
   ChevronRight,
   Trash2,
-  ChevronDown
+  ChevronDown,
+  UserRound,
+  Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -500,7 +502,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => { fetchOffBalanceUPZs(); setIsGenerateModalOpen(true); }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95"
+                  className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95"
                 >
                   <Zap className="size-3.5" /> Generate Tugas OBS
                 </button>
@@ -512,10 +514,11 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                 </button>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-slate-55 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                    <th className="px-6 py-4">No. Agenda</th>
                     <th className="px-6 py-4">Lembaga & Lokasi</th>
                     <th className="px-6 py-4">Petugas</th>
                     <th className="px-6 py-4">Status</th>
@@ -525,7 +528,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {obsTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic font-medium">
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">
                         Belum ada tugas Off-Balancing (OBS).
                       </td>
                     </tr>
@@ -534,6 +537,11 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                       const status = getSurveyStatus(task);
                       return (
                         <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 bg-slate-50 text-slate-600 rounded border border-slate-100 font-mono font-bold text-[10px]">
+                              {task.agendaNo}
+                            </span>
+                          </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <p className="font-semibold text-slate-900">{task.namaPemohon}</p>
@@ -544,15 +552,13 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                             <div className="flex items-center gap-2">
                               {task.surveyorName ? (
                                 <>
-                                  <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">
-                                    {task.surveyorName.charAt(0)}
-                                  </div>
+                                  <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-6 h-6 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
                                   <span className="text-xs font-medium text-slate-700">{task.surveyorName}</span>
                                 </>
                               ) : (
                                 <div className="flex items-center gap-2 text-slate-400 italic">
                                   <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
-                                    <span className="text-[10px] font-bold text-slate-400">?</span>
+                                    <UserRound className="size-3 text-slate-400" />
                                   </div>
                                   <span className="text-[10px] font-medium">Belum Ditugaskan</span>
                                 </div>
@@ -561,7 +567,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                           </td>
                           <td className="px-6 py-4">
                             <span className={cn(
-                              "px-2.5 py-1 text-[10px] font-black rounded-full uppercase border w-fit block", 
+                              "px-2.5 py-1 text-[10px] font-black rounded-full border w-fit block", 
                               getStatusBadge(status)
                             )}>
                               {status}
@@ -572,25 +578,25 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                               {status === 'Laporan Selesai' && (
                                 <button 
                                   onClick={() => handleUpdateStatus(task.id, 'Disetujui')}
-                                  className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all"
                                   title="Setujui"
                                 >
-                                  <Check className="size-3.5" />
+                                  <CheckCircle2 className="size-3.5" /> Setujui
                                 </button>
                               )}
                               <button 
                                 onClick={() => handleViewDetail(task)} 
-                                className="p-1.5 bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                                 title="Detail"
                               >
-                                <Eye className="size-3.5" />
+                                <Eye className="size-4" />
                               </button>
                               <button 
                                 onClick={() => handleDeleteTask(task.id)} 
-                                className="p-1.5 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors"
+                                className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all"
                                 title="Hapus Penugasan"
                               >
-                                <Trash2 className="size-3.5" />
+                                <Trash2 className="size-4" />
                               </button>
                             </div>
                           </td>
@@ -600,6 +606,78 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card List (Visible on Mobile Only) */}
+            <div className="block md:hidden divide-y divide-slate-100 bg-white">
+              {obsTasks.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 italic text-sm">
+                  Belum ada tugas Off-Balancing (OBS).
+                </div>
+              ) : (
+                obsTasks.slice(0, 5).map((task) => {
+                  const status = getSurveyStatus(task);
+                  return (
+                    <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors flex flex-col gap-3">
+                      <div className="flex justify-between items-center">
+                        <span className="px-2 py-1 bg-slate-50 text-slate-600 rounded border border-slate-100 font-mono font-bold text-[10px]">
+                          {task.agendaNo}
+                        </span>
+                        <span className={cn(
+                          "px-2.5 py-0.5 text-[9px] font-black rounded-full border",
+                          getStatusBadge(status)
+                        )}>
+                          {status}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="font-semibold text-slate-900 text-sm">{task.namaPemohon}</p>
+                        <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-slate-50 pt-2.5 mt-1">
+                        <div className="flex items-center gap-2">
+                          {task.surveyorName ? (
+                            <>
+                              <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-6.5 h-6.5 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                              <span className="text-xs font-semibold text-slate-700">{task.surveyorName}</span>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-slate-400 italic">
+                              <UserRound className="size-3.5" />
+                              <span className="text-[11px]">Belum Ditugaskan</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {status === 'Laporan Selesai' && (
+                            <button 
+                              onClick={() => handleUpdateStatus(task.id, 'Disetujui')}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl active:scale-95 transition-all"
+                            >
+                              <CheckCircle2 className="size-3" /> Setujui
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => handleViewDetail(task)} 
+                            className="p-1.5 bg-slate-50 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-xl active:scale-95 transition-all border border-slate-100"
+                          >
+                            <Eye className="size-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteTask(task.id)} 
+                            className="p-1.5 bg-rose-50 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-xl active:scale-95 transition-all border border-rose-100"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </motion.div>
         </div>
@@ -619,7 +697,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => { fetchOffBalanceUPZs(); setIsGenerateModalOpen(true); }}
-                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95"
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95"
               >
                 <Zap className="size-3.5" /> Generate Tugas OBS
               </button>
@@ -654,10 +732,11 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto custom-scrollbar">
+          <div className="hidden md:block overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-4">No. Agenda</th>
                   <th className="px-6 py-4">Lembaga & Lokasi</th>
                   <th className="px-6 py-4">Periode</th>
                   <th className="px-6 py-4">Petugas</th>
@@ -668,7 +747,7 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredTasks.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400 font-bold">
+                    <td colSpan={6} className="py-12 text-center text-slate-400 font-bold">
                       Tidak ada tugas OBS dengan kriteria filter ini.
                     </td>
                   </tr>
@@ -678,6 +757,11 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                     return (
                       <tr key={task.id} className="hover:bg-slate-50/30 transition">
                         <td className="px-6 py-4">
+                          <span className="px-2 py-1 bg-slate-50 text-slate-600 rounded border border-slate-100 font-mono font-bold text-[10px]">
+                            {task.agendaNo}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
                           <p className="font-bold text-slate-900">{task.namaPemohon}</p>
                           <p className="text-xs text-slate-500 font-semibold flex items-center gap-0.5 mt-0.5">
                             <MapPin className="size-3 shrink-0" /> {task.alamat}
@@ -685,17 +769,25 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                         </td>
                         <td className="px-6 py-4 font-bold text-slate-700">{task.keterangan}</td>
                         <td className="px-6 py-4">
-                          {task.surveyorName ? (
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-slate-700">{task.surveyorName}</span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 italic font-medium">Belum Ditugaskan</span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {task.surveyorName ? (
+                              <>
+                                <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-6 h-6 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                                <span className="font-semibold text-slate-700">{task.surveyorName}</span>
+                              </>
+                            ) : (
+                              <div className="flex items-center gap-2 text-slate-400 italic">
+                                <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+                                  <UserRound className="size-3 text-slate-400" />
+                                </div>
+                                <span className="text-xs text-slate-400 font-medium">Belum Ditugaskan</span>
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={cn(
-                            "px-2.5 py-1 text-[9px] font-black rounded-full uppercase border",
+                            "px-2.5 py-1 text-[10px] font-black rounded-full border w-fit block",
                             getStatusBadge(status)
                           )}>
                             {status}
@@ -706,22 +798,22 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                             {status === 'Laporan Selesai' && (
                               <button 
                                 onClick={() => handleUpdateStatus(task.id, 'Disetujui')}
-                                className="p-1.5 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 transition"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all"
                                 title="Setujui"
                               >
-                                <Check className="size-3.5" />
+                                <CheckCircle2 className="size-3.5" /> Setujui
                               </button>
                             )}
                             <button 
                               onClick={() => handleViewDetail(task)}
-                              className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded transition"
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                               title="Detail / Tugaskan"
                             >
                               <Eye className="size-4" />
                             </button>
                             <button 
                               onClick={() => handleDeleteTask(task.id)}
-                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition"
+                              className="p-2 text-rose-500 hover:text-rose-750 hover:bg-rose-50 rounded-xl transition-all"
                               title="Hapus Penugasan"
                             >
                               <Trash2 className="size-4" />
@@ -734,6 +826,79 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card List (Visible on Mobile Only) */}
+          <div className="block md:hidden divide-y divide-slate-100 bg-white">
+            {filteredTasks.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 italic text-sm">
+                Tidak ada tugas OBS dengan kriteria filter ini.
+              </div>
+            ) : (
+              filteredTasks.map((task) => {
+                const status = getSurveyStatus(task);
+                return (
+                  <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                      <span className="px-2 py-1 bg-slate-50 text-slate-600 rounded border border-slate-100 font-mono font-bold text-[10px]">
+                        {task.agendaNo}
+                      </span>
+                      <span className={cn(
+                        "px-2.5 py-0.5 text-[9px] font-black rounded-full border",
+                        getStatusBadge(status)
+                      )}>
+                        {status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="font-semibold text-slate-900 text-sm">{task.namaPemohon}</p>
+                      <p className="text-xs text-slate-550 leading-relaxed">{task.alamat}</p>
+                      <p className="text-[10px] text-slate-400 font-semibold">Periode: {task.keterangan}</p>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-slate-55 pt-2.5 mt-1">
+                      <div className="flex items-center gap-2">
+                        {task.surveyorName ? (
+                          <>
+                            <img src={`https://picsum.photos/seed/${task.surveyorName}/100/100`} alt={task.surveyorName} className="w-6.5 h-6.5 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                            <span className="text-xs font-semibold text-slate-700">{task.surveyorName}</span>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-slate-400 italic">
+                            <UserRound className="size-3.5" />
+                            <span className="text-[11px]">Belum Ditugaskan</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {status === 'Laporan Selesai' && (
+                          <button 
+                            onClick={() => handleUpdateStatus(task.id, 'Disetujui')}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl active:scale-95 transition-all"
+                          >
+                            <CheckCircle2 className="size-3" /> Setujui
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleViewDetail(task)} 
+                          className="p-1.5 bg-slate-50 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-xl active:scale-95 transition-all border border-slate-100"
+                        >
+                          <Eye className="size-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteTask(task.id)} 
+                          className="p-1.5 bg-rose-50 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-xl active:scale-95 transition-all border border-rose-100"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -760,9 +925,9 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                 <button onClick={() => setIsGenerateModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"><X className="size-5" /></button>
               </div>
 
-              <div className="p-6 border-b border-slate-100 bg-white shrink-0 space-y-3">
-                <div className="flex items-end justify-between gap-4">
-                  <div className="space-y-1 flex-1">
+              <div className="p-6 border-b border-slate-100 bg-white shrink-0 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                  <div className="space-y-1 w-full md:flex-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Periode Survei</label>
                     <div className="relative">
                       <select 
@@ -777,16 +942,16 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 size-4 text-slate-400 pointer-events-none" />
                     </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 w-full md:w-auto md:shrink-0">
                     <button 
                       onClick={handleGenerateAll}
-                      className="px-4 py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-emerald-700 rounded-xl text-xs font-black uppercase transition whitespace-nowrap"
+                      className="flex-1 md:flex-initial px-4 py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-emerald-700 rounded-xl text-xs font-black uppercase transition whitespace-nowrap text-center"
                     >
                       Pilih Semua
                     </button>
                     <button 
                       onClick={() => setSelectedUPZIds(new Set())}
-                      className="px-4 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-200/60 text-slate-700 rounded-xl text-xs font-black uppercase transition"
+                      className="flex-1 md:flex-initial px-4 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-200/60 text-slate-700 rounded-xl text-xs font-black uppercase transition text-center"
                     >
                       Reset
                     </button>
@@ -851,19 +1016,19 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                 )}
               </div>
 
-              <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
-                <p className="text-xs text-slate-500 font-medium">
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+                <p className="text-xs text-slate-500 font-semibold text-center sm:text-left leading-relaxed">
                   Hanya UPZ yang dipilih &amp; belum ada tugas yang akan di-generate
                 </p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center sm:justify-end gap-3 w-full sm:w-auto">
                   <button onClick={() => setIsGenerateModalOpen(false)}
-                    className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition">
+                    className="flex-1 sm:flex-initial px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition text-center">
                     Batal
                   </button>
                   <button
                     onClick={handleGenerateSelected}
                     disabled={selectedUPZIds.size === 0 || generatingAll}
-                    className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="flex-1 sm:flex-initial px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {generatingAll ? <RefreshCw className="size-4 animate-spin" /> : <Zap className="size-4" />}
                     {generatingAll ? 'Membuat...' : `Generate ${selectedUPZIds.size} Tugas`}
@@ -1437,6 +1602,16 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
         )}
       </AnimatePresence>
 
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
+        <button
+          onClick={() => { fetchOffBalanceUPZs(); setIsGenerateModalOpen(true); }}
+          className="size-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95 border border-emerald-500"
+          title="Generate Tugas OBS"
+        >
+          <Plus className="size-6" />
+        </button>
+      </div>
 
     </div>
   );

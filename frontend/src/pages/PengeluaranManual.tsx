@@ -104,7 +104,7 @@ export default function PengeluaranManual() {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <label className="text-xs font-bold text-slate-450 flex items-center gap-1.5">
               <Calendar className="size-4 text-slate-400" />
               Tanggal Catatan
             </label>
@@ -118,7 +118,7 @@ export default function PengeluaranManual() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <label className="text-xs font-bold text-slate-450 flex items-center gap-1.5">
               <Calendar className="size-4 text-slate-400" />
               Tanggal Transaksi
             </label>
@@ -133,7 +133,7 @@ export default function PengeluaranManual() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+          <label className="text-xs font-bold text-slate-450 flex items-center gap-1.5">
             <Coins className="size-4 text-slate-400" />
             Sumber Kas (Sumber Dana Kas)
           </label>
@@ -165,7 +165,7 @@ export default function PengeluaranManual() {
                         setIsSourceAccountDropdownOpen(false);
                       }}
                       className={cn(
-                        "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                        "w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                         sourceAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                       )}
                     >
@@ -183,7 +183,7 @@ export default function PengeluaranManual() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          <label className="text-xs font-bold text-slate-450">
             Nominal Transaksi
           </label>
           <div className="relative">
@@ -200,7 +200,7 @@ export default function PengeluaranManual() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+          <label className="text-xs font-bold text-slate-450 flex items-center gap-1.5">
             Kategori Biaya
           </label>
           <select
@@ -216,7 +216,7 @@ export default function PengeluaranManual() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Keterangan Pengeluaran / Memo</label>
+          <label className="text-xs font-bold text-slate-455">Keterangan Pengeluaran / Memo</label>
           <textarea
             value={keterangan}
             onChange={(e) => setKeterangan(e.target.value)}
@@ -440,8 +440,7 @@ export default function PengeluaranManual() {
           <ChevronRight className="size-4 text-slate-300 shrink-0" />
           <span className="text-primary font-bold shrink-0">Pengeluaran Manual</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 whitespace-nowrap overflow-x-auto scrollbar-none py-1">
-          <Banknote className="size-8 text-primary shrink-0" />
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
           Pencatatan Pengeluaran Manual
         </h2>
         <p className="text-slate-500 font-medium">
@@ -456,7 +455,7 @@ export default function PengeluaranManual() {
           <button
             onClick={() => setActiveSubTab('langsung')}
             className={cn(
-              "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
+              "py-2.5 px-4 font-bold text-xs border-b-2 transition-all flex items-center gap-2",
               activeSubTab === 'langsung' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
             )}
           >
@@ -465,7 +464,7 @@ export default function PengeluaranManual() {
           <button
             onClick={() => setActiveSubTab('antrean')}
             className={cn(
-              "py-2.5 px-4 font-bold text-xs uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 relative",
+              "py-2.5 px-4 font-bold text-xs border-b-2 transition-all flex items-center gap-2 relative",
               activeSubTab === 'antrean' ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-650"
             )}
           >
@@ -495,7 +494,7 @@ export default function PengeluaranManual() {
               {/* Right Column: Saldo info */}
               <div className="space-y-6">
                 <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-6 space-y-4">
-                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-2">
+                  <h4 className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
                     <Coins className="size-4 text-primary" />
                     Saldo Laci Kas (Tunai)
                   </h4>
@@ -504,7 +503,7 @@ export default function PengeluaranManual() {
                       <div key={acc.account_id} className="py-3 flex justify-between items-center text-xs">
                         <div>
                           <p className="font-bold text-slate-700">{acc.nama_akun}</p>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">COA: {acc.coa_code}</p>
+                          <p className="text-[9px] text-slate-400 font-bold mt-0.5">COA: {acc.coa_code}</p>
                         </div>
                         <p className="font-black text-slate-900">Rp {Number(acc.saldo).toLocaleString('id-ID')}</p>
                       </div>
@@ -519,7 +518,7 @@ export default function PengeluaranManual() {
               <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <History className="size-5 text-primary" />
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Riwayat Draf Transaksi Terkini</h3>
+                  <h3 className="text-sm font-black text-slate-900">Riwayat Draf Transaksi Terkini</h3>
                 </div>
                 
                 <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -560,7 +559,7 @@ export default function PengeluaranManual() {
                             setFilterAccountId('ALL');
                             setIsFilterAccountDropdownOpen(false);
                           }}
-                          className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-slate-50"
                         >
                           Semua Akun Kas
                         </button>
@@ -572,7 +571,7 @@ export default function PengeluaranManual() {
                               setFilterAccountId(acc.account_id);
                               setIsFilterAccountDropdownOpen(false);
                             }}
-                            className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                            className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-slate-50"
                           >
                             {acc.nama_akun}
                           </button>
@@ -588,11 +587,11 @@ export default function PengeluaranManual() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/20 border-b border-slate-100">
-                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanggal Catat</th>
-                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sumber Kas</th>
-                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Keterangan</th>
-                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Nominal</th>
-                      <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">Status</th>
+                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Tanggal Catat</th>
+                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Sumber Kas</th>
+                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Keterangan</th>
+                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400 text-right">Nominal</th>
+                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400 text-center">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-xs">
@@ -647,7 +646,7 @@ export default function PengeluaranManual() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
+                    <tr className="border-b border-slate-100 text-xs font-black text-slate-400">
                       <th className="py-3 px-3">No Pengajuan</th>
                       <th className="py-3 px-3">Pengaju</th>
                       <th className="py-3 px-3">Kategori & Keperluan</th>
@@ -662,7 +661,7 @@ export default function PengeluaranManual() {
                         <td className="py-3 px-3 font-mono text-xs text-slate-800">{item.no_pengajuan}</td>
                         <td className="py-3 px-3">
                           <p className="font-bold text-slate-700">{item.pengaju?.name}</p>
-                          <p className="text-[9px] text-slate-400 uppercase tracking-widest">{item.pengaju?.role.replace(/_/g, ' ')}</p>
+                          <p className="text-[9px] text-slate-400">{item.pengaju?.role.replace(/_/g, ' ')}</p>
                         </td>
                         <td className="py-3 px-3">
                           <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold text-[9px] mb-1 inline-block">
@@ -681,7 +680,7 @@ export default function PengeluaranManual() {
                               setPayoutSumberDana('AMIL');
                               setPayoutBankAccountId(accounts[0]?.account_id || '');
                             }}
-                            className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 mx-auto active:scale-95 transition-all"
+                            className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 mx-auto active:scale-95 transition-all"
                           >
                             <Send className="size-3" /> Cairkan Dana
                           </button>
@@ -701,7 +700,7 @@ export default function PengeluaranManual() {
         {/* 1. Antrean Pengajuan Pencairan (List) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b pb-3">
-            <h3 className="text-sm font-black text-slate-800 flex items-center gap-2 uppercase tracking-wider">
+            <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
               <ListOrdered className="size-4.5 text-primary" />
               Antrean Pengajuan ({queueList.length})
             </h3>
@@ -720,7 +719,7 @@ export default function PengeluaranManual() {
                 <div key={item.id} className="p-3 bg-slate-50/50 rounded-xl border border-slate-150 space-y-2">
                   <div className="flex justify-between items-center text-[10px]">
                     <span className="font-mono text-slate-500 font-bold">{item.no_pengajuan}</span>
-                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">
                       {item.kategori_biaya}
                     </span>
                   </div>
@@ -730,7 +729,7 @@ export default function PengeluaranManual() {
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                     <div>
-                      <p className="text-[9px] text-slate-400 font-black uppercase">Nominal</p>
+                      <p className="text-[9px] text-slate-400 font-black">Nominal</p>
                       <p className="font-black text-slate-950 text-xs">{formatRupiah(Number(item.nominal))}</p>
                     </div>
                     <button
@@ -739,7 +738,7 @@ export default function PengeluaranManual() {
                         setPayoutSumberDana('AMIL');
                         setPayoutBankAccountId(accounts[0]?.account_id || '');
                       }}
-                      className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 active:scale-95 transition-all"
+                      className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1 active:scale-95 transition-all"
                     >
                       <Send className="size-3" /> Cairkan
                     </button>
@@ -752,7 +751,7 @@ export default function PengeluaranManual() {
 
         {/* 2. Saldo Laci Kas */}
         <div className="bg-white rounded-2xl border border-primary/10 shadow-sm p-5 space-y-4">
-          <h4 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2 uppercase tracking-wider">
+          <h4 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
             <Coins className="size-4.5 text-primary" />
             Saldo Laci Kas (Tunai)
           </h4>
@@ -761,7 +760,7 @@ export default function PengeluaranManual() {
               <div key={acc.account_id} className="py-2.5 flex justify-between items-center text-xs">
                 <div>
                   <p className="font-bold text-slate-700">{acc.nama_akun}</p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">COA: {acc.coa_code}</p>
+                  <p className="text-[9px] text-slate-400 font-bold mt-0.5">COA: {acc.coa_code}</p>
                 </div>
                 <p className="font-black text-slate-900">Rp {Number(acc.saldo).toLocaleString('id-ID')}</p>
               </div>
@@ -774,7 +773,7 @@ export default function PengeluaranManual() {
           <div className="px-5 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <History className="size-4.5 text-primary" />
-              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Riwayat Draf Transaksi Terkini</h4>
+              <h4 className="text-xs font-black text-slate-900">Riwayat Draf Transaksi Terkini</h4>
             </div>
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
@@ -842,13 +841,13 @@ export default function PengeluaranManual() {
               className="bg-white rounded-t-3xl sm:rounded-3xl border border-slate-150 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <FileText className="size-4.5 text-primary" />
                   Formulir Pencatatan Pengeluaran
                 </h3>
                 <button 
                   onClick={() => setIsFormModalOpen(false)} 
-                  className="text-slate-400 hover:text-slate-650 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  className="text-slate-400 hover:text-slate-650 p-1 rounded-xl hover:bg-slate-100 transition-colors"
                 >
                   <X className="size-5" />
                 </button>
@@ -873,7 +872,7 @@ export default function PengeluaranManual() {
               </div>
               <button 
                 onClick={() => setSelectedQueueItem(null)}
-                className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-lg transition-all"
+                className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
               >
                 <XCircle className="size-5" />
               </button>
@@ -882,15 +881,15 @@ export default function PengeluaranManual() {
             <form onSubmit={handlePayoutSubmit} className="p-6 space-y-4 text-sm">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-bold uppercase tracking-wider">Pengaju</span>
+                  <span className="text-slate-400 font-bold">Pengaju</span>
                   <span className="font-bold text-slate-700">{selectedQueueItem.pengaju?.name}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-bold uppercase tracking-wider">Nominal</span>
+                  <span className="text-slate-400 font-bold">Nominal</span>
                   <span className="font-black text-primary text-sm">{formatRupiah(Number(selectedQueueItem.nominal))}</span>
                 </div>
                 <div className="border-t border-slate-200/60 pt-2 text-xs">
-                  <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Keperluan</span>
+                  <span className="text-slate-400 font-bold block mb-0.5">Keperluan</span>
                   <p className="font-medium text-slate-650 italic">"{selectedQueueItem.keterangan}"</p>
                 </div>
               </div>
@@ -926,7 +925,7 @@ export default function PengeluaranManual() {
                               setIsPayoutDropdownOpen(false);
                             }}
                             className={cn(
-                              "w-full text-left px-3 py-2 rounded-lg text-[11px] font-semibold hover:bg-slate-50 flex items-center justify-between mb-0.5",
+                              "w-full text-left px-3 py-2 rounded-xl text-[11px] font-semibold hover:bg-slate-50 flex items-center justify-between mb-0.5",
                               payoutBankAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                             )}
                           >
@@ -968,18 +967,11 @@ export default function PengeluaranManual() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-2 border-t mt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setSelectedQueueItem(null)} 
-                  className="px-4 py-2 hover:bg-slate-105 text-slate-600 rounded-xl font-bold text-xs"
-                >
-                  Batal
-                </button>
+              <div className="flex pt-2 border-t mt-4">
                 <button
                   type="submit"
                   disabled={isPayoutSubmitLoading || !payoutBankAccountId}
-                  className="px-4 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-xs shadow-md shadow-primary/20 flex items-center gap-1.5 disabled:opacity-50"
+                  className="w-full py-3 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-xs shadow-md shadow-primary/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   {isPayoutSubmitLoading ? 'Memproses...' : 'Cairkan & Rekam Jurnal'}
                 </button>

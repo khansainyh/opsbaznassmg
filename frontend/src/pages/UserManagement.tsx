@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, Plus, Search, FileEdit, Trash2, ShieldCheck, 
-  Settings, Loader2, Upload, Download, AlertCircle, X, CheckCircle2
+  Settings, Loader2, Upload, Download, AlertCircle, X, CheckCircle2,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -161,11 +162,15 @@ export default function UserManagement() {
     <div className="flex-1 bg-slate-50 flex flex-col h-screen overflow-hidden">
       <header className="bg-white border-b border-slate-200 px-8 py-5 shrink-0">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <ShieldCheck className="size-6 text-primary" />
+          <div className="space-y-2">
+            <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+              <span className="text-slate-400 shrink-0">Pengaturan</span>
+              <ChevronRight className="size-4 text-slate-300 shrink-0" />
+              <span className="text-primary font-bold shrink-0">User Management</span>
+            </nav>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
               User Management
-            </h1>
+            </h2>
             <p className="text-slate-500 mt-1 text-sm">Kelola akses, jabatan, dan registrasi internal staf BAZNAS.</p>
           </div>
         </div>

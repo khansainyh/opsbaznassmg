@@ -947,7 +947,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                   <button
                     type="button"
                     onClick={() => document.getElementById(`file-input-${key}`)?.click()}
-                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 shadow-sm active:scale-95"
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 rounded-xl text-[10px] font-black transition-all flex items-center gap-1 shadow-sm active:scale-95"
                   >
                     <Upload className="size-3" /> Pilih File
                   </button>
@@ -1517,7 +1517,7 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                     {editable ? (
                       <button
                         onClick={() => handleEditHistory(task)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black transition active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black transition active:scale-95"
                       >
                         <FileEdit className="size-3" /> EDIT ({remaining})
                       </button>

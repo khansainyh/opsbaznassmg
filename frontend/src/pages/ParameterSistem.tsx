@@ -348,12 +348,14 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Header */}
       <div className="space-y-2">
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Pengaturan</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Parameter Sistem</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Pengaturan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Parameter Sistem</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Parameter & Ketetapan Sistem</h2>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+          Parameter & Ketetapan Sistem
+        </h2>
         <p className="text-slate-500 font-medium">Atur hak amil, batas kemiskinan, serta format formulir survei lapangan.</p>
       </div>
 

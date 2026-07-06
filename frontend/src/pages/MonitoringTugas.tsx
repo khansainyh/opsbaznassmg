@@ -20,8 +20,7 @@ import {
   Check,
   Repeat2,
   FlaskConical,
-  Camera,
-  UserSearch
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -806,7 +805,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                       {status === 'Antrean Tugas' && (
                         <button 
                           onClick={() => handleUpdateStatus(task.id, 'Survei Assessment')}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all"
                         >
                           <Send className="size-3.5" />
                           Tampilkan
@@ -823,15 +822,15 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             }
                             handleUpdateStatus(task.id, 'Review Kepala Pelaksana');
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all"
                         >
                           <CheckCircle className="size-3.5" />
-                          Approve
+                          Setujui
                         </button>
                       )}
                       <button 
                         onClick={() => handleViewDetail(task)}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                       >
                         <Eye className="size-4" />
                       </button>
@@ -933,7 +932,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     {status === 'Antrean Tugas' && (
                       <button 
                         onClick={() => handleUpdateStatus(task.id, 'Survei Assessment')}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg active:scale-95 transition-all"
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl active:scale-95 transition-all"
                       >
                         <Send className="size-3" />
                         Tampilkan
@@ -950,15 +949,15 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                           }
                           handleUpdateStatus(task.id, 'Review Kepala Pelaksana');
                         }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg active:scale-95 transition-all"
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl active:scale-95 transition-all"
                       >
                         <CheckCircle className="size-3" />
-                        Approve
+                        Setujui
                       </button>
                     )}
                     <button 
                       onClick={() => handleViewDetail(task)}
-                      className="p-1.5 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-lg active:scale-95 transition-all border border-slate-100 bg-slate-50"
+                      className="p-1.5 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-xl active:scale-95 transition-all border border-slate-100 bg-slate-50"
                     >
                       <Eye className="size-4" />
                     </button>
@@ -1103,8 +1102,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
             </nav>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                  <UserSearch className="size-8 text-primary shrink-0" />
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
                   Monitoring Tugas
                 </h2>
                 <p className="text-slate-500 font-medium max-w-2xl">Layanan pemantauan, penugasan, dan verifikasi survei lapangan bagi para mustahik.</p>
@@ -2162,17 +2160,17 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
-                <button onClick={() => setIsDetailModalOpen(false)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Tutup</button>
+                <button onClick={() => setIsDetailModalOpen(false)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-55 transition-all">Tutup</button>
                 {(getSurveyStatus(selectedTask) === 'Selesai' || !perluSurvei) && (
                   <>
                     {hasTaskAuthority(selectedTask) ? (
-                      <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">Simpan & Approve → Kep. Pelaksana</button>
+                      <button onClick={() => handleApproveKabag(selectedTask)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-250 transition-all">Setujui & Teruskan</button>
                     ) : (!isKabagPendistribusian && !isKabagPendayagunaan && !isStafDistribusi) ? (
                       <button 
                         onClick={() => { 
                           const isZakat = selectedTask.rekomendasi_kabag === 'Zakat' || !selectedTask.rekomendasi_kabag;
                           if (isZakat && (!selectedTask.asnaf || !selectedTask.hasil_identifikasi?.trim())) {
-                            alert('Gagal: Tugas Survei tidak dapat disetujui tanpa melakukan identifikasi asnaf dan mengisi hasil identifikasi.');
+                            alert('Gagal: Tugas Survei tidak dapat disetujui tanpa melakukan identifikasi asnaf and mengisi hasil identifikasi.');
                             return;
                           }
                           if (!isZakat && !selectedTask.hasil_identifikasi?.trim()) {
@@ -2184,7 +2182,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                         }} 
                         className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all"
                       >
-                        Approve → Kep. Pelaksana
+                        Setujui & Teruskan
                       </button>
                     ) : null}
                   </>

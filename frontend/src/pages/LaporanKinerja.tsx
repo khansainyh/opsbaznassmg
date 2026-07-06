@@ -666,11 +666,16 @@ export default function LaporanKinerja() {
   };
 
   return (
-    <div className="p-4 md:p-8 space-y-6 bg-slate-50/50 h-full overflow-y-auto w-full custom-scrollbar">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       
       {/* Top Page title */}
-      <div className="space-y-1">
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+      <div className="space-y-2">
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Pelaporan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Laporan Kinerja</span>
+        </nav>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
           Laporan Kinerja
         </h2>
         <p className="text-slate-500 font-medium">

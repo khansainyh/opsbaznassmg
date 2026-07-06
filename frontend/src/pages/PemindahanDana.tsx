@@ -3,7 +3,6 @@ import axios from 'axios';
 import { 
   Plus, 
   Trash2, 
-  ArrowRightLeft,
   ChevronDown,
   Check,
   ChevronRight,
@@ -150,8 +149,7 @@ export default function PemindahanDana() {
           <ChevronRight className="size-4 text-slate-300 shrink-0" />
           <span className="text-primary font-bold shrink-0">Pemindahan Dana</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-          <ArrowRightLeft className="size-8 text-primary shrink-0" />
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
           Pemindahan Dana
         </h2>
         <p className="text-slate-500 font-medium">
@@ -176,7 +174,7 @@ export default function PemindahanDana() {
 
           <form onSubmit={handleExecuteReplenish} className="space-y-5">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Rekening Bank Sumber (Kredit)</label>
+              <label className="text-[10px] font-black text-slate-400">1. Rekening Bank Sumber (Kredit)</label>
               <div className="relative">
                 <button
                   type="button"
@@ -203,7 +201,7 @@ export default function PemindahanDana() {
                           setIsSourceBankDropdownOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                           !replenishBank ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                         )}
                       >
@@ -219,7 +217,7 @@ export default function PemindahanDana() {
                             setIsSourceBankDropdownOpen(false);
                           }}
                           className={cn(
-                            "w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                             replenishBank === a.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                           )}
                         >
@@ -238,11 +236,11 @@ export default function PemindahanDana() {
 
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Alokasi Laci Kasir Penerima (Debit)</label>
+                <label className="text-[10px] font-black text-slate-400">2. Alokasi Laci Kasir Penerima (Debit)</label>
                 <button
                   type="button"
                   onClick={handleAddReplenishAllocation}
-                  className="text-xs text-primary font-black flex items-center gap-1.5 uppercase hover:underline"
+                  className="text-xs text-primary font-black flex items-center gap-1.5 hover:underline"
                 >
                   <Plus className="size-3.5" /> Tambah Alokasi
                 </button>
@@ -276,7 +274,7 @@ export default function PemindahanDana() {
                               setOpenTargetDropdownIdx(null);
                             }}
                             className={cn(
-                              "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                              "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                               !alloc.targetAccountId ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                             )}
                           >
@@ -292,7 +290,7 @@ export default function PemindahanDana() {
                                 setOpenTargetDropdownIdx(null);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 alloc.targetAccountId === a.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -334,7 +332,7 @@ export default function PemindahanDana() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Keterangan Pemindahan Dana</label>
+              <label className="text-[10px] font-black text-slate-400">3. Keterangan Pemindahan Dana</label>
               <textarea
                 rows={3}
                 placeholder="Contoh: Pencairan dana berkala dari Bank ke Laci Kas A dan B untuk persiapan bansos..."
@@ -345,7 +343,7 @@ export default function PemindahanDana() {
             </div>
 
             <div className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center">
-              <span className="text-xs font-bold text-slate-500 uppercase">Total Dana Dipindahkan</span>
+              <span className="text-xs font-bold text-slate-500">Total Dana Dipindahkan</span>
               <span className="text-lg font-black text-slate-900">
                 {formatCurrency(replenishAllocations.reduce((sum, item) => sum + Number(item.nominal || 0), 0))}
               </span>
@@ -356,7 +354,7 @@ export default function PemindahanDana() {
               disabled={loading}
               className="w-full py-3.5 bg-primary text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
             >
-              {loading ? 'Memproses...' : 'PROSES PEMINDAHAN DANA KAS'}
+              {loading ? 'Memproses...' : 'Proses Pemindahan Dana Kas'}
             </button>
           </form>
         </motion.div>
@@ -371,14 +369,14 @@ export default function PemindahanDana() {
           {/* Monitor Saldo Terkini */}
           <div className="space-y-4">
             <div className="space-y-1">
-              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[9px] font-black uppercase tracking-wider">
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[9px] font-black">
                 Monitor Saldo Terkini
               </span>
-              <h4 className="text-sm font-black text-slate-900 mt-1.5 uppercase tracking-wider">Keadaan Saldo Kas &amp; Bank</h4>
+              <h4 className="text-sm font-black text-slate-900 mt-1.5">Keadaan Saldo Kas &amp; Bank</h4>
             </div>
             <div className="space-y-4">
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Rekening Bank Penyimpanan (Kredit)</p>
+                <p className="text-[10px] font-black text-slate-400 mb-2">Rekening Bank Penyimpanan (Kredit)</p>
                 <div className="space-y-1.5">
                   {accounts.filter(a => a.tipe_kas === 'BANK').length === 0 ? (
                     <div className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-lg border border-primary/5">Belum ada rekening bank terdaftar</div>
@@ -393,7 +391,7 @@ export default function PemindahanDana() {
                 </div>
               </div>
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Laci Kasir Operasional (Debit)</p>
+                <p className="text-[10px] font-black text-slate-400 mb-2">Laci Kasir Operasional (Debit)</p>
                 <div className="space-y-1.5">
                   {accounts.filter(a => a.tipe_kas === 'TUNAI').length === 0 ? (
                     <div className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-lg border border-primary/5">Belum ada laci kasir terdaftar</div>
@@ -417,7 +415,7 @@ export default function PemindahanDana() {
         <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-2">
             <History className="size-5 text-primary" />
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Riwayat Pemindahan Dana</h3>
+            <h3 className="text-sm font-black text-slate-900">Riwayat Pemindahan Dana</h3>
           </div>
           
           <div className="relative w-full sm:w-64">
@@ -436,11 +434,11 @@ export default function PemindahanDana() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/20 border-b border-slate-100">
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanggal</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Bank Sumber (Kredit)</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Laci Tujuan (Debit)</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Keterangan</th>
-                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Total Nominal</th>
+                <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Tanggal</th>
+                <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Bank Sumber (Kredit)</th>
+                <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Laci Tujuan (Debit)</th>
+                <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Keterangan</th>
+                <th className="px-6 py-3 text-[10px] font-bold text-slate-400 text-right">Total Nominal</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-xs">

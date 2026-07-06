@@ -10,9 +10,8 @@ import {
   Wallet, 
   Building2, 
   X, 
-  Activity, 
+  Activity,
   RefreshCw, 
-  SlidersHorizontal,
   Upload,
   Download,
   FileSpreadsheet,
@@ -665,9 +664,8 @@ export default function PengaturanKeuangan() {
             <ChevronRight className="size-4 text-slate-300 shrink-0" />
             <span className="text-primary font-bold shrink-0">Pengaturan Keuangan</span>
           </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 whitespace-nowrap overflow-x-auto scrollbar-none py-1">
-            <SlidersHorizontal className="size-8 text-primary shrink-0" />
-            <span className="shrink-0">Pengaturan &amp; Pelaporan Keuangan</span>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+            Pengaturan &amp; Pelaporan Keuangan
           </h2>
           <p className="text-slate-500 font-medium">
             Kelola posisi kas, aturan pemetaan COA otomatis, replenishment laci kas kecil, dan eksekusi pencairan bantuan.
@@ -757,7 +755,7 @@ export default function PengaturanKeuangan() {
                   <Wallet className="size-6" />
                 </div>
                 <div>
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Saldo Kas Fisik</p>
+                  <p className="text-slate-400 text-[10px] font-black">Total Saldo Kas Fisik</p>
                   <p className="text-xl font-black text-slate-950 mt-1">
                     {formatCurrency(accounts.filter(a => a.tipe_kas === 'TUNAI').reduce((sum, item) => sum + Number(item.saldo), 0))}
                   </p>
@@ -768,7 +766,7 @@ export default function PengaturanKeuangan() {
                   <Building2 className="size-6" />
                 </div>
                 <div>
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Saldo Bank</p>
+                  <p className="text-slate-400 text-[10px] font-black">Total Saldo Bank</p>
                   <p className="text-xl font-black text-slate-950 mt-1">
                     {formatCurrency(accounts.filter(a => a.tipe_kas === 'BANK').reduce((sum, item) => sum + Number(item.saldo), 0))}
                   </p>
@@ -779,7 +777,7 @@ export default function PengaturanKeuangan() {
                   <Activity className="size-6" />
                 </div>
                 <div>
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Total Akun Terhubung</p>
+                  <p className="text-slate-400 text-[10px] font-black">Total Akun Terhubung</p>
                   <p className="text-xl font-black text-slate-950 mt-1">{accounts.length} Akun Fisik</p>
                 </div>
               </div>
@@ -809,7 +807,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenAccountModal(null, 'TUNAI')}
-                    className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
+                    className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Kas
                   </button>
@@ -820,11 +818,11 @@ export default function PengaturanKeuangan() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kas Fisik / Operasional</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Riil (IDR)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Nama Kas Fisik / Operasional</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Grup Kelompok Dana</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Hubungan Master COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Saldo Riil (IDR)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -839,7 +837,7 @@ export default function PengaturanKeuangan() {
                           {item.kode_laci && <span className="block font-mono text-[10px] text-slate-400 mt-1 font-bold">LACI: {item.kode_laci}</span>}
                         </td>
                         <td className="px-6 py-5">
-                          <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase text-[9px] font-black">
+                          <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-black">
                             {item.kelompok_dana}
                           </span>
                         </td>
@@ -856,13 +854,13 @@ export default function PengaturanKeuangan() {
                           <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                             <button 
                               onClick={() => handleOpenAccountModal(item)}
-                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                             >
                               <Edit className="size-4" />
                             </button>
                             <button 
                               onClick={() => handleDeleteAccount(item.account_id)}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-55 rounded-xl transition-all"
                             >
                               <Trash2 className="size-4" />
                             </button>
@@ -885,7 +883,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenAccountModal(null, 'BANK')}
-                    className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-lg text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
+                    className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Bank
                   </button>
@@ -896,10 +894,10 @@ export default function PengaturanKeuangan() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening &amp; Bank</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Riil (IDR)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Nama Rekening &amp; Bank</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Hubungan Master COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Saldo Riil (IDR)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -926,13 +924,13 @@ export default function PengaturanKeuangan() {
                           <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                             <button 
                               onClick={() => handleOpenAccountModal(item)}
-                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                             >
                               <Edit className="size-4" />
                             </button>
                             <button 
                               onClick={() => handleDeleteAccount(item.account_id)}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-55 rounded-xl transition-all"
                             >
                               <Trash2 className="size-4" />
                             </button>
@@ -971,7 +969,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenRuleModal()}
-                    className="hidden md:flex px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider cursor-pointer"
+                    className="hidden md:flex px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all items-center gap-1.5 active:scale-95 cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Rule Penyaluran
                   </button>
@@ -983,12 +981,12 @@ export default function PengaturanKeuangan() {
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-slate-50/50">
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kondisi Aturan</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Kas</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tag Sumber Dana</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">Entri Debit (Beban/Penyaluran)</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">Entri Kredit (Kas/Bank)</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400">Kondisi Aturan</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400">Metode Kas</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400">Tag Sumber Dana</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-emerald-700">Entri Debit (Beban/Penyaluran)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-blue-700">Entri Kredit (Kas/Bank)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -1004,7 +1002,7 @@ export default function PengaturanKeuangan() {
                                 {item.program_code} - {programs.find(p => p.code === item.program_code)?.name || 'Program'}
                               </span>
                               <span className="text-xs font-bold text-slate-900">
-                                Asnaf: <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold text-slate-600">{item.asnaf_id || 'Global/Non-Asnaf'}</span>
+                                Asnaf: <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-600">{item.asnaf_id || 'Global/Non-Asnaf'}</span>
                               </span>
                             </div>
                           </td>
@@ -1026,13 +1024,13 @@ export default function PengaturanKeuangan() {
                             <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                               <button 
                                 onClick={() => handleOpenRuleModal(item)}
-                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                               >
                                 <Edit className="size-4" />
                               </button>
                               <button 
                                 onClick={() => handleDeleteRule(item.rule_id)}
-                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                               >
                                 <Trash2 className="size-4" />
                               </button>
@@ -1059,7 +1057,7 @@ export default function PengaturanKeuangan() {
                 {isSuperAdmin && (
                   <button 
                     onClick={() => handleOpenPenerimaanModal()}
-                    className="hidden md:flex px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/10 hover:bg-blue-700 transition-all items-center gap-1.5 active:scale-95 uppercase tracking-wider cursor-pointer"
+                    className="hidden md:flex px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/10 hover:bg-blue-700 transition-all items-center gap-1.5 active:scale-95 cursor-pointer"
                   >
                     <Plus className="size-3.5" /> Tambah Rule Penerimaan
                   </button>
@@ -1071,13 +1069,13 @@ export default function PengaturanKeuangan() {
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-slate-50/50">
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori Penerimaan</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi Amil (%)</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-indigo-700">Porsi UPZ / BAZNAS (%)</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">COA Debit (Beban Amil)</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">COA Kredit Amil BAZNAS</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-amber-700">COA Kredit Utang UPZ</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400">Kategori Penerimaan</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400">Porsi Amil (%)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-indigo-700">Porsi UPZ / BAZNAS (%)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-emerald-700">COA Debit (Beban Amil)</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-blue-700">COA Kredit Amil BAZNAS</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-amber-700">COA Kredit Utang UPZ</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -1133,13 +1131,13 @@ export default function PengaturanKeuangan() {
                             <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                               <button 
                                 onClick={() => handleOpenPenerimaanModal(item)}
-                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                               >
                                 <Edit className="size-4" />
                               </button>
                               <button 
                                 onClick={() => handleDeletePenerimaan(item.id)}
-                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                               >
                                 <Trash2 className="size-4" />
                               </button>
@@ -1182,13 +1180,13 @@ export default function PengaturanKeuangan() {
                   <div className="hidden md:flex gap-2">
                     <button 
                       onClick={() => setIsMigrationCOAModalOpen(true)}
-                      className="px-4 py-2.5 bg-white border border-primary text-primary rounded-xl text-xs font-black hover:bg-primary/5 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
+                      className="px-4 py-2.5 bg-white border border-primary text-primary rounded-xl text-xs font-black hover:bg-primary/5 transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
                     >
                       <Upload className="size-3.5" /> Migrasi COA
                     </button>
                     <button 
                       onClick={() => handleOpenCOAModal()}
-                      className="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 uppercase tracking-wider shrink-0 cursor-pointer"
+                      className="px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
                     >
                       <Plus className="size-3.5" /> Tambah COA
                     </button>
@@ -1200,12 +1198,12 @@ export default function PengaturanKeuangan() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Akun COA</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening / Akun Buku Besar</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Klasifikasi</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo Awal (IDR)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Kode Akun COA</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Nama Rekening / Akun Buku Besar</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Klasifikasi</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400">Tipe Alokasi Dana</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Saldo Awal (IDR)</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -1215,13 +1213,13 @@ export default function PengaturanKeuangan() {
                       </tr>
                     ) : filteredCOAs.map((item) => (
                       <tr key={item.coa_code} className="hover:bg-slate-50/30 transition-colors group">
-                        <td className="px-6 py-5 font-mono text-xs font-black text-slate-900 bg-slate-50 border border-slate-100 rounded-lg w-fit px-2.5 py-1">
+                        <td className="px-6 py-5 font-mono text-xs font-black text-slate-900 bg-slate-50 border border-slate-100 rounded-xl w-fit px-2.5 py-1">
                           {item.coa_code}
                         </td>
                         <td className="px-6 py-5 font-bold text-slate-900">{item.nama_akun}</td>
                         <td className="px-6 py-5">
                           <span className={cn(
-                            "px-2 py-0.5 rounded text-[10px] font-black uppercase border",
+                            "px-2 py-0.5 rounded text-[10px] font-black border",
                             item.klasifikasi === 'Aktiva' ? "bg-blue-50 text-blue-600 border-blue-100" :
                             item.klasifikasi === 'Penyaluran' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
                             item.klasifikasi === 'Penerimaan' ? "bg-purple-50 text-purple-600 border-purple-100" :
@@ -1241,13 +1239,13 @@ export default function PengaturanKeuangan() {
                           <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                             <button 
                               onClick={() => handleOpenCOAModal(item)}
-                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                             >
                               <Edit className="size-4" />
                             </button>
                             <button 
                               onClick={() => handleDeleteCOA(item.coa_code)}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-55 rounded-xl transition-all"
                             >
                               <Trash2 className="size-4" />
                             </button>
@@ -1282,7 +1280,7 @@ export default function PengaturanKeuangan() {
                 </h3>
                 <form onSubmit={handleSaveCategory} className="space-y-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kategori</label>
+                    <label className="text-[10px] font-black text-slate-400">Nama Kategori</label>
                     <input
                       type="text"
                       required
@@ -1295,7 +1293,7 @@ export default function PengaturanKeuangan() {
                   <button
                     type="submit"
                     disabled={isCategorySubmitLoading || !newCategoryName.trim()}
-                    className="w-full h-11 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 active:scale-95 uppercase tracking-wider disabled:opacity-50"
+                    className="w-full h-11 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
                   >
                     {isCategorySubmitLoading ? 'Menyimpan...' : 'Simpan Kategori'}
                   </button>
@@ -1315,9 +1313,9 @@ export default function PengaturanKeuangan() {
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-slate-50/50">
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kategori</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Dibuat Pada</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400">Nama Kategori</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400">Dibuat Pada</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
@@ -1338,7 +1336,7 @@ export default function PengaturanKeuangan() {
                           <td className="px-6 py-5 text-right">
                             <button
                               onClick={() => handleDeleteCategory(cat.id)}
-                              className="p-2 hover:bg-rose-50 rounded-lg text-rose-500 transition-colors"
+                              className="p-2 hover:bg-rose-50 rounded-xl text-rose-500 transition-colors"
                               title="Hapus Kategori"
                             >
                               <Trash2 className="size-4" />
@@ -1389,7 +1387,7 @@ export default function PengaturanKeuangan() {
 
               <form onSubmit={handleSaveAccount} className="p-6 space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Rekening/Laci Kas</label>
+                  <label className="text-[10px] font-black text-slate-400">Nama Rekening/Laci Kas</label>
                   <input
                     type="text"
                     required
@@ -1402,7 +1400,7 @@ export default function PengaturanKeuangan() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className={cn(accountForm.tipe_kas === 'BANK' ? "col-span-2" : "col-span-1", "space-y-1")}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Kas</label>
+                    <label className="text-[10px] font-black text-slate-400">Tipe Kas</label>
                     <button
                       type="button"
                       disabled
@@ -1414,7 +1412,7 @@ export default function PengaturanKeuangan() {
 
                   {accountForm.tipe_kas !== 'BANK' && (
                     <div className="space-y-1 col-span-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grup Kelompok Dana</label>
+                      <label className="text-[10px] font-black text-slate-400">Grup Kelompok Dana</label>
                       <div className="relative">
                         <button
                           type="button"
@@ -1438,7 +1436,7 @@ export default function PengaturanKeuangan() {
                                     setIsFormKelompokDanaDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     accountForm.kelompok_dana === kd ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -1455,7 +1453,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hubungan Master COA</label>
+                  <label className="text-[10px] font-black text-slate-400">Hubungan Master COA</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -1485,7 +1483,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari COA..."
                               value={formCoaSearchQuery}
                               onChange={(e) => setFormCoaSearchQuery(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
@@ -1508,7 +1506,7 @@ export default function PengaturanKeuangan() {
                                     setIsFormCoaDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     accountForm.coa_code === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -1532,7 +1530,7 @@ export default function PengaturanKeuangan() {
 
                 {accountForm.tipe_kas === 'BANK' ? (
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Rekening</label>
+                    <label className="text-[10px] font-black text-slate-400">No. Rekening</label>
                     <input
                       type="text"
                       value={accountForm.no_rekening}
@@ -1543,7 +1541,7 @@ export default function PengaturanKeuangan() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Laci Kasir (A s.d G)</label>
+                    <label className="text-[10px] font-black text-slate-400">Kode Laci Kasir (A s.d G)</label>
                     <input
                       type="text"
                       maxLength={1}
@@ -1556,7 +1554,7 @@ export default function PengaturanKeuangan() {
                 )}
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Awal (IDR)</label>
+                  <label className="text-[10px] font-black text-slate-400">Saldo Awal (IDR)</label>
                   <input
                     type="number"
                     value={accountForm.saldo || 0}
@@ -1569,17 +1567,10 @@ export default function PengaturanKeuangan() {
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsAccountModalOpen(false)}
-                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-55 transition-all"
-                  >
-                    Batal
-                  </button>
+                <div className="pt-4 border-t border-slate-100">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
+                    className="w-full px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
                   >
                     Simpan Akun
                   </button>
@@ -1618,7 +1609,7 @@ export default function PengaturanKeuangan() {
 
               <form onSubmit={handleSaveCOA} className="p-6 space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kode Akun COA</label>
+                  <label className="text-[10px] font-black text-slate-400">Kode Akun COA</label>
                   <input
                     type="text"
                     required
@@ -1631,7 +1622,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Akun</label>
+                  <label className="text-[10px] font-black text-slate-400">Nama Akun</label>
                   <input
                     type="text"
                     required
@@ -1643,7 +1634,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Klasifikasi</label>
+                  <label className="text-[10px] font-black text-slate-400">Klasifikasi</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -1667,7 +1658,7 @@ export default function PengaturanKeuangan() {
                                 setIsCoaKlasifikasiDropdownOpen(false);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 coaForm.klasifikasi === k ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -1682,7 +1673,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Alokasi Dana (Opsional)</label>
+                  <label className="text-[10px] font-black text-slate-400">Tipe Alokasi Dana (Opsional)</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -1713,7 +1704,7 @@ export default function PengaturanKeuangan() {
                                 setIsCoaTipeDanaDropdownOpen(false);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 coaForm.tipe_dana === td.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -1728,7 +1719,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Awal (IDR)</label>
+                  <label className="text-[10px] font-black text-slate-400">Saldo Awal (IDR)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1739,17 +1730,10 @@ export default function PengaturanKeuangan() {
                   />
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCOAModalOpen(false)}
-                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-55 transition-all"
-                  >
-                    Batal
-                  </button>
+                <div className="pt-4 border-t border-slate-100">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
+                    className="w-full px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
                   >
                     Simpan COA
                   </button>
@@ -1788,7 +1772,7 @@ export default function PengaturanKeuangan() {
 
               <form onSubmit={handleSaveRule} className="p-6 space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program SIMBA</label>
+                  <label className="text-[10px] font-black text-slate-400">Program SIMBA</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -1818,7 +1802,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari Program..."
                               value={ruleProgramSearchQuery}
                               onChange={(e) => setRuleProgramSearchQuery(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
@@ -1836,7 +1820,7 @@ export default function PengaturanKeuangan() {
                                     setIsRuleProgramDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     ruleForm.program_code === p.code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -1860,7 +1844,7 @@ export default function PengaturanKeuangan() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Asnaf Target (Opsional)</label>
+                    <label className="text-[10px] font-black text-slate-400">Asnaf Target (Opsional)</label>
                     <div className="relative">
                       <button
                         type="button"
@@ -1894,7 +1878,7 @@ export default function PengaturanKeuangan() {
                                   setIsRuleAsnafDropdownOpen(false);
                                 }}
                                 className={cn(
-                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                  "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                   ruleForm.asnaf_id === asn.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                 )}
                               >
@@ -1909,7 +1893,7 @@ export default function PengaturanKeuangan() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Kas</label>
+                    <label className="text-[10px] font-black text-slate-400">Metode Kas</label>
                     <div className="relative">
                       <button
                         type="button"
@@ -1936,7 +1920,7 @@ export default function PengaturanKeuangan() {
                                   setIsRuleMetodeKasDropdownOpen(false);
                                 }}
                                 className={cn(
-                                  "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                  "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                   ruleForm.tipe_kas === mk.value ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                 )}
                               >
@@ -1952,7 +1936,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelompok Dana</label>
+                  <label className="text-[10px] font-black text-slate-400">Kelompok Dana</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -1976,7 +1960,7 @@ export default function PengaturanKeuangan() {
                                 setIsRuleKelompokDanaDropdownOpen(false);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 ruleForm.sumber_dana_tag === sd ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -1991,7 +1975,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-emerald-700">Akun Penyaluran/Belanja (Debit COA)</label>
+                  <label className="text-[10px] font-black text-slate-400 text-emerald-700">Akun Penyaluran/Belanja (Debit COA)</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2021,7 +2005,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari COA..."
                               value={ruleDebitCoaSearchQuery}
                               onChange={(e) => setRuleDebitCoaSearchQuery(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
@@ -2040,7 +2024,7 @@ export default function PengaturanKeuangan() {
                                     setIsRuleDebitCoaDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     ruleForm.debit_coa_code === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -2063,7 +2047,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-blue-700">Akun Kas/Bank Default (Kredit COA)</label>
+                  <label className="text-[10px] font-black text-slate-400 text-blue-700">Akun Kas/Bank Default (Kredit COA)</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2093,7 +2077,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari COA..."
                               value={ruleKreditCoaSearchQuery}
                               onChange={(e) => setRuleKreditCoaSearchQuery(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
@@ -2112,7 +2096,7 @@ export default function PengaturanKeuangan() {
                                     setIsRuleKreditCoaDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     ruleForm.kredit_coa_code === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -2134,17 +2118,10 @@ export default function PengaturanKeuangan() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsRuleModalOpen(false)}
-                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-55 transition-all"
-                  >
-                    Batal
-                  </button>
+                 <div className="pt-4 border-t border-slate-100">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
+                    className="w-full px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20"
                   >
                     Simpan Rule
                   </button>
@@ -2182,7 +2159,7 @@ export default function PengaturanKeuangan() {
 
               <form onSubmit={handleSavePenerimaan} className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori Penerimaan</label>
+                  <label className="text-[10px] font-black text-slate-400">Kategori Penerimaan</label>
                   <input
                     type="text"
                     required
@@ -2194,7 +2171,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Penerimaan Terkait (Multi-select)</label>
+                  <label className="text-[10px] font-black text-slate-400">COA Penerimaan Terkait (Multi-select)</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2224,7 +2201,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari COA Penerimaan..."
                               value={penerimaanCoasSearch}
                               onChange={(e) => setPenerimaanCoasSearch(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
@@ -2242,7 +2219,7 @@ export default function PengaturanKeuangan() {
                                 return (
                                   <label
                                     key={c.coa_code}
-                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1 cursor-pointer text-slate-700"
+                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1 cursor-pointer text-slate-700"
                                   >
                                     <input
                                       type="checkbox"
@@ -2265,7 +2242,7 @@ export default function PengaturanKeuangan() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi Amil (%)</label>
+                    <label className="text-[10px] font-black text-slate-400">Porsi Amil (%)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2277,7 +2254,7 @@ export default function PengaturanKeuangan() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi UPZ (%)</label>
+                    <label className="text-[10px] font-black text-slate-400">Porsi UPZ (%)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2291,7 +2268,7 @@ export default function PengaturanKeuangan() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Porsi BAZNAS (%)</label>
+                    <label className="text-[10px] font-black text-slate-400">Porsi BAZNAS (%)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2303,7 +2280,7 @@ export default function PengaturanKeuangan() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Salur Pembantuan (%)</label>
+                    <label className="text-[10px] font-black text-slate-400">Salur Pembantuan (%)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2316,7 +2293,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Debit (Beban Amil)</label>
+                  <label className="text-[10px] font-black text-slate-400">COA Debit (Beban Amil)</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2346,7 +2323,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari COA..."
                               value={penerimaanDebitSearch}
                               onChange={(e) => setPenerimaanDebitSearch(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
@@ -2364,7 +2341,7 @@ export default function PengaturanKeuangan() {
                                     setIsPenerimaanDebitDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     penerimaanForm.coa_debit_beban === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -2381,7 +2358,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Kredit (Pendapatan Amil BAZNAS)</label>
+                  <label className="text-[10px] font-black text-slate-400">COA Kredit (Pendapatan Amil BAZNAS)</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2411,7 +2388,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari COA..."
                               value={penerimaanKreditAmilSearch}
                               onChange={(e) => setPenerimaanKreditAmilSearch(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
@@ -2429,7 +2406,7 @@ export default function PengaturanKeuangan() {
                                     setIsPenerimaanKreditAmilDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     penerimaanForm.coa_kredit_amil === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -2446,7 +2423,7 @@ export default function PengaturanKeuangan() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">COA Kredit (Utang Hak Amil UPZ)</label>
+                  <label className="text-[10px] font-black text-slate-400">COA Kredit (Utang Hak Amil UPZ)</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2476,7 +2453,7 @@ export default function PengaturanKeuangan() {
                               placeholder="Cari COA..."
                               value={penerimaanKreditUtangSearch}
                               onChange={(e) => setPenerimaanKreditUtangSearch(e.target.value)}
-                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
+                              className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-40">
@@ -2494,7 +2471,7 @@ export default function PengaturanKeuangan() {
                                     setIsPenerimaanKreditUtangDropdownOpen(false);
                                   }}
                                   className={cn(
-                                    "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                    "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                     penerimaanForm.coa_kredit_utang === c.coa_code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                   )}
                                 >
@@ -2510,17 +2487,10 @@ export default function PengaturanKeuangan() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsPenerimaanModalOpen(false)}
-                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                  >
-                    Batal
-                  </button>
+                <div className="pt-4 border-t border-slate-100">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20"
+                    className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20"
                   >
                     Simpan Rule
                   </button>
@@ -2644,7 +2614,7 @@ export default function PengaturanKeuangan() {
                 className="p-6 space-y-4"
               >
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Kategori</label>
+                  <label className="text-[10px] font-black text-slate-400">Nama Kategori</label>
                   <input
                     type="text"
                     required
@@ -2654,18 +2624,11 @@ export default function PengaturanKeuangan() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold"
                   />
                 </div>
-                <div className="pt-4 border-t border-slate-100 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCategoryModalOpen(false)}
-                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                  >
-                    Batal
-                  </button>
+                 <div className="pt-4 border-t border-slate-100">
                   <button
                     type="submit"
                     disabled={isCategorySubmitLoading || !newCategoryName.trim()}
-                    className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
                   >
                     {isCategorySubmitLoading ? 'Menyimpan...' : 'Simpan Kategori'}
                   </button>

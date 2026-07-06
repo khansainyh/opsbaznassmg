@@ -303,12 +303,14 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Persetujuan</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Persetujuan Ketua</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Persetujuan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Persetujuan Ketua</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Persetujuan Ketua</h2>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+          Persetujuan Ketua
+        </h2>
         <p className="text-slate-500 font-medium">
           Layanan otorisasi dan persetujuan akhir oleh Ketua atas permohonan bantuan serta surat masuk.
         </p>

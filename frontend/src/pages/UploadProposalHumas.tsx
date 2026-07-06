@@ -144,12 +144,12 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Humas</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Upload Proposal</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Humas</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Upload Proposal</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
           Upload Proposal
         </h2>
         <p className="text-slate-500 font-medium">

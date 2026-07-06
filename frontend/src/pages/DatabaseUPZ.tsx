@@ -2578,14 +2578,16 @@ export default function DatabaseUPZ() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Master Data</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Database UPZ</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Master Data</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Database UPZ</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Database & Legalitas UPZ</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+              Database & Legalitas UPZ
+            </h2>
             <p className="text-slate-500 font-medium">Manajemen data Unit Pengumpul Zakat (UPZ) On-Balance & Off-Balance.</p>
           </div>
         </div>

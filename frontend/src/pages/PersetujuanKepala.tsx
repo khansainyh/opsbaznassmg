@@ -314,12 +314,14 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Persetujuan</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Persetujuan Kepala Pelaksana</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Persetujuan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Persetujuan Kepala Pelaksana</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Persetujuan Kepala Pelaksana</h2>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+          Persetujuan Kepala Pelaksana
+        </h2>
         <p className="text-slate-500 font-medium">
           Layanan peninjauan kelayakan permohonan bantuan serta disposisi surat masuk oleh Kepala Pelaksana.
         </p>
@@ -396,7 +398,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button onClick={() => openProposalModal(item)}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all mx-auto"
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all mx-auto"
                         title="Lihat Detail"
                       >
                         <Eye className="size-4" />
@@ -426,7 +428,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button onClick={() => openSuratModal(item)}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all mx-auto"
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all mx-auto"
                         title={item.status === 'Penugasan Kepala Pelaksana' ? 'Tugaskan' : 'Lihat Detail'}
                       >
                         <Eye className="size-4" />
@@ -1301,14 +1303,10 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
 
               {/* Modal Footer */}
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
-                <button onClick={() => !isSubmitting && setIsModalOpen(false)} disabled={isSubmitting}
-                  className="hidden md:inline-flex px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50">
-                  Batal
-                </button>
                 <button onClick={handleApprove}
                   disabled={isSubmitting || (selectedSurat ? (selectedSurat.status !== 'Penugasan Kepala Pelaksana' && !catatan.trim()) : !catatan.trim())}
                   className={cn(
-                    'flex-1 px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg',
+                    'w-full px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg',
                     (!isSubmitting && (selectedSurat ? (selectedSurat.status === 'Penugasan Kepala Pelaksana' || catatan.trim()) : catatan.trim()))
                       ? 'bg-primary text-white hover:bg-primary/90 shadow-primary/20'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'

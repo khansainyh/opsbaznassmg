@@ -656,8 +656,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
             <ChevronRight className="size-4 text-slate-300 shrink-0" />
             <span className="text-primary font-bold shrink-0">Antrean SIMBA</span>
           </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <RefreshCw className="size-8 text-primary shrink-0" />
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
             Antrean SIMBA
           </h2>
           <p className="text-slate-500 font-medium max-w-3xl">
@@ -956,12 +955,12 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                                   placeholder="Ketik NRM disini..."
                                   value={draftNrm}
                                   onChange={(e) => handleNrmChange(item.id, e.target.value)}
-                                  className="w-full text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 outline-none text-center"
+                                  className="w-full text-xs font-mono font-bold bg-slate-55 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 outline-none text-center"
                                 />
                                 <button
                                   onClick={() => handleSaveNrm(item.id, item.mustahik_id || '')}
                                   disabled={savingId === item.id || !draftNrm}
-                                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all disabled:opacity-50 text-slate-700 flex items-center shrink-0 shadow-sm border border-slate-200"
+                                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all disabled:opacity-50 text-slate-700 flex items-center shrink-0 shadow-sm border border-slate-200"
                                   title="Simpan NRM ke database"
                                 >
                                   {savingId === item.id ? (
@@ -987,7 +986,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                                   <button
                                     onClick={() => handleSaveNrm(item.id, item.mustahik_id || '')}
                                     disabled={savingId === item.id}
-                                    className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shrink-0"
+                                    className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shrink-0"
                                   >
                                     <Check className="size-3" />
                                   </button>
@@ -1003,7 +1002,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                         <button
                           onClick={() => handleCompleteSync(item.id)}
                           disabled={syncingId === item.id || !isReady}
-                          className="w-fit md:w-full max-w-[100px] mx-auto p-2 md:py-2 md:px-3 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-black rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1"
+                          className="w-fit md:w-full max-w-[100px] mx-auto p-2 md:py-2 md:px-3 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-black rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1"
                           title={!isReady ? (isByName ? 'Lengkapi NRM seluruh Mustahik di tombol By-Name terlebih dahulu' : 'Masukkan NRM terlebih dahulu') : 'Selesai Cetak Kuitansi SIMBA'}
                         >
                           {syncingId === item.id ? (
@@ -1336,7 +1335,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                           }
                         }}
                         disabled={!excelPasteText.trim()}
-                        className="w-full py-2.5 px-4 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-primary/95 transition-all flex items-center justify-center gap-1 shadow-sm disabled:opacity-55 disabled:cursor-not-allowed"
+                        className="w-full py-2.5 px-4 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-primary/95 transition-all flex items-center justify-center gap-1 shadow-sm disabled:opacity-55 disabled:cursor-not-allowed"
                       >
                         <Plus className="size-3.5" />
                         Proses Impor Excel
@@ -1412,7 +1411,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                                 <td className="px-4 py-3 text-center">
                                   <button
                                     onClick={() => handleRemoveByName(idx)}
-                                    className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded transition-all"
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-xl transition-all"
                                     title="Hapus penerima"
                                   >
                                     <Trash2 className="size-3.5" />
@@ -1432,15 +1431,9 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
               {/* Modal Footer */}
               <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
                 <button
-                  onClick={() => setSelectedProposal(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-all border border-slate-200"
-                >
-                  Batal
-                </button>
-                <button
                   onClick={handleSaveByName}
                   disabled={isSavingByName}
-                  className="px-5 py-2 text-xs font-black uppercase bg-primary hover:bg-primary/95 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                  className="px-5 py-3 text-xs font-black uppercase bg-primary hover:bg-primary/95 text-white rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 w-full"
                 >
                   {isSavingByName ? (
                     <RefreshCw className="size-3.5 animate-spin" />

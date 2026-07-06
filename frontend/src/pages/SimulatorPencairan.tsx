@@ -360,8 +360,7 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
           <ChevronRight className="size-4 text-slate-300 shrink-0" />
           <span className="text-primary font-bold shrink-0">Simulator Pencairan</span>
         </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3 whitespace-nowrap overflow-x-auto scrollbar-none py-1">
-          <ShieldCheck className="size-8 text-primary shrink-0" />
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
           Simulator Eksekusi &amp; Jurnal BKO
         </h2>
         <p className="text-slate-500 font-medium">

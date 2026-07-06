@@ -412,8 +412,7 @@ export default function CatatMutasi() {
             <ChevronRight className="size-4 text-slate-300 shrink-0" />
             <span className="text-primary font-bold shrink-0">Catat Mutasi</span>
           </nav>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <Upload className="size-8 text-primary shrink-0" />
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
             Catat Mutasi Bank
           </h2>
           <p className="text-slate-500 font-medium">
@@ -465,7 +464,7 @@ export default function CatatMutasi() {
             <TrendingUp className="size-6" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+            <p className="text-slate-450 text-[10px] font-black">
               Total Debit (Uang Masuk)
             </p>
             <p className="text-lg font-black text-slate-900 mt-1">
@@ -483,7 +482,7 @@ export default function CatatMutasi() {
             <TrendingDown className="size-6" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+            <p className="text-slate-455 text-[10px] font-black">
               Total Kredit (Uang Keluar)
             </p>
             <p className="text-lg font-black text-slate-900 mt-1">
@@ -501,7 +500,7 @@ export default function CatatMutasi() {
             <Layers className="size-6" />
           </div>
           <div>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+            <p className="text-slate-455 text-[10px] font-black">
               Total Akumulasi Nominal
             </p>
             <p className="text-lg font-black text-slate-900 mt-1">
@@ -556,7 +555,7 @@ export default function CatatMutasi() {
                       setIsFilterBankDropdownOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                       !filterBankId ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                     )}
                   >
@@ -572,7 +571,7 @@ export default function CatatMutasi() {
                         setIsFilterBankDropdownOpen(false);
                       }}
                       className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                        "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                         filterBankId === ba.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                       )}
                     >
@@ -609,7 +608,7 @@ export default function CatatMutasi() {
                       setIsFilterTypeDropdownOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                       !filterType ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                     )}
                   >
@@ -623,7 +622,7 @@ export default function CatatMutasi() {
                       setIsFilterTypeDropdownOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                       filterType === 'DEBIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                     )}
                   >
@@ -637,7 +636,7 @@ export default function CatatMutasi() {
                       setIsFilterTypeDropdownOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                      "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                       filterType === 'KREDIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                     )}
                   >
@@ -657,7 +656,7 @@ export default function CatatMutasi() {
         <div className="hidden md:flex px-6 py-4 border-b border-slate-100 items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
             <Layers className="size-5 text-primary" />
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Daftar Transaksi Mutasi Bank</h3>
+            <h3 className="text-sm font-black text-slate-900">Daftar Transaksi Mutasi Bank</h3>
           </div>
           <div className="flex items-center gap-3">
             <button 
@@ -670,7 +669,7 @@ export default function CatatMutasi() {
                 setFormKeterangan('');
                 setIsManualModalOpen(true);
               }}
-              className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer"
+              className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="size-4" /> Catat Manual
             </button>
@@ -681,7 +680,7 @@ export default function CatatMutasi() {
                 setFileName('');
                 setIsMigrationModalOpen(true);
               }}
-              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black shadow-md shadow-slate-950/10 hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer"
+              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black shadow-md shadow-slate-950/10 hover:bg-slate-800 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <FileSpreadsheet className="size-4" /> Migrasi Koran
             </button>
@@ -692,13 +691,13 @@ export default function CatatMutasi() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rekening Bank</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan Koran / Deskripsi</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Nominal</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Tipe</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400">Tanggal</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400">Rekening Bank</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400">Keterangan Koran / Deskripsi</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Nominal</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-center">Tipe</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -731,7 +730,7 @@ export default function CatatMutasi() {
                     </td>
                     <td className="px-6 py-4 text-center whitespace-nowrap">
                       <span className={cn(
-                        "px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-wider border",
+                        "px-3 py-1 rounded-full font-black text-[9px] border",
                         m.type === 'KREDIT' 
                           ? "bg-red-50 text-red-600 border-red-100" 
                           : "bg-emerald-50 text-emerald-600 border-emerald-100"
@@ -754,14 +753,14 @@ export default function CatatMutasi() {
                         <div className="flex gap-2 justify-end">
                           <button 
                             onClick={() => handleEditClick(m)}
-                            className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                             title="Edit Mutasi"
                           >
                             <Edit3 className="size-4" />
                           </button>
                           <button 
                             onClick={() => handleDeleteMutation(m.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                             title="Hapus Mutasi"
                           >
                             <Trash2 className="size-4" />
@@ -790,7 +789,7 @@ export default function CatatMutasi() {
               className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-lg overflow-hidden"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <Building className="size-4 text-primary" />
                   {editMutationId ? 'Edit Catatan Mutasi' : 'Catat Mutasi Manual'}
                 </h3>
@@ -802,7 +801,7 @@ export default function CatatMutasi() {
               <form onSubmit={handleManualSubmit} className="p-6 space-y-4">
                 {/* Bank Account Selection */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Rekening Bank *</label>
+                  <label className="text-[10px] font-black text-slate-450">Rekening Bank *</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -831,7 +830,7 @@ export default function CatatMutasi() {
                                 setIsFormBankDropdownOpen(false);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 formBankId === ba.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -848,7 +847,7 @@ export default function CatatMutasi() {
                 <div className="grid grid-cols-2 gap-4">
                   {/* Tanggal */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tanggal Transaksi *</label>
+                    <label className="text-[10px] font-black text-slate-450">Tanggal Transaksi *</label>
                     <input 
                       type="date"
                       value={formTanggal}
@@ -860,7 +859,7 @@ export default function CatatMutasi() {
 
                   {/* Jenis Mutasi */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipe Mutasi *</label>
+                    <label className="text-[10px] font-black text-slate-450">Tipe Mutasi *</label>
                     <div className="relative">
                       <button
                         type="button"
@@ -882,7 +881,7 @@ export default function CatatMutasi() {
                                 setIsFormTypeDropdownOpen(false);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 formType === 'DEBIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -896,7 +895,7 @@ export default function CatatMutasi() {
                                 setIsFormTypeDropdownOpen(false);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 formType === 'KREDIT' ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -912,7 +911,7 @@ export default function CatatMutasi() {
 
                 {/* Nominal */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nominal Transaksi (Rp) *</label>
+                  <label className="text-[10px] font-black text-slate-450">Nominal Transaksi (Rp) *</label>
                   <input 
                     type="number"
                     placeholder="Contoh: 1500000"
@@ -925,7 +924,7 @@ export default function CatatMutasi() {
 
                 {/* Keterangan */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Keterangan Koran / Uraian *</label>
+                  <label className="text-[10px] font-black text-slate-450">Keterangan Koran / Uraian *</label>
                   <textarea 
                     rows={2}
                     placeholder="Contoh: TRSF BAZNAS KOTA SEMARANG"
@@ -937,17 +936,10 @@ export default function CatatMutasi() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 pt-3 border-t border-slate-100">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsManualModalOpen(false)}
-                    className="flex-1 py-3 text-slate-500 hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider"
-                  >
-                    Batal
-                  </button>
+                <div className="flex pt-3 border-t border-slate-100">
                   <button 
                     type="submit" 
-                    className="flex-1 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/20"
+                    className="w-full py-3.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20"
                   >
                     {editMutationId ? 'Simpan Perubahan' : 'Simpan Catatan'}
                   </button>
@@ -969,7 +961,7 @@ export default function CatatMutasi() {
               className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <FileSpreadsheet className="size-4 text-primary" />
                   Migrasi Data Mutasi Bank Bulk
                 </h3>
@@ -981,8 +973,8 @@ export default function CatatMutasi() {
               <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
                 {/* 1. Select Bank Account */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    PILIH REKENING BANK TUJUAN *
+                  <label className="text-[10px] font-black text-slate-450">
+                    Pilih Rekening Bank Tujuan *
                   </label>
                   <div className="relative">
                     <button
@@ -1014,7 +1006,7 @@ export default function CatatMutasi() {
                                 setIsMigrationBankDropdownOpen(false);
                               }}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
                                 migrationBankId === ba.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                               )}
                             >
@@ -1074,7 +1066,7 @@ export default function CatatMutasi() {
                 {parsedMutations.length > 0 && (
                   <div className="space-y-4 pt-4 border-t border-slate-100">
                     <div className="flex justify-between items-center">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      <h4 className="text-[10px] font-black text-slate-450">
                         Hasil Pembacaan Excel ({parsedMutations.length} Baris)
                       </h4>
                       <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
@@ -1108,7 +1100,7 @@ export default function CatatMutasi() {
                               <td className="px-4 py-2 font-semibold text-slate-700">{item.tanggal || '-'}</td>
                               <td className="px-4 py-2">
                                 <span className={cn(
-                                  "px-1.5 py-0.5 rounded font-black text-[9px] uppercase",
+                                  "px-1.5 py-0.5 rounded font-black text-[9px]",
                                   item.type === 'KREDIT' 
                                     ? "bg-red-50 text-red-600 border border-red-100" 
                                     : "bg-emerald-50 text-emerald-600 border border-emerald-100"
@@ -1143,18 +1135,11 @@ export default function CatatMutasi() {
               </div>
 
               {/* Modal Footer actions */}
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setIsMigrationModalOpen(false)}
-                  className="flex-1 py-3 text-slate-500 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider"
-                >
-                  Batal
-                </button>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex">
                 <button 
                   onClick={handleBulkSubmit}
                   disabled={parsedMutations.filter(p => p.isValid).length === 0}
-                  className="flex-1 py-3 bg-primary disabled:bg-slate-100 disabled:text-slate-400 hover:bg-primary/95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/20"
+                  className="w-full py-3.5 bg-primary disabled:bg-slate-100 disabled:text-slate-400 hover:bg-primary/95 text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20"
                 >
                   Proses Migrasi ({parsedMutations.filter(p => p.isValid).length} Valid)
                 </button>

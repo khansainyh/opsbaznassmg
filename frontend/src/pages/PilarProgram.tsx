@@ -318,14 +318,16 @@ export default function PilarProgram() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Master Data</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Program & Kegiatan</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Master Data</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Program & Kegiatan</span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Program & Kegiatan</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+              Program & Kegiatan
+            </h2>
             <p className="text-slate-500 font-medium">Kelola klasifikasi program utama dan kode kegiatan berdasarkan standar SIMBA BAZNAS.</p>
           </div>
           <div className="hidden md:flex gap-3">

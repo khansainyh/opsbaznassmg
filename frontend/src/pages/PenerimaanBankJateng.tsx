@@ -1162,13 +1162,12 @@ export default function PenerimaanBankJateng() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-2"
       >
-        <nav className="flex text-sm gap-2 items-center">
-          <span className="text-slate-400">Pengumpulan</span>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-primary font-bold">Penerimaan Bank Jateng</span>
+        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <span className="text-slate-400 shrink-0">Pengumpulan</span>
+          <ChevronRight className="size-4 text-slate-300 shrink-0" />
+          <span className="text-primary font-bold shrink-0">Penerimaan Bank Jateng</span>
         </nav>
-        <h2 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-          <Building className="size-8 text-primary" />
+        <h2 className="text-3xl font-black tracking-tight text-slate-900 whitespace-nowrap overflow-x-auto scrollbar-none py-1">
           Penerimaan Bank Jateng
         </h2>
         <p className="text-slate-500 font-medium max-w-3xl">
