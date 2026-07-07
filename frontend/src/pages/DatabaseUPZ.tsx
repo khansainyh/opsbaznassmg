@@ -675,21 +675,22 @@ export default function DatabaseUPZ() {
   };
 
   const openEditModal = (upz: UPZ) => {
-    const getYearOnly = (dateStr: string) => {
-      if (!dateStr) return '';
-      if (dateStr.includes('-')) {
-        return dateStr.split('-')[0];
+    const getYearOnly = (dateStr: any) => {
+      const str = dateStr !== null && dateStr !== undefined ? String(dateStr).trim() : '';
+      if (!str) return '';
+      if (str.includes('-')) {
+        return str.split('-')[0];
       }
-      return dateStr;
+      return str;
     };
 
     setSelectedUPZ(upz);
-    setFormNamaUpz(upz.name);
+    setFormNamaUpz(upz.name || '');
     setFormAlamatLengkap(upz.metadata?.address || '');
     setFormNoTelepon(upz.metadata?.upzPhone || '');
-    setFormNoSKPenetapan(upz.activeSKNumber || '');
-    setFormTahunMulai(getYearOnly(upz.skStartYear || ''));
-    setFormTahunBerakhir(getYearOnly(upz.skExpiryDate || ''));
+    setFormNoSKPenetapan(upz.activeSKNumber !== undefined && upz.activeSKNumber !== null ? String(upz.activeSKNumber) : '');
+    setFormTahunMulai(getYearOnly(upz.skStartYear));
+    setFormTahunBerakhir(getYearOnly(upz.skExpiryDate));
     setFormScanLink(upz.metadata?.scanLink || '');
     setFormStatus(upz.status || 'Aktif');
     setFormResignationDate(upz.resignationDate || '');
@@ -1900,8 +1901,8 @@ export default function DatabaseUPZ() {
 
     if (upz.category === 'Instansi Vertikal' || upz.category === 'OPD' || upz.category === 'BUMD' || upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan' || upz.category === 'Pemerintahan Kecamatan') {
       const isKecamatan = upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan' || upz.category === 'Pemerintahan Kecamatan';
-      const upzTitleName = isKecamatan ? `KECAMATAN ${upz.kecamatan.toUpperCase()}` : upz.name.toUpperCase();
-      const upzTextName = isKecamatan ? `Kecamatan ${upz.kecamatan}` : upz.name;
+      const upzTitleName = upz.name.toUpperCase();
+      const upzTextName = upz.name;
       const usulanPimpinan = isKecamatan ? `Camat ${upz.kecamatan}` : `Kepala ${upz.name}`;
       const tingkatText = isKecamatan ? "Tingkat Kecamatan se-Kota Semarang" : "Tingkat Kota Semarang";
 
@@ -4638,11 +4639,11 @@ export default function DatabaseUPZ() {
                   <button 
                     type="button"
                     onClick={async () => {
-                      if (!formNamaUpz.trim()) {
+                      if (!String(formNamaUpz || '').trim()) {
                         alert('Nama UPZ tidak boleh kosong.');
                         return;
                       }
-                      const newSkNumber = formNoSKPenetapan.trim();
+                      const newSkNumber = String(formNoSKPenetapan || '').trim();
                       let updatedSkHistory = [...(selectedUPZ.metadata?.skHistory || [])];
                       let activeSKNumber = newSkNumber;
                       let skStartYear = formTahunMulai || '';
@@ -4651,7 +4652,7 @@ export default function DatabaseUPZ() {
                       let addedEntry: SKHistory | null = null;
 
                       if (newSkNumber) {
-                        const existingEntryIdx = updatedSkHistory.findIndex(h => h.skNumber === newSkNumber);
+                        const existingEntryIdx = updatedSkHistory.findIndex(h => String(h.skNumber) === newSkNumber);
                         if (existingEntryIdx !== -1) {
                           updatedSkHistory[existingEntryIdx] = { 
                             ...updatedSkHistory[existingEntryIdx], 
@@ -4719,7 +4720,7 @@ export default function DatabaseUPZ() {
                             return [...withoutThisUPZActive, addedEntry];
                           }
                           return prev.map(h => {
-                            if (h.upzId === selectedUPZ.id && h.skNumber === formNoSKPenetapan) {
+                            if (h.upzId === selectedUPZ.id && String(h.skNumber) === String(formNoSKPenetapan)) {
                               return { ...h, scanLink: formScanLink };
                             }
                             return h;
