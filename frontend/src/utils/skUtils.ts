@@ -29,11 +29,17 @@ export function getSKGroupForCategory(category: string): string {
  * "1574" → { base: 1574, version: 0 }
  * "1574.3" → { base: 1574, version: 3 }
  */
-export function parseSKNumber(skNumber: string): { base: number; version: number } {
-  const parts = skNumber.split('.');
+export function parseSKNumber(skNumber: any): { base: number; version: number } {
+  const skStr = skNumber !== null && skNumber !== undefined ? String(skNumber).trim() : '';
+  if (!skStr) {
+    return { base: 0, version: 0 };
+  }
+  const parts = skStr.split('.');
+  const baseVal = parseInt(parts[0], 10);
+  const versionVal = parts.length > 1 ? parseInt(parts[1], 10) : 0;
   return {
-    base: parseInt(parts[0], 10),
-    version: parts.length > 1 ? parseInt(parts[1], 10) : 0,
+    base: isNaN(baseVal) ? 0 : baseVal,
+    version: isNaN(versionVal) ? 0 : versionVal,
   };
 }
 
@@ -65,19 +71,22 @@ export function getNextRenewalSKNumber(currentActiveSKNumber: string): string {
  * Berdasarkan grup kategori UPZ
  */
 export function getNextBaseSKNumber(allSKHistories: SKHistory[], allUPZs: UPZ[], targetCategory: string): number {
-  if (!allSKHistories || allSKHistories.length === 0) return 1;
-  if (!allUPZs || allUPZs.length === 0) return 1;
+  if (!allSKHistories || !Array.isArray(allSKHistories) || allSKHistories.length === 0) return 1;
+  if (!allUPZs || !Array.isArray(allUPZs) || allUPZs.length === 0) return 1;
 
-  const targetGroup = getSKGroupForCategory(targetCategory);
+  const targetGroup = getSKGroupForCategory(targetCategory || '');
 
   // Map UPZ ID to Category
   const upzCategoryMap = new Map<string, string>();
   for (const upz of allUPZs) {
-    upzCategoryMap.set(upz.id, upz.category);
+    if (upz && upz.id) {
+      upzCategoryMap.set(upz.id, upz.category || '');
+    }
   }
 
   // Filter histories matching the target category group
   const groupHistories = allSKHistories.filter((sk) => {
+    if (!sk || !sk.upzId) return false;
     const category = upzCategoryMap.get(sk.upzId);
     if (!category) return false;
     return getSKGroupForCategory(category) === targetGroup;
@@ -85,7 +94,11 @@ export function getNextBaseSKNumber(allSKHistories: SKHistory[], allUPZs: UPZ[],
 
   if (groupHistories.length === 0) return 1;
 
-  const bases = groupHistories.map((sk) => parseSKNumber(sk.skNumber).base);
+  const bases = groupHistories
+    .map((sk) => sk && sk.skNumber ? parseSKNumber(sk.skNumber).base : 0)
+    .filter(base => base > 0);
+
+  if (bases.length === 0) return 1;
   return Math.max(...bases) + 1;
 }
 

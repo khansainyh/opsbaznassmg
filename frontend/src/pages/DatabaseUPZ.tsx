@@ -54,26 +54,34 @@ export default function DatabaseUPZ() {
     try {
       const res = await axios.get('/api/upz');
       if (res.data.status === 'success') {
-        const fetchedData = res.data.data;
+        const fetchedData = (res.data.data || []).map((u: any) => {
+          if (u && (u.category === 'Pemerintah Kecamatan' || u.category === 'Kecamatan' || u.category === 'Pemerintahan Kecamatan')) {
+            u.category = 'Pemerintahan Kecamatan';
+          }
+          return u;
+        });
         setData(fetchedData);
         
         // Extract and sync skHistory from database
         const dbHistories: SKHistory[] = [];
         fetchedData.forEach((upz: any) => {
-          if (upz.metadata?.skHistory && Array.isArray(upz.metadata.skHistory)) {
-            dbHistories.push(...upz.metadata.skHistory);
+          if (upz && upz.metadata?.skHistory && Array.isArray(upz.metadata.skHistory)) {
+            const valid = upz.metadata.skHistory.filter((h: any) => h && typeof h === 'object' && h.id);
+            dbHistories.push(...valid);
           }
         });
         
         if (dbHistories.length > 0) {
           setSkHistory(prev => {
-            const merged = [...prev];
+            const merged = (prev || []).filter(m => m && typeof m === 'object' && m.id);
             dbHistories.forEach(h => {
-              if (!merged.some(m => m.id === h.id)) {
-                merged.push(h);
-              } else {
-                const idx = merged.findIndex(m => m.id === h.id);
-                merged[idx] = h;
+              if (h && h.id) {
+                if (!merged.some(m => m.id === h.id)) {
+                  merged.push(h);
+                } else {
+                  const idx = merged.findIndex(m => m.id === h.id);
+                  merged[idx] = h;
+                }
               }
             });
             return merged;
@@ -540,12 +548,15 @@ export default function DatabaseUPZ() {
     const local = localStorage.getItem('baznas_upz_sk_history');
     if (local) {
       try {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(h => h && typeof h === 'object' && h.id);
+        }
       } catch (e) {
         console.error(e);
       }
     }
-    return initialSkHistoryData;
+    return initialSkHistoryData || [];
   });
 
   useEffect(() => {
@@ -560,6 +571,15 @@ export default function DatabaseUPZ() {
   const [editScanSkTarget, setEditScanSkTarget] = useState<SKHistory | null>(null);
   const [formEditScanLink, setFormEditScanLink] = useState('');
   const [uploadingSk, setUploadingSk] = useState(false);
+
+  // Edit SK Modal states
+  const [editSkTarget, setEditSkTarget] = useState<SKHistory | null>(null);
+  const [formEditSkNumber, setFormEditSkNumber] = useState('');
+  const [formEditSkStartYear, setFormEditSkStartYear] = useState('');
+  const [formEditSkEndYear, setFormEditSkEndYear] = useState('');
+  const [formEditSkPimpinanName, setFormEditSkPimpinanName] = useState('');
+  const [formEditSkStatus, setFormEditSkStatus] = useState<'Aktif' | 'Tidak Aktif'>('Aktif');
+  const [formEditSkScanLink, setFormEditSkScanLink] = useState('');
 
   // Form States for Add/Edit
   const [formKecamatan, setFormKecamatan] = useState('');
@@ -600,7 +620,7 @@ export default function DatabaseUPZ() {
     return found ? found.kelurahan : [];
   }, [formKecamatan]);
 
-  const isFlexibleAnggota = formCategory === 'OPD' || formCategory === 'Pemerintah Kecamatan' || formCategory === 'Desa/Kelurahan';
+  const isFlexibleAnggota = formCategory === 'OPD' || formCategory === 'Pemerintah Kecamatan' || formCategory === 'Pemerintahan Kecamatan' || formCategory === 'Desa/Kelurahan';
 
   const updatePengurusField = (jabatan: keyof typeof formPengurus, field: 'nama' | 'alamat', value: string) => {
     setFormPengurus(prev => ({ ...prev, [jabatan]: { ...prev[jabatan], [field]: value } }));
@@ -680,7 +700,7 @@ export default function DatabaseUPZ() {
     setFormType(upz.type);
     setFormOnBalanceType(upz.metadata?.onBalanceType || 'Pengumpulan');
     setFormCategory(upz.category);
-    const p = upz.metadata.pengurus;
+    const p = upz.metadata?.pengurus;
     if (p) {
       setFormPengurus({
         penasehat: { nama: p.penasehat?.nama || '', alamat: p.penasehat?.alamat || '' },
@@ -690,7 +710,13 @@ export default function DatabaseUPZ() {
         anggota1: { nama: p.anggota1?.nama || '', alamat: p.anggota1?.alamat || '' },
         anggota2: { nama: p.anggota2?.nama || '', alamat: p.anggota2?.alamat || '' },
       });
-      setAnggotaTambahan((p.anggotaTambahan || []).map(a => ({ nama: a.nama, alamat: a.alamat || '' })));
+      setAnggotaTambahan(
+        Array.isArray(p.anggotaTambahan)
+          ? p.anggotaTambahan
+              .filter(a => a && typeof a === 'object')
+              .map(a => ({ nama: a.nama || '', alamat: a.alamat || '' }))
+          : []
+      );
     }
     setIsEditModalOpen(true);
   };
@@ -717,23 +743,49 @@ export default function DatabaseUPZ() {
     };
   }, [data]);
 
+  const availableCategories = useMemo(() => {
+    const standard = [
+      "Instansi Vertikal",
+      "OPD",
+      "BUMD",
+      "Perusahaan Swasta",
+      "Masjid & Mushola",
+      "Pemerintahan Kecamatan",
+      "KUA",
+      "Desa/Kelurahan",
+      "Univ/PT/Pendidikan Menengah",
+      "Pendidikan Dasar",
+      "Organisasi Profesi",
+      "Yayasan"
+    ];
+    if (!Array.isArray(data)) return standard;
+    const extra = data.map(item => item?.category).filter(Boolean);
+    const filteredExtra = extra.filter(cat => cat && !standard.includes(cat));
+    const uniqueExtra = Array.from(new Set(filteredExtra)).filter(c => typeof c === 'string' && c.trim() !== '');
+    return Array.from(new Set([...standard, ...uniqueExtra])).sort();
+  }, [data]);
+
   const handleHistoryClick = (upz: UPZ) => {
     setSelectedUPZ(upz);
     setHistoryView('list');
     
-    const nextRenewalSK = getNextRenewalSKNumber(upz.activeSKNumber);
+    const activeSK = upz.activeSKNumber && upz.activeSKNumber !== '-' ? upz.activeSKNumber : '';
+    const nextRenewalSK = activeSK 
+      ? getNextRenewalSKNumber(activeSK) 
+      : getNextBaseSKNumber(skHistory, data, upz.category).toString();
+      
     // Load current data into forms with pre-filled renewal SK
     setRenewalForm({ 
       skNumber: nextRenewalSK,
-      startYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear()).toString() : '', 
-      endYear: upz.skExpiryDate ? (new Date(upz.skExpiryDate).getFullYear() + 5).toString() : '', 
-      pimpinanName: upz.metadata.pimpinanName || '', 
+      startYear: upz.skExpiryDate && !isNaN(Date.parse(upz.skExpiryDate)) ? (new Date(upz.skExpiryDate).getFullYear()).toString() : '', 
+      endYear: upz.skExpiryDate && !isNaN(Date.parse(upz.skExpiryDate)) ? (new Date(upz.skExpiryDate).getFullYear() + 5).toString() : '', 
+      pimpinanName: upz.metadata?.pimpinanName || '', 
       keterangan: '',
       scanLink: upz.metadata?.scanLink || ''
     });
 
     // Load current pengurus structure
-    const p = upz.metadata.pengurus;
+    const p = upz.metadata?.pengurus;
     if (p) {
       setFormPengurus({
         penasehat: { nama: p.penasehat?.nama || '', alamat: p.penasehat?.alamat || '' },
@@ -743,7 +795,23 @@ export default function DatabaseUPZ() {
         anggota1: { nama: p.anggota1?.nama || '', alamat: p.anggota1?.alamat || '' },
         anggota2: { nama: p.anggota2?.nama || '', alamat: p.anggota2?.alamat || '' },
       });
-      setAnggotaTambahan((p.anggotaTambahan || []).map(a => ({ nama: a.nama, alamat: a.alamat || '' })));
+      setAnggotaTambahan(
+        Array.isArray(p.anggotaTambahan)
+          ? p.anggotaTambahan
+              .filter(a => a && typeof a === 'object')
+              .map(a => ({ nama: a.nama || '', alamat: a.alamat || '' }))
+          : []
+      );
+    } else {
+      setFormPengurus({
+        penasehat: { nama: '', alamat: '' },
+        ketua: { nama: '', alamat: '' },
+        sekretaris: { nama: '', alamat: '' },
+        bendahara: { nama: '', alamat: '' },
+        anggota1: { nama: '', alamat: '' },
+        anggota2: { nama: '', alamat: '' },
+      });
+      setAnggotaTambahan([]);
     }
 
     setIsHistoryModalOpen(true);
@@ -798,30 +866,47 @@ export default function DatabaseUPZ() {
   };
 
   const getHistoryForUPZ = (upzId: string) => {
+    if (!Array.isArray(skHistory)) return [];
     return skHistory
-      .filter((h: SKHistory) => h.upzId === upzId)
-      .sort((a, b) => a.skNumber.localeCompare(b.skNumber, undefined, { numeric: true }));
+      .filter((h: SKHistory) => h && h.upzId === upzId)
+      .sort((a, b) => {
+        const dateA = a && a.startDate ? new Date(a.startDate).getTime() : 0;
+        const dateB = b && b.startDate ? new Date(b.startDate).getTime() : 0;
+        if (dateA !== dateB) return dateA - dateB;
+        
+        const skA = String((a && a.skNumber) || '');
+        const skB = String((b && b.skNumber) || '');
+        return skA.localeCompare(skB, undefined, { numeric: true });
+      });
   };
 
   // Computed: next SK number for selected UPZ (re-evaluated reactively)
-  const nextRenewalSK = selectedUPZ ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) : '';
+  const nextRenewalSK = selectedUPZ 
+    ? (selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' 
+        ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) 
+        : getNextBaseSKNumber(skHistory, data, selectedUPZ.category).toString()
+      ) 
+    : '';
   // Computed: next base SK number for new UPZ registration
   const nextBaseSK = getNextBaseSKNumber(skHistory, data, formCategory);
 
   const handleRenewalSK = async () => {
-    if (!selectedUPZ || !renewalForm.skNumber || !renewalForm.startYear || !renewalForm.endYear || !formPengurus.penasehat.nama) {
-      alert('Harap isi minimal Nomor SK, Tahun, dan Nama Penasehat/Ketua.');
+    if (!selectedUPZ || !renewalForm.skNumber || !renewalForm.startYear || !renewalForm.endYear) {
+      alert('Harap isi Nomor SK, Tahun Mulai, dan Tahun Berakhir.');
       return;
     }
+    const hasSKBefore = selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-';
+    const isFirstSK = !selectedUPZ.metadata?.skHistory || selectedUPZ.metadata.skHistory.length === 0;
+
     const newEntry: SKHistory = {
       id: `sk-${Date.now()}`,
       upzId: selectedUPZ.id,
       skNumber: renewalForm.skNumber,
       startDate: `${renewalForm.startYear}-01-01`,
       endDate: `${renewalForm.endYear}-12-31`,
-      pimpinanName: formPengurus.penasehat.nama,
+      pimpinanName: formPengurus.penasehat.nama || formPengurus.ketua.nama || '-',
       status: 'Aktif',
-      skType: 'Pembaruan',
+      skType: isFirstSK ? 'Baru' : 'Pembaruan',
       scanLink: renewalForm.scanLink
     };
     
@@ -839,9 +924,10 @@ export default function DatabaseUPZ() {
       ...selectedUPZ, 
       activeSKNumber: renewalForm.skNumber,
       skExpiryDate: `${renewalForm.endYear}-12-31`,
+      skStartYear: renewalForm.startYear,
       metadata: { 
         ...selectedUPZ.metadata, 
-        pimpinanName: formPengurus.penasehat.nama,
+        pimpinanName: formPengurus.penasehat.nama || formPengurus.ketua.nama || '-',
         scanLink: renewalForm.scanLink,
         pengurus: {
           ...formPengurus,
@@ -857,7 +943,7 @@ export default function DatabaseUPZ() {
       setSelectedUPZ(updatedUpz);
       setRenewalForm({ skNumber: '', startYear: '', endYear: '', pimpinanName: '', keterangan: '', scanLink: '' });
       setHistoryView('list');
-      alert(`✅ SK Pembaruan ${renewalForm.skNumber} berhasil disimpan dengan struktur pengurus baru!`);
+      alert(hasSKBefore ? `✅ SK Pembaruan ${renewalForm.skNumber} berhasil disimpan dengan struktur pengurus baru!` : `✅ SK Pembentukan ${renewalForm.skNumber} berhasil disimpan!`);
     } catch (err) {
       console.error(err);
       alert('Gagal memperbarui SK UPZ.');
@@ -865,12 +951,9 @@ export default function DatabaseUPZ() {
   };
 
   const handlePerubahanSK = async () => {
-    if (!selectedUPZ || !formPengurus.penasehat.nama) {
-      alert('Harap isi minimal Nama Penasehat/Ketua.');
-      return;
-    }
+    if (!selectedUPZ) return;
 
-    const currentSK = skHistory.find(h => h.upzId === selectedUPZ.id && h.status === 'Aktif');
+    const currentSK = skHistory.find(h => h && h.upzId === selectedUPZ.id && h.status === 'Aktif');
     const sameSKNumber = selectedUPZ.activeSKNumber;
     
     const newEntry: SKHistory = {
@@ -879,14 +962,14 @@ export default function DatabaseUPZ() {
       skNumber: sameSKNumber,
       startDate: currentSK?.startDate || '',
       endDate: currentSK?.endDate || '',
-      pimpinanName: formPengurus.penasehat.nama,
+      pimpinanName: formPengurus.penasehat.nama || formPengurus.ketua.nama || '-',
       status: 'Aktif',
       skType: 'Perubahan',
       scanLink: currentSK?.scanLink || ''
     };
 
     setSkHistory(prev => [
-      ...prev.map(h => h.upzId === selectedUPZ.id && h.status === 'Aktif' ? { ...h, status: 'Tidak Aktif' as const } : h),
+      ...(prev || []).filter(h => h && h.id).map(h => h.upzId === selectedUPZ.id && h.status === 'Aktif' ? { ...h, status: 'Tidak Aktif' as const } : h),
       newEntry,
     ]);
 
@@ -899,7 +982,7 @@ export default function DatabaseUPZ() {
       ...selectedUPZ, 
       metadata: { 
         ...selectedUPZ.metadata, 
-        pimpinanName: formPengurus.penasehat.nama,
+        pimpinanName: formPengurus.penasehat.nama || formPengurus.ketua.nama || '-',
         scanLink: currentSK?.scanLink || '',
         pengurus: {
           ...formPengurus,
@@ -952,6 +1035,153 @@ export default function DatabaseUPZ() {
     } catch (err) {
       console.error(err);
       alert('Gagal memperbarui Link Scan SK.');
+    }
+  };
+
+  const openEditSkModal = (sk: SKHistory) => {
+    setEditSkTarget(sk);
+    setFormEditSkNumber(sk.skNumber || '');
+    setFormEditSkStartYear(sk.startDate ? String(sk.startDate).split('-')[0] : '');
+    setFormEditSkEndYear(sk.endDate ? String(sk.endDate).split('-')[0] : '');
+    setFormEditSkPimpinanName(sk.pimpinanName || '');
+    setFormEditSkStatus(sk.status || 'Aktif');
+    setFormEditSkScanLink(sk.scanLink || '');
+  };
+
+  const handleSaveEditSK = async () => {
+    if (!selectedUPZ || !editSkTarget) return;
+
+    if (!formEditSkNumber.trim() || !formEditSkStartYear.trim() || !formEditSkEndYear.trim() || !formEditSkPimpinanName.trim()) {
+      alert("Harap isi semua field.");
+      return;
+    }
+
+    const updatedHistoryList = (selectedUPZ.metadata?.skHistory || []).map(h => {
+      if (h.id === editSkTarget.id) {
+        return {
+          ...h,
+          skNumber: formEditSkNumber,
+          startDate: `${formEditSkStartYear}-01-01`,
+          endDate: `${formEditSkEndYear}-12-31`,
+          pimpinanName: formEditSkPimpinanName,
+          status: formEditSkStatus,
+          scanLink: formEditSkScanLink
+        };
+      }
+      if (formEditSkStatus === 'Aktif' && h.id !== editSkTarget.id && h.status === 'Aktif') {
+        return { ...h, status: 'Tidak Aktif' as const };
+      }
+      return h;
+    });
+
+    let activeSKNumber = selectedUPZ.activeSKNumber;
+    let skStartYear = selectedUPZ.skStartYear;
+    let skExpiryDate = selectedUPZ.skExpiryDate;
+
+    if (formEditSkStatus === 'Aktif') {
+      activeSKNumber = formEditSkNumber;
+      skStartYear = formEditSkStartYear;
+      skExpiryDate = `${formEditSkEndYear}-12-31`;
+    } else if (editSkTarget.skNumber === selectedUPZ.activeSKNumber) {
+      const remainingActive = updatedHistoryList.find(h => h.status === 'Aktif');
+      if (remainingActive) {
+        activeSKNumber = remainingActive.skNumber;
+        skStartYear = remainingActive.startDate ? String(remainingActive.startDate).split('-')[0] : '';
+        skExpiryDate = remainingActive.endDate || '';
+      } else {
+        activeSKNumber = '';
+        skStartYear = '';
+        skExpiryDate = '';
+      }
+    }
+
+    const updatedUpz = {
+      ...selectedUPZ,
+      activeSKNumber,
+      skStartYear,
+      skExpiryDate,
+      metadata: {
+        ...selectedUPZ.metadata,
+        skHistory: updatedHistoryList
+      }
+    };
+
+    try {
+      await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
+      setSkHistory(prev => prev.map(h => {
+        if (h.id === editSkTarget.id) {
+          return {
+            ...h,
+            skNumber: formEditSkNumber,
+            startDate: `${formEditSkStartYear}-01-01`,
+            endDate: `${formEditSkEndYear}-12-31`,
+            pimpinanName: formEditSkPimpinanName,
+            status: formEditSkStatus,
+            scanLink: formEditSkScanLink
+          };
+        }
+        if (formEditSkStatus === 'Aktif' && h.upzId === selectedUPZ.id && h.id !== editSkTarget.id && h.status === 'Aktif') {
+          return { ...h, status: 'Tidak Aktif' as const };
+        }
+        return h;
+      }));
+      setSelectedUPZ(updatedUpz);
+      await fetchUPZList();
+      setEditSkTarget(null);
+      alert("SK berhasil diperbarui.");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal memperbarui SK.");
+    }
+  };
+
+  const handleDeleteSK = async (skIdToDelete: string) => {
+    if (!selectedUPZ) return;
+    if (!window.confirm("Apakah Anda yakin ingin menghapus SK ini dari riwayat?")) return;
+
+    const originalHistory = selectedUPZ.metadata?.skHistory || [];
+    const skToDelete = originalHistory.find(h => h.id === skIdToDelete);
+    if (!skToDelete) return;
+
+    const updatedHistoryList = originalHistory.filter(h => h.id !== skIdToDelete);
+    
+    let activeSKNumber = selectedUPZ.activeSKNumber;
+    let skStartYear = selectedUPZ.skStartYear;
+    let skExpiryDate = selectedUPZ.skExpiryDate;
+
+    if (skToDelete.skNumber === selectedUPZ.activeSKNumber) {
+      const remainingActive = updatedHistoryList.find(h => h.status === 'Aktif');
+      if (remainingActive) {
+        activeSKNumber = remainingActive.skNumber;
+        skStartYear = remainingActive.startDate ? String(remainingActive.startDate).split('-')[0] : '';
+        skExpiryDate = remainingActive.endDate || '';
+      } else {
+        activeSKNumber = '';
+        skStartYear = '';
+        skExpiryDate = '';
+      }
+    }
+
+    const updatedUpz = {
+      ...selectedUPZ,
+      activeSKNumber,
+      skStartYear,
+      skExpiryDate,
+      metadata: {
+        ...selectedUPZ.metadata,
+        skHistory: updatedHistoryList
+      }
+    };
+
+    try {
+      await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
+      setSkHistory(prev => prev.filter(h => h.id !== skIdToDelete));
+      setSelectedUPZ(updatedUpz);
+      await fetchUPZList();
+      alert("SK berhasil dihapus dari riwayat.");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghapus SK.");
     }
   };
 
@@ -1046,7 +1276,7 @@ export default function DatabaseUPZ() {
       return roman[monthNum - 1] || "V";
     };
     
-     const p = upz.metadata.pengurus;
+     const p = upz.metadata?.pengurus;
     const pengurusList: { nama: string; alamat: string; jabatan: string }[] = [];
     if (p?.penasehat?.nama) pengurusList.push({ nama: p.penasehat.nama, alamat: p.penasehat.alamat || '', jabatan: 'Penasehat' });
     if (p?.ketua?.nama) pengurusList.push({ nama: p.ketua.nama, alamat: p.ketua.alamat || '', jabatan: 'Ketua' });
@@ -1668,8 +1898,8 @@ export default function DatabaseUPZ() {
 </html>`;
     }
 
-    if (upz.category === 'Instansi Vertikal' || upz.category === 'OPD' || upz.category === 'BUMD' || upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan') {
-      const isKecamatan = upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan';
+    if (upz.category === 'Instansi Vertikal' || upz.category === 'OPD' || upz.category === 'BUMD' || upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan' || upz.category === 'Pemerintahan Kecamatan') {
+      const isKecamatan = upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan' || upz.category === 'Pemerintahan Kecamatan';
       const upzTitleName = isKecamatan ? `KECAMATAN ${upz.kecamatan.toUpperCase()}` : upz.name.toUpperCase();
       const upzTextName = isKecamatan ? `Kecamatan ${upz.kecamatan}` : upz.name;
       const usulanPimpinan = isKecamatan ? `Camat ${upz.kecamatan}` : `Kepala ${upz.name}`;
@@ -2283,7 +2513,6 @@ export default function DatabaseUPZ() {
       'No SK', 
       'Tahun Mulai', 
       'Tahun Berakhir', 
-      'Nama Pimpinan (Penasehat)', 
       'Penasehat (Nama)', 
       'Penasehat (Jabatan/Alamat)', 
       'Ketua (Nama)', 
@@ -2304,7 +2533,6 @@ export default function DatabaseUPZ() {
       'No SK': '800/' + Math.floor(100 + Math.random() * 900) + '/2024',
       'Tahun Mulai': '2024',
       'Tahun Berakhir': '2029',
-      'Nama Pimpinan (Penasehat)': upz.metadata?.pimpinanName || 'H. Ahmad Syarif',
       'Penasehat (Nama)': upz.metadata?.pengurus?.penasehat?.nama || 'H. Ahmad Syarif',
       'Penasehat (Jabatan/Alamat)': upz.metadata?.pengurus?.penasehat?.alamat || 'Penasehat',
       'Ketua (Nama)': upz.metadata?.pengurus?.ketua?.nama || 'Budi Utomo',
@@ -2326,7 +2554,6 @@ export default function DatabaseUPZ() {
         'No SK': '800/123/2024',
         'Tahun Mulai': '2024',
         'Tahun Berakhir': '2029',
-        'Nama Pimpinan (Penasehat)': 'H. Ahmad Syarif',
         'Penasehat (Nama)': 'H. Ahmad Syarif',
         'Penasehat (Jabatan/Alamat)': 'Penasehat',
         'Ketua (Nama)': 'Budi Utomo',
@@ -2368,14 +2595,40 @@ export default function DatabaseUPZ() {
     });
 
     for (const row of rows) {
-      const namaUpz = row['Nama UPZ'] || row['nama_upz'];
-      const category = row['Kategori UPZ'] || row['kategori_upz'] || 'Masjid & Mushola';
-      const type = row['Tipe Dana'] || row['tipe_dana'] || 'Off-Balance';
-      const onBalanceType = row['Tipe On-Balance (Jika On-Balance)'] || row['on_balance_type'];
+      const namaUpz = row['Nama UPZ'] || row['nama_upz'] || row['Nama Instansi/Masjid/UPZ'] || '';
+      let categoryRaw = row['Kategori UPZ'] || row['kategori_upz'] || row['Kategori (OPD / Kecamatan / Sekolah / Masjid/Musholla / Yayasan/Lembaga)'] || 'Masjid & Mushola';
+      let category = String(categoryRaw).trim();
+      if (category === 'Pemerintah Kecamatan' || category === 'Kecamatan' || category === 'Pemerintahan Kecamatan') {
+        category = 'Pemerintahan Kecamatan';
+      }
+      const type = row['Tipe Dana'] || row['tipe_dana'] || row['Jenis Pengelolaan (On-Balance / Off-Balance)'] || 'Off-Balance';
+      const onBalanceType = row['Tipe On-Balance (Jika On-Balance)'] || row['on_balance_type'] || 'Pengumpulan';
       const kecamatan = row['Kecamatan'] || row['kecamatan'] || '-';
       const kelurahan = row['Kelurahan'] || row['kelurahan'] || '-';
-      const alamat = row['Alamat Lengkap'] || row['alamat'] || '';
-      const noTelepon = row['No Telepon'] || row['no_telepon'] || '';
+      const alamat = row['Alamat Lengkap'] || row['alamat'] || row['Alamat Lengkap UPZ'] || '';
+      const noTelepon = row['No Telepon'] || row['no_telepon'] || row['No. Telepon UPZ'] || '';
+
+      const activeSKNumber = row['Nomor SK Aktif'] || row['No SK'] || row['no_sk'] || '';
+      const skStartYear = row['Tahun Mulai SK (YYYY)'] || row['Tahun Mulai'] || row['tahun_mulai'] || '';
+      const skExpiryDateYear = row['Tahun Berakhir SK (YYYY)'] || row['Tahun Berakhir'] || row['tahun_berakhir'] || '';
+
+      const penasehatNama = row['Nama Penasehat'] || row['Penasehat (Nama)'] || row['Nama Pimpinan (Penasehat)'] || row['Nama Pimpinan'] || '';
+      const penasehatAlamat = row['Alamat Penasehat'] || row['Penasehat (Jabatan/Alamat)'] || '';
+      const ketuaNama = row['Nama Ketua'] || row['Ketua (Nama)'] || '';
+      const ketuaAlamat = row['Alamat Ketua'] || row['Ketua (Jabatan/Alamat)'] || '';
+      const sekretarisNama = row['Nama Sekretaris'] || row['Sekretaris (Nama)'] || '';
+      const sekretarisAlamat = row['Alamat Sekretaris'] || row['Sekretaris (Jabatan/Alamat)'] || '';
+      const bendaharaNama = row['Nama Bendahara'] || row['Bendahara (Nama)'] || '';
+      const bendaharaAlamat = row['Alamat Bendahara'] || row['Bendahara (Jabatan/Alamat)'] || '';
+      const anggota1Nama = row['Nama Anggota 1'] || row['Anggota 1 (Nama)'] || '';
+      const anggota1Alamat = row['Alamat Anggota 1'] || row['Anggota 1 (Jabatan/Alamat)'] || '';
+      const anggota2Nama = row['Nama Anggota 2'] || row['Anggota 2 (Nama)'] || '';
+      const anggota2Alamat = row['Alamat Anggota 2'] || row['Anggota 2 (Jabatan/Alamat)'] || '';
+
+      const anggota3Nama = row['Nama Anggota 3 (Khusus OPD/Kecamatan - kosongkan jika tidak ada)'] || '';
+      const anggota3Alamat = row['Alamat Anggota 3 (Khusus OPD/Kecamatan)'] || '';
+      const anggota4Nama = row['Nama Anggota 4 (Khusus OPD/Kecamatan - kosongkan jika tidak ada)'] || '';
+      const anggota4Alamat = row['Alamat Anggota 4 (Khusus OPD/Kecamatan)'] || '';
 
       if (!namaUpz) {
         failCount++;
@@ -2385,6 +2638,21 @@ export default function DatabaseUPZ() {
       currentMaxIndex++;
       const nextCode = `UPZ-${currentMaxIndex}`;
 
+      let skHistoryEntries: SKHistory[] = [];
+      if (activeSKNumber) {
+        skHistoryEntries.push({
+          id: `SK-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          upzId: nextCode,
+          skNumber: activeSKNumber,
+          startDate: skStartYear ? `${skStartYear}-01-01` : `${new Date().getFullYear()}-01-01`,
+          endDate: skExpiryDateYear ? `${skExpiryDateYear}-12-31` : `${new Date().getFullYear() + 5}-12-31`,
+          pimpinanName: penasehatNama || ketuaNama || '-',
+          status: 'Aktif',
+          skType: 'Baru',
+          scanLink: ''
+        });
+      }
+
       const newUpz: UPZ = {
         id: nextCode,
         code: nextCode,
@@ -2393,24 +2661,28 @@ export default function DatabaseUPZ() {
         type: type as 'On-Balance' | 'Off-Balance',
         kecamatan: kecamatan,
         kelurahan: kelurahan,
-        activeSKNumber: '-',
-        skStartYear: '',
-        skExpiryDate: '',
+        activeSKNumber: activeSKNumber || '-',
+        skStartYear: skStartYear || '',
+        skExpiryDate: skExpiryDateYear ? `${skExpiryDateYear}-12-31` : '',
         status: 'Aktif',
         metadata: {
           address: alamat,
           upzPhone: noTelepon,
           onBalanceType: type === 'On-Balance' ? onBalanceType : undefined,
+          pimpinanName: penasehatNama || ketuaNama || '',
           pengurus: {
-            penasehat: { nama: '', alamat: '' },
-            ketua: { nama: '', alamat: '' },
-            sekretaris: { nama: '', alamat: '' },
-            bendahara: { nama: '', alamat: '' },
-            anggota1: { nama: '', alamat: '' },
-            anggota2: { nama: '', alamat: '' },
-            anggotaTambahan: []
+            penasehat: { nama: penasehatNama, alamat: penasehatAlamat },
+            ketua: { nama: ketuaNama, alamat: ketuaAlamat },
+            sekretaris: { nama: sekretarisNama, alamat: sekretarisAlamat },
+            bendahara: { nama: bendaharaNama, alamat: bendaharaAlamat },
+            anggota1: { nama: anggota1Nama, alamat: anggota1Alamat },
+            anggota2: { nama: anggota2Nama, alamat: anggota2Alamat },
+            anggotaTambahan: [
+              ...(anggota3Nama ? [{ nama: anggota3Nama, alamat: anggota3Alamat }] : []),
+              ...(anggota4Nama ? [{ nama: anggota4Nama, alamat: anggota4Alamat }] : [])
+            ]
           },
-          skHistory: []
+          skHistory: skHistoryEntries
         }
       };
 
@@ -2424,6 +2696,17 @@ export default function DatabaseUPZ() {
     }
 
     await fetchUPZList();
+    const res = await axios.get('/api/upz');
+    if (res.data?.status === 'success') {
+      const allHistories: SKHistory[] = [];
+      res.data.data.forEach((u: any) => {
+        if (u.metadata?.skHistory && Array.isArray(u.metadata.skHistory)) {
+          const valid = u.metadata.skHistory.filter((h: any) => h && typeof h === 'object' && h.id);
+          allHistories.push(...valid);
+        }
+      });
+      setSkHistory(allHistories);
+    }
     alert(`Impor UPZ selesai. Sukses: ${successCount}, Gagal/Dilewati: ${failCount}`);
     setIsMigrationModalOpen(false);
   };
@@ -2437,14 +2720,16 @@ export default function DatabaseUPZ() {
     let successCount = 0;
     let failCount = 0;
 
+    // Create a local mutable copy of UPZs initialized from the current React state 'data'
+    const localUPZs = [...data];
+
     for (const row of rows) {
       let identifier = row['Kode UPZ'] || row['kode_upz'] || row['Identifier'] || row['identifier'];
       const skNumber = row['No SK'] || row['no_sk'] || row['Nomor SK'] || row['nomor_sk'];
       const startYear = row['Tahun Mulai'] || row['tahun_mulai'] || row['Mulai'] || row['mulai'];
       const endYear = row['Tahun Berakhir'] || row['tahun_berakhir'] || row['Berakhir'] || row['berakhir'];
-      const pimpinanName = row['Nama Pimpinan (Penasehat)'] || row['Nama Pimpinan'] || row['pimpinan_name'] || '';
       
-      const penasehatNama = row['Penasehat (Nama)'] || '';
+      const penasehatNama = row['Penasehat (Nama)'] || row['Nama Pimpinan (Penasehat)'] || row['Nama Pimpinan'] || row['pimpinan_name'] || '';
       const penasehatAlamat = row['Penasehat (Jabatan/Alamat)'] || '';
       const ketuaNama = row['Ketua (Nama)'] || '';
       const ketuaAlamat = row['Ketua (Jabatan/Alamat)'] || '';
@@ -2468,16 +2753,20 @@ export default function DatabaseUPZ() {
         targetCode = `UPZ-${targetCode}`;
       }
 
-      const targetUPZ = data.find(u => 
+      // Find the UPZ in our local copy to ensure we use the accumulated history from previous loop iterations
+      const targetUPZIdx = localUPZs.findIndex(u => 
         u.code.toLowerCase() === targetCode.toLowerCase() ||
         u.name.toLowerCase() === targetCode.toLowerCase()
       );
 
-      if (!targetUPZ) {
+      if (targetUPZIdx === -1) {
         console.warn(`UPZ dengan identifier "${targetCode}" tidak ditemukan.`);
         failCount++;
         continue;
       }
+
+      const targetUPZ = localUPZs[targetUPZIdx];
+      const pimpinanName = penasehatNama || ketuaNama || '-';
 
       const newSkHistoryEntry: SKHistory = {
         id: `SK-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -2485,7 +2774,7 @@ export default function DatabaseUPZ() {
         skNumber: skNumber,
         startDate: startYear ? `${startYear}-01-01` : `${new Date().getFullYear()}-01-01`,
         endDate: endYear ? `${endYear}-12-31` : `${new Date().getFullYear() + 5}-12-31`,
-        pimpinanName: ketuaNama || pimpinanName || '-',
+        pimpinanName: pimpinanName,
         status: 'Aktif',
         skType: 'Pembaruan',
         scanLink: scanLink
@@ -2505,16 +2794,16 @@ export default function DatabaseUPZ() {
         skExpiryDate: endYear ? `${endYear}-12-31` : targetUPZ.skExpiryDate,
         metadata: {
           ...targetUPZ.metadata,
-          pimpinanName: ketuaNama || pimpinanName || targetUPZ.metadata.pimpinanName,
+          pimpinanName: pimpinanName,
           scanLink: scanLink || targetUPZ.metadata?.scanLink,
           pengurus: {
-            penasehat: { nama: penasehatNama || targetUPZ.metadata.pengurus?.penasehat?.nama || '', alamat: penasehatAlamat || targetUPZ.metadata.pengurus?.penasehat?.alamat || '' },
-            ketua: { nama: ketuaNama || targetUPZ.metadata.pengurus?.ketua?.nama || '', alamat: ketuaAlamat || targetUPZ.metadata.pengurus?.ketua?.alamat || '' },
-            sekretaris: { nama: sekretarisNama || targetUPZ.metadata.pengurus?.sekretaris?.nama || '', alamat: sekretarisAlamat || targetUPZ.metadata.pengurus?.sekretaris?.alamat || '' },
-            bendahara: { nama: bendaharaNama || targetUPZ.metadata.pengurus?.bendahara?.nama || '', alamat: bendaharaAlamat || targetUPZ.metadata.pengurus?.bendahara?.alamat || '' },
-            anggota1: { nama: anggota1Nama || targetUPZ.metadata.pengurus?.anggota1?.nama || '', alamat: anggota1Alamat || targetUPZ.metadata.pengurus?.anggota1?.alamat || '' },
-            anggota2: { nama: anggota2Nama || targetUPZ.metadata.pengurus?.anggota2?.nama || '', alamat: anggota2Alamat || targetUPZ.metadata.pengurus?.anggota2?.alamat || '' },
-            anggotaTambahan: targetUPZ.metadata.pengurus?.anggotaTambahan || []
+            penasehat: { nama: penasehatNama || targetUPZ.metadata?.pengurus?.penasehat?.nama || '', alamat: penasehatAlamat || targetUPZ.metadata?.pengurus?.penasehat?.alamat || '' },
+            ketua: { nama: ketuaNama || targetUPZ.metadata?.pengurus?.ketua?.nama || '', alamat: ketuaAlamat || targetUPZ.metadata?.pengurus?.ketua?.alamat || '' },
+            sekretaris: { nama: sekretarisNama || targetUPZ.metadata?.pengurus?.sekretaris?.nama || '', alamat: sekretarisAlamat || targetUPZ.metadata?.pengurus?.sekretaris?.alamat || '' },
+            bendahara: { nama: bendaharaNama || targetUPZ.metadata?.pengurus?.bendahara?.nama || '', alamat: bendaharaAlamat || targetUPZ.metadata?.pengurus?.bendahara?.alamat || '' },
+            anggota1: { nama: anggota1Nama || targetUPZ.metadata?.pengurus?.anggota1?.nama || '', alamat: anggota1Alamat || targetUPZ.metadata?.pengurus?.anggota1?.alamat || '' },
+            anggota2: { nama: anggota2Nama || targetUPZ.metadata?.pengurus?.anggota2?.nama || '', alamat: anggota2Alamat || targetUPZ.metadata?.pengurus?.anggota2?.alamat || '' },
+            anggotaTambahan: targetUPZ.metadata?.pengurus?.anggotaTambahan || []
           },
           skHistory: mergedSkHistory
         }
@@ -2522,6 +2811,8 @@ export default function DatabaseUPZ() {
 
       try {
         await axios.put(`/api/upz/${targetUPZ.id}`, updatedUpz);
+        // Save the updated UPZ back to our local copy so the next iteration inherits this SK history
+        localUPZs[targetUPZIdx] = updatedUpz;
         successCount++;
       } catch (err) {
         console.error(`Failed to update SK for UPZ ${targetUPZ.id}:`, err);
@@ -2534,8 +2825,9 @@ export default function DatabaseUPZ() {
     if (res.data?.status === 'success') {
       const allHistories: SKHistory[] = [];
       res.data.data.forEach((u: any) => {
-        if (u.metadata?.skHistory) {
-          allHistories.push(...u.metadata.skHistory);
+        if (u.metadata?.skHistory && Array.isArray(u.metadata.skHistory)) {
+          const valid = u.metadata.skHistory.filter((h: any) => h && typeof h === 'object' && h.id);
+          allHistories.push(...valid);
         }
       });
       setSkHistory(allHistories);
@@ -2662,18 +2954,9 @@ export default function DatabaseUPZ() {
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             <option value="Semua">Semua Kategori</option>
-            <option value="Instansi Vertikal">Instansi Vertikal</option>
-            <option value="OPD">OPD</option>
-            <option value="BUMD">BUMD</option>
-            <option value="Perusahaan Swasta">Perusahaan Swasta</option>
-            <option value="Masjid & Mushola">Masjid & Mushola</option>
-            <option value="Pemerintah Kecamatan">Pemerintah Kecamatan</option>
-            <option value="KUA">KUA</option>
-            <option value="Desa/Kelurahan">Desa/Kelurahan</option>
-            <option value="Univ/PT/Pendidikan Menengah">Univ/PT/Pendidikan Menengah</option>
-            <option value="Pendidikan Dasar">Pendidikan Dasar</option>
-            <option value="Organisasi Profesi">Organisasi Profesi</option>
-            <option value="Yayasan">Yayasan</option>
+            {availableCategories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
           <select 
             className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-4 focus:ring-primary focus:border-primary outline-none cursor-pointer text-slate-600 transition-all"
@@ -2742,7 +3025,7 @@ export default function DatabaseUPZ() {
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-slate-900">{item.name}</p>
-                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{item.metadata.pimpinanTitle}: {item.metadata.pimpinanName}</p>
+                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{item.metadata?.pimpinanTitle || 'Pimpinan'}: {item.metadata?.pimpinanName || '-'}</p>
                   </td>
                   <td className="px-6 py-4">
                     <span className={cn(
@@ -2753,9 +3036,9 @@ export default function DatabaseUPZ() {
                     )}>
                       {item.category} ({item.type === 'On-Balance' ? 'On' : 'Off'})
                     </span>
-                    {item.type === 'On-Balance' && item.metadata.onBalanceType && (
+                    {item.type === 'On-Balance' && item.metadata?.onBalanceType && (
                       <span className="text-[9px] text-slate-400 font-semibold block mt-1">
-                        {item.metadata.onBalanceType}
+                        {item.metadata?.onBalanceType}
                       </span>
                     )}
                   </td>
@@ -2775,12 +3058,13 @@ export default function DatabaseUPZ() {
 
                   <td className="px-6 py-4 text-center">
                     {(() => {
-                      const expiryYearStr = item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
+                      const hasSK = item.activeSKNumber && item.activeSKNumber !== '-';
+                      const expiryYearStr = hasSK && item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
                       const expiryYear = parseInt(expiryYearStr, 10);
                       const currentYear = new Date().getFullYear();
-                      const isSKExpired = isNaN(expiryYear) || currentYear > expiryYear;
+                      const isSKExpired = hasSK && (isNaN(expiryYear) || currentYear > expiryYear);
                       const upzStatus = item.status || 'Aktif';
-                      const isSKActive = upzStatus === 'Aktif' && !isSKExpired;
+                      const isSKActive = hasSK && upzStatus === 'Aktif' && !isSKExpired;
 
                       return (
                         <div className="flex flex-col items-center gap-1">
@@ -2789,12 +3073,14 @@ export default function DatabaseUPZ() {
                               "text-xs font-bold",
                               isSKActive ? "text-emerald-600 font-extrabold" : "text-slate-400 font-medium"
                             )}>
-                              {item.activeSKNumber}
+                              {!item.activeSKNumber || item.activeSKNumber === '-' ? 'Belum Ada SK' : item.activeSKNumber}
                             </span>
                             {isSKActive ? (
                               <CheckCircle2 className="size-4 text-emerald-500" />
-                            ) : (
+                            ) : hasSK ? (
                               <XCircle className="size-4 text-rose-500" />
+                            ) : (
+                              <AlertCircle className="size-4 text-amber-500" />
                             )}
                           </div>
                           <p className="text-[8px] font-black text-slate-400 uppercase">Exp: {expiryYearStr || '-'}</p>
@@ -2804,10 +3090,11 @@ export default function DatabaseUPZ() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     {(() => {
-                      const expiryYearStr = item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
+                      const hasSK = item.activeSKNumber && item.activeSKNumber !== '-';
+                      const expiryYearStr = hasSK && item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
                       const expiryYear = parseInt(expiryYearStr, 10);
                       const currentYear = new Date().getFullYear();
-                      const isSKExpired = isNaN(expiryYear) || currentYear > expiryYear;
+                      const isSKExpired = hasSK && (isNaN(expiryYear) || currentYear > expiryYear);
                       
                       const upzStatus = item.status || 'Aktif';
                       const displayStatus = upzStatus === 'Mengundurkan Diri' 
@@ -2932,13 +3219,22 @@ export default function DatabaseUPZ() {
                       </span>
                     ) : (
                       <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        <button onClick={() => setHistoryView('perubahan')}
-                          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 w-full sm:w-auto cursor-pointer">
-                          <Edit2 className="size-4" />Perubahan Pengurus
-                        </button>
-                        <button onClick={() => { setRenewalForm({ skNumber: '', startYear:'', endYear:'', pimpinanName:'', keterangan:'', scanLink: '' }); setHistoryView('pembaruan'); }}
+                        {selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' && (
+                          <button onClick={() => setHistoryView('perubahan')}
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 w-full sm:w-auto cursor-pointer">
+                            <Edit2 className="size-4" />Perubahan Pengurus
+                          </button>
+                        )}
+                        <button onClick={() => {
+                            const nextSK = selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' 
+                              ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) 
+                              : getNextBaseSKNumber(skHistory, data, selectedUPZ.category).toString();
+                            setRenewalForm({ skNumber: nextSK, startYear:'', endYear:'', pimpinanName:'', keterangan:'', scanLink: '' });
+                            setHistoryView('pembaruan');
+                          }}
                           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/20 w-full sm:w-auto cursor-pointer">
-                          <PlusCircle className="size-4" />Pembaruan SK
+                          <PlusCircle className="size-4" />
+                          {selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' ? 'Pembaruan SK' : 'Buat SK Pembentukan'}
                         </button>
                       </div>
                     )}
@@ -2956,34 +3252,57 @@ export default function DatabaseUPZ() {
                               <th className="px-6 py-4">Pengurus Utama</th>
                               <th className="px-6 py-4 text-center">Status</th>
                               <th className="px-6 py-4 text-center">Scan SK</th>
-                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
+                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) && (
                                 <th className="px-6 py-4 text-right">Draft SK</th>
                               )}
+                              <th className="px-6 py-4 text-center">Aksi</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
-                              <tr 
-                                key={history.id} 
-                                className="hover:bg-slate-50/70 transition-colors"
-                              >
-                                <td className="px-6 py-4">
-                                  <div className="space-y-1">
-                                    <span className={cn(
-                                      "text-sm font-black",
-                                      (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                                    )}>{history.skNumber}</span>
-                                    <p className="text-[9px] font-bold uppercase tracking-wider"
-                                      style={{ color: (selectedUPZ.status || 'Aktif') !== 'Aktif' ? '#94a3b8' : (isSKPembentukan(history.skNumber) ? '#16a34a' : '#2563eb') }}>
-                                      {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
-                                    </p>
-                                  </div>
-                                </td>
+                            {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory, idx: number, list: SKHistory[]) => {
+                              const isInactive = (selectedUPZ.status || 'Aktif') !== 'Aktif';
+                              const label = (() => {
+                                if (idx === 0) return '📋 Pembentukan';
+                                if (history.skType === 'Perubahan') return '🔄 Perubahan';
+                                if (history.skType === 'Pembaruan') return '🔄 Pembaruan';
+                                if (history.skType === 'Baru') return '🔄 Pembaruan';
+                                const prevSK = list[idx - 1];
+                                if (prevSK && prevSK.skNumber === history.skNumber) {
+                                  return '🔄 Perubahan';
+                                }
+                                return '🔄 Pembaruan';
+                              })();
+
+                              const badgeColor = isInactive 
+                                ? '#94a3b8' 
+                                : label === '📋 Pembentukan' 
+                                ? '#16a34a' 
+                                : label === '🔄 Perubahan' 
+                                ? '#d97706' 
+                                : '#2563eb';
+
+                              return (
+                                <tr 
+                                  key={history.id} 
+                                  className="hover:bg-slate-50/70 transition-colors"
+                                >
+                                  <td className="px-6 py-4">
+                                    <div className="space-y-1">
+                                      <span className={cn(
+                                        "text-sm font-black",
+                                        (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
+                                      )}>{history.skNumber}</span>
+                                      <p className="text-[9px] font-bold uppercase tracking-wider"
+                                        style={{ color: badgeColor }}>
+                                        {label}
+                                      </p>
+                                    </div>
+                                  </td>
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
                                     <Calendar className="size-4 text-slate-400" />
                                     <span className={cn((selectedUPZ.status || 'Aktif') !== 'Aktif' && "text-slate-400 font-medium")}>
-                                      {new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}
+                                      {history.startDate ? new Date(history.startDate).getFullYear() : '-'} – {history.endDate ? new Date(history.endDate).getFullYear() : '-'}
                                     </span>
                                   </div>
                                 </td>
@@ -3013,7 +3332,7 @@ export default function DatabaseUPZ() {
                                       <>
                                         <button
                                           onClick={() => setActiveSkPreview(history)}
-                                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 border border-emerald-200 shadow-sm"
+                                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 border border-emerald-200 shadow-sm inline-block align-middle"
                                         >
                                           <FileText className="size-3.5 text-emerald-600" /> Dokumen SK
                                         </button>
@@ -3022,7 +3341,7 @@ export default function DatabaseUPZ() {
                                             setEditScanSkTarget(history);
                                             setFormEditScanLink(history.scanLink || '');
                                           }}
-                                          className="p-1 text-slate-400 hover:text-primary hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded transition-all"
+                                          className="p-1 text-slate-400 hover:text-primary hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded transition-all inline-block align-middle"
                                           title="Ubah Link SK"
                                         >
                                           <Edit2 className="size-3.5" />
@@ -3034,7 +3353,7 @@ export default function DatabaseUPZ() {
                                           setEditScanSkTarget(history);
                                           setFormEditScanLink('');
                                         }}
-                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded transition-all"
+                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded transition-all inline-block align-middle"
                                         title="Upload/Scan SK"
                                       >
                                         <FileCheck className="size-3.5" />
@@ -3042,7 +3361,7 @@ export default function DatabaseUPZ() {
                                     )}
                                   </div>
                                 </td>
-                                {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
+                                {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) && (
                                   <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                                     <div className="flex items-center justify-end gap-2">
                                       <button
@@ -3062,8 +3381,27 @@ export default function DatabaseUPZ() {
                                     </div>
                                   </td>
                                 )}
+                                <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button 
+                                      onClick={() => openEditSkModal(history)}
+                                      className="p-1.5 text-slate-400 hover:text-amber-605 hover:bg-amber-50 border border-slate-100 hover:border-amber-200 rounded transition-all cursor-pointer"
+                                      title="Edit Detail SK"
+                                    >
+                                      <Edit2 className="size-3.5" />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteSK(history.id)}
+                                      className="p-1.5 text-slate-400 hover:text-rose-605 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 rounded transition-all cursor-pointer"
+                                      title="Hapus SK"
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
                               </tr>
-                            ))}
+                            );
+                          })}
                           </tbody>
                         </table>
                       </div>
@@ -3071,18 +3409,40 @@ export default function DatabaseUPZ() {
 
                     {/* Mobile Card Layout */}
                     <div className="block md:hidden space-y-4">
-                        {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory) => (
-                          <div key={history.id} className="p-4 bg-white rounded-xl border border-slate-200 space-y-3 shadow-sm">
-                            <div className="flex justify-between items-start gap-2">
-                              <div>
-                                <span className={cn(
-                                  "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded",
-                                  isSKPembentukan(history.skNumber) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
-                                )}>
-                                  {isSKPembentukan(history.skNumber) ? '📋 Pembentukan' : '🔄 Pembaruan'}
-                                </span>
-                                <p className="text-xs font-mono font-bold text-slate-700 mt-2 break-all">{history.skNumber}</p>
-                              </div>
+                        {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory, idx: number, list: SKHistory[]) => {
+                          const isInactive = (selectedUPZ.status || 'Aktif') !== 'Aktif';
+                          const label = (() => {
+                            if (idx === 0) return '📋 Pembentukan';
+                            if (history.skType === 'Perubahan') return '🔄 Perubahan';
+                            if (history.skType === 'Pembaruan') return '🔄 Pembaruan';
+                            if (history.skType === 'Baru') return '🔄 Pembaruan';
+                            const prevSK = list[idx - 1];
+                            if (prevSK && prevSK.skNumber === history.skNumber) {
+                              return '🔄 Perubahan';
+                            }
+                            return '🔄 Pembaruan';
+                          })();
+
+                          const badgeClass = isInactive
+                            ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                            : label === '📋 Pembentukan'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : label === '🔄 Perubahan'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200';
+
+                          return (
+                            <div key={history.id} className="p-4 bg-white rounded-xl border border-slate-200 space-y-3 shadow-sm">
+                              <div className="flex justify-between items-start gap-2">
+                                <div>
+                                  <span className={cn(
+                                    "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded",
+                                    badgeClass
+                                  )}>
+                                    {label}
+                                  </span>
+                                  <p className="text-xs font-mono font-bold text-slate-700 mt-2 break-all">{history.skNumber}</p>
+                                </div>
                               <span className={cn('px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0',
                                 (history.status === 'Aktif' && (selectedUPZ.status || 'Aktif') === 'Aktif') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
                                 {(selectedUPZ.status || 'Aktif') === 'Aktif' ? history.status : 'Tidak Aktif'}
@@ -3092,7 +3452,9 @@ export default function DatabaseUPZ() {
                             <div className="grid grid-cols-2 gap-3 text-xs pt-1">
                               <div>
                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Masa Berlaku</p>
-                                <p className="font-bold text-slate-700 mt-0.5">{new Date(history.startDate).getFullYear()} – {new Date(history.endDate).getFullYear()}</p>
+                                <p className="font-bold text-slate-700 mt-0.5">
+                                  {history.startDate ? new Date(history.startDate).getFullYear() : '-'} – {history.endDate ? new Date(history.endDate).getFullYear() : '-'}
+                                </p>
                               </div>
                               <div>
                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Pengurus Utama</p>
@@ -3126,12 +3488,26 @@ export default function DatabaseUPZ() {
                                     setEditScanSkTarget(history);
                                     setFormEditScanLink('');
                                   }}
-                                  className="flex-1 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center justify-center gap-1.5 border border-blue-200"
+                                  className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center justify-center gap-1.5 border border-blue-200 shadow-sm"
                                 >
-                                  <FileCheck className="size-3.5" /> Upload SK
+                                  <FileCheck className="size-3.5 text-blue-600" /> Upload Scan SK
                                 </button>
                               )}
-                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) && (
+                              <button
+                                onClick={() => openEditSkModal(history)}
+                                className="px-3 py-2 text-slate-450 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                title="Edit Detail SK"
+                              >
+                                <Edit2 className="size-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSK(history.id)}
+                                className="px-3 py-2 text-slate-450 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                title="Hapus SK"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) && (
                                 <div className="flex gap-2 w-full mt-1">
                                   <button
                                     onClick={() => openPrintDateModal(history, 'print')}
@@ -3149,7 +3525,8 @@ export default function DatabaseUPZ() {
                               )}
                             </div>
                           </div>
-                        ))}
+                        );
+                      })}
                     </div>
 
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed mt-4">
@@ -3189,9 +3566,9 @@ export default function DatabaseUPZ() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
+                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
                           </label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -3205,7 +3582,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -3221,10 +3598,12 @@ export default function DatabaseUPZ() {
                 <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
                   <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl space-y-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-primary uppercase tracking-widest">Nomor SK Pembaruan</label>
+                      <label className="text-[10px] font-black text-primary uppercase tracking-widest">
+                        {selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' ? 'Nomor SK Pembaruan' : 'Nomor SK Pembentukan'}
+                      </label>
                       <input 
                         type="text" 
-                        placeholder="Masukkan nomor SK Baru..." 
+                        placeholder={selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' ? "Masukkan nomor SK Baru..." : "Masukkan nomor SK Pembentukan..."} 
                         value={renewalForm.skNumber} 
                         onChange={e => setRenewalForm(prev => ({ ...prev, skNumber: e.target.value }))} 
                         className="w-full bg-white border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20" 
@@ -3261,9 +3640,9 @@ export default function DatabaseUPZ() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
+                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
                           </label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -3277,7 +3656,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -3303,7 +3682,7 @@ export default function DatabaseUPZ() {
                           ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
                           : 'bg-primary hover:bg-primary/90 shadow-primary/20'
                       )}>
-                      {historyView === 'perubahan' ? 'Simpan Perubahan' : `Simpan SK ${nextRenewalSK}`}
+                      {historyView === 'perubahan' ? 'Simpan Perubahan' : `Simpan SK ${renewalForm.skNumber || nextRenewalSK}`}
                     </button>
                   </>
                 ) : (
@@ -3632,10 +4011,11 @@ export default function DatabaseUPZ() {
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Keaktifan</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {(() => {
-                          const expiryYearStr = selectedUPZ.skExpiryDate ? (selectedUPZ.skExpiryDate.includes('-') ? selectedUPZ.skExpiryDate.split('-')[0] : selectedUPZ.skExpiryDate) : '';
+                          const hasSK = selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-';
+                          const expiryYearStr = hasSK && selectedUPZ.skExpiryDate ? (selectedUPZ.skExpiryDate.includes('-') ? selectedUPZ.skExpiryDate.split('-')[0] : selectedUPZ.skExpiryDate) : '';
                           const expiryYear = parseInt(expiryYearStr, 10);
                           const currentYear = new Date().getFullYear();
-                          const isSKExpired = isNaN(expiryYear) || currentYear > expiryYear;
+                          const isSKExpired = hasSK && (isNaN(expiryYear) || currentYear > expiryYear);
                           
                           const displayStatus = selectedUPZ.status === 'Mengundurkan Diri'
                             ? 'Mengundurkan Diri'
@@ -3662,9 +4042,9 @@ export default function DatabaseUPZ() {
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori / Tipe</p>
                       <p className="text-sm font-bold text-slate-900">
                         {selectedUPZ.category} ({selectedUPZ.type})
-                        {selectedUPZ.type === 'On-Balance' && selectedUPZ.metadata.onBalanceType && (
+                        {selectedUPZ.type === 'On-Balance' && selectedUPZ.metadata?.onBalanceType && (
                           <span className="block text-[11px] text-primary font-semibold mt-0.5">
-                            Sub-tipe: {selectedUPZ.metadata.onBalanceType}
+                            Sub-tipe: {selectedUPZ.metadata?.onBalanceType}
                           </span>
                         )}
                       </p>
@@ -3677,11 +4057,11 @@ export default function DatabaseUPZ() {
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Alamat Lengkap</p>
-                      <p className="text-sm font-bold text-slate-900 leading-relaxed">{selectedUPZ.metadata.address}</p>
+                      <p className="text-sm font-bold text-slate-900 leading-relaxed">{selectedUPZ.metadata?.address || '-'}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. Telepon UPZ</p>
-                      <p className="text-sm font-bold text-slate-900">{selectedUPZ.metadata.upzPhone || '-'}</p>
+                      <p className="text-sm font-bold text-slate-900">{selectedUPZ.metadata?.upzPhone || '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -3703,10 +4083,11 @@ export default function DatabaseUPZ() {
                 )}
 
                 {(() => {
-                  const expiryYearStr = selectedUPZ.skExpiryDate ? (selectedUPZ.skExpiryDate.includes('-') ? selectedUPZ.skExpiryDate.split('-')[0] : selectedUPZ.skExpiryDate) : '';
+                  const hasSK = selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-';
+                  const expiryYearStr = hasSK && selectedUPZ.skExpiryDate ? (selectedUPZ.skExpiryDate.includes('-') ? selectedUPZ.skExpiryDate.split('-')[0] : selectedUPZ.skExpiryDate) : '';
                   const expiryYear = parseInt(expiryYearStr, 10);
                   const currentYear = new Date().getFullYear();
-                  const isSKExpired = isNaN(expiryYear) || currentYear > expiryYear;
+                  const isSKExpired = hasSK && (isNaN(expiryYear) || currentYear > expiryYear);
                   
                   const displayStatus = selectedUPZ.status === 'Mengundurkan Diri'
                     ? 'Mengundurkan Diri'
@@ -3736,11 +4117,11 @@ export default function DatabaseUPZ() {
                             <User className="size-5" />
                           </div>
                           <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedUPZ.metadata.pimpinanTitle}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedUPZ.metadata?.pimpinanTitle || 'Pimpinan'}</p>
                             <p className={cn(
                               "text-sm font-bold",
                               displayStatus !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                            )}>{selectedUPZ.metadata.pimpinanName}</p>
+                            )}>{selectedUPZ.metadata?.pimpinanName || '-'}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
@@ -3749,12 +4130,12 @@ export default function DatabaseUPZ() {
                           </div>
                           <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan Penasehat' : 'Alamat Penasehat'}
+                              {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan Penasehat' : 'Alamat Penasehat'}
                             </p>
                             <p className={cn(
                               "text-sm font-bold",
                               displayStatus !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                            )}>{selectedUPZ.metadata.pimpinanAddress || '-'}</p>
+                            )}>{selectedUPZ.metadata?.pimpinanAddress || '-'}</p>
                           </div>
                         </div>
                       </div>
@@ -3767,7 +4148,7 @@ export default function DatabaseUPZ() {
                     return null;
                   }
 
-                  const onBalanceType = selectedUPZ.metadata.onBalanceType || 'Pengumpulan';
+                  const onBalanceType = selectedUPZ.metadata?.onBalanceType || 'Pengumpulan';
                   if (onBalanceType !== 'Pengumpulan' && onBalanceType !== 'Pembantuan Pendistribusian dan Pendayagunaan') {
                     return null;
                   }
@@ -3968,18 +4349,9 @@ export default function DatabaseUPZ() {
                         onChange={e => setFormCategory(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
-                        <option value="Instansi Vertikal">Instansi Vertikal</option>
-                        <option value="OPD">OPD</option>
-                        <option value="BUMD">BUMD</option>
-                        <option value="Perusahaan Swasta">Perusahaan Swasta</option>
-                        <option value="Masjid & Mushola">Masjid & Mushola</option>
-                        <option value="Pemerintah Kecamatan">Pemerintah Kecamatan</option>
-                        <option value="KUA">KUA</option>
-                        <option value="Desa/Kelurahan">Desa/Kelurahan</option>
-                        <option value="Univ/PT/Pendidikan Menengah">Univ/PT/Pendidikan Menengah</option>
-                        <option value="Pendidikan Dasar">Pendidikan Dasar</option>
-                        <option value="Organisasi Profesi">Organisasi Profesi</option>
-                        <option value="Yayasan">Yayasan</option>
+                        {availableCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -4190,13 +4562,13 @@ export default function DatabaseUPZ() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
-                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                         </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
+                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
@@ -4225,9 +4597,9 @@ export default function DatabaseUPZ() {
                           </div>
                           <div className="w-full md:col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="w-full md:col-span-1 flex items-end justify-end mt-1 md:mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-55 rounded-lg transition-all w-full md:w-auto flex justify-center border border-rose-200 md:border-0">
@@ -4248,6 +4620,7 @@ export default function DatabaseUPZ() {
                     if (window.confirm(`Apakah Anda yakin ingin menghapus UPZ "${selectedUPZ.name}"?`)) {
                       try {
                         await axios.delete(`/api/upz/${selectedUPZ.id}`);
+                        setSkHistory(prev => prev.filter(h => h.upzId !== selectedUPZ.id));
                         await fetchUPZList();
                         setIsEditModalOpen(false);
                         alert('Data UPZ berhasil dihapus.');
@@ -4269,12 +4642,45 @@ export default function DatabaseUPZ() {
                         alert('Nama UPZ tidak boleh kosong.');
                         return;
                       }
-                      const updatedSkHistory = (selectedUPZ.metadata?.skHistory || []).map((h: any) => {
-                        if (h.skNumber === formNoSKPenetapan && h.status === 'Aktif') {
-                          return { ...h, scanLink: formScanLink };
+                      const newSkNumber = formNoSKPenetapan.trim();
+                      let updatedSkHistory = [...(selectedUPZ.metadata?.skHistory || [])];
+                      let activeSKNumber = newSkNumber;
+                      let skStartYear = formTahunMulai || '';
+                      let skExpiryDate = formTahunBerakhir ? `${formTahunBerakhir}-12-31` : '';
+
+                      let addedEntry: SKHistory | null = null;
+
+                      if (newSkNumber) {
+                        const existingEntryIdx = updatedSkHistory.findIndex(h => h.skNumber === newSkNumber);
+                        if (existingEntryIdx !== -1) {
+                          updatedSkHistory[existingEntryIdx] = { 
+                            ...updatedSkHistory[existingEntryIdx], 
+                            scanLink: formScanLink 
+                          };
+                        } else {
+                          // Deactivate previous active SKs
+                          updatedSkHistory = updatedSkHistory.map(h => ({ ...h, status: 'Tidak Aktif' }));
+                          const isFirstSK = updatedSkHistory.length === 0;
+
+                          addedEntry = {
+                            id: `SK-${Date.now()}`,
+                            upzId: selectedUPZ.id,
+                            skNumber: newSkNumber,
+                            startDate: formTahunMulai ? `${formTahunMulai}-01-01` : `${new Date().getFullYear()}-01-01`,
+                            endDate: formTahunBerakhir ? `${formTahunBerakhir}-12-31` : `${new Date().getFullYear() + 5}-12-31`,
+                            pimpinanName: formPengurus.ketua.nama || '-',
+                            status: 'Aktif',
+                            skType: isFirstSK ? 'Baru' : 'Pembaruan',
+                            scanLink: formScanLink
+                          };
+                          updatedSkHistory.push(addedEntry);
                         }
-                        return h;
-                      });
+                      } else {
+                        // If SK is cleared/empty
+                        activeSKNumber = '';
+                        skStartYear = '';
+                        skExpiryDate = '';
+                      }
 
                       const updatedUpz = {
                         ...selectedUPZ,
@@ -4283,9 +4689,9 @@ export default function DatabaseUPZ() {
                         type: formType,
                         kecamatan: formKecamatan,
                         kelurahan: formKelurahan,
-                        activeSKNumber: formNoSKPenetapan,
-                        skExpiryDate: `${formTahunBerakhir}-12-31`,
-                        skStartYear: formTahunMulai,
+                        activeSKNumber: activeSKNumber,
+                        skExpiryDate: skExpiryDate,
+                        skStartYear: skStartYear,
                         status: formStatus,
                         resignationDate: formStatus === 'Mengundurkan Diri' ? formResignationDate : undefined,
                         resignationReason: formStatus === 'Mengundurkan Diri' ? formResignationReason : undefined,
@@ -4306,8 +4712,14 @@ export default function DatabaseUPZ() {
                       try {
                         await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
                         setSkHistory(prev => {
+                          const withoutThisUPZActive = prev.map(h => 
+                            h.upzId === selectedUPZ.id && h.status === 'Aktif' ? { ...h, status: 'Tidak Aktif' as const } : h
+                          );
+                          if (addedEntry) {
+                            return [...withoutThisUPZActive, addedEntry];
+                          }
                           return prev.map(h => {
-                            if (h.upzId === selectedUPZ.id && h.skNumber === formNoSKPenetapan && h.status === 'Aktif') {
+                            if (h.upzId === selectedUPZ.id && h.skNumber === formNoSKPenetapan) {
                               return { ...h, scanLink: formScanLink };
                             }
                             return h;
@@ -4385,18 +4797,9 @@ export default function DatabaseUPZ() {
                         onChange={e => setFormCategory(e.target.value)}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                       >
-                        <option value="Instansi Vertikal">Instansi Vertikal</option>
-                        <option value="OPD">OPD</option>
-                        <option value="BUMD">BUMD</option>
-                        <option value="Perusahaan Swasta">Perusahaan Swasta</option>
-                        <option value="Masjid & Mushola">Masjid & Mushola</option>
-                        <option value="Pemerintah Kecamatan">Pemerintah Kecamatan</option>
-                        <option value="KUA">KUA</option>
-                        <option value="Desa/Kelurahan">Desa/Kelurahan</option>
-                        <option value="Univ/PT/Pendidikan Menengah">Univ/PT/Pendidikan Menengah</option>
-                        <option value="Pendidikan Dasar">Pendidikan Dasar</option>
-                        <option value="Organisasi Profesi">Organisasi Profesi</option>
-                        <option value="Yayasan">Yayasan</option>
+                        {availableCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -4516,11 +4919,12 @@ export default function DatabaseUPZ() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. SK Penetapan</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No. SK Penetapan (Opsional)</label>
                       <input 
                         type="text" 
-                        value={formNoSKPenetapan || nextBaseSK.toString()}
+                        value={formNoSKPenetapan}
                         onChange={e => setFormNoSKPenetapan(e.target.value)}
+                        placeholder={`Rekomendasi No: ${nextBaseSK}`}
                         className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" 
                       />
                     </div>
@@ -4585,13 +4989,13 @@ export default function DatabaseUPZ() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
-                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                         </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
+                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
@@ -4620,9 +5024,9 @@ export default function DatabaseUPZ() {
                           </div>
                           <div className="w-full md:col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="w-full md:col-span-1 flex items-end justify-end mt-1 md:mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-450 hover:bg-rose-50 rounded-lg transition-all w-full md:w-auto flex justify-center border border-rose-200 md:border-0">
@@ -4660,19 +5064,31 @@ export default function DatabaseUPZ() {
                       }
                     }
                     const nextCode = `UPZ-${nextIndex}`;
-                    const skPenetapan = formNoSKPenetapan || nextBaseSK.toString();
+                    const skPenetapan = formNoSKPenetapan.trim();
+                    const hasSK = skPenetapan !== '';
 
-                    const newSkHistoryEntry: SKHistory = {
-                      id: `SK-${Date.now()}`,
-                      upzId: nextCode,
-                      skNumber: skPenetapan,
-                      startDate: formTahunMulai ? `${formTahunMulai}-01-01` : `${new Date().getFullYear()}-01-01`,
-                      endDate: formTahunBerakhir ? `${formTahunBerakhir}-12-31` : `${new Date().getFullYear() + 5}-12-31`,
-                      pimpinanName: formPengurus.ketua.nama || '-',
-                      status: 'Aktif',
-                      skType: 'Baru',
-                      scanLink: formScanLink
-                    };
+                    let skHistoryEntries: SKHistory[] = [];
+                    let activeSKNumber = '';
+                    let skStartYear = '';
+                    let skExpiryDate = '';
+
+                    if (hasSK) {
+                      const newSkHistoryEntry: SKHistory = {
+                        id: `SK-${Date.now()}`,
+                        upzId: nextCode,
+                        skNumber: skPenetapan,
+                        startDate: formTahunMulai ? `${formTahunMulai}-01-01` : `${new Date().getFullYear()}-01-01`,
+                        endDate: formTahunBerakhir ? `${formTahunBerakhir}-12-31` : `${new Date().getFullYear() + 5}-12-31`,
+                        pimpinanName: formPengurus.ketua.nama || '-',
+                        status: 'Aktif',
+                        skType: 'Baru',
+                        scanLink: formScanLink
+                      };
+                      skHistoryEntries = [newSkHistoryEntry];
+                      activeSKNumber = skPenetapan;
+                      skStartYear = formTahunMulai || new Date().getFullYear().toString();
+                      skExpiryDate = formTahunBerakhir ? `${formTahunBerakhir}-12-31` : `${new Date().getFullYear() + 5}-12-31`;
+                    }
 
                     const newUpz: UPZ = {
                       id: nextCode,
@@ -4682,9 +5098,9 @@ export default function DatabaseUPZ() {
                       type: formType,
                       kecamatan: formKecamatan || '-',
                       kelurahan: formKelurahan || '-',
-                      activeSKNumber: skPenetapan,
-                      skStartYear: formTahunMulai || new Date().getFullYear().toString(),
-                      skExpiryDate: formTahunBerakhir || (new Date().getFullYear() + 5).toString(),
+                      activeSKNumber: activeSKNumber,
+                      skStartYear: skStartYear,
+                      skExpiryDate: skExpiryDate,
                       status: 'Aktif',
                       metadata: {
                         address: formAlamatLengkap,
@@ -4702,14 +5118,16 @@ export default function DatabaseUPZ() {
                           anggota2: { nama: formPengurus.anggota2.nama, alamat: formPengurus.anggota2.alamat || '' },
                           anggotaTambahan: anggotaTambahan
                         },
-                        skHistory: [newSkHistoryEntry]
+                        skHistory: skHistoryEntries
                       }
                     };
 
                     try {
                       await axios.post('/api/upz', newUpz);
                       await fetchUPZList();
-                      setSkHistory(prev => [newSkHistoryEntry, ...prev]);
+                      if (hasSK && skHistoryEntries.length > 0) {
+                        setSkHistory(prev => [skHistoryEntries[0], ...prev]);
+                      }
                       setIsAddModalOpen(false);
                       alert('UPZ berhasil didaftarkan.');
                     } catch (err) {
@@ -4972,6 +5390,120 @@ export default function DatabaseUPZ() {
                   className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/95 shadow-lg shadow-primary/20 transition-all"
                 >
                   Simpan Link
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit SK Detail Modal */}
+      <AnimatePresence>
+        {editSkTarget && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditSkTarget(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col z-10"
+            >
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Ubah Detail SK</h4>
+                  <p className="text-xs text-primary font-bold mt-0.5">No. SK: {editSkTarget.skNumber}</p>
+                </div>
+                <button 
+                  onClick={() => setEditSkTarget(null)} 
+                  className="p-1.5 hover:bg-slate-200 rounded-full transition-colors"
+                >
+                  <X className="size-5 text-slate-500" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nomor SK</label>
+                  <input 
+                    type="text" 
+                    value={formEditSkNumber} 
+                    onChange={e => setFormEditSkNumber(e.target.value)} 
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Mulai</label>
+                    <input 
+                      type="number" 
+                      value={formEditSkStartYear} 
+                      onChange={e => setFormEditSkStartYear(e.target.value)} 
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Berakhir</label>
+                    <input 
+                      type="number" 
+                      value={formEditSkEndYear} 
+                      onChange={e => setFormEditSkEndYear(e.target.value)} 
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pimpinan / Penasehat</label>
+                  <input 
+                    type="text" 
+                    value={formEditSkPimpinanName} 
+                    onChange={e => setFormEditSkPimpinanName(e.target.value)} 
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status SK</label>
+                  <select 
+                    value={formEditSkStatus} 
+                    onChange={e => setFormEditSkStatus(e.target.value as 'Aktif' | 'Tidak Aktif')} 
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all bg-white"
+                  >
+                    <option value="Aktif">Aktif</option>
+                    <option value="Tidak Aktif">Tidak Aktif</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link Scan SK</label>
+                  <input 
+                    type="text" 
+                    value={formEditSkScanLink} 
+                    onChange={e => setFormEditSkScanLink(e.target.value)} 
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setEditSkTarget(null)} 
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleSaveEditSK}
+                  className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/95 shadow-lg shadow-primary/20 transition-all"
+                >
+                  Simpan Perubahan
                 </button>
               </div>
             </motion.div>
