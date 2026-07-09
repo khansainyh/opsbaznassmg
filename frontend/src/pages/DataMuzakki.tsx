@@ -24,7 +24,8 @@ import {
   FileText,
   DollarSign,
   FileSpreadsheet,
-  Save
+  Save,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -36,6 +37,18 @@ import * as XLSX from 'xlsx';
 const maskNIK = (nik: string) => {
   if (!nik || nik.length <= 3) return nik;
   return '*'.repeat(nik.length - 3) + nik.slice(-3);
+};
+
+// Helper: format date to Indonesian
+const formatIndonesianDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+  const months = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 };
 
 export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string) => void }) {
@@ -139,8 +152,17 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
   };
 
   const [localMuzakkiData, setLocalMuzakkiData] = useState<any[]>([]);
+  const [lastMigrationDate, setLastMigrationDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Reset page on search or filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter]);
 
   useEffect(() => {
     fetchData();
@@ -159,6 +181,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       const res = await axios.get('/api/muzakki');
       if (res.data.status === 'success') {
         setLocalMuzakkiData(res.data.data);
+        setLastMigrationDate(res.data.last_migration_date || null);
       }
     } catch (error) {
       console.error(error);
@@ -177,6 +200,11 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       return matchesSearch && matchesCategory;
     });
   }, [localMuzakkiData, searchTerm, categoryFilter]);
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -567,7 +595,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                   </td>
                 </tr>
               ) : (
-              filteredData.map((muzakki) => (
+              paginatedData.map((muzakki) => (
                 <tr key={muzakki.id} className="hover:bg-slate-50/30 transition-colors group">
                   <td className="px-6 py-4 font-mono text-xs text-slate-500 font-bold">{muzakki.npwz || '-'}</td>
                   <td className="px-6 py-4">
@@ -601,7 +629,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                     )}
                   </td>
                   <td className="px-6 py-4 text-xs font-bold text-slate-600">
-                    {muzakki.kategori === 'Perorangan' ? muzakki.handphone : muzakki.telepon}
+                    {(muzakki.kategori === 'Perorangan' ? muzakki.handphone : muzakki.telepon) || '-'}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className={cn(
@@ -641,17 +669,59 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
 
         <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/20 text-xs">
           <p className="text-slate-400 font-bold">
-            Menampilkan 1-{Math.min(filteredData.length, 10)} dari {filteredData.length} Muzakki
+            Menampilkan {filteredData.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredData.length)} dari {filteredData.length} Muzakki
           </p>
-          <div className="flex gap-1">
-            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+          <div className="flex gap-1 items-center">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent"
+            >
               <ChevronLeft className="size-4" />
             </button>
-            <button className="w-8 h-8 bg-primary text-white rounded-lg font-bold text-xs">1</button>
-            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+            <span className="text-slate-500 font-bold px-2">Page {currentPage} of {Math.ceil(filteredData.length / itemsPerPage) || 1}</span>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredData.length / itemsPerPage) || 1))}
+              disabled={currentPage === (Math.ceil(filteredData.length / itemsPerPage) || 1)}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent"
+            >
               <ChevronRightIcon className="size-4" />
             </button>
           </div>
+        </div>
+      </motion.div>
+
+      {/* Info Card - Last Migration */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="bg-primary/5 p-6 rounded-2xl border border-primary/10 flex items-start gap-4"
+      >
+        <div className="size-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0">
+          <History className="size-5" />
+        </div>
+        <div>
+          <h5 className="font-bold text-slate-900">Update Terakhir Migrasi</h5>
+          <p className="text-sm text-slate-655 mt-1">
+            Data muzakki disinkronkan terakhir pada tanggal <span className="font-bold text-primary">{
+              lastMigrationDate ? formatIndonesianDate(lastMigrationDate) : (
+                localMuzakkiData.length > 0 
+                  ? formatIndonesianDate(
+                      localMuzakkiData.reduce((max, item) => {
+                        const t = new Date(item.created_at || item.updated_at).getTime();
+                        return t > max ? t : max;
+                      }, 0)
+                    )
+                  : 'Belum ada riwayat migrasi'
+              )
+            }</span>.
+            {lastMigrationDate ? (
+              " Jika Anda ingin melakukan migrasi lagi, Anda cukup mengekspor data baru dari SIMBA mulai tanggal tersebut saja."
+            ) : (
+              " Lakukan migrasi data dari SIMBA menggunakan file Excel (.xlsx) untuk menyelaraskan data."
+            )}
+          </p>
         </div>
       </motion.div>
 
@@ -1697,6 +1767,30 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       Pastikan kolom NIK (Perorangan) atau Nama Lembaga (Lembaga) tidak kosong. Data yang sudah terdaftar akan otomatis diperbarui.
                     </p>
                   </div>
+                </div>
+
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 text-left">
+                  <div className="size-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                    <History className="size-3.5" />
+                  </div>
+                  <p className="text-[10px] text-slate-655 font-medium leading-relaxed">
+                    {lastMigrationDate ? (
+                      <>Terakhir kali migrasi dilakukan pada tanggal <span className="font-bold text-primary">{formatIndonesianDate(lastMigrationDate)}</span>. Anda disarankan mengekspor data SIMBA baru sejak tanggal tersebut.</>
+                    ) : (
+                      localMuzakkiData.length > 0 ? (
+                        <>Terakhir kali data diperbarui di sistem pada tanggal <span className="font-bold text-primary">{
+                          formatIndonesianDate(
+                            localMuzakkiData.reduce((max, item) => {
+                              const t = new Date(item.created_at || item.updated_at).getTime();
+                              return t > max ? t : max;
+                            }, 0)
+                          )
+                        }</span>.</>
+                      ) : (
+                        <>Belum ada riwayat migrasi di sistem.</>
+                      )
+                    )}
+                  </p>
                 </div>
               </div>
             </motion.div>

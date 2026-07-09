@@ -47,8 +47,8 @@ export const importMustahik = async (req: Request, res: Response): Promise<void>
         jenis_kelamin: oldestRow.jenis_kelamin || oldestRow['jenis kelamin'] || 'Laki-laki',
         pekerjaan: oldestRow.pekerjaan || null,
         alamat: oldestRow.alamat || oldestRow.address || 'Tidak ada alamat',
-        handphone: oldestRow.handphone || oldestRow['no telpon'] || oldestRow['no. telpon'] || '0800000000',
-        email: oldestRow.email || 'tanpa_email@example.com',
+        handphone: oldestRow.handphone || oldestRow['no telpon'] || oldestRow['no. telpon'] || null,
+        email: oldestRow.email || null,
         catatan: oldestRow.catatan || '',
         status_graduasi: 'Belum'
       });
@@ -123,6 +123,14 @@ export const importMustahik = async (req: Request, res: Response): Promise<void>
       insertedCount = result.count;
     }
 
+    // Save last migration date as current date/time when imported
+    const migrationDateStr = new Date().toISOString();
+    await prisma.systemParameter.upsert({
+      where: { key: 'last_mustahik_migration_date' },
+      update: { value: migrationDateStr },
+      create: { key: 'last_mustahik_migration_date', value: migrationDateStr, description: 'Tanggal registrasi/migrasi terakhir Data Mustahik dari SIMBA' }
+    });
+
     res.status(200).json({
       status: 'success',
       insertedCount,
@@ -140,12 +148,32 @@ export const importMustahik = async (req: Request, res: Response): Promise<void>
 export const getMustahik = async (req: Request, res: Response): Promise<void> => {
   try {
     const data = await prisma.mustahik.findMany({
-      orderBy: { created_at: 'desc' },
-      include: { proposals: { include: { program: true } } }
+      orderBy: { created_at: 'desc' }
     });
-    res.status(200).json({ status: 'success', data });
+    const lastMigrationParam = await prisma.systemParameter.findUnique({
+      where: { key: 'last_mustahik_migration_date' }
+    });
+    res.status(200).json({ 
+      status: 'success', 
+      data, 
+      last_migration_date: lastMigrationParam ? lastMigrationParam.value : null
+    });
   } catch (error) {
     console.error('Error fetching Mustahik:', error);
+    res.status(500).json({ status: 'error', error: String(error) });
+  }
+};
+
+export const getMustahikProposals = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = String(req.params.id);
+    const proposals = await prisma.proposal.findMany({
+      where: { mustahik_id: id },
+      include: { program: true }
+    });
+    res.status(200).json({ status: 'success', data: proposals });
+  } catch (error) {
+    console.error('Error fetching Mustahik proposals:', error);
     res.status(500).json({ status: 'error', error: String(error) });
   }
 };

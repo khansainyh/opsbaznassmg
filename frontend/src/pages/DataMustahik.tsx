@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ChevronRight, 
   Search, 
@@ -17,7 +17,8 @@ import {
   CheckCircle2,
   Trash2,
   Building,
-  Save
+  Save,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -30,6 +31,18 @@ import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 const maskNIK = (nik: string) => {
   if (!nik || nik.length <= 3) return nik;
   return '*'.repeat(nik.length - 3) + nik.slice(-3);
+};
+
+// Helper: format date to Indonesian
+const formatIndonesianDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+  const months = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 };
 
 export default function DataMustahik() {
@@ -91,8 +104,17 @@ export default function DataMustahik() {
   };
 
   const [localMustahikData, setLocalMustahikData] = useState<any[]>([]);
+  const [lastMigrationDate, setLastMigrationDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Reset page on search or filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, graduationFilter, categoryFilter]);
 
   useEffect(() => {
     fetchData();
@@ -110,6 +132,7 @@ export default function DataMustahik() {
       const res = await axios.get('/api/mustahik');
       if (res.data.status === 'success') {
         setLocalMustahikData(res.data.data);
+        setLastMigrationDate(res.data.last_migration_date || null);
       }
     } catch (error) {
       console.error(error);
@@ -124,6 +147,11 @@ export default function DataMustahik() {
     const matchesCategory = categoryFilter === 'Semua' || (item.kategori || 'Perorangan') === categoryFilter;
     return matchesSearch && matchesGraduation && matchesCategory;
   });
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -534,7 +562,7 @@ export default function DataMustahik() {
                   </td>
                 </tr>
               ) : (
-              filteredData.map((warga) => (
+              paginatedData.map((warga) => (
                 <tr key={warga.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4 text-sm font-medium text-slate-500">{warga.nrm || '-'}</td>
                   <td className="px-6 py-4">
@@ -574,7 +602,7 @@ export default function DataMustahik() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-xs font-bold text-slate-600">
-                    {warga.kategori === 'Lembaga' ? warga.telepon : (warga.handphone || warga.telepon || '-')}
+                    {warga.kategori === 'Lembaga' ? (warga.telepon || '-') : (warga.handphone || warga.telepon || '-')}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className={cn(
@@ -591,7 +619,22 @@ export default function DataMustahik() {
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button 
-                        onClick={() => { setSelectedData(warga); setDetailNIKRevealed(false); setIsDetailModalOpen(true); }}
+                        onClick={async () => {
+                          setIsLoading(true);
+                          try {
+                            const res = await axios.get(`/api/mustahik/${warga.id}/proposals`);
+                            setSelectedData({ ...warga, proposals: res.data.data });
+                            setDetailNIKRevealed(false);
+                            setIsDetailModalOpen(true);
+                          } catch (error) {
+                            console.error('Error fetching proposals:', error);
+                            setSelectedData({ ...warga, proposals: [] });
+                            setDetailNIKRevealed(false);
+                            setIsDetailModalOpen(true);
+                          } finally {
+                            setIsLoading(false);
+                          }
+                        }}
                         className="p-1.5 hover:bg-primary/10 text-slate-400 hover:text-primary rounded transition-colors" title="Detail">
                         <Eye className="size-4" />
                       </button>
@@ -626,19 +669,61 @@ export default function DataMustahik() {
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
-          <p className="text-xs text-slate-500 font-medium">
-            Menampilkan 1-{Math.min(filteredData.length, 10)} dari {filteredData.length} data
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30 text-xs">
+          <p className="text-slate-500 font-medium">
+            Menampilkan {filteredData.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredData.length)} dari {filteredData.length} data
           </p>
-          <div className="flex gap-1">
-            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+          <div className="flex gap-1 items-center">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent"
+            >
               <ChevronLeft className="size-4" />
             </button>
-            <button className="w-8 h-8 bg-primary text-white rounded-lg font-bold text-xs">1</button>
-            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+            <span className="text-slate-600 font-bold px-2">Page {currentPage} of {Math.ceil(filteredData.length / itemsPerPage) || 1}</span>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredData.length / itemsPerPage) || 1))}
+              disabled={currentPage === (Math.ceil(filteredData.length / itemsPerPage) || 1)}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent"
+            >
               <ChevronRightIcon className="size-4" />
             </button>
           </div>
+        </div>
+      </motion.div>
+
+      {/* Info Card - Last Migration */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="bg-primary/5 p-6 rounded-2xl border border-primary/10 flex items-start gap-4"
+      >
+        <div className="size-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0">
+          <History className="size-5" />
+        </div>
+        <div>
+          <h5 className="font-bold text-slate-900">Update Terakhir Migrasi</h5>
+          <p className="text-sm text-slate-650 mt-1">
+            Data mustahik disinkronkan terakhir pada tanggal <span className="font-bold text-primary">{
+              lastMigrationDate ? formatIndonesianDate(lastMigrationDate) : (
+                localMustahikData.length > 0 
+                  ? formatIndonesianDate(
+                      localMustahikData.reduce((max, item) => {
+                        const t = new Date(item.created_at || item.updated_at).getTime();
+                        return t > max ? t : max;
+                      }, 0)
+                    )
+                  : 'Belum ada riwayat migrasi'
+              )
+            }</span>.
+            {lastMigrationDate ? (
+              " Jika Anda ingin melakukan migrasi lagi, Anda cukup mengekspor data baru dari SIMBA mulai tanggal tersebut saja."
+            ) : (
+              " Lakukan migrasi data dari SIMBA menggunakan file Excel (.xlsx) untuk menyelaraskan data."
+            )}
+          </p>
         </div>
       </motion.div>
 
@@ -1218,7 +1303,7 @@ export default function DataMustahik() {
                 </button>
               </div>
               <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
                    <div>
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori</p>
                      <span className={cn(
@@ -1229,15 +1314,18 @@ export default function DataMustahik() {
                      </span>
                    </div>
                    <div>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NRM</p>
-                     <p className="font-semibold text-slate-800">{selectedData.nrm || '-'}</p>
-                   </div>
-                   <div className="col-span-1 md:col-span-2">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                        {selectedData.kategori === 'Lembaga' ? 'Nama Lembaga' : 'Nama Lengkap'}
                      </p>
-                     <p className="font-bold text-slate-850 mt-1">{selectedData.nama}</p>
+                     <p className="font-bold text-slate-850 mt-1 text-base">{selectedData.nama}</p>
                    </div>
+                   <div>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">NRM</p>
+                     <p className="font-semibold text-slate-800 mt-1">{selectedData.nrm || '-'}</p>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                    <div>
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                        {selectedData.kategori === 'Lembaga' ? 'NIK Pimpinan / Ketua' : 'NIK'}
@@ -1297,7 +1385,7 @@ export default function DataMustahik() {
                    <div>
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telepon / WhatsApp</p>
                      <p className="font-semibold text-slate-800 mt-1">
-                       {selectedData.kategori === 'Lembaga' ? selectedData.telepon : (selectedData.handphone || selectedData.telepon || '-')}
+                       {selectedData.kategori === 'Lembaga' ? (selectedData.telepon || '-') : (selectedData.handphone || selectedData.telepon || '-')}
                      </p>
                    </div>
                    <div>
@@ -1493,6 +1581,32 @@ export default function DataMustahik() {
                     </p>
                   </div>
                 </div>
+
+                {activeMigrationTab === 'warga' && (
+                  <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 text-left">
+                    <div className="size-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                      <History className="size-3.5" />
+                    </div>
+                    <p className="text-[10px] text-slate-655 font-medium leading-relaxed">
+                      {lastMigrationDate ? (
+                        <>Terakhir kali migrasi dilakukan pada tanggal <span className="font-bold text-primary">{formatIndonesianDate(lastMigrationDate)}</span>. Anda disarankan mengekspor data SIMBA baru sejak tanggal tersebut.</>
+                      ) : (
+                        localMustahikData.length > 0 ? (
+                          <>Terakhir kali data diperbarui di sistem pada tanggal <span className="font-bold text-primary">{
+                            formatIndonesianDate(
+                              localMustahikData.reduce((max, item) => {
+                                const t = new Date(item.created_at || item.updated_at).getTime();
+                                return t > max ? t : max;
+                              }, 0)
+                            )
+                          }</span>.</>
+                        ) : (
+                          <>Belum ada riwayat migrasi di sistem.</>
+                        )
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

@@ -6,7 +6,14 @@ export const getMuzakki = async (req: Request, res: Response): Promise<void> => 
     const data = await prisma.muzakki.findMany({
       orderBy: { created_at: 'desc' }
     });
-    res.status(200).json({ status: 'success', data });
+    const lastMigrationParam = await prisma.systemParameter.findUnique({
+      where: { key: 'last_muzakki_migration_date' }
+    });
+    res.status(200).json({ 
+      status: 'success', 
+      data,
+      last_migration_date: lastMigrationParam ? lastMigrationParam.value : null
+    });
   } catch (error) {
     res.status(500).json({ status: 'error', error: String(error) });
   }
@@ -465,6 +472,14 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
         }
       }
     }
+
+    // Save last migration date as current date/time when imported
+    const migrationDateStr = new Date().toISOString();
+    await prisma.systemParameter.upsert({
+      where: { key: 'last_muzakki_migration_date' },
+      update: { value: migrationDateStr },
+      create: { key: 'last_muzakki_migration_date', value: migrationDateStr, description: 'Tanggal registrasi/migrasi terakhir Data Muzakki' }
+    });
 
     res.status(200).json({
       status: 'success',

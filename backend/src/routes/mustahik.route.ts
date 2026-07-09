@@ -9,7 +9,8 @@ import {
   cekBantuanNik, 
   autoRegisterMustahik,
   getMustahikByNrm,
-  getMustahikByNik
+  getMustahikByNik,
+  getMustahikProposals
 } from '../controllers/mustahik.controller';
 
 const router = Router();
@@ -20,6 +21,7 @@ router.post('/auto-register', autoRegisterMustahik);
 router.get('/cek-nik/:nik', cekBantuanNik);
 router.get('/nrm/:nrm', getMustahikByNrm);
 router.get('/nik/:nik', getMustahikByNik);
+router.get('/:id/proposals', getMustahikProposals);
 router.get('/', getMustahik);
 router.post('/', createMustahik);
 router.put('/:id', updateMustahik);
