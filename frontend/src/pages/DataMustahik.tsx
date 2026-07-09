@@ -128,6 +128,7 @@ export default function DataMustahik() {
   }, [messages]);
 
   const fetchData = async () => {
+    setIsLoading(true);
     try {
       const res = await axios.get('/api/mustahik');
       if (res.data.status === 'success') {
@@ -136,6 +137,8 @@ export default function DataMustahik() {
       }
     } catch (error) {
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -540,7 +543,10 @@ export default function DataMustahik() {
 
         <div className="overflow-x-auto min-h-[300px]">
           {isLoading ? (
-            <div className="flex h-64 items-center justify-center p-8 text-primary">Memproses Permintaan...</div>
+            <div className="flex h-64 items-center justify-center p-8 text-primary font-bold text-sm gap-2">
+              <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></span>
+              Memproses Data Mustahik...
+            </div>
           ) : (
           <table className="w-full text-left">
             <thead>
