@@ -3128,7 +3128,7 @@ export default function DatabaseUPZ() {
                       const upzStatus = item.status || 'Aktif';
                       const displayStatus = upzStatus === 'Mengundurkan Diri' 
                         ? 'Mengundurkan Diri' 
-                        : (upzStatus === 'Tidak Aktif' || isSKExpired)
+                        : (upzStatus === 'Tidak Aktif' || isSKExpired || !hasSK)
                         ? 'Tidak Aktif' 
                         : 'Aktif';
 
@@ -4048,7 +4048,7 @@ export default function DatabaseUPZ() {
                           
                           const displayStatus = selectedUPZ.status === 'Mengundurkan Diri'
                             ? 'Mengundurkan Diri'
-                            : (selectedUPZ.status === 'Tidak Aktif' || isSKExpired)
+                            : (selectedUPZ.status === 'Tidak Aktif' || isSKExpired || !hasSK)
                             ? 'Tidak Aktif'
                             : 'Aktif';
 
@@ -4120,7 +4120,7 @@ export default function DatabaseUPZ() {
                   
                   const displayStatus = selectedUPZ.status === 'Mengundurkan Diri'
                     ? 'Mengundurkan Diri'
-                    : (selectedUPZ.status === 'Tidak Aktif' || isSKExpired)
+                    : (selectedUPZ.status === 'Tidak Aktif' || isSKExpired || !hasSK)
                     ? 'Tidak Aktif'
                     : 'Aktif';
 
