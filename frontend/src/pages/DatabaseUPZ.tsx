@@ -733,13 +733,13 @@ export default function DatabaseUPZ() {
       
       let matchesSKStatus = true;
       if (skStatusFilter !== 'Semua') {
-        const hasSK = item.activeSKNumber && item.activeSKNumber !== '-';
+        const hasSK = !!(item.activeSKNumber && item.activeSKNumber !== '-');
         const expiryYearStr = hasSK && item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
         const expiryYear = parseInt(expiryYearStr, 10);
         const currentYear = new Date().getFullYear();
-        const isSKExpired = hasSK && (isNaN(expiryYear) || currentYear > expiryYear);
+        const isSKExpired = !!(hasSK && (isNaN(expiryYear) || currentYear > expiryYear));
         const upzStatus = item.status || 'Aktif';
-        const isSKActive = hasSK && upzStatus === 'Aktif' && !isSKExpired;
+        const isSKActive = !!(hasSK && upzStatus === 'Aktif' && !isSKExpired);
         
         if (skStatusFilter === 'Aktif') {
           matchesSKStatus = isSKActive;
