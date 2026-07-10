@@ -153,7 +153,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
 
   const [localMuzakkiData, setLocalMuzakkiData] = useState<any[]>([]);
   const [lastMigrationDate, setLastMigrationDate] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
 
   const [currentPage, setCurrentPage] = useState(1);

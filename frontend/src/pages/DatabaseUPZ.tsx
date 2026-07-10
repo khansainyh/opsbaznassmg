@@ -164,6 +164,7 @@ export default function DatabaseUPZ() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
   const [kecamatanFilter, setKecamatanFilter] = useState('Semua');
+  const [skStatusFilter, setSkStatusFilter] = useState('Semua');
   const [selectedUPZ, setSelectedUPZ] = useState<UPZ | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
@@ -729,9 +730,27 @@ export default function DatabaseUPZ() {
                            item.kelurahan.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = categoryFilter === 'Semua' || item.category === categoryFilter;
       const matchesKecamatan = kecamatanFilter === 'Semua' || item.kecamatan === kecamatanFilter;
-      return matchesSearch && matchesCategory && matchesKecamatan;
+      
+      let matchesSKStatus = true;
+      if (skStatusFilter !== 'Semua') {
+        const hasSK = item.activeSKNumber && item.activeSKNumber !== '-';
+        const expiryYearStr = hasSK && item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
+        const expiryYear = parseInt(expiryYearStr, 10);
+        const currentYear = new Date().getFullYear();
+        const isSKExpired = hasSK && (isNaN(expiryYear) || currentYear > expiryYear);
+        const upzStatus = item.status || 'Aktif';
+        const isSKActive = hasSK && upzStatus === 'Aktif' && !isSKExpired;
+        
+        if (skStatusFilter === 'Aktif') {
+          matchesSKStatus = isSKActive;
+        } else if (skStatusFilter === 'Tidak Aktif') {
+          matchesSKStatus = !isSKActive;
+        }
+      }
+
+      return matchesSearch && matchesCategory && matchesKecamatan && matchesSKStatus;
     });
-  }, [data, searchTerm, categoryFilter, kecamatanFilter]);
+  }, [data, searchTerm, categoryFilter, kecamatanFilter, skStatusFilter]);
 
   const stats = useMemo(() => {
     const onBalance = data.filter(d => d.type === 'On-Balance').length;
@@ -2968,6 +2987,15 @@ export default function DatabaseUPZ() {
             {kecamatanKelurahanSemarang.map(k => (
               <option key={k.kecamatan} value={k.kecamatan}>{k.kecamatan}</option>
             ))}
+          </select>
+          <select 
+            className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-4 focus:ring-primary focus:border-primary outline-none cursor-pointer text-slate-600 transition-all"
+            value={skStatusFilter}
+            onChange={(e) => setSkStatusFilter(e.target.value)}
+          >
+            <option value="Semua">Semua Status SK</option>
+            <option value="Aktif">SK Aktif</option>
+            <option value="Tidak Aktif">SK Tidak Aktif</option>
           </select>
         </div>
         <div className="hidden md:flex gap-3">
