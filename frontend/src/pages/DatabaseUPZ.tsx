@@ -6,6 +6,7 @@ import {
   History, 
   Settings2, 
   ChevronRight, 
+  ChevronLeft,
   Download, 
   CheckCircle2, 
   XCircle, 
@@ -49,8 +50,12 @@ function getEmbedLink(url?: string): string {
 
 export default function DatabaseUPZ() {
   const [data, setData] = useState<UPZ[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const fetchUPZList = async () => {
+  const fetchUPZList = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     try {
       const res = await axios.get('/api/upz');
       if (res.data.status === 'success') {
@@ -90,6 +95,8 @@ export default function DatabaseUPZ() {
       }
     } catch (err) {
       console.error('Error fetching UPZ list:', err);
+    } finally {
+      if (showLoading) setIsLoading(false);
     }
   };
 
@@ -500,8 +507,21 @@ export default function DatabaseUPZ() {
         console.error('Error fetching history data:', err);
       }
     };
-    fetchHistories();
-    fetchUPZList();
+
+    const initData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          fetchHistories(),
+          fetchUPZList(false)
+        ]);
+      } catch (err) {
+        console.error('Error initializing DatabaseUPZ:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initData();
   }, []);
 
 
@@ -724,7 +744,7 @@ export default function DatabaseUPZ() {
   };
 
   const filteredData = useMemo(() => {
-    return data.filter(item => {
+    const filtered = data.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            item.kelurahan.toLowerCase().includes(searchTerm.toLowerCase());
@@ -750,7 +770,35 @@ export default function DatabaseUPZ() {
 
       return matchesSearch && matchesCategory && matchesKecamatan && matchesSKStatus;
     });
+
+    // Sort by code, extracting the numeric part (e.g. 1 from UPZ-1, 10 from UPZ-10) to sort properly
+    return filtered.sort((a, b) => {
+      const codeA = a.code || '';
+      const codeB = b.code || '';
+
+      const matchA = codeA.match(/\d+/);
+      const matchB = codeB.match(/\d+/);
+
+      if (matchA && matchB) {
+        const numA = parseInt(matchA[0], 10);
+        const numB = parseInt(matchB[0], 10);
+        if (numA !== numB) {
+          return numA - numB;
+        }
+      }
+      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+    });
   }, [data, searchTerm, categoryFilter, kecamatanFilter, skStatusFilter]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, kecamatanFilter, skStatusFilter]);
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage]);
 
   const stats = useMemo(() => {
     const onBalance = data.filter(d => d.type === 'On-Balance').length;
@@ -3045,7 +3093,23 @@ export default function DatabaseUPZ() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredData.map((item) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-primary font-bold text-sm">
+                    <div className="flex h-64 items-center justify-center p-8 text-primary font-bold text-sm gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></span>
+                      Memproses Data UPZ...
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedData.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400 italic font-medium">
+                    Belum ada data UPZ yang sesuai pencarian.
+                  </td>
+                </tr>
+              ) : (
+                paginatedData.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
@@ -3172,20 +3236,28 @@ export default function DatabaseUPZ() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-            Menampilkan {filteredData.length} dari {data.length} UPZ
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30 text-xs">
+          <p className="text-slate-400 font-bold">
+            Menampilkan {filteredData.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredData.length)} dari {filteredData.length} UPZ
           </p>
-          <div className="flex gap-2">
-            <button className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-white transition-all">
-              <ChevronRight className="size-4 rotate-180" />
+          <div className="flex gap-1 items-center">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer"
+            >
+              <ChevronLeft className="size-4" />
             </button>
-            <button className="size-8 rounded-lg bg-primary text-white text-xs font-black shadow-lg shadow-primary/20">1</button>
-            <button className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-white transition-all">
+            <span className="text-slate-500 font-bold px-2">Page {currentPage} of {Math.ceil(filteredData.length / itemsPerPage) || 1}</span>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredData.length / itemsPerPage) || 1))}
+              disabled={currentPage === (Math.ceil(filteredData.length / itemsPerPage) || 1)}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer"
+            >
               <ChevronRight className="size-4" />
             </button>
           </div>
