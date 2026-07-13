@@ -119,6 +119,7 @@ export default function PengaturanKeuangan() {
   const [isCOAModalOpen, setIsCOAModalOpen] = useState(false);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isMigrationCOAModalOpen, setIsMigrationCOAModalOpen] = useState(false);
+  const [isMigrationRuleModalOpen, setIsMigrationRuleModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -190,7 +191,8 @@ export default function PengaturanKeuangan() {
         coa_code: '110101003',
         nama_akun: 'Bank Mandiri Zakat',
         klasifikasi: 'Aktiva',
-        tipe_dana: 'ZAKAT'
+        tipe_dana: 'ZAKAT',
+        saldo_awal: 10000000
       }
     ]);
     const wb = XLSX.utils.book_new();
@@ -223,7 +225,8 @@ export default function PengaturanKeuangan() {
               coa_code: String(row.coa_code),
               nama_akun: String(row.nama_akun),
               klasifikasi: row.klasifikasi ? String(row.klasifikasi) : 'Aktiva',
-              tipe_dana: row.tipe_dana ? String(row.tipe_dana) : null
+              tipe_dana: row.tipe_dana ? String(row.tipe_dana) : null,
+              saldo_awal: row.saldo_awal !== undefined && row.saldo_awal !== null ? Number(row.saldo_awal) : 0
             });
             successCount++;
           } catch (err) {
@@ -243,6 +246,80 @@ export default function PengaturanKeuangan() {
         }
         setMessages(newMessages);
         setIsMigrationCOAModalOpen(false);
+        fetchData();
+      } catch (err) {
+        setMessages([{ type: 'error', text: 'Gagal memproses file Excel.' }]);
+        setLoading(false);
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadRuleTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        program_code: 'K01',
+        asnaf_id: 'Miskin',
+        tipe_kas: 'BANK',
+        sumber_dana_tag: 'ZAKAT',
+        debit_coa_code: '510101001',
+        kredit_coa_code: '110101003'
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Mapping");
+    XLSX.writeFile(wb, "Template_Migrasi_Mapping_COA.xlsx");
+  };
+
+  const handleRuleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setMessages([]);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of data as any[]) {
+          if (!row.program_code || !row.tipe_kas || !row.sumber_dana_tag || !row.debit_coa_code || !row.kredit_coa_code) continue;
+          try {
+            await axios.post('/api/finance/mapping-rules', {
+              program_code: String(row.program_code).trim(),
+              asnaf_id: row.asnaf_id ? String(row.asnaf_id).trim() : null,
+              tipe_kas: String(row.tipe_kas).trim(),
+              sumber_dana_tag: String(row.sumber_dana_tag).trim(),
+              debit_coa_code: String(row.debit_coa_code).trim(),
+              kredit_coa_code: String(row.kredit_coa_code).trim()
+            });
+            successCount++;
+          } catch (err) {
+            failCount++;
+          }
+        }
+        
+        const newMessages = [];
+        if (successCount > 0) {
+          newMessages.push({ type: 'success' as const, text: `Berhasil migrasi/memperbarui ${successCount} aturan pemetaan COA.` });
+        }
+        if (failCount > 0) {
+          newMessages.push({ type: 'warning' as const, text: `Gagal migrasi ${failCount} aturan pemetaan COA.` });
+        }
+        if (successCount === 0 && failCount === 0) {
+          newMessages.push({ type: 'warning' as const, text: 'Tidak ada data aturan mapping yang diproses.' });
+        }
+        setMessages(newMessages);
+        setIsMigrationRuleModalOpen(false);
         fetchData();
       } catch (err) {
         setMessages([{ type: 'error', text: 'Gagal memproses file Excel.' }]);
@@ -967,12 +1044,20 @@ export default function PengaturanKeuangan() {
                   <p className="text-[11px] text-slate-400 font-medium mt-1">Pemetaan otomatis untuk menjurnal proposal mustahik/penyaluran.</p>
                 </div>
                 {isSuperAdmin && (
-                  <button 
-                    onClick={() => handleOpenRuleModal()}
-                    className="hidden md:flex px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all items-center gap-1.5 active:scale-95 cursor-pointer"
-                  >
-                    <Plus className="size-3.5" /> Tambah Rule Penyaluran
-                  </button>
+                  <div className="hidden md:flex gap-2">
+                    <button 
+                      onClick={() => setIsMigrationRuleModalOpen(true)}
+                      className="px-4 py-2 bg-white border border-primary text-primary rounded-xl text-xs font-black hover:bg-primary/5 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                    >
+                      <Upload className="size-3.5" /> Migrasi Mapping
+                    </button>
+                    <button 
+                      onClick={() => handleOpenRuleModal()}
+                      className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/95 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                    >
+                      <Plus className="size-3.5" /> Tambah Rule Penyaluran
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -2579,6 +2664,84 @@ export default function PengaturanKeuangan() {
         )}
       </AnimatePresence>
 
+      {/* Mapping COA Migration Modal */}
+      <AnimatePresence>
+        {isMigrationRuleModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => setIsMigrationRuleModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900 text-left">Migrasi Aturan Mapping COA</h3>
+                <button onClick={() => setIsMigrationRuleModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <FileSpreadsheet className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900">Impor Data via Excel</h4>
+                  <p className="text-xs text-slate-500">Gunakan file Excel (.xlsx) dengan kolom program_code, asnaf_id, tipe_kas, sumber_dana_tag, debit_coa_code, kredit_coa_code.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <button onClick={downloadRuleTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-primary">Download Format Template</p>
+                        <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-primary opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handleRuleFileUpload} 
+                      disabled={loading}
+                    />
+                  </label>
+                </div>
+
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-left">
+                  <div className="flex gap-3">
+                    <div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="text-amber-600 font-bold text-[10px]">!</span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed">
+                      Jika kombinasi program, asnaf, tipe kas, dan sumber dana sudah ada di sistem, maka akan diperbarui (update) otomatis.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* 5. Category Add Modal (Mobile only) */}
       <AnimatePresence>
         {isCategoryModalOpen && (
@@ -2686,6 +2849,16 @@ export default function PengaturanKeuangan() {
                     >
                       <Plus className="size-4 text-blue-600" />
                       Tambah Rule Penerimaan
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsFabOpen(false);
+                        setIsMigrationRuleModalOpen(true);
+                      }}
+                      className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap cursor-pointer"
+                    >
+                      <Upload className="size-4 text-slate-500" />
+                      Migrasi Mapping
                     </button>
                     <button
                       onClick={() => {

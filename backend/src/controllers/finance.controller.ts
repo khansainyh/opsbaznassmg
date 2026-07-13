@@ -212,21 +212,47 @@ export const createMappingRule = async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Data program, tipe kas, sumber dana, debit COA, dan kredit COA wajib diisi' });
       return;
     }
-    const rule = await prisma.coaMappingRule.create({
-      data: {
+    // Check if a rule with this combination already exists
+    const existingRule = await prisma.coaMappingRule.findFirst({
+      where: {
         program_code,
         asnaf_id: asnaf_id || null,
         tipe_kas,
-        sumber_dana_tag,
-        debit_coa_code,
-        kredit_coa_code
-      },
-      include: {
-        debitCoa: true,
-        kreditCoa: true
+        sumber_dana_tag
       }
     });
-    res.status(201).json(rule);
+
+    let rule;
+    if (existingRule) {
+      rule = await prisma.coaMappingRule.update({
+        where: { rule_id: existingRule.rule_id },
+        data: {
+          debit_coa_code,
+          kredit_coa_code
+        },
+        include: {
+          debitCoa: true,
+          kreditCoa: true
+        }
+      });
+      res.status(200).json(rule);
+    } else {
+      rule = await prisma.coaMappingRule.create({
+        data: {
+          program_code,
+          asnaf_id: asnaf_id || null,
+          tipe_kas,
+          sumber_dana_tag,
+          debit_coa_code,
+          kredit_coa_code
+        },
+        include: {
+          debitCoa: true,
+          kreditCoa: true
+        }
+      });
+      res.status(201).json(rule);
+    }
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
