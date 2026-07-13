@@ -307,7 +307,7 @@ export default function DataMustahik() {
     } catch (error: any) {
       console.error(error);
       const msg = error.response?.data?.message || 'Terjadi kesalahan saat menyimpan data.';
-      alert(`Gagal menyimpan: ${msg}`);
+      setMessages([{ type: 'error', text: `Gagal menyimpan: ${msg}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -365,7 +365,7 @@ export default function DataMustahik() {
     } catch (error: any) {
       console.error(error);
       const msg = error.response?.data?.message || 'Terjadi kesalahan saat mengupdate data.';
-      alert(`Gagal mengupdate: ${msg}`);
+      setMessages([{ type: 'error', text: `Gagal mengupdate: ${msg}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -384,7 +384,7 @@ export default function DataMustahik() {
       }
     } catch (error: any) {
        console.error(error);
-       alert("Gagal menghapus data.");
+       setMessages([{ type: 'error', text: "Gagal menghapus data." }]);
     }
   };
 

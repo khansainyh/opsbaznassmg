@@ -119,7 +119,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       const matched = upzList.find(u => u.code === selectedData.upz || u.name === selectedData.upz);
       if (matched) {
         setEditSelectedUpz(matched);
-        setEditUpzSearch(`${matched.code} - ${matched.name}`);
+        setEditUpzSearch(matched.name);
       } else {
         setEditSelectedUpz(null);
         setEditUpzSearch('');
@@ -135,7 +135,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
   const getUpzDisplay = (upzCodeOrName: string) => {
     if (!upzCodeOrName) return '';
     const matched = upzList.find(u => u.code === upzCodeOrName || u.name === upzCodeOrName);
-    return matched ? `${matched.code} - ${matched.name}` : upzCodeOrName;
+    return matched ? matched.name : upzCodeOrName;
   };
 
   // NIK reveal state
@@ -862,7 +862,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ (Opsional)</label>
                       {addSelectedUpz ? (
                         <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
-                          <span className="font-semibold text-primary">{addSelectedUpz.code} - {addSelectedUpz.name}</span>
+                          <span className="font-semibold text-primary">{addSelectedUpz.name}</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -910,7 +910,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                                       type="button"
                                       onClick={() => {
                                         setAddSelectedUpz(u);
-                                        setAddUpzSearch(`${u.code} - ${u.name}`);
+                                        setAddUpzSearch(u.name);
                                         setIsAddUpzDropdownOpen(false);
                                       }}
                                       className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"
@@ -1213,7 +1213,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ (Opsional)</label>
                       {editSelectedUpz ? (
                         <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
-                          <span className="font-semibold text-primary">{editSelectedUpz.code} - {editSelectedUpz.name}</span>
+                          <span className="font-semibold text-primary">{editSelectedUpz.name}</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -1261,7 +1261,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                                       type="button"
                                       onClick={() => {
                                         setEditSelectedUpz(u);
-                                        setEditUpzSearch(`${u.code} - ${u.name}`);
+                                        setEditUpzSearch(u.name);
                                         setIsEditUpzDropdownOpen(false);
                                       }}
                                       className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"
@@ -1358,7 +1358,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPZ (Opsional)</label>
                       {editSelectedUpz ? (
                         <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
-                          <span className="font-semibold text-primary">{editSelectedUpz.code} - {editSelectedUpz.name}</span>
+                          <span className="font-semibold text-primary">{editSelectedUpz.name}</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -1406,7 +1406,7 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
                                       type="button"
                                       onClick={() => {
                                         setEditSelectedUpz(u);
-                                        setEditUpzSearch(`${u.code} - ${u.name}`);
+                                        setEditUpzSearch(u.name);
                                         setIsEditUpzDropdownOpen(false);
                                       }}
                                       className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between"

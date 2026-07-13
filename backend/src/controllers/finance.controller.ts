@@ -800,7 +800,7 @@ export const executeDisbursement = async (req: Request, res: Response) => {
       for (const id of ids) {
         const proposal = await tx.proposal.findUnique({
           where: { id: id } as any,
-          include: { program: true }
+          include: { program: true, mustahik: true }
         }) as any;
         if (!proposal) {
           throw new Error(`Proposal dengan ID ${id} tidak ditemukan`);
@@ -888,13 +888,23 @@ export const executeDisbursement = async (req: Request, res: Response) => {
         const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
         const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${proposal.nama_pemohon}`;
 
+        let initialNrm = proposal.mustahik?.nrm || null;
+        const isByName = proposal.jenis_pengajuan === 'Lembaga' && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
+        if (isByName) {
+          const nrms = (proposal.penerima_detail as any[]).map(p => p.nrm).filter(Boolean);
+          if (nrms.length > 0) {
+            initialNrm = nrms.join(', ');
+          }
+        }
+
         // Create Realisasi record for this individual proposal
         const realisasiTrx = await tx.realisasi.create({
           data: {
             proposal_id: proposal.id,
             rkat_id: proposal.rkat_activity_id || proposal.jenis_permohonan || 'GENERAL',
             tanggal: new Date(),
-            keterangan: formattedKeterangan
+            keterangan: formattedKeterangan,
+            nrm: initialNrm
           }
         });
 

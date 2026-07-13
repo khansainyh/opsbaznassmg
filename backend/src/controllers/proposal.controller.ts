@@ -310,6 +310,7 @@ export const updateProposal = async (req: Request, res: Response) => {
       }
     }
 
+    await syncRealisasiFromProposal(id);
     res.status(200).json(proposal);
   } catch (error) {
     console.error('[UPDATE PROPOSAL ERROR]', error);
@@ -459,6 +460,7 @@ export const syncNrmFromMustahik = async (req: Request, res: Response) => {
             mustahik_id: updatedMustahikId
           }
         });
+        await syncRealisasiFromProposal(proposal.id);
         updatedCount++;
       }
     }
@@ -478,3 +480,43 @@ export const syncNrmFromMustahik = async (req: Request, res: Response) => {
     res.status(500).json({ error: String(error) });
   }
 };
+
+async function syncRealisasiFromProposal(proposalId: string) {
+  try {
+    const updatedProposal = await prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: { program: true, mustahik: true }
+    });
+
+    if (updatedProposal) {
+      const associatedRealisasi = await prisma.realisasi.findFirst({
+        where: { proposal_id: updatedProposal.id }
+      });
+
+      if (associatedRealisasi) {
+        let updatedNrm = updatedProposal.mustahik?.nrm || null;
+        const isByName = updatedProposal.jenis_pengajuan === 'Lembaga' && updatedProposal.penerima_detail && Array.isArray(updatedProposal.penerima_detail) && updatedProposal.penerima_detail.length > 0;
+        
+        if (isByName) {
+          const nrms = (updatedProposal.penerima_detail as any[]).map(p => p.nrm).filter(Boolean);
+          if (nrms.length > 0) {
+            updatedNrm = nrms.join(', ');
+          }
+        }
+
+        const programName = updatedProposal.program?.name || updatedProposal.jenis_permohonan || 'Bantuan';
+        const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${updatedProposal.nama_pemohon}`;
+
+        await prisma.realisasi.update({
+          where: { transaksi_id: associatedRealisasi.transaksi_id },
+          data: {
+            nrm: updatedNrm,
+            keterangan: formattedKeterangan
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`[syncRealisasiFromProposal ERROR for ${proposalId}]:`, error);
+  }
+}

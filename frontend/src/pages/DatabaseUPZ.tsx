@@ -53,6 +53,14 @@ export default function DatabaseUPZ() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      const timer = setTimeout(() => setMessages([]), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [messages]);
 
   const fetchUPZList = async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
@@ -2646,7 +2654,7 @@ export default function DatabaseUPZ() {
 
   const processUPZMigration = async (rows: any[]) => {
     if (!Array.isArray(rows) || rows.length === 0) {
-      alert('File Excel kosong atau tidak valid.');
+      setMessages([{ type: 'error', text: 'File Excel kosong atau tidak valid.' }]);
       return;
     }
 
@@ -2775,13 +2783,23 @@ export default function DatabaseUPZ() {
       });
       setSkHistory(allHistories);
     }
-    alert(`Impor UPZ selesai. Sukses: ${successCount}, Gagal/Dilewati: ${failCount}`);
+    const newMessages = [];
+    if (successCount > 0) {
+      newMessages.push({ type: 'success', text: `Berhasil mengimpor ${successCount} data UPZ baru.` });
+    }
+    if (failCount > 0) {
+      newMessages.push({ type: 'warning', text: `Terdapat ${failCount} baris data UPZ yang gagal atau dilewati.` });
+    }
+    if (successCount === 0 && failCount === 0) {
+      newMessages.push({ type: 'warning', text: `Tidak ada data UPZ yang diproses.` });
+    }
+    setMessages(newMessages as any);
     setIsMigrationModalOpen(false);
   };
 
   const processSKMigration = async (rows: any[]) => {
     if (!Array.isArray(rows) || rows.length === 0) {
-      alert('File Excel kosong atau tidak valid.');
+      setMessages([{ type: 'error', text: 'File Excel kosong atau tidak valid.' }]);
       return;
     }
 
@@ -2901,7 +2919,17 @@ export default function DatabaseUPZ() {
       setSkHistory(allHistories);
     }
     
-    alert(`Impor SK selesai. Sukses: ${successCount}, Gagal/Dilewati: ${failCount}`);
+    const newMessages = [];
+    if (successCount > 0) {
+      newMessages.push({ type: 'success', text: `Berhasil mengimpor ${successCount} data SK UPZ baru.` });
+    }
+    if (failCount > 0) {
+      newMessages.push({ type: 'warning', text: `Terdapat ${failCount} data SK UPZ yang gagal atau dilewati.` });
+    }
+    if (successCount === 0 && failCount === 0) {
+      newMessages.push({ type: 'warning', text: `Tidak ada data SK UPZ yang diproses.` });
+    }
+    setMessages(newMessages as any);
     setIsMigrationModalOpen(false);
   };
 
@@ -2924,7 +2952,7 @@ export default function DatabaseUPZ() {
           await processSKMigration(rawJson);
         }
       } catch (err: any) {
-        alert('Gagal membaca file Excel: ' + err.message);
+        setMessages([{ type: 'error', text: 'Gagal membaca file Excel: ' + err.message }]);
       }
     };
     reader.readAsBinaryString(file);
@@ -2932,6 +2960,36 @@ export default function DatabaseUPZ() {
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
+      {/* Toast Notifications */}
+      <AnimatePresence>
+        {messages.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, x: 100 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed top-8 right-8 z-[100] flex flex-col gap-2 shrink-0 w-80 shadow-2xl"
+          >
+            {messages.map((msg, idx) => (
+              <div key={idx} className={cn(
+                "p-4 rounded-xl flex items-start gap-3 border shadow-sm",
+                msg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                msg.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                'bg-red-50 border-red-200 text-red-700'
+              )}>
+                {msg.type === 'success' ? <CheckCircle2 className="size-5 shrink-0" /> : <AlertCircle className="size-5 shrink-0" />}
+                <div className="flex-1">
+                  <p className="text-sm font-bold mb-1">{msg.type === 'success' ? 'Berhasil' : msg.type === 'warning' ? 'Peringatan' : 'Gagal'}</p>
+                  <p className="text-xs font-medium leading-relaxed">{msg.text}</p>
+                </div>
+                <button onClick={() => setMessages(messages.filter((_, i) => i !== idx))} className="shrink-0 p-1 hover:bg-black/5 rounded-md">
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Breadcrumbs & Title */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
