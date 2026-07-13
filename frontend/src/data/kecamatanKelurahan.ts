@@ -7,8 +7,8 @@ export const kecamatanKelurahanSemarang: KecamatanData[] = [
   {
     kecamatan: 'Semarang Tengah',
     kelurahan: [
-      'Bangunharjo', 'Brumbungan', 'Gabahan', 'Jagalan', 'Karangkidul', 'Kauman', 'Kembangsari',
-      'Kranggan', 'Miroto', 'Pandansari', 'Pekunden', 'Sekayu', 'Pendrikan Kidul', 'Pendrikan Lor'
+      'Bangunharjo', 'Brumbungan', 'Gabahan', 'Jagalan', 'Karang Kidul', 'Kauman', 'Kembangsari',
+      'Kranggan', 'Miroto', 'Pandansari', 'Pekunden', 'Purwodinatan', 'Sekayu', 'Pendrikan Kidul', 'Pendrikan Lor'
     ]
   },
   {
@@ -90,7 +90,7 @@ export const kecamatanKelurahanSemarang: KecamatanData[] = [
     kelurahan: [
       'Cepoko', 'Gunungpati', 'Jatirejo', 'Kalisegoro', 'Kandri',
       'Mangunsari', 'Ngijo', 'Nongkosawit', 'Pakintelan', 'Plalangan',
-      'Pongangan', 'Sadeng', 'Sekaran', 'Sukorejo', 'Sumurejo', 'Patemon'
+      'Pongangan', 'Sadeng', 'Sekaran', 'Sukorejo', 'Sumurrejo', 'Patemon'
     ]
   },
   {
