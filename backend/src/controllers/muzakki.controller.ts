@@ -326,6 +326,30 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
     let insertedCount = 0;
     let updatedCount = 0;
 
+    // Load all existing Muzakki in a single query
+    const existingMuzakkis = await prisma.muzakki.findMany({
+      select: { id: true, nik: true, npwz: true, nama: true, kategori: true }
+    });
+    
+    const nikMap = new Map();
+    const npwzMap = new Map();
+    const namaMap = new Map();
+    
+    for (const m of existingMuzakkis) {
+      if (m.nik) nikMap.set(m.nik, m);
+      if (m.npwz) npwzMap.set(m.npwz, m);
+      if (m.kategori === 'Lembaga' && m.nama) {
+        namaMap.set(m.nama.toLowerCase(), m);
+      }
+    }
+
+    const inserts: any[] = [];
+
+    // To prevent duplicate NIKs/NPWZs in the uploaded file itself
+    const processedNIKsInUpload = new Set();
+    const processedNPWZsInUpload = new Set();
+    const processedLembagaNamesInUpload = new Set();
+
     for (const rawRow of rawData) {
       const row: any = {};
       for (const key in rawRow) {
@@ -343,65 +367,63 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
       const email = row.email || null;
       const status = row.status || 'Aktif';
       const no_rekening = row.no_rekening || row['no rekening'] || row['no. rekening'] || null;
+      const upz = row.upz || null;
 
       if (kategori === 'Perorangan') {
         const nik = row.nik ? String(row.nik).trim() : null;
         if (!nik) continue; // NIK is mandatory for Perorangan in import
+        
+        // Skip duplicate NIKs in the import file itself to prevent database uniqueness errors
+        if (processedNIKsInUpload.has(nik)) {
+          continue;
+        }
+        processedNIKsInUpload.add(nik);
 
         const tempat_lahir = row.tempat_lahir || row['tempat lahir'] || null;
         const tanggal_lahir = row.tanggal_lahir || row['tanggal lahir'] || null;
         const jenis_kelamin = row.jenis_kelamin || row['jenis kelamin'] || 'Pria';
         const pekerjaan = row.pekerjaan || null;
-        const upz = row.upz || null;
         const alamat_kantor = row.alamat_kantor || row['alamat kantor'] || null;
         const handphone = row.handphone || row['handphone / wa'] || row.phone || null;
 
-        await prisma.muzakki.upsert({
-          where: { nik },
-          update: {
-            npwz,
-            nama: String(nama),
-            npwp: npwp ? String(npwp) : undefined,
-            zakat_per_bulan: zakat_per_bulan ? Number(zakat_per_bulan) : undefined,
-            keterangan: keterangan ? String(keterangan) : undefined,
-            alamat: String(alamat),
-            telepon: telepon ? String(telepon) : undefined,
-            email: email ? String(email) : undefined,
-            status: String(status),
-            no_rekening: no_rekening ? String(no_rekening) : undefined,
-            tempat_lahir: tempat_lahir ? String(tempat_lahir) : undefined,
-            tanggal_lahir: tanggal_lahir ? String(tanggal_lahir) : undefined,
-            jenis_kelamin: String(jenis_kelamin),
-            pekerjaan: pekerjaan ? String(pekerjaan) : undefined,
-            upz: upz ? String(upz) : undefined,
-            alamat_kantor: alamat_kantor ? String(alamat_kantor) : undefined,
-            handphone: handphone ? String(handphone) : undefined,
-          },
-          create: {
-            kategori,
-            npwz,
-            nama: String(nama),
-            nik,
-            npwp: npwp ? String(npwp) : null,
-            zakat_per_bulan: zakat_per_bulan ? Number(zakat_per_bulan) : null,
-            keterangan: keterangan ? String(keterangan) : null,
-            alamat: String(alamat),
-            telepon: telepon ? String(telepon) : null,
-            email: email ? String(email) : null,
-            status: String(status),
-            no_rekening: no_rekening ? String(no_rekening) : null,
-            tempat_lahir: tempat_lahir ? String(tempat_lahir) : null,
-            tanggal_lahir: tanggal_lahir ? String(tanggal_lahir) : null,
-            jenis_kelamin: String(jenis_kelamin),
-            pekerjaan: pekerjaan ? String(pekerjaan) : null,
-            upz: upz ? String(upz) : null,
-            alamat_kantor: alamat_kantor ? String(alamat_kantor) : null,
-            handphone: handphone ? String(handphone) : null,
-          }
-        });
-        insertedCount++;
+        const recordData = {
+          kategori,
+          npwz,
+          nama: String(nama),
+          nik,
+          npwp: npwp ? String(npwp) : null,
+          zakat_per_bulan: zakat_per_bulan ? Number(zakat_per_bulan) : null,
+          keterangan: keterangan ? String(keterangan) : null,
+          alamat: String(alamat),
+          telepon: telepon ? String(telepon) : null,
+          email: email ? String(email) : null,
+          status: String(status),
+          no_rekening: no_rekening ? String(no_rekening) : null,
+          tempat_lahir: tempat_lahir ? String(tempat_lahir) : null,
+          tanggal_lahir: tanggal_lahir ? String(tanggal_lahir) : null,
+          jenis_kelamin: String(jenis_kelamin),
+          pekerjaan: pekerjaan ? String(pekerjaan) : null,
+          upz: upz ? String(upz) : null,
+          alamat_kantor: alamat_kantor ? String(alamat_kantor) : null,
+          handphone: handphone ? String(handphone) : null,
+          no_pengukuhan: null,
+          tanggal_pengukuhan: null,
+          website: null,
+          jenis_lembaga: null,
+          fax: null,
+          cp_nama: null,
+          cp_telepon: null,
+          cp_email: null,
+        };
+
+        const existing = nikMap.get(nik) || (npwz && npwzMap.get(npwz));
+        if (existing) {
+          continue;
+        } else {
+          inserts.push(recordData);
+        }
       } else {
-        // Lembaga: upsert by NPWZ or Name
+        // Lembaga
         const cp_nama = row.cp_nama || row['nama cp'] || row['nama contact person'] || row['contact person'] || null;
         const cp_telepon = row.cp_telepon || row['telepon cp'] || row['telepon contact person'] || null;
         const cp_email = row.cp_email || row['email cp'] || row['email contact person'] || null;
@@ -411,66 +433,61 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
         const jenis_lembaga = row.jenis_lembaga || row['jenis lembaga'] || null;
         const fax = row.fax || null;
 
-        // Try to check by NPWZ or Name
-        const existingLembaga = await prisma.muzakki.findFirst({
-          where: {
-            OR: [
-              { npwz },
-              { nama: String(nama) }
-            ]
-          }
-        });
+        // Skip duplicates in the import file itself
+        const cacheKey = `${npwz}_${nama.toLowerCase()}`;
+        if (processedLembagaNamesInUpload.has(cacheKey)) {
+          continue;
+        }
+        processedLembagaNamesInUpload.add(cacheKey);
 
-        if (existingLembaga) {
-          await prisma.muzakki.update({
-            where: { id: existingLembaga.id },
-            data: {
-              npwp: npwp ? String(npwp) : undefined,
-              zakat_per_bulan: zakat_per_bulan ? Number(zakat_per_bulan) : undefined,
-              keterangan: keterangan ? String(keterangan) : undefined,
-              alamat: String(alamat),
-              telepon: telepon ? String(telepon) : undefined,
-              email: email ? String(email) : undefined,
-              status: String(status),
-              no_rekening: no_rekening ? String(no_rekening) : undefined,
-              no_pengukuhan: no_pengukuhan ? String(no_pengukuhan) : undefined,
-              tanggal_pengukuhan: tanggal_pengukuhan ? String(tanggal_pengukuhan) : undefined,
-              website: website ? String(website) : undefined,
-              jenis_lembaga: jenis_lembaga ? String(jenis_lembaga) : undefined,
-              fax: fax ? String(fax) : undefined,
-              cp_nama: cp_nama ? String(cp_nama) : undefined,
-              cp_telepon: cp_telepon ? String(cp_telepon) : undefined,
-              cp_email: cp_email ? String(cp_email) : undefined,
-            }
-          });
-          updatedCount++;
+        const recordData = {
+          kategori,
+          npwz,
+          nama: String(nama),
+          nik: null,
+          npwp: npwp ? String(npwp) : null,
+          zakat_per_bulan: zakat_per_bulan ? Number(zakat_per_bulan) : null,
+          keterangan: keterangan ? String(keterangan) : null,
+          alamat: String(alamat),
+          telepon: telepon ? String(telepon) : null,
+          email: email ? String(email) : null,
+          status: String(status),
+          no_rekening: no_rekening ? String(no_rekening) : null,
+          tempat_lahir: null,
+          tanggal_lahir: null,
+          jenis_kelamin: null,
+          pekerjaan: null,
+          upz: upz ? String(upz) : null,
+          alamat_kantor: null,
+          handphone: null,
+          no_pengukuhan: no_pengukuhan ? String(no_pengukuhan) : null,
+          tanggal_pengukuhan: tanggal_pengukuhan ? String(tanggal_pengukuhan) : null,
+          website: website ? String(website) : null,
+          jenis_lembaga: jenis_lembaga ? String(jenis_lembaga) : null,
+          fax: fax ? String(fax) : null,
+          cp_nama: cp_nama ? String(cp_nama) : null,
+          cp_telepon: cp_telepon ? String(cp_telepon) : null,
+          cp_email: cp_email ? String(cp_email) : null,
+        };
+
+        const existing = (npwz && npwzMap.get(npwz)) || namaMap.get(nama.toLowerCase());
+        if (existing) {
+          continue;
         } else {
-          await prisma.muzakki.create({
-            data: {
-              kategori,
-              npwz,
-              nama: String(nama),
-              npwp: npwp ? String(npwp) : null,
-              zakat_per_bulan: zakat_per_bulan ? Number(zakat_per_bulan) : null,
-              keterangan: keterangan ? String(keterangan) : null,
-              alamat: String(alamat),
-              telepon: telepon ? String(telepon) : null,
-              email: email ? String(email) : null,
-              status: String(status),
-              no_rekening: no_rekening ? String(no_rekening) : null,
-              no_pengukuhan: no_pengukuhan ? String(no_pengukuhan) : null,
-              tanggal_pengukuhan: tanggal_pengukuhan ? String(tanggal_pengukuhan) : null,
-              website: website ? String(website) : null,
-              jenis_lembaga: jenis_lembaga ? String(jenis_lembaga) : null,
-              fax: fax ? String(fax) : null,
-              cp_nama: cp_nama ? String(cp_nama) : null,
-              cp_telepon: cp_telepon ? String(cp_telepon) : null,
-              cp_email: cp_email ? String(cp_email) : null,
-            }
-          });
-          insertedCount++;
+          inserts.push(recordData);
         }
       }
+    }
+
+    // Execute bulk insertions in chunks to prevent database payload limits
+    const chunkSize = 2000;
+    for (let i = 0; i < inserts.length; i += chunkSize) {
+      const chunk = inserts.slice(i, i + chunkSize);
+      await prisma.muzakki.createMany({
+        data: chunk,
+        skipDuplicates: true
+      });
+      insertedCount += chunk.length;
     }
 
     // Save last migration date as current date/time when imported
