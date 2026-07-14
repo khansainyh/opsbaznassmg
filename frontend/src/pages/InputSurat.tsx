@@ -21,8 +21,12 @@ import {
   Trash2,
   ExternalLink,
   FileSearch,
-  Monitor
+  Monitor,
+  Download,
+  FileSpreadsheet,
+  Printer
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
@@ -88,6 +92,100 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [isFabOpen, setIsFabOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const downloadSuratTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        no_agenda: 101,
+        tanggal_masuk: '2026-01-15',
+        jam_pengajuan: '09:00',
+        nama_instansi: 'Masjid Agung',
+        pimpinan_organisasi: 'H. Ahmad',
+        alamat: 'Jl. Gajah Mada No. 10',
+        kelurahan: 'Kembangsari',
+        kecamatan: 'Semarang Tengah',
+        keperluan: 'Bantuan Dana Pembangunan',
+        no_telpon: '08123456789',
+        yang_mengajukan: 'Ahmad Fauzi',
+        arsip: 'Box A-1',
+        kategori: 'Permohonan',
+        status: 'Selesai',
+        catatan_kepala: 'Disetujui untuk survei lokasi.',
+        catatan_pimpinan: 'Bantu Rp 5.000.000,-',
+        tanggal_acara: '',
+        jam_acara: '',
+        link_scan: 'https://drive.google.com/file/d/example_link'
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Surat");
+    XLSX.writeFile(wb, "Template_Migrasi_Surat_Masuk.xlsx");
+  };
+
+  const handleSuratFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of data as any[]) {
+          if (!row.tanggal_masuk || !row.keperluan) continue;
+          const gdriveLink = row.link_scan ? String(row.link_scan).trim() : (row.file_gdrive_link ? String(row.file_gdrive_link).trim() : null);
+          const agendaNo = row.no_agenda ? Number(row.no_agenda) : undefined;
+          try {
+            await axios.post('/api/surats', {
+              agenda_no: agendaNo,
+              tanggal_masuk: String(row.tanggal_masuk).trim(),
+              jam_pengajuan: row.jam_pengajuan ? String(row.jam_pengajuan).trim() : null,
+              nama_instansi: row.nama_instansi ? String(row.nama_instansi).trim() : null,
+              pimpinan_organisasi: row.pimpinan_organisasi ? String(row.pimpinan_organisasi).trim() : null,
+              keperluan: String(row.keperluan).trim(),
+              alamat: row.alamat ? String(row.alamat).trim() : null,
+              kelurahan: row.kelurahan ? String(row.kelurahan).trim() : null,
+              kecamatan: row.kecamatan ? String(row.kecamatan).trim() : null,
+              no_telpon: row.no_telpon ? String(row.no_telpon).trim() : null,
+              yang_mengajukan: row.yang_mengajukan ? String(row.yang_mengajukan).trim() : null,
+              arsip: row.arsip ? String(row.arsip).trim() : null,
+              kategori: row.kategori ? String(row.kategori).trim() : null,
+              status: row.status ? String(row.status).trim() : 'Registrasi',
+              catatanKepala: row.catatan_kepala ? String(row.catatan_kepala).trim() : null,
+              catatanPimpinan: row.catatan_pimpinan ? String(row.catatan_pimpinan).trim() : null,
+              tanggal_acara: row.tanggal_acara ? String(row.tanggal_acara).trim() : null,
+              jam_acara: row.jam_acara ? String(row.jam_acara).trim() : null,
+              file_gdrive_link: gdriveLink
+            });
+            successCount++;
+          } catch (err) {
+            failCount++;
+          }
+        }
+        
+        alert(`Berhasil mengimpor ${successCount} data surat. Gagal: ${failCount}`);
+        setIsMigrationModalOpen(false);
+        window.location.reload();
+      } catch (err) {
+        alert('Gagal memproses file Excel.');
+      } finally {
+        setLoading(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   // Report modal state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -255,6 +353,324 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
             }
           </script>
         </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handlePrintDisposisi = (surat: Surat) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const getStepIndex = (status: string): number => {
+      const s = status.replace(/ /g, '_');
+      if (s === 'Registrasi') return 0;
+      if (s === 'Scan_Surat' || s === 'Scan Surat') return 0;
+      if (s === 'Review_Kabag_Admin' || s === 'Review Kabag Admin') return 1;
+      if (s === 'Review_Kepala_Pelaksana' || s === 'Review Kepala Pelaksana') return 2;
+      if (s === 'Review_Pimpinan' || s === 'Review Pimpinan') return 3;
+      if (s === 'Penugasan_Kepala_Pelaksana' || s === 'Penugasan Kepala Pelaksana') return 2;
+      if (s === 'Selesai') return 4;
+      if (s === 'Arsip') return 4;
+      return 0;
+    };
+
+    const currentIdx = getStepIndex(surat.status);
+
+    const renderNodeHtml = (step: { id: string; label: string; idx: number; short: string }) => {
+      let nodeClass = '';
+      let circleContent = step.short;
+
+      if (step.idx < currentIdx) {
+        nodeClass = 'done';
+        circleContent = '✓';
+      } else if (step.idx === currentIdx) {
+        nodeClass = 'active';
+      }
+
+      return `
+        <div class="node ${nodeClass}">
+          <div class="circle">${circleContent}</div>
+          <div class="label">${step.label}</div>
+        </div>
+      `;
+    };
+
+    const nodesHtml = [
+      { id: 'ADM', label: 'ADM', idx: 0, short: 'ADM' },
+      { id: 'KDM', label: 'KDM', idx: 1, short: 'KD' },
+      { id: 'KAPEL', label: 'KAPEL', idx: 2, short: 'KA' },
+      { id: 'PIMP', label: 'PIMP', idx: 3, short: 'PI' },
+      { id: 'DONE', label: 'DONE', idx: 4, short: '' }
+    ].map(renderNodeHtml).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Disposisi Surat - ${surat.agendaNo}</title>
+          <style>
+              @page {
+                  size: A5 landscape;
+                  margin: 0;
+              }
+              
+              body {
+                  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                  background-color: #f9fafb;
+                  margin: 0;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  height: 100vh;
+              }
+
+              .a5-container {
+                  width: 210mm;
+                  height: 148mm;
+                  background: white;
+                  padding: 10mm 12mm;
+                  box-sizing: border-box;
+                  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: space-between;
+              }
+
+              @media print {
+                  body { background: white; height: auto; display: block; }
+                  .a5-container { box-shadow: none; width: 100%; height: 100%; padding: 10mm; }
+              }
+
+              .header {
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  padding-bottom: 8px;
+                  margin-bottom: 10px;
+              }
+              
+              .logo-img {
+                  height: 100px;
+                  max-width: 100%;
+                  object-fit: contain;
+              }
+
+              .title {
+                  text-align: center;
+                  font-weight: 900;
+                  font-size: 11px;
+                  margin-bottom: 12px;
+                  text-decoration: underline;
+                  text-transform: uppercase;
+              }
+
+              .info-box {
+                  border: 1px solid #d1d5db;
+                  border-radius: 8px;
+                  padding: 10px 12px;
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 8px 15px;
+                  margin-bottom: 20px;
+                  background-color: #fafafa;
+              }
+
+              .info-row {
+                  display: flex;
+                  font-size: 9px;
+              }
+
+              .info-label {
+                  width: 110px;
+                  font-weight: bold;
+                  color: #4b5563;
+              }
+
+              .info-value {
+                  font-weight: bold;
+                  color: #111827;
+              }
+
+              .progress-section {
+                  position: relative;
+                  margin-top: 5px;
+              }
+
+              .progress-title {
+                  text-align: center;
+                  font-weight: 800;
+                  font-size: 10px;
+                  color: #374151;
+                  margin-bottom: 20px;
+                  text-transform: uppercase;
+              }
+
+              .flow-container {
+                  padding: 0 10%;
+                  position: relative;
+              }
+
+              .flow-track-single {
+                  position: absolute;
+                  top: 14px; 
+                  left: 10%; 
+                  right: 10%; 
+                  height: 2px;
+                  background-color: #e5e7eb;
+                  z-index: 1;
+              }
+
+              .flow-row-single {
+                  display: flex;
+                  justify-content: space-between;
+                  position: relative;
+                  z-index: 2;
+              }
+
+              .node {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  background-color: white;
+                  padding: 0 8px;
+              }
+
+              .circle {
+                  width: 26px;
+                  height: 26px;
+                  border-radius: 50%;
+                  border: 2px solid #d1d5db;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: bold;
+                  font-size: 9px;
+                  color: #6b7280;
+                  margin-bottom: 6px;
+                  background-color: white;
+                  transition: all 0.3s ease;
+              }
+
+              .label {
+                  font-size: 8px;
+                  font-weight: 800;
+                  text-align: center;
+                  color: #4b5563;
+              }
+
+              .node.done .circle {
+                  border-color: #10b981;
+                  background-color: #10b981;
+                  color: white;
+              }
+              .node.done .label {
+                  color: #10b981;
+              }
+
+              .node.active .circle {
+                  border-color: #10b981;
+                  color: #10b981;
+                  border-width: 3px;
+              }
+              .node.active .label {
+                  color: #10b981;
+              }
+          </style>
+      </head>
+      <body>
+
+          <div class="a5-container">
+              
+              <!-- Header -->
+              <div class="header">
+                  <img class="logo-img" src="/LogoBAZNASSMG.PNG" alt="Logo BAZNAS" />
+              </div>
+
+              <!-- Judul -->
+              <div class="title">LEMBAR DISPOSISI / KONTROL SURAT MASUK</div>
+
+              <!-- Info Surat -->
+              <div class="info-box">
+                  <!-- Row 1 -->
+                  <div class="info-row">
+                      <div class="info-label">NO. AGENDA</div>
+                      <div class="info-value">: ${surat.agendaNo}</div>
+                  </div>
+                  <div class="info-row">
+                      <div class="info-label">TANGGAL MASUK</div>
+                      <div class="info-value">: ${surat.tanggalMasuk} ${surat.jamPengajuan ? `(${surat.jamPengajuan})` : ''}</div>
+                  </div>
+
+                  <!-- Row 2 -->
+                  <div class="info-row">
+                      <div class="info-label">NAMA INSTANSI</div>
+                      <div class="info-value">: ${surat.namaInstansi || '-'}</div>
+                  </div>
+                  <div class="info-row">
+                      <div class="info-label">PIMPINAN / PENGIRIM</div>
+                      <div class="info-value">: ${surat.pimpinanOrganisasi || '-'}</div>
+                  </div>
+
+                  <!-- Row 3 -->
+                  <div class="info-row">
+                      <div class="info-label">KATEGORI</div>
+                      <div class="info-value">: ${surat.kategori || '-'}</div>
+                  </div>
+                  <div class="info-row">
+                      <div class="info-label">NO. TELPON</div>
+                      <div class="info-value">: ${surat.noTelpon || '-'}</div>
+                  </div>
+
+                  ${surat.kategori === 'Undangan' ? `
+                  <div class="info-row">
+                      <div class="info-label">TANGGAL ACARA</div>
+                      <div class="info-value">: ${surat.tanggalAcara ? new Date(surat.tanggalAcara).toLocaleDateString('id-ID') : '-'}</div>
+                  </div>
+                  <div class="info-row">
+                      <div class="info-label">JAM ACARA</div>
+                      <div class="info-value">: ${surat.jamAcara || '-'}</div>
+                  </div>
+                  ` : ''}
+
+                  <!-- Row (Full Width) -->
+                  <div class="info-row" style="grid-column: 1 / -1;">
+                      <div class="info-label">PERIHAL / KEPERLUAN</div>
+                      <div class="info-value">: ${surat.keperluan}</div>
+                  </div>
+
+                  <!-- Row (Full Width) -->
+                  <div class="info-row" style="grid-column: 1 / -1;">
+                      <div class="info-label">ALAMAT</div>
+                      <div class="info-value">: ${[surat.alamat, surat.kelurahan, surat.kecamatan].filter(Boolean).join(', ') || '-'}</div>
+                  </div>
+              </div>
+
+              <!-- Progress Alur Dokumen -->
+              <div class="progress-section">
+                  <div class="progress-title">PROGRESS ALUR SURAT</div>
+                  
+                  <div class="flow-container">
+                      <div class="flow-track-single"></div>
+
+                      <div class="flow-row-single">
+                          ${nodesHtml}
+                      </div>
+                  </div>
+              </div>
+
+          </div>
+
+          <script>
+              window.onload = function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 500);
+              };
+          </script>
+
+      </body>
       </html>
     `);
     printWindow.document.close();
@@ -470,6 +886,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           </div>
           <div className="hidden md:flex gap-2">
             <button 
+              onClick={() => setIsMigrationModalOpen(true)}
+              className="bg-white hover:bg-slate-50 text-primary border border-primary px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Upload className="size-4" />
+              Migrasi Surat
+            </button>
+            <button 
               onClick={() => setIsReportModalOpen(true)}
               className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20 active:scale-95"
             >
@@ -549,6 +972,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                         title="Detail"
                       >
                         <Eye className="size-4" />
+                      </button>
+                      <button 
+                        onClick={() => handlePrintDisposisi(item)}
+                        className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-xl transition-colors" 
+                        title="Print Disposisi"
+                      >
+                        <Printer className="size-4" />
                       </button>
                       <button 
                         onClick={() => handleOpenScanModal(item)}
@@ -894,6 +1324,15 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+                {selectedSurat && (
+                  <button 
+                    onClick={() => handlePrintDisposisi(selectedSurat)}
+                    className="flex-1 px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <Printer className="size-4" />
+                    <span className="hidden md:inline">Print Disposisi</span>
+                  </button>
+                )}
                 <button 
                   onClick={() => {
                     setIsDetailModalOpen(false);
@@ -982,14 +1421,14 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori Surat</label>
                       <div className="relative">
-                        <input type="hidden" name="kategori" value={selectedKategori} required />
+                        <input type="hidden" name="kategori" value={selectedKategori} />
                         <button
                           type="button"
                           onClick={() => setIsKategoriDropdownOpen(!isKategoriDropdownOpen)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
                         >
                           <span className={selectedKategori ? "text-slate-800 font-medium" : "text-slate-400"}>
-                            {selectedKategori || 'Pilih Kategori...'}
+                            {selectedKategori || 'Pilih Kategori (Opsional)...'}
                           </span>
                           <span className="text-slate-400">▼</span>
                         </button>
@@ -997,18 +1436,18 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                         {isKategoriDropdownOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsKategoriDropdownOpen(false)} />
-                            <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1">
-                              {['Undangan', 'Surat Izin Kerja', 'Surat Izin Penelitian/Magang', 'Surat Permohonan', 'Surat Rekomendasi/Pengantar'].map(kategori => (
+                            <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 border-slate-100">
+                              {['-- Kosongkan Kategori --', 'Undangan', 'Surat Izin Kerja', 'Surat Izin Penelitian/Magang', 'Surat Permohonan', 'Laporan'].map(kategori => (
                                 <button
                                   key={kategori}
                                   type="button"
                                   onClick={() => {
-                                    setSelectedKategori(kategori);
+                                    setSelectedKategori(kategori.startsWith('--') ? '' : kategori);
                                     setIsKategoriDropdownOpen(false);
                                   }}
                                   className={cn(
                                     "w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors flex justify-between items-center",
-                                    selectedKategori === kategori
+                                    (kategori.startsWith('--') ? !selectedKategori : selectedKategori === kategori)
                                       ? "bg-primary text-white font-bold"
                                       : "text-slate-700 hover:bg-slate-100"
                                   )}
@@ -1279,6 +1718,16 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               <button
                 onClick={() => {
                   setIsFabOpen(false);
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap cursor-pointer"
+              >
+                <Upload className="size-4 text-slate-500" />
+                Migrasi Surat
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
                   setIsReportModalOpen(true);
                 }}
                 className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
@@ -1310,6 +1759,72 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <Plus className={cn("size-6 transition-transform duration-300", isFabOpen ? "rotate-45" : "rotate-0")} />
         </button>
       </div>
+
+      {/* Migration Modal */}
+      <AnimatePresence>
+        {isMigrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => setIsMigrationModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900">Migrasi Data Surat Masuk</h3>
+                <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <FileSpreadsheet className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 font-sans">Impor Data via Excel</h4>
+                  <p className="text-xs text-slate-500 font-sans">Gunakan file Excel (.xlsx) dengan kolom tanggal_masuk, jam_pengajuan, nama_instansi, pimpinan_organisasi, keperluan, alamat, kelurahan, kecamatan, no_telpon, yang_mengajukan, arsip, kategori.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <button onClick={downloadSuratTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-primary font-sans">Download Format Template</p>
+                        <p className="text-[10px] text-primary/70 font-medium font-sans">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors font-sans">Upload File Data Baru</p>
+                        <p className="text-[10px] text-slate-400 font-medium font-sans">Pilih file .xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handleSuratFileUpload} 
+                      disabled={loading}
+                    />
+                  </label>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
