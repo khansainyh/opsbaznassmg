@@ -14,10 +14,14 @@ import {
  ShieldCheck,
  ShieldAlert,
  RefreshCw,
- Info
+ Info,
+ Upload,
+ Download,
+ FileSpreadsheet
 } from'lucide-react';
 import { motion, AnimatePresence } from'motion/react';
 import { cn } from'../lib/utils';
+import * as XLSX from 'xlsx';
 
 export interface COAItem {
  coa_code: string;
@@ -77,6 +81,66 @@ export default function BukuBesar() {
  const [loading, setLoading] = useState(false);
  const [healthData, setHealthData] = useState<any>(null);
  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
+ const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+ const [migrating, setMigrating] = useState(false);
+
+ const downloadBukuBesarTemplate = () => {
+  const ws = XLSX.utils.json_to_sheet([
+   {
+    tanggal: '2026-01-15',
+    keterangan: 'Penerimaan ZIS program Modal Usaha via Cash dari A',
+    nominal: 1500000,
+    coa_debit: '11010101',
+    coa_kredit: '41010101',
+    bank_account_id: '',
+    tipe_mutasi: 'DEBIT',
+    nrm: ''
+   }
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Template_Buku_Besar");
+  XLSX.writeFile(wb, "Template_Migrasi_Buku_Besar.xlsx");
+ };
+
+ const handleBukuBesarFileUpload = async (e: any) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  setMigrating(true);
+  const reader = new FileReader();
+  reader.onload = async (evt) => {
+   try {
+    const bstr = evt.target?.result;
+    const wb = XLSX.read(bstr, { type: 'binary' });
+    const wsname = wb.SheetNames[0];
+    const ws = wb.Sheets[wsname];
+    const data = XLSX.utils.sheet_to_json(ws);
+    
+    const transactions = data.map((row: any) => ({
+     tanggal: row.tanggal ? String(row.tanggal).trim() : '',
+     keterangan: row.keterangan ? String(row.keterangan).trim() : '',
+     nominal: Number(row.nominal || 0),
+     coa_debit: row.coa_debit ? String(row.coa_debit).trim() : '',
+     coa_kredit: row.coa_kredit ? String(row.coa_kredit).trim() : '',
+     bank_account_id: row.bank_account_id ? String(row.bank_account_id).trim() : null,
+     tipe_mutasi: row.tipe_mutasi ? String(row.tipe_mutasi).toUpperCase().trim() : 'DEBIT',
+     nrm: row.nrm ? String(row.nrm).trim() : null
+    }));
+
+    const res = await axios.post('/api/finance/ledger/migrate', { transactions });
+    alert(res.data.message || 'Migrasi Jurnal Berhasil!');
+    setIsMigrationModalOpen(false);
+    fetchData();
+   } catch (err: any) {
+    console.error(err);
+    alert(err.response?.data?.error || 'Gagal memproses file Excel.');
+   } finally {
+    setMigrating(false);
+    e.target.value = '';
+   }
+  };
+  reader.readAsBinaryString(file);
+ };
 
  // Tab state
  const [activeTab, setActiveTab] = useState<'jurnal' |'rekap'>('jurnal');
@@ -856,6 +920,18 @@ export default function BukuBesar() {
  </button>
  </div>
 
+ {/* Migrasi Buku Besar Button */}
+ <div className="space-y-1.5 self-end no-print">
+ <button
+ type="button"
+ onClick={() => setIsMigrationModalOpen(true)}
+ className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-emerald-600/10"
+ >
+ <Upload className="size-4" />
+ Migrasi Jurnal
+ </button>
+ </div>
+
  {/* Refresh Button */}
  <div className="space-y-1.5 self-end">
  <button
@@ -1340,6 +1416,65 @@ export default function BukuBesar() {
  </div>
  )}
  </AnimatePresence>
+
+ {/* Migrasi Buku Besar Modal (No-Print) */}
+ {isMigrationModalOpen && (
+  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+   <motion.div
+    initial={{ opacity: 0, scale: 0.95 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.95 }}
+    className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
+   >
+    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+     <h3 className="text-xl font-black text-slate-900 font-sans">Migrasi Jurnal</h3>
+     <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+      <X className="size-5 text-slate-400" />
+     </button>
+    </div>
+    <div className="p-8 space-y-6">
+     <div className="text-center space-y-2">
+      <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+       <FileSpreadsheet className="size-8" />
+      </div>
+      <h4 className="font-bold text-slate-900 font-sans font-sans">Impor Data Ledger (.xlsx)</h4>
+      <p className="text-xs text-slate-500 font-medium leading-relaxed font-sans font-sans">
+       Unggah file Excel dengan kolom: <strong>tanggal, keterangan, nominal, coa_debit, coa_kredit</strong>. Kolom opsional: bank_account_id, tipe_mutasi, nrm.
+      </p>
+     </div>
+
+     <div className="space-y-3">
+      <button onClick={downloadBukuBesarTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+       <div className="flex items-center gap-3">
+        <Download className="size-5 text-primary" />
+        <div className="text-left font-sans font-sans">
+         <p className="text-sm font-bold text-primary">Download Format Template</p>
+         <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+        </div>
+       </div>
+      </button>
+
+      <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+       <div className="flex items-center gap-3">
+        <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+        <div className="text-left font-sans font-sans">
+         <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+         <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+        </div>
+       </div>
+       <input 
+        type="file" 
+        className="hidden" 
+        accept=".xlsx,.xls,.csv" 
+        onChange={handleBukuBesarFileUpload} 
+        disabled={migrating}
+       />
+      </label>
+     </div>
+    </div>
+   </motion.div>
+  </div>
+ )}
  </div>
  );
 }

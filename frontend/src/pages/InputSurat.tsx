@@ -134,7 +134,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
     reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws);
@@ -144,12 +144,27 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
         for (const row of data as any[]) {
           if (!row.tanggal_masuk || !row.keperluan) continue;
+
+          let rawTanggalMasuk = row.tanggal_masuk;
+          if (rawTanggalMasuk instanceof Date) {
+            rawTanggalMasuk = rawTanggalMasuk.toISOString().split('T')[0];
+          } else {
+            rawTanggalMasuk = String(rawTanggalMasuk).trim();
+          }
+
+          let rawTanggalAcara = row.tanggal_acara || null;
+          if (rawTanggalAcara instanceof Date) {
+            rawTanggalAcara = rawTanggalAcara.toISOString().split('T')[0];
+          } else if (rawTanggalAcara) {
+            rawTanggalAcara = String(rawTanggalAcara).trim();
+          }
+
           const gdriveLink = row.link_scan ? String(row.link_scan).trim() : (row.file_gdrive_link ? String(row.file_gdrive_link).trim() : null);
           const agendaNo = row.no_agenda ? Number(row.no_agenda) : undefined;
           try {
             await axios.post('/api/surats', {
               agenda_no: agendaNo,
-              tanggal_masuk: String(row.tanggal_masuk).trim(),
+              tanggal_masuk: rawTanggalMasuk,
               jam_pengajuan: row.jam_pengajuan ? String(row.jam_pengajuan).trim() : null,
               nama_instansi: row.nama_instansi ? String(row.nama_instansi).trim() : null,
               pimpinan_organisasi: row.pimpinan_organisasi ? String(row.pimpinan_organisasi).trim() : null,
@@ -164,12 +179,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               status: row.status ? String(row.status).trim() : 'Registrasi',
               catatanKepala: row.catatan_kepala ? String(row.catatan_kepala).trim() : null,
               catatanPimpinan: row.catatan_pimpinan ? String(row.catatan_pimpinan).trim() : null,
-              tanggal_acara: row.tanggal_acara ? String(row.tanggal_acara).trim() : null,
+              tanggal_acara: rawTanggalAcara,
               jam_acara: row.jam_acara ? String(row.jam_acara).trim() : null,
               file_gdrive_link: gdriveLink
             });
             successCount++;
           } catch (err) {
+            console.error('Gagal mengimpor surat:', err, row);
             failCount++;
           }
         }

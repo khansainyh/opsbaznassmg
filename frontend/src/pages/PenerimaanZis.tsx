@@ -18,7 +18,9 @@ import {
   Edit3,
   BookOpen,
   Printer,
-  FileText
+  FileText,
+  Upload,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -53,6 +55,130 @@ export default function PenerimaanZis() {
   const [simbaFilter, setSimbaFilter] = useState('Semua');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+
+  const downloadPenerimaanTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        no_kuitansi: 'BSZ-1234567',
+        muzakki_id: 'muzakki-uuid-atau-nama',
+        rkat_id: 'rkat-uuid-atau-program-name',
+        bank_account_id: 'acc-uuid-atau-account-name',
+        coa_code: '41010101',
+        nominal: 1000000,
+        metode_pembayaran: 'TRANSFER',
+        tanggal_pembayaran: '2026-01-15',
+        keterangan: 'Penerimaan zakat maal',
+        no_transaksi_simba: 'SIMBA-12345'
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Penerimaan");
+    XLSX.writeFile(wb, "Template_Migrasi_Penerimaan_ZIS.xlsx");
+  };
+
+  const handlePenerimaanFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setMigrating(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawRows = XLSX.utils.sheet_to_json(ws);
+        
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of rawRows as any[]) {
+          if (!row.muzakki_id || !row.nominal || Number(row.nominal) <= 0) continue;
+
+          let mId = row.muzakki_id;
+          const foundMuz = muzakkiList.find(m => 
+            m.id === String(row.muzakki_id).trim() || 
+            (m.nik && m.nik === String(row.muzakki_id).trim()) ||
+            m.nama.toLowerCase() === String(row.muzakki_id).toLowerCase().trim()
+          );
+          if (foundMuz) {
+            mId = foundMuz.id;
+          } else {
+            try {
+              const regRes = await axios.post('/api/muzakki', {
+                nama: String(row.muzakki_id).trim(),
+                kategori: 'Perorangan',
+                alamat: 'Luar Kota Semarang',
+                telepon: '080000000000',
+                status: 'Aktif',
+                nik: `NIK-${Date.now()}`
+              });
+              if (regRes.data.status === 'success') {
+                mId = regRes.data.data.id;
+              }
+            } catch (err) {
+              console.error('Gagal meregistrasi muzakki instan:', err);
+              failCount++;
+              continue;
+            }
+          }
+
+          let bankId = row.bank_account_id;
+          const foundAcc = accountsList.find(a => 
+            a.account_id === String(row.bank_account_id).trim() ||
+            a.nama_akun.toLowerCase() === String(row.bank_account_id).toLowerCase().trim()
+          );
+          if (foundAcc) {
+            bankId = foundAcc.account_id;
+          }
+
+          let rkatId = row.rkat_id || null;
+          if (row.rkat_id) {
+            const foundRkat = rkatList.find(r => 
+              r.id === String(row.rkat_id).trim() ||
+              r.nama_program.toLowerCase() === String(row.rkat_id).toLowerCase().trim()
+            );
+            if (foundRkat) {
+              rkatId = foundRkat.id;
+            }
+          }
+
+          try {
+            await axios.post('/api/penerimaan-zis', {
+              no_kuitansi: row.no_kuitansi ? String(row.no_kuitansi).trim() : undefined,
+              muzakki_id: mId,
+              rkat_id: rkatId,
+              bank_account_id: bankId,
+              coa_code: row.coa_code ? String(row.coa_code).trim() : undefined,
+              nominal: Number(row.nominal),
+              metode_pembayaran: row.metode_pembayaran || 'TRANSFER',
+              tanggal_pembayaran: row.tanggal_pembayaran ? String(row.tanggal_pembayaran).trim() : undefined,
+              keterangan: row.keterangan || null,
+              no_transaksi_simba: row.no_transaksi_simba || null
+            });
+            successCount++;
+          } catch (err) {
+            console.error('Error importing receipt row:', err);
+            failCount++;
+          }
+        }
+
+        alert(`Berhasil mengimpor ${successCount} data penerimaan ZIS. Gagal: ${failCount}`);
+        setIsMigrationModalOpen(false);
+        fetchData();
+      } catch (err) {
+        alert('Gagal memproses file Excel.');
+      } finally {
+        setMigrating(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -923,6 +1049,13 @@ export default function PenerimaanZis() {
             >
               <Plus className="size-4" />
               Input Penerimaan ZIS
+            </button>
+            <button 
+              onClick={() => setIsMigrationModalOpen(true)}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            >
+              <Upload className="size-4" />
+              Migrasi Penerimaan
             </button>
           </div>
         </div>
@@ -1991,6 +2124,16 @@ export default function PenerimaanZis() {
               <button
                 onClick={() => {
                   setIsFabOpen(false);
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap cursor-pointer"
+              >
+                <Upload className="size-4 text-slate-500" />
+                Migrasi Penerimaan
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
                   resetForm();
                   setIsModalOpen(true);
                 }}
@@ -2009,6 +2152,74 @@ export default function PenerimaanZis() {
           <Plus className={cn("size-6 transition-transform duration-300", isFabOpen ? "rotate-45" : "rotate-0")} />
         </button>
       </div>
+
+      {/* Migration Modal */}
+      <AnimatePresence>
+        {isMigrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => setIsMigrationModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden font-sans"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900 font-sans">Migrasi Penerimaan ZIS</h3>
+                <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <FileSpreadsheet className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 font-sans">Impor Data via Excel</h4>
+                  <p className="text-xs text-slate-500 font-sans leading-relaxed">
+                    Gunakan file Excel (.xlsx) dengan kolom: <strong>no_kuitansi, muzakki_id, rkat_id, bank_account_id, coa_code, nominal, metode_pembayaran, tanggal_pembayaran, keterangan, no_transaksi_simba</strong>.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <button onClick={downloadPenerimaanTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left font-sans">
+                        <p className="text-sm font-bold text-primary font-sans">Download Format Template</p>
+                        <p className="text-[10px] text-primary/70 font-medium font-sans">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left font-sans">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors font-sans">Upload File Data Baru</p>
+                        <p className="text-[10px] text-slate-400 font-medium font-sans">Pilih file .xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handlePenerimaanFileUpload} 
+                      disabled={migrating}
+                    />
+                  </label>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

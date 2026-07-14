@@ -1321,3 +1321,75 @@ export const getReplenishments = async (req: Request, res: Response) => {
   }
 };
 
+export const migrateBukuBesar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { transactions } = req.body;
+    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+      res.status(400).json({ error: 'Data transaksi tidak ditemukan atau kosong' });
+      return;
+    }
+
+    let successCount = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const row of transactions) {
+        if (!row.tanggal || !row.nominal || !row.coa_debit || !row.coa_kredit) {
+          continue;
+        }
+
+        // 1. Buat record Realisasi (sebagai wadah transaksi)
+        const realisasi = await tx.realisasi.create({
+          data: {
+            tanggal: new Date(row.tanggal),
+            keterangan: row.keterangan || 'Transaksi Historis',
+            nrm: row.nrm || null,
+          }
+        });
+
+        // 2. Buat Journal Entry Debet
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasi.transaksi_id,
+            coa_code: String(row.coa_debit).trim(),
+            debit: new Prisma.Decimal(row.nominal),
+            kredit: new Prisma.Decimal(0.00),
+            account_id: null
+          }
+        });
+
+        // 3. Buat Journal Entry Kredit
+        await tx.journalEntry.create({
+          data: {
+            transaksi_id: realisasi.transaksi_id,
+            coa_code: String(row.coa_kredit).trim(),
+            debit: new Prisma.Decimal(0.00),
+            kredit: new Prisma.Decimal(row.nominal),
+            account_id: row.bank_account_id || null
+          }
+        });
+
+        // 4. Update saldo BankAccount secara riil jika ada account_id
+        if (row.bank_account_id) {
+          const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
+          await tx.bankAccount.update({
+            where: { account_id: row.bank_account_id } as any,
+            data: {
+              saldo: {
+                [isKredit ? 'decrement' : 'increment']: new Prisma.Decimal(row.nominal)
+              }
+            }
+          });
+        }
+
+        successCount++;
+      }
+    });
+
+    res.status(200).json({ success: true, message: `Berhasil mengimpor ${successCount} transaksi Buku Besar.` });
+  } catch (error) {
+    console.error('Error migrating Buku Besar:', error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+

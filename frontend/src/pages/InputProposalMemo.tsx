@@ -22,12 +22,15 @@ import {
   FileSearch,
   Monitor,
   Send,
-  Printer
+  Printer,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { cn } from '../lib/utils';
+import * as XLSX from 'xlsx';
 import { ProposalMemo } from '../data/proposalMemoData';
 import { pilarData, Pilar } from '../data/pilarData';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
@@ -76,6 +79,121 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+
+  const downloadProposalTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        tanggal_masuk: '2026-01-15',
+        jenis_pengajuan: 'Perorangan',
+        nama_pemohon: 'Ahmad Fauzi',
+        nik: '3374012345678901',
+        no_kk: '3374012345678902',
+        alamat: 'Jl. Pemuda No. 12',
+        kelurahan: 'Sekayu',
+        kecamatan: 'Semarang Tengah',
+        no_telpon: '081234567890',
+        jenis_permohonan: '1.1.1',
+        nominal: 1500000,
+        asnaf: 'Miskin',
+        keperluan: 'Bantuan Biaya Pengobatan',
+        status: 'Selesai'
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Proposal");
+    XLSX.writeFile(wb, "Template_Migrasi_Proposal.xlsx");
+  };
+
+  const handleProposalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setMigrating(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawRows = XLSX.utils.sheet_to_json(ws);
+        
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of rawRows as any[]) {
+          if (!row.tanggal_masuk || !row.nama_pemohon) continue;
+
+          let mustahikId = null;
+          const cleanNik = row.nik ? String(row.nik).trim() : '';
+
+          if (cleanNik.length === 16) {
+            try {
+              const cekRes = await axios.get(`/api/mustahik/cek-nik/${cleanNik}`);
+              if (cekRes.data.mustahik_id) {
+                mustahikId = cekRes.data.mustahik_id;
+              } else {
+                const isLembaga = String(row.jenis_pengajuan).toLowerCase() === 'lembaga';
+                const regRes = await axios.post('/api/mustahik/auto-register', {
+                  nik: cleanNik,
+                  nama: row.nama_pemohon,
+                  alamat: row.alamat || null,
+                  telepon: row.no_telpon || null,
+                  handphone: isLembaga ? null : (row.no_telpon || null),
+                  kategori: isLembaga ? 'Lembaga' : 'Perorangan',
+                  provinsi: 'Jawa Tengah',
+                  kabupaten: 'Kota Semarang',
+                  kecamatan: row.kecamatan || null,
+                  kelurahan: row.kelurahan || null
+                });
+                mustahikId = regRes.data.mustahik_id;
+              }
+            } catch (err) {
+              console.error('Error auto-registering mustahik:', err);
+            }
+          }
+
+          try {
+            await axios.post('/api/proposals', {
+              tanggal_masuk: String(row.tanggal_masuk).trim(),
+              jenis_pengajuan: row.jenis_pengajuan || 'Perorangan',
+              nama_pemohon: row.nama_pemohon,
+              nama_instansi: row.jenis_pengajuan === 'Lembaga' ? row.nama_pemohon : null,
+              nik: cleanNik || null,
+              no_kk: row.no_kk ? String(row.no_kk).trim() : null,
+              alamat: row.alamat || null,
+              kelurahan: row.kelurahan || null,
+              kecamatan: row.kecamatan || null,
+              no_telpon: row.no_telpon || null,
+              jenis_permohonan: String(row.jenis_permohonan || '').trim() || null,
+              nominal: Number(row.nominal || 0),
+              asnaf: row.asnaf || 'Miskin',
+              keperluan: row.keperluan || 'Bantuan Kemanusiaan',
+              status: row.status || 'Selesai',
+              mustahik_id: mustahikId
+            });
+            successCount++;
+          } catch (err) {
+            console.error('Error importing row:', err);
+            failCount++;
+          }
+        }
+
+        alert(`Berhasil mengimpor ${successCount} data proposal. Gagal: ${failCount}`);
+        setIsMigrationModalOpen(false);
+        window.location.reload();
+      } catch (err) {
+        alert('Gagal memproses file Excel.');
+      } finally {
+        setMigrating(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Kecamatan/Kelurahan state
@@ -1271,6 +1389,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
             >
               <Plus className="size-4" />
               Tambah Data Baru
+            </button>
+            <button
+              onClick={() => setIsMigrationModalOpen(true)}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            >
+              <Upload className="size-4" />
+              Migrasi Proposal
             </button>
           </div>
         </div>
@@ -2869,6 +2994,16 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               <button
                 onClick={() => {
                   setIsFabOpen(false);
+                  setIsMigrationModalOpen(true);
+                }}
+                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap cursor-pointer"
+              >
+                <Upload className="size-4 text-slate-500" />
+                Migrasi Proposal
+              </button>
+              <button
+                onClick={() => {
+                  setIsFabOpen(false);
                   setEditingProposal(null);
                   setNikCheckStr('');
                   setNoKk('');
@@ -2901,6 +3036,72 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           <Plus className={cn("size-6 transition-transform duration-300", isFabOpen ? "rotate-45" : "rotate-0")} />
         </button>
       </div>
+
+      {/* Migration Modal */}
+      <AnimatePresence>
+        {isMigrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => setIsMigrationModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900 font-sans">Migrasi Data Proposal</h3>
+                <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <FileSpreadsheet className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 font-sans">Impor Data via Excel</h4>
+                  <p className="text-xs text-slate-500 font-sans leading-relaxed">Gunakan file Excel (.xlsx) dengan kolom: tanggal_masuk, jenis_pengajuan, nama_pemohon, nik, no_kk, alamat, kelurahan, kecamatan, no_telpon, jenis_permohonan, nominal, asnaf, keperluan, status.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <button onClick={downloadProposalTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left font-sans">
+                        <p className="text-sm font-bold text-primary">Download Format Template</p>
+                        <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left font-sans">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handleProposalFileUpload} 
+                      disabled={migrating}
+                    />
+                  </label>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
