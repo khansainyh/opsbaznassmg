@@ -1460,6 +1460,9 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
 
         successCount++;
       }
+    }, {
+      maxWait: 15000,
+      timeout: 120000
     });
 
     res.status(200).json({ success: true, message: `Berhasil mengimpor ${successCount} transaksi Buku Besar.` });
