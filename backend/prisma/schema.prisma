@@ -280,6 +280,9 @@ model Realisasi {
   nrm            String?        @db.VarChar(100)
   createdAt      DateTime       @default(now())
   journalEntries JournalEntry[]
+
+  @@index([tanggal])
+  @@index([createdAt])
 }
 
 model JournalEntry {

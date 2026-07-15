@@ -9,7 +9,8 @@ import {
  ChevronDown,
  Check,
  X,
- ChevronRight,
+ ChevronLeft,
+  ChevronRight,
  HeartPulse,
  ShieldCheck,
  ShieldAlert,
@@ -78,8 +79,10 @@ const KAS_SETARA_KAS_CODES = [
 export default function BukuBesar() {
  const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
  const [coas, setCoas] = useState<COAItem[]>([]);
+  const [jurnalCurrentPage, setJurnalCurrentPage] = useState(1);
+  const itemsPerPage = 50;
  const [searchTerm, setSearchTerm] = useState('');
- const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
  const [healthData, setHealthData] = useState<any>(null);
  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
@@ -343,10 +346,15 @@ export default function BukuBesar() {
 
  // Selected COA Codes for filtering
  const [selectedCoas, setSelectedCoas] = useState<string[]>([]);
- const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
- const [coaSearchTerm, setCoaSearchTerm] = useState('');
- 
- const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
+  const [coaSearchTerm, setCoaSearchTerm] = useState('');
+
+  // Reset page when filters change
+  useEffect(() => {
+    setJurnalCurrentPage(1);
+  }, [startDate, endDate, selectedCoas, searchTerm]);
+  
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
  // Helper function to determine normal balance type
  const getNormalBalanceType = (coaCode: string, classification?: string, name?: string) => {
@@ -497,6 +505,11 @@ export default function BukuBesar() {
  return isKreditB - isKreditA;
  });
  }, [filteredLedger]);
+
+  const paginatedLedger = useMemo(() => {
+    const start = (jurnalCurrentPage - 1) * itemsPerPage;
+    return sortedLedger.slice(start, start + itemsPerPage);
+  }, [sortedLedger, jurnalCurrentPage]);
 
  // Compute total debit/kredit of filtered list
  const totalDebit = useMemo(() => {
@@ -1328,8 +1341,15 @@ export default function BukuBesar() {
 
  {/* TAB 1: JURNAL TRANSAKSI - Table */}
  {activeTab ==='jurnal' && (
- <div className="overflow-x-auto print:overflow-visible">
- <table className="w-full text-left">
+  <div className="overflow-x-auto print:overflow-visible">
+  {loading ? (
+    <div className="flex h-64 items-center justify-center p-8 text-primary font-bold text-sm gap-2">
+      <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></span>
+      Memproses Data Buku Besar...
+    </div>
+  ) : (
+    <>
+      <table className="w-full text-left">
  <thead>
  <tr className="bg-slate-50/50 print:bg-white print:border-b">
  <th className="px-6 py-4 text-[10px] font-black text-slate-400 print:text-black">Tanggal Jurnal</th>
@@ -1345,7 +1365,7 @@ export default function BukuBesar() {
  <tr>
  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
  </tr>
- ) : sortedLedger.map((item) => (
+ ) : paginatedLedger.map((item) => (
  <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
  <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">
  <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
@@ -1371,13 +1391,71 @@ export default function BukuBesar() {
  ))}
  </tbody>
  </table>
- </div>
- )}
+      
+      {/* Pagination Controls */}
+      <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/20 text-xs print:hidden">
+        <p className="text-slate-400 font-bold">
+          Menampilkan {sortedLedger.length === 0 ? 0 : (jurnalCurrentPage - 1) * itemsPerPage + 1}-{Math.min(jurnalCurrentPage * itemsPerPage, sortedLedger.length)} dari {sortedLedger.length} Transaksi Jurnal
+        </p>
+        <div className="flex gap-1 items-center">
+          <button 
+            type="button"
+            onClick={() => setJurnalCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={jurnalCurrentPage === 1}
+            className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+                    <div className="flex items-center gap-1.5 text-slate-500 font-bold px-2">
+            <span>Halaman</span>
+            <input
+              type="number"
+              min={1}
+              max={Math.ceil(sortedLedger.length / itemsPerPage) || 1}
+              value={jurnalCurrentPage === 0 ? '' : jurnalCurrentPage}
+              onChange={(e) => {
+                const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                const totalPages = Math.ceil(sortedLedger.length / itemsPerPage) || 1;
+                if (val === 0) {
+                  setJurnalCurrentPage(0);
+                } else if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                  setJurnalCurrentPage(val);
+                }
+              }}
+              onBlur={() => {
+                if (jurnalCurrentPage === 0) {
+                  setJurnalCurrentPage(1);
+                }
+              }}
+              className="w-12 text-center py-1 border border-slate-200 rounded-md bg-white text-slate-750 outline-none focus:border-primary text-[11px] font-extrabold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <span>dari {Math.ceil(sortedLedger.length / itemsPerPage) || 1}</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setJurnalCurrentPage(prev => Math.min(prev + 1, Math.ceil(sortedLedger.length / itemsPerPage) || 1))}
+            disabled={jurnalCurrentPage === (Math.ceil(sortedLedger.length / itemsPerPage) || 1)}
+            className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      </div>
+    </>
+  )}
+  </div>
+  )}
 
  {/* TAB 2: REKAPITULASI COA - Table */}
  {activeTab ==='rekap' && (
- <div className="overflow-x-auto print:overflow-visible">
- <table className="w-full text-left">
+  <div className="overflow-x-auto print:overflow-visible">
+  {loading ? (
+    <div className="flex h-64 items-center justify-center p-8 text-primary font-bold text-sm gap-2">
+      <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></span>
+      Memproses Rekapitulasi COA...
+    </div>
+  ) : (
+  <table className="w-full text-left">
  <thead>
  <tr className="bg-slate-50/50 print:bg-white print:border-b">
  <th className="px-6 py-4 text-[10px] font-black text-slate-400 print:text-black">Kode COA</th>
@@ -1463,8 +1541,9 @@ export default function BukuBesar() {
  )}
  </tbody>
  </table>
- </div>
- )}
+  )}
+  </div>
+  )}
  </motion.div>
 
  {/* Diagnostics & Balancing Modal (No-Print) */}

@@ -3310,7 +3310,31 @@ export default function DatabaseUPZ() {
             >
               <ChevronLeft className="size-4" />
             </button>
-            <span className="text-slate-500 font-bold px-2">Page {currentPage} of {Math.ceil(filteredData.length / itemsPerPage) || 1}</span>
+                        <div className="flex items-center gap-1.5 text-slate-500 font-bold px-2">
+              <span>Page</span>
+              <input
+                type="number"
+                min={1}
+                max={Math.ceil(filteredData.length / itemsPerPage) || 1}
+                value={currentPage === 0 ? '' : currentPage}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                  const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
+                  if (val === 0) {
+                    setCurrentPage(0);
+                  } else if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                    setCurrentPage(val);
+                  }
+                }}
+                onBlur={() => {
+                  if (currentPage === 0) {
+                    setCurrentPage(1);
+                  }
+                }}
+                className="w-12 text-center py-1 border border-slate-200 rounded-md bg-white text-slate-750 outline-none focus:border-primary text-[11px] font-extrabold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span>of {Math.ceil(filteredData.length / itemsPerPage) || 1}</span>
+            </div>
             <button 
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredData.length / itemsPerPage) || 1))}
               disabled={currentPage === (Math.ceil(filteredData.length / itemsPerPage) || 1)}
