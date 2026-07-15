@@ -1571,9 +1571,9 @@ export default function PengaturanKeuangan() {
                               className="w-full text-xs bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 focus:ring-2 focus:ring-primary/10 outline-none font-medium"
                             />
                           </div>
-                          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
+                           <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48">
                             {coas
-                              .filter(c => c.klasifikasi === 'Aktiva')
+                              .filter(c => c.klasifikasi === 'Aktiva' || c.klasifikasi === 'Kewajiban')
                               .filter(c => 
                                 c.coa_code.toLowerCase().includes(formCoaSearchQuery.toLowerCase()) || 
                                 c.nama_akun.toLowerCase().includes(formCoaSearchQuery.toLowerCase())
@@ -1600,7 +1600,7 @@ export default function PengaturanKeuangan() {
                                 </button>
                               ))
                             }
-                            {coas.filter(c => c.klasifikasi === 'Aktiva').filter(c => 
+                            {coas.filter(c => c.klasifikasi === 'Aktiva' || c.klasifikasi === 'Kewajiban').filter(c => 
                               c.coa_code.toLowerCase().includes(formCoaSearchQuery.toLowerCase()) || 
                               c.nama_akun.toLowerCase().includes(formCoaSearchQuery.toLowerCase())
                             ).length === 0 && (
