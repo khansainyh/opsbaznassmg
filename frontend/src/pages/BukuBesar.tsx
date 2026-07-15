@@ -81,6 +81,21 @@ export default function BukuBesar() {
  const [coas, setCoas] = useState<COAItem[]>([]);
   const [jurnalCurrentPage, setJurnalCurrentPage] = useState(1);
   const itemsPerPage = 50;
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  // Monitor print events to render the complete list during printing
+  useEffect(() => {
+    const handleBeforePrint = () => setIsPrinting(true);
+    const handleAfterPrint = () => setIsPrinting(false);
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
  const [healthData, setHealthData] = useState<any>(null);
@@ -1365,7 +1380,7 @@ export default function BukuBesar() {
  <tr>
  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
  </tr>
- ) : paginatedLedger.map((item) => (
+ ) : (isPrinting ? sortedLedger : paginatedLedger).map((item) => (
  <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
  <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">
  <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
