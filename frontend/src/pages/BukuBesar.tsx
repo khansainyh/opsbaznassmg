@@ -17,7 +17,8 @@ import {
  Info,
  Upload,
  Download,
- FileSpreadsheet
+ FileSpreadsheet,
+ AlertTriangle
 } from'lucide-react';
 import { motion, AnimatePresence } from'motion/react';
 import { cn } from'../lib/utils';
@@ -83,64 +84,241 @@ export default function BukuBesar() {
  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
  const [migrating, setMigrating] = useState(false);
+ const [selectedMigrationCoa, setSelectedMigrationCoa] = useState<string>('');
+ const [fileName, setFileName] = useState<string>('');
+ const [parsedTransactions, setParsedTransactions] = useState<any[]>([]);
 
  const downloadBukuBesarTemplate = () => {
-  const ws = XLSX.utils.json_to_sheet([
-   {
-    tanggal: '2026-01-15',
-    keterangan: 'Penerimaan ZIS program Modal Usaha via Cash dari A',
-    nominal: 1500000,
-    coa_debit: '11010101',
-    coa_kredit: '41010101',
-    bank_account_id: '',
-    tipe_mutasi: 'DEBIT',
-    nrm: ''
-   }
-  ]);
+  let ws;
+  if (selectedMigrationCoa) {
+   ws = XLSX.utils.json_to_sheet([
+    {
+     'Tgl trx': '07/01/2026',
+     'KODE AKUN': '41020201',
+     'KETERANGAN': 'Terima Zakat Maal dari Wiyatno, Semarang',
+     'DEBET': 500000,
+     'KREDIT': 0
+    },
+    {
+     'Tgl trx': '08/01/2026',
+     'KODE AKUN': '51030201',
+     'KETERANGAN': 'Bantuan Pengobatan an. Meriana Indah Widyastuti',
+     'DEBET': 0,
+     'KREDIT': 1500000
+    }
+   ]);
+  } else {
+   ws = XLSX.utils.json_to_sheet([
+    {
+     tanggal: '2026-01-15',
+     keterangan: 'Penerimaan ZIS program Modal Usaha via Cash dari A',
+     nominal: 1500000,
+     coa_debit: '11010101',
+     coa_kredit: '41010101'
+    }
+   ]);
+  }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Template_Buku_Besar");
-  XLSX.writeFile(wb, "Template_Migrasi_Buku_Besar.xlsx");
+  XLSX.writeFile(wb, selectedMigrationCoa ? "Template_Migrasi_Jurnal_Per_Akun.xlsx" : "Template_Migrasi_Jurnal_Umum.xlsx");
  };
 
- const handleBukuBesarFileUpload = async (e: any) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  const handleBukuBesarFileUpload = async (e: any) => {
+   const file = e.target.files?.[0];
+   if (!file) return;
 
-  setMigrating(true);
-  const reader = new FileReader();
-  reader.onload = async (evt) => {
+   setFileName(file.name);
    try {
-    const bstr = evt.target?.result;
-    const wb = XLSX.read(bstr, { type: 'binary' });
-    const wsname = wb.SheetNames[0];
-    const ws = wb.Sheets[wsname];
-    const data = XLSX.utils.sheet_to_json(ws);
-    
-    const transactions = data.map((row: any) => ({
-     tanggal: row.tanggal ? String(row.tanggal).trim() : '',
-     keterangan: row.keterangan ? String(row.keterangan).trim() : '',
-     nominal: Number(row.nominal || 0),
-     coa_debit: row.coa_debit ? String(row.coa_debit).trim() : '',
-     coa_kredit: row.coa_kredit ? String(row.coa_kredit).trim() : '',
-     bank_account_id: row.bank_account_id ? String(row.bank_account_id).trim() : null,
-     tipe_mutasi: row.tipe_mutasi ? String(row.tipe_mutasi).toUpperCase().trim() : 'DEBIT',
-     nrm: row.nrm ? String(row.nrm).trim() : null
-    }));
+     const arrayBuffer = await file.arrayBuffer();
+     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+     const sheetName = workbook.SheetNames[0];
+     const worksheet = workbook.Sheets[sheetName];
+     const parsedData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
 
-    const res = await axios.post('/api/finance/ledger/migrate', { transactions });
-    alert(res.data.message || 'Migrasi Jurnal Berhasil!');
-    setIsMigrationModalOpen(false);
-    fetchData();
+     if (parsedData.length === 0) {
+       throw new Error("File kosong atau format tidak sesuai.");
+     }
+
+     const coaCodesSet = new Set(coas.map(c => c.coa_code));
+
+     const mapped = parsedData.map((row: any, idx: number) => {
+       const findKey = (prefixes: string[]) => {
+         return Object.keys(row).find(k => 
+           prefixes.some(p => k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(p))
+         );
+       };
+
+       // 1. Resolve date
+       const tglKey = findKey(['tanggal', 'date', 'tgl']);
+       const tglVal = tglKey ? String(row[tglKey]).trim() : '';
+
+       let formattedDate = tglVal;
+       let isValidDate = false;
+
+       if (tglVal.match(/^\d{2}-\d{2}-\d{4}$/)) {
+         const parts = tglVal.split('-');
+         formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+         isValidDate = true;
+       } else if (tglVal.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+         const parts = tglVal.split('/');
+         formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+         isValidDate = true;
+       } else if (tglVal.match(/^\d{4}-\d{2}-\d{2}$/)) {
+         formattedDate = tglVal;
+         isValidDate = true;
+       } else if (typeof row[tglKey || ''] === 'number') {
+         const dateNum = Number(row[tglKey || '']);
+         const dateObj = new Date((dateNum - 25569) * 86400 * 1000);
+         formattedDate = dateObj.toISOString().split('T')[0];
+         isValidDate = true;
+       }
+
+       let warningMsg = '';
+       if (isValidDate) {
+         const parsedYear = new Date(formattedDate).getFullYear();
+         const currentYear = new Date().getFullYear();
+         if (parsedYear !== currentYear) {
+           warningMsg = `Tahun transaksi (${parsedYear}) berbeda dengan tahun berjalan (${currentYear})!`;
+         }
+       }
+
+       // 2. Resolve keterangan
+       const ketKey = findKey(['keterangan', 'description', 'uraian', 'detail', 'detil']);
+       const keterangan = ketKey ? String(row[ketKey]).trim() : 'Transaksi Historis';
+
+       // 3. Clean and parse numbers
+       const cleanNumber = (val: any) => {
+         if (val === undefined || val === null || val === '') return 0;
+         if (typeof val === 'number') return val;
+         const cleaned = String(val).replace(/[^0-9.-]+/g, '');
+         return parseFloat(cleaned) || 0;
+       };
+
+       // Case A: Migrasi Rekening Koran per-akun terpilih
+       if (selectedMigrationCoa) {
+         const offsetKey = findKey(['kodeakun', 'coa', 'akunlawan', 'offset']);
+         const offsetCoaCode = offsetKey ? String(row[offsetKey]).trim() : '';
+
+         const debitKey = findKey(['debit', 'debet', 'masuk', 'in']);
+         const kreditKey = findKey(['kredit', 'credit', 'keluar', 'out']);
+
+         const debitVal = cleanNumber(debitKey ? row[debitKey] : 0);
+         const kreditVal = cleanNumber(kreditKey ? row[kreditKey] : 0);
+
+         let tipe_mutasi: 'DEBIT' | 'KREDIT' = 'DEBIT';
+         let nominal = 0;
+         let isValidAmount = false;
+
+         if (debitVal > 0 && kreditVal === 0) {
+           tipe_mutasi = 'DEBIT';
+           nominal = debitVal;
+           isValidAmount = true;
+         } else if (kreditVal > 0 && debitVal === 0) {
+           tipe_mutasi = 'KREDIT';
+           nominal = kreditVal;
+           isValidAmount = true;
+         }
+
+         const coa_debit = tipe_mutasi === 'DEBIT' ? selectedMigrationCoa : offsetCoaCode;
+         const coa_kredit = tipe_mutasi === 'DEBIT' ? offsetCoaCode : selectedMigrationCoa;
+
+         const isOffsetCoaValid = coaCodesSet.has(offsetCoaCode);
+
+         return {
+           rowNum: idx + 2,
+           tanggal: formattedDate,
+           keterangan,
+           nominal,
+           coa_debit,
+           coa_kredit,
+           bank_account_id: null,
+           tipe_mutasi,
+           nrm: row.nrm ? String(row.nrm).trim() : null,
+           isValid: isValidDate && isOffsetCoaValid && isValidAmount && keterangan !== '',
+           warningMsg,
+           errorMsg: !isValidDate ? 'Tanggal tidak valid (Gunakan DD-MM-YYYY)' :
+                     !isOffsetCoaValid ? `Kode akun lawan '${offsetCoaCode}' tidak terdaftar di COA` :
+                     !isValidAmount ? 'Nominal harus > 0 (Hanya salah satu dari kolom Debet atau Kredit)' : ''
+         };
+       }
+
+       // Case B: Migrasi Format Default (Umum)
+       const coaDebitKey = findKey(['coadebit', 'debitcoa', 'akun_debit']);
+       const coaKreditKey = findKey(['coakredit', 'kreditcoa', 'akun_kredit']);
+       const coaDebitCode = coaDebitKey ? String(row[coaDebitKey]).trim() : '';
+       const coaKreditCode = coaKreditKey ? String(row[coaKreditKey]).trim() : '';
+
+       const nominalKey = findKey(['nominal', 'jumlah', 'amount']);
+       const nominalVal = cleanNumber(nominalKey ? row[nominalKey] : 0);
+
+       const isDebitValid = coaCodesSet.has(coaDebitCode);
+       const isKreditValid = coaCodesSet.has(coaKreditCode);
+       const isValidAmount = nominalVal > 0;
+
+       return {
+         rowNum: idx + 2,
+         tanggal: formattedDate,
+         keterangan,
+         nominal: nominalVal,
+         coa_debit: coaDebitCode,
+         coa_kredit: coaKreditCode,
+         bank_account_id: null,
+         tipe_mutasi: 'DEBIT',
+         nrm: row.nrm ? String(row.nrm).trim() : null,
+         isValid: isValidDate && isDebitValid && isKreditValid && isValidAmount && keterangan !== '',
+         warningMsg,
+         errorMsg: !isValidDate ? 'Tanggal tidak valid (Gunakan YYYY-MM-DD)' :
+                   !isDebitValid ? `COA Debit '${coaDebitCode}' tidak terdaftar` :
+                   !isKreditValid ? `COA Kredit '${coaKreditCode}' tidak terdaftar` :
+                   !isValidAmount ? 'Nominal harus > 0' : ''
+       };
+     }).filter(Boolean);
+
+     setParsedTransactions(mapped);
    } catch (err: any) {
-    console.error(err);
-    alert(err.response?.data?.error || 'Gagal memproses file Excel.');
+     console.error(err);
+     alert(err.message || 'Gagal membaca file Excel.');
+     setParsedTransactions([]);
+     setFileName('');
    } finally {
-    setMigrating(false);
-    e.target.value = '';
+     e.target.value = '';
    }
   };
-  reader.readAsBinaryString(file);
- };
+
+  const handleBulkMigrationSubmit = async () => {
+    const validItems = parsedTransactions.filter(t => t.isValid);
+    if (validItems.length === 0) {
+      alert('Tidak ada transaksi valid untuk dimigrasikan.');
+      return;
+    }
+
+    setMigrating(true);
+    try {
+      const res = await axios.post('/api/finance/ledger/migrate', { 
+        transactions: validItems.map(item => ({
+          tanggal: item.tanggal,
+          keterangan: item.keterangan,
+          nominal: item.nominal,
+          coa_debit: item.coa_debit,
+          coa_kredit: item.coa_kredit,
+          bank_account_id: item.bank_account_id,
+          tipe_mutasi: item.tipe_mutasi,
+          nrm: item.nrm
+        }))
+      });
+      alert(res.data.message || 'Migrasi Jurnal Berhasil!');
+      setIsMigrationModalOpen(false);
+      setSelectedMigrationCoa('');
+      setParsedTransactions([]);
+      setFileName('');
+      fetchData();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Gagal mengirim data migrasi.');
+    } finally {
+      setMigrating(false);
+    }
+  };
 
  // Tab state
  const [activeTab, setActiveTab] = useState<'jurnal' |'rekap'>('jurnal');
@@ -152,8 +330,7 @@ export default function BukuBesar() {
  const [startDate, setStartDate] = useState(() => {
  const today = new Date();
  const year = today.getFullYear();
- const month = String(today.getMonth() + 1).padStart(2,'0');
- return `${year}-${month}-01`;
+ return `${year}-01-01`;
  });
  
  const [endDate, setEndDate] = useState(() => {
@@ -172,9 +349,23 @@ export default function BukuBesar() {
  const dropdownRef = useRef<HTMLDivElement>(null);
 
  // Helper function to determine normal balance type
- const getNormalBalanceType = (coaCode: string, classification?: string) => {
- const firstChar = coaCode.trim()[0];
- const cls = classification?.toLowerCase() ||'';
+ const getNormalBalanceType = (coaCode: string, classification?: string, name?: string) => {
+ const code = coaCode.trim();
+ const cls = classification?.toLowerCase() || '';
+ const nm = name?.toLowerCase() || '';
+
+ // Akumulasi Penyusutan (Accumulated Depreciation) is a contra-asset account with a normal KREDIT balance
+ if (
+  code.startsWith('1202') ||
+  cls.includes('akumulasi penyusutan') ||
+  cls.includes('akum. penyusutan') ||
+  nm.includes('akumulasi penyusutan') ||
+  nm.includes('akum. penyusutan')
+ ) {
+  return 'KREDIT';
+ }
+
+ const firstChar = code[0];
  
  if (
  firstChar ==='1' || 
@@ -331,7 +522,7 @@ export default function BukuBesar() {
  // 2. Map over all COAs
  const summaries = coas.map(coa => {
  const entrySum = ledgerByCoa[coa.coa_code] || { debit: 0, kredit: 0 };
- const normalType = getNormalBalanceType(coa.coa_code, coa.klasifikasi);
+ const normalType = getNormalBalanceType(coa.coa_code, coa.klasifikasi, coa.nama_akun);
  const saldoAwal = Number(coa.saldo_awal || 0);
  
  let saldo = 0;
@@ -403,6 +594,34 @@ export default function BukuBesar() {
  };
  }, [coaSummaries]);
 
+ // Compute Trial Balance Awal Totals (for checking standard identity debit == kredit at start)
+ const trialBalanceAwalTotals = useMemo(() => {
+  let totalDebitAwal = 0;
+  let totalKreditAwal = 0;
+
+  coaSummaries.forEach(s => {
+   if (s.normalType === 'DEBIT') {
+    if (s.saldo_awal >= 0) {
+     totalDebitAwal += s.saldo_awal;
+    } else {
+     totalKreditAwal += Math.abs(s.saldo_awal);
+    }
+   } else {
+    if (s.saldo_awal >= 0) {
+     totalKreditAwal += s.saldo_awal;
+    } else {
+     totalDebitAwal += Math.abs(s.saldo_awal);
+    }
+   }
+  });
+
+  return {
+   debit: totalDebitAwal,
+   kredit: totalKreditAwal,
+   balanced: Math.abs(totalDebitAwal - totalKreditAwal) < 0.01
+  };
+ }, [coaSummaries]);
+
  // Compute Kas & Setara Kas metrics (Awal, Mutasi, Akhir)
  const kasSetaraKasTotals = useMemo(() => {
  let totalAwal = 0;
@@ -445,36 +664,49 @@ export default function BukuBesar() {
  {/* Custom Print CSS Styles injected dynamically */}
  <style dangerouslySetInnerHTML={{ __html: `
  @media print {
- body {
- background-color: white !important;
- color: black !important;
- }
- aside, nav, header, button, .no-print, input, select {
- display: none !important;
+   @page {
+     size: A4 portrait;
+     margin: 10mm 10mm;
+   }
+   html, body, #root, .flex-1, .overflow-y-auto, [class*="overflow-y-auto"], [class*="min-h-screen"], [class*="h-screen"] {
+     height: auto !important;
+     min-height: 0 !important;
+     overflow: visible !important;
+     position: static !important;
+   }
+   body {
+     background-color: white !important;
+     color: black !important;
+   }
+   aside, nav, header, button, .no-print, input, select, [role="tablist"] {
+     display: none !important;
+   }
+   .print-header {
+     display: block !important;
+     margin-bottom: 15px !important;
+   }
+   .shadow-sm, .rounded-3xl, .rounded-2xl, .bg-slate-50\/50 {
+     box-shadow: none !important;
+     border-radius: 0 !important;
+     border: none !important;
+     background: transparent !important;
+   }
+   table {
+     width: 100% !important;
+     border-collapse: collapse !important;
+   }
+   th, td {
+     border: 1px solid #cbd5e1 !important;
+     padding: 4px 6px !important;
+     font-size: 8px !important;
+     line-height: 1.1 !important;
+   }
+   tr {
+     page-break-inside: avoid !important;
+   }
  }
  .print-header {
- display: block !important;
- }
- .shadow-sm, .rounded-3xl, .rounded-2xl {
- box-shadow: none !important;
- border-radius: 0 !important;
- border: none !important;
- }
- table {
- width: 100% !important;
- border-collapse: collapse !important;
- }
- th, td {
- border: 1px solid #e2e8f0 !important;
- padding: 8px !important;
- font-size: 10px !important;
- }
- tr {
- page-break-inside: avoid !important;
- }
- }
- .print-header {
- display: none;
+   display: none;
  }
 `}} />
 
@@ -1116,7 +1348,12 @@ export default function BukuBesar() {
  ) : sortedLedger.map((item) => (
  <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
  <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">
- {new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}
+ <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
+ {item.realisasi.createdAt && (
+ <div className="text-[9px] text-slate-400 font-sans font-normal mt-0.5 print:hidden">
+ Dicatat: {new Date(item.realisasi.createdAt).toLocaleDateString('id-ID')}
+ </div>
+ )}
  </td>
  <td className="px-6 py-5 font-bold text-slate-800 print:text-black">
  {item.realisasi.keterangan}
@@ -1194,7 +1431,7 @@ export default function BukuBesar() {
  Total Saldo Rekapitulasi COA
  </td>
  <td className="px-6 py-5 text-right text-slate-700 text-sm">
- {formatCurrency(coaSummaries.reduce((sum, s) => sum + s.saldo_awal, 0))}
+ {formatCurrency(trialBalanceAwalTotals.debit)}
  </td>
  <td className="px-6 py-5 text-right text-emerald-800 text-sm">
  {formatCurrency(coaSummaries.reduce((sum, s) => sum + s.debit, 0))}
@@ -1207,12 +1444,18 @@ export default function BukuBesar() {
  <span>
  {formatCurrency(trialBalanceTotals.debit)}
  </span>
- <span className={cn(
-"text-[9px] font-bold mt-0.5",
- trialBalanceTotals.balanced ?"text-emerald-600" :"text-rose-600"
- )}>
- {trialBalanceTotals.balanced ?'BALANCED' :'UNBALANCED'}
- </span>
+ {rekapFilterType !== 'semua' || rekapSearchTerm.trim() !== '' ? (
+   <span className="text-[9px] font-bold mt-0.5 text-slate-400">
+     SUB-TOTAL FILTER
+   </span>
+ ) : (
+   <span className={cn(
+     "text-[9px] font-bold mt-0.5",
+     trialBalanceTotals.balanced ? "text-emerald-600" : "text-rose-600"
+   )}>
+     {trialBalanceTotals.balanced ? 'BALANCED' : 'UNBALANCED'}
+   </span>
+ )}
  </div>
  </td>
  </tr>
@@ -1418,63 +1661,188 @@ export default function BukuBesar() {
  </AnimatePresence>
 
  {/* Migrasi Buku Besar Modal (No-Print) */}
- {isMigrationModalOpen && (
-  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
-   <motion.div
-    initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.95 }}
-    className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
-   >
-    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-     <h3 className="text-xl font-black text-slate-900 font-sans">Migrasi Jurnal</h3>
-     <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-      <X className="size-5 text-slate-400" />
-     </button>
-    </div>
-    <div className="p-8 space-y-6">
-     <div className="text-center space-y-2">
-      <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
-       <FileSpreadsheet className="size-8" />
+  {isMigrationModalOpen && (
+   <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+    <motion.div
+     initial={{ opacity: 0, scale: 0.95 }}
+     animate={{ opacity: 1, scale: 1 }}
+     exit={{ opacity: 0, scale: 0.95 }}
+     className="relative bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+    >
+     <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+      <div className="flex items-center gap-2">
+       <FileSpreadsheet className="size-5 text-primary" />
+       <h3 className="text-lg font-black text-slate-900 font-sans">Migrasi Jurnal</h3>
       </div>
-      <h4 className="font-bold text-slate-900 font-sans font-sans">Impor Data Ledger (.xlsx)</h4>
-      <p className="text-xs text-slate-500 font-medium leading-relaxed font-sans font-sans">
-       Unggah file Excel dengan kolom: <strong>tanggal, keterangan, nominal, coa_debit, coa_kredit</strong>. Kolom opsional: bank_account_id, tipe_mutasi, nrm.
-      </p>
-     </div>
-
-     <div className="space-y-3">
-      <button onClick={downloadBukuBesarTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
-       <div className="flex items-center gap-3">
-        <Download className="size-5 text-primary" />
-        <div className="text-left font-sans font-sans">
-         <p className="text-sm font-bold text-primary">Download Format Template</p>
-         <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
-        </div>
-       </div>
+      <button onClick={() => { setIsMigrationModalOpen(false); setSelectedMigrationCoa(''); setParsedTransactions([]); setFileName(''); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+       <X className="size-5 text-slate-400" />
       </button>
+     </div>
+     
+     <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+      <div className="space-y-4">
+       {/* 1. Rekening Dropdown Select */}
+       <div className="space-y-2 mt-4 text-left">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Pilih Rekening Kas/Bank Utama:</label>
+        <select
+         value={selectedMigrationCoa}
+         onChange={(e) => { setSelectedMigrationCoa(e.target.value); setParsedTransactions([]); setFileName(''); }}
+         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+        >
+         <option value="">-- Migrasi Umum (Jurnal Buku Besar) --</option>
+         {coas.filter(c => c.coa_code.startsWith('1101')).map(c => (
+          <option key={c.coa_code} value={c.coa_code}>
+           {c.coa_code} - {c.nama_akun.split('|').pop()?.trim()}
+          </option>
+         ))}
+        </select>
+        <p className="text-[10px] text-slate-400 font-bold leading-normal">
+         * Pilih Rekening Kas/Bank jika Anda ingin mengunggah riwayat mutasi per rekening. Jika dikosongkan, Anda dapat mengunggah jurnal umum secara keseluruhan.
+        </p>
+       </div>
 
-      <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
-       <div className="flex items-center gap-3">
-        <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
-        <div className="text-left font-sans font-sans">
-         <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
-         <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+       {/* 2. Download Template / Upload File Buttons */}
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Download Template */}
+        <button 
+          onClick={downloadBukuBesarTemplate} 
+          className="flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl hover:bg-primary/10 transition-all text-left"
+        >
+         <div className="flex items-center gap-3">
+          <Download className="size-5 text-primary" />
+          <div className="text-left font-sans">
+           <p className="text-xs font-bold text-primary">Download Format Template</p>
+           <p className="text-[10px] text-primary/70 font-semibold">Unduh kolom format migrasi</p>
+          </div>
+         </div>
+        </button>
+
+        {/* Upload File */}
+        <label className="flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group text-left">
+         <div className="flex items-center gap-3">
+          <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+          <div className="text-left font-sans">
+           <p className="text-xs font-bold text-slate-700 group-hover:text-primary transition-colors">
+            {fileName ? 'Ganti File Excel' : 'Upload File Data Baru'}
+           </p>
+           <p className="text-[10px] text-slate-400 font-semibold truncate max-w-[180px]">
+            {fileName ? fileName : 'Pilih file (.xlsx / .xls)'}
+           </p>
+          </div>
+         </div>
+         <input 
+          type="file" 
+          className="hidden" 
+          accept=".xlsx,.xls,.csv" 
+          onChange={handleBukuBesarFileUpload} 
+          disabled={migrating}
+         />
+        </label>
+       </div>
+      </div>
+
+      {/* 3. Staging/Preview Table */}
+      {parsedTransactions.length > 0 && (
+       <div className="space-y-4 pt-4 border-t border-slate-100">
+        {parsedTransactions.some(p => p.warningMsg) && (
+         <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-800 font-bold flex items-start gap-2">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 animate-pulse" />
+          <div>
+           Peringatan: Terdeteksi {parsedTransactions.filter(p => p.warningMsg).length} transaksi dengan tahun yang berbeda dari tahun berjalan ({new Date().getFullYear()}). Harap pastikan tahun transaksi Anda sudah benar!
+          </div>
+         </div>
+        )}
+        <div className="flex justify-between items-center">
+         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+          Pratinjau Hasil Pembacaan Excel ({parsedTransactions.length} Baris)
+         </h4>
+         <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
+          <span className="flex items-center gap-1">
+           <span className="size-2 rounded-full bg-emerald-500" />
+           {parsedTransactions.filter(p => p.isValid).length} Valid
+          </span>
+          {parsedTransactions.filter(p => p.warningMsg).length > 0 && (
+           <span className="flex items-center gap-1">
+            <span className="size-2 rounded-full bg-amber-500" />
+            {parsedTransactions.filter(p => p.warningMsg).length} Peringatan
+           </span>
+          )}
+          <span className="flex items-center gap-1">
+           <span className="size-2 rounded-full bg-red-500" />
+           {parsedTransactions.filter(p => !p.isValid).length} Error
+          </span>
+         </div>
+        </div>
+
+        <div className="border border-slate-100 rounded-xl overflow-hidden max-h-64 overflow-y-auto custom-scrollbar">
+         <table className="w-full text-left text-xs">
+          <thead>
+           <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
+            <th className="px-4 py-2 text-center w-12">Baris</th>
+            <th className="px-4 py-2 w-24">Tanggal</th>
+            <th className="px-4 py-2 w-24">Debit (Masuk)</th>
+            <th className="px-4 py-2 w-24">Kredit (Keluar)</th>
+            <th className="px-4 py-2">Keterangan</th>
+            <th className="px-4 py-2 text-center w-16">Status</th>
+           </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+           {parsedTransactions.map((item, index) => (
+            <tr key={index} className="hover:bg-slate-50/50">
+             <td className="px-4 py-2 text-center font-semibold text-slate-400">{item.rowNum}</td>
+             <td className="px-4 py-2 font-semibold text-slate-700">
+              <span className={cn(item.warningMsg ? "text-amber-700 bg-amber-50 px-1 rounded font-bold border border-amber-100" : "")}>
+               {item.tanggal || '-'}
+              </span>
+             </td>
+             <td className="px-4 py-2 font-mono font-semibold text-emerald-600">
+              {item.tipe_mutasi === 'DEBIT' ? `Rp ${item.nominal.toLocaleString('id-ID')}` : '-'}
+             </td>
+             <td className="px-4 py-2 font-mono font-semibold text-rose-600">
+              {item.tipe_mutasi === 'KREDIT' ? `Rp ${item.nominal.toLocaleString('id-ID')}` : '-'}
+             </td>
+             <td className="px-4 py-2 text-slate-500 max-w-[200px] truncate" title={item.keterangan}>
+              {item.keterangan || '-'}
+             </td>
+             <td className="px-4 py-2 text-center">
+              {item.isValid ? (
+               item.warningMsg ? (
+                <span className="inline-flex p-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title={item.warningMsg}>
+                 <AlertTriangle className="size-3.5" />
+                </span>
+               ) : (
+                <span className="inline-flex p-0.5 rounded-full bg-emerald-50 text-emerald-600">
+                 <Check className="size-3.5" />
+                </span>
+               )
+              ) : (
+               <span className="inline-flex p-0.5 rounded-full bg-red-50 text-red-600" title={item.errorMsg}>
+                <ShieldAlert className="size-3.5" />
+               </span>
+              )}
+             </td>
+            </tr>
+           ))}
+          </tbody>
+         </table>
         </div>
        </div>
-       <input 
-        type="file" 
-        className="hidden" 
-        accept=".xlsx,.xls,.csv" 
-        onChange={handleBukuBesarFileUpload} 
-        disabled={migrating}
-       />
-      </label>
+      )}
      </div>
-    </div>
-   </motion.div>
-  </div>
- )}
+
+     {/* Modal Footer Actions */}
+     <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+      <button 
+        onClick={handleBulkMigrationSubmit}
+        disabled={migrating || parsedTransactions.filter(p => p.isValid).length === 0}
+        className="w-full py-3.5 bg-primary disabled:bg-slate-100 disabled:text-slate-400 hover:bg-primary/95 text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+      >
+       {migrating ? 'Memproses Migrasi...' : `Proses Migrasi (${parsedTransactions.filter(p => p.isValid).length} Transaksi Valid)`}
+      </button>
+     </div>
+    </motion.div>
+   </div>
+  )}
  </div>
  );
 }

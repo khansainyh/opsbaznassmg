@@ -26,11 +26,31 @@ export const createCOA = async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Kode COA dan Nama Akun wajib diisi' });
       return;
     }
+
+    const oldCoa = await prisma.chartOfAccounts.findUnique({
+      where: { coa_code }
+    });
+
     const coa = await prisma.chartOfAccounts.upsert({
       where: { coa_code },
       update: { nama_akun, klasifikasi, tipe_dana, saldo_awal: saldo_awal !== undefined ? Number(saldo_awal) : undefined },
       create: { coa_code, nama_akun, klasifikasi, tipe_dana, saldo_awal: saldo_awal !== undefined ? Number(saldo_awal) : 0 }
     });
+
+    if (saldo_awal !== undefined && oldCoa) {
+      const diff = Number(saldo_awal) - Number(oldCoa.saldo_awal || 0);
+      if (diff !== 0) {
+        await prisma.bankAccount.updateMany({
+          where: { coa_code },
+          data: {
+            saldo: {
+              increment: new Prisma.Decimal(diff)
+            }
+          }
+        });
+      }
+    }
+
     res.status(201).json(coa);
   } catch (error) {
     res.status(500).json({ error: String(error) });
@@ -41,6 +61,11 @@ export const updateCOA = async (req: Request, res: Response) => {
   try {
     const { coa_code } = req.params;
     const { nama_akun, klasifikasi, tipe_dana, saldo_awal } = req.body;
+
+    const oldCoa = await prisma.chartOfAccounts.findUnique({
+      where: { coa_code } as any
+    });
+
     const coa = await prisma.chartOfAccounts.update({
       where: { coa_code } as any,
       data: { 
@@ -50,6 +75,21 @@ export const updateCOA = async (req: Request, res: Response) => {
         saldo_awal: saldo_awal !== undefined ? Number(saldo_awal) : undefined
       }
     });
+
+    if (saldo_awal !== undefined && oldCoa) {
+      const diff = Number(saldo_awal) - Number(oldCoa.saldo_awal || 0);
+      if (diff !== 0) {
+        await prisma.bankAccount.updateMany({
+          where: { coa_code } as any,
+          data: {
+            saldo: {
+              increment: new Prisma.Decimal(diff)
+            }
+          }
+        });
+      }
+    }
+
     res.status(200).json(coa);
   } catch (error) {
     res.status(500).json({ error: String(error) });
@@ -1337,7 +1377,39 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
           continue;
         }
 
-        // 1. Buat record Realisasi (sebagai wadah transaksi)
+        const coaDebitStr = String(row.coa_debit).trim();
+        const coaKreditStr = String(row.coa_kredit).trim();
+        const nominalDecimal = new Prisma.Decimal(row.nominal);
+
+        // Resolve Bank Accounts dynamically by COA code
+        let debitAccountId = null;
+        let kreditAccountId = null;
+
+        const bankDebit = await tx.bankAccount.findFirst({
+          where: { coa_code: coaDebitStr }
+        });
+        if (bankDebit) {
+          debitAccountId = bankDebit.account_id;
+        }
+
+        const bankKredit = await tx.bankAccount.findFirst({
+          where: { coa_code: coaKreditStr }
+        });
+        if (bankKredit) {
+          kreditAccountId = bankKredit.account_id;
+        }
+
+        // Fallback to manually provided bank_account_id if any
+        if (row.bank_account_id) {
+          const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
+          if (isKredit) {
+            kreditAccountId = row.bank_account_id;
+          } else {
+            debitAccountId = row.bank_account_id;
+          }
+        }
+
+        // Create Realisasi (the transaction container)
         const realisasi = await tx.realisasi.create({
           data: {
             tanggal: new Date(row.tanggal),
@@ -1346,37 +1418,42 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
           }
         });
 
-        // 2. Buat Journal Entry Debet
+        // Create Journal Entry Debet
         await tx.journalEntry.create({
           data: {
             transaksi_id: realisasi.transaksi_id,
-            coa_code: String(row.coa_debit).trim(),
-            debit: new Prisma.Decimal(row.nominal),
+            coa_code: coaDebitStr,
+            debit: nominalDecimal,
             kredit: new Prisma.Decimal(0.00),
-            account_id: null
+            account_id: debitAccountId
           }
         });
 
-        // 3. Buat Journal Entry Kredit
+        // Create Journal Entry Kredit
         await tx.journalEntry.create({
           data: {
             transaksi_id: realisasi.transaksi_id,
-            coa_code: String(row.coa_kredit).trim(),
+            coa_code: coaKreditStr,
             debit: new Prisma.Decimal(0.00),
-            kredit: new Prisma.Decimal(row.nominal),
-            account_id: row.bank_account_id || null
+            kredit: nominalDecimal,
+            account_id: kreditAccountId
           }
         });
 
-        // 4. Update saldo BankAccount secara riil jika ada account_id
-        if (row.bank_account_id) {
-          const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
+        // Update BankAccount balances dynamically
+        if (debitAccountId) {
           await tx.bankAccount.update({
-            where: { account_id: row.bank_account_id } as any,
+            where: { account_id: debitAccountId } as any,
             data: {
-              saldo: {
-                [isKredit ? 'decrement' : 'increment']: new Prisma.Decimal(row.nominal)
-              }
+              saldo: { increment: nominalDecimal }
+            }
+          });
+        }
+        if (kreditAccountId) {
+          await tx.bankAccount.update({
+            where: { account_id: kreditAccountId } as any,
+            data: {
+              saldo: { decrement: nominalDecimal }
             }
           });
         }
