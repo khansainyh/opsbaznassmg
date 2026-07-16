@@ -402,26 +402,28 @@ export default function BukuBesar() {
 
  // Fetch Ledger & COAs on Mount
  const fetchData = async () => {
- setLoading(true);
- try {
- const [resLedger, resCoas, resHealth] = await Promise.all([
- axios.get('/api/finance/ledger'),
- axios.get('/api/finance/coa'),
- axios.get('/api/finance/ledger/health-check')
- ]);
- setLedger(resLedger.data);
- setCoas(resCoas.data);
- setHealthData(resHealth.data.health);
- } catch (e) {
- console.error('Gagal mengambil data buku besar:', e);
- } finally {
- setLoading(false);
- }
- };
+  setLoading(true);
+  try {
+  const [resLedger, resCoas, resHealth] = await Promise.all([
+  axios.get('/api/finance/ledger', {
+    params: { startDate, endDate }
+  }),
+  axios.get('/api/finance/coa'),
+  axios.get('/api/finance/ledger/health-check')
+  ]);
+  setLedger(resLedger.data);
+  setCoas(resCoas.data);
+  setHealthData(resHealth.data.health);
+  } catch (e) {
+  console.error('Gagal mengambil data buku besar:', e);
+  } finally {
+  setLoading(false);
+  }
+  };
 
- useEffect(() => {
- fetchData();
- }, []);
+  useEffect(() => {
+  fetchData();
+  }, [startDate, endDate]);
 
  // Handle COA selection toggle
  const toggleCoaSelection = (code: string) => {

@@ -325,6 +325,7 @@ const SearchableDropdownSingle: React.FC<SearchableDropdownSingleProps> = ({
 export default function TargetRKAT({ proposals }: TargetRKATProps) {
  const { user } = useAuth();
  const isSuperAdmin = user?.role ==='Super_Admin';
+ const canEdit = isSuperAdmin;
  
  const [activeTab, setActiveTab] = useState<'Pengumpulan' |'Penyaluran' |'Operasional'>('Penyaluran');
 
@@ -1325,7 +1326,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </td>
  <td className="px-4 py-4 text-center">
  <div className="flex items-center justify-center gap-1.5">
- {isSuperAdmin && (
+ {canEdit && (
  <>
  <button 
  onClick={() => startEditModal(act)}
@@ -1462,7 +1463,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </p>
  </div>
 
- {isSuperAdmin && (
+ {canEdit && (
  <div className="flex gap-2">
  <button
  onClick={() => setIsMigrationModalOpen(true)}
@@ -1589,7 +1590,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </div>
  </td>
  <td className="px-4 py-4 text-center font-sans" onClick={(e) => e.stopPropagation()}>
- {isSuperAdmin ? (
+ {canEdit ? (
  <div className="flex items-center justify-center gap-1.5">
  <button
  onClick={() => {
@@ -1811,7 +1812,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </div>
  </div>
 
- {isSuperAdmin && (
+ {canEdit && (
  <div className="flex gap-2">
  <button
  onClick={() => setIsMigrationModalOpen(true)}
@@ -1938,7 +1939,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </div>
  </td>
  <td className="px-4 py-4 text-center font-sans" onClick={(e) => e.stopPropagation()}>
- {isSuperAdmin ? (
+ {canEdit ? (
  <div className="flex items-center justify-center gap-1.5">
  <button
  onClick={() => {
@@ -2250,7 +2251,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </span>
  </div>
  
- {activeTab ==='Penyaluran' && isSuperAdmin && (
+ {activeTab ==='Penyaluran' && canEdit && (
  <div className="flex gap-2">
  <button
  onClick={() => setIsMigrationModalOpen(true)}

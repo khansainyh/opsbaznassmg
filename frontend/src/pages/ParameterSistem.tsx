@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 
 interface ParameterItem {
   key: string;
@@ -31,6 +32,9 @@ interface ParameterSistemProps {
 }
 
 export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProps = {}) {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super_Admin';
+
   const [params, setParams] = useState<ParameterItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -356,11 +360,17 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
         <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
           Parameter & Ketetapan Sistem
         </h2>
-        <p className="text-slate-500 font-medium">Atur hak amil, batas kemiskinan, serta format formulir survei lapangan.</p>
+        <p className="text-slate-500 font-medium">
+          {isSuperAdmin 
+            ? "Atur hak amil, batas kemiskinan, serta format formulir survei lapangan."
+            : "Aktifkan atau nonaktifkan modul eksternal Off-Balancing (OBS)."}
+        </p>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex border-b border-slate-200 gap-6">
+      {isSuperAdmin ? (
+        <>
+          {/* Tab Switcher */}
+          <div className="flex border-b border-slate-200 gap-6">
         <button
           type="button"
           onClick={() => setActiveTab('utama')}
@@ -1210,6 +1220,37 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
             </button>
           </motion.div>
         </form>
+        </div>
+      )}
+        </>
+      ) : (
+        <div className="max-w-4xl bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="p-8 space-y-6">
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Modul Off-Balancing (OBS)</h4>
+                <p className="text-xs text-slate-550 font-bold uppercase tracking-wider mt-0.5">Pengaktifan Fitur Tambahan</p>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Mengaktifkan menu <strong>Off-Balancing</strong> dan <strong>Survei OBS</strong> di Sidebar untuk Staf Pelaporan, Distribusi, dan Relawan Lapangan. (Biasa diaktifkan tiap akhir semester: Juni &amp; Desember).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleObsToggle}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                  formValues.obs_menu_enabled === 'true' ? "bg-primary" : "bg-slate-200"
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    formValues.obs_menu_enabled === 'true' ? "translate-x-5" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

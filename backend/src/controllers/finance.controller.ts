@@ -1132,7 +1132,27 @@ export const executeReplenishment = async (req: Request, res: Response) => {
 
 export const getJournalEntries = async (req: Request, res: Response) => {
   try {
+    const { startDate, endDate } = req.query;
+
+    const whereClause: any = {};
+
+    if (startDate || endDate) {
+      whereClause.realisasi = {};
+      if (startDate) {
+        whereClause.realisasi.tanggal = {
+          gte: new Date(`${startDate}T00:00:00.000Z`)
+        };
+      }
+      if (endDate) {
+        whereClause.realisasi.tanggal = {
+          ...whereClause.realisasi.tanggal,
+          lte: new Date(`${endDate}T23:59:59.999Z`)
+        };
+      }
+    }
+
     const entries = await prisma.journalEntry.findMany({
+      where: whereClause,
       include: {
         realisasi: true,
         coa: true,
@@ -1244,61 +1264,81 @@ export const createManualExpense = async (req: Request, res: Response) => {
 // ==========================================
 export const checkLedgerHealth = async (req: Request, res: Response) => {
   try {
-    // 1. Overall ledger totals
-    const entries = await prisma.journalEntry.findMany({
-      include: { realisasi: true }
+    // 1. Overall ledger totals using aggregation
+    const overallAgg = await prisma.journalEntry.aggregate({
+      _sum: {
+        debit: true,
+        kredit: true
+      }
     });
 
-    let totalDebit = 0;
-    let totalKredit = 0;
-    const transactionBalances: Record<string, { debit: number; kredit: number; keterangan: string; tanggal: Date }> = {};
+    const totalDebit = Number(overallAgg._sum.debit || 0);
+    const totalKredit = Number(overallAgg._sum.kredit || 0);
 
-    for (const entry of entries) {
-      const valDebit = Number(entry.debit || 0);
-      const valKredit = Number(entry.kredit || 0);
-      
-      totalDebit += valDebit;
-      totalKredit += valKredit;
-
-      const txId = entry.transaksi_id;
-      if (!transactionBalances[txId]) {
-        transactionBalances[txId] = {
-          debit: 0,
-          kredit: 0,
-          keterangan: entry.realisasi?.keterangan || 'Tanpa Keterangan',
-          tanggal: entry.realisasi?.tanggal || new Date()
-        };
+    // 2. Find unbalanced transactions using aggregation
+    const unbalancedGroups = await prisma.journalEntry.groupBy({
+      by: ['transaksi_id'],
+      _sum: {
+        debit: true,
+        kredit: true
       }
-      transactionBalances[txId].debit += valDebit;
-      transactionBalances[txId].kredit += valKredit;
-    }
+    });
+
+    const unbalancedTxIds = unbalancedGroups
+      .filter(g => Math.abs(Number(g._sum.debit || 0) - Number(g._sum.kredit || 0)) > 0.01)
+      .map(g => g.transaksi_id);
 
     const unbalancedTransactions = [];
-    for (const [txId, bal] of Object.entries(transactionBalances)) {
-      const diff = Math.abs(bal.debit - bal.kredit);
-      if (diff > 0.01) {
+    if (unbalancedTxIds.length > 0) {
+      const unbalancedTxDetails = await prisma.realisasi.findMany({
+        where: { transaksi_id: { in: unbalancedTxIds } },
+        include: { journalEntries: true }
+      });
+      for (const tx of unbalancedTxDetails) {
+        const debit = tx.journalEntries.reduce((sum, e) => sum + Number(e.debit || 0), 0);
+        const kredit = tx.journalEntries.reduce((sum, e) => sum + Number(e.kredit || 0), 0);
         unbalancedTransactions.push({
-          transaksi_id: txId,
-          keterangan: bal.keterangan,
-          tanggal: bal.tanggal,
-          debit: bal.debit,
-          kredit: bal.kredit,
-          difference: diff
+          transaksi_id: tx.transaksi_id,
+          keterangan: tx.keterangan,
+          tanggal: tx.tanggal,
+          debit,
+          kredit,
+          difference: Math.abs(debit - kredit)
         });
       }
     }
 
-    // 2. Bank reconciliation check
+    // 3. Bank reconciliation check using aggregation
     const accounts = await prisma.bankAccount.findMany({
       include: { coa: true }
     });
+
+    const bankAggregates = await prisma.journalEntry.groupBy({
+      by: ['account_id'],
+      _sum: {
+        debit: true,
+        kredit: true
+      },
+      where: {
+        account_id: { not: null }
+      }
+    });
+
+    const bankAggMap: Record<string, { debit: number; kredit: number }> = {};
+    for (const agg of bankAggregates) {
+      if (agg.account_id) {
+        bankAggMap[agg.account_id] = {
+          debit: Number(agg._sum.debit || 0),
+          kredit: Number(agg._sum.kredit || 0)
+        };
+      }
+    }
+
     const bankChecks = [];
     for (const acc of accounts) {
-      const accEntries = await prisma.journalEntry.findMany({
-        where: { account_id: acc.account_id }
-      });
-      const accDebit = accEntries.reduce((sum, e) => sum + Number(e.debit || 0), 0);
-      const accKredit = accEntries.reduce((sum, e) => sum + Number(e.kredit || 0), 0);
+      const agg = bankAggMap[acc.account_id] || { debit: 0, kredit: 0 };
+      const accDebit = agg.debit;
+      const accKredit = agg.kredit;
       const calculatedBalance = Number(acc.coa?.saldo_awal || 0) + accDebit - accKredit;
       const currentSaldo = Number(acc.saldo || 0);
       const difference = Math.abs(calculatedBalance - currentSaldo);

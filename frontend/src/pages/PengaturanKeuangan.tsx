@@ -75,6 +75,7 @@ export interface ProposalItem {
 export default function PengaturanKeuangan() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
+  const canEdit = isSuperAdmin || user?.role === 'Staf_Keuangan' || user?.role === 'Kabag_Keuangan';
 
   const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'kategori-biaya'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
@@ -881,7 +882,7 @@ export default function PengaturanKeuangan() {
                   <span className="size-2 rounded-full bg-orange-500 animate-pulse" />
                   Daftar Kas Kecil &amp; Operasional
                 </h3>
-                {isSuperAdmin && (
+                {canEdit && (
                   <button 
                     onClick={() => handleOpenAccountModal(null, 'TUNAI')}
                     className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
@@ -957,7 +958,7 @@ export default function PengaturanKeuangan() {
                   <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
                   Daftar Rekening Bank
                 </h3>
-                {isSuperAdmin && (
+                {canEdit && (
                   <button 
                     onClick={() => handleOpenAccountModal(null, 'BANK')}
                     className="hidden md:flex px-3.5 py-1.5 bg-primary text-white rounded-xl text-xs font-black shadow-md shadow-primary/10 hover:bg-primary/90 transition-all items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
@@ -1043,7 +1044,7 @@ export default function PengaturanKeuangan() {
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium mt-1">Pemetaan otomatis untuk menjurnal proposal mustahik/penyaluran.</p>
                 </div>
-                {isSuperAdmin && (
+                {canEdit && (
                   <div className="hidden md:flex gap-2">
                     <button 
                       onClick={() => setIsMigrationRuleModalOpen(true)}
@@ -1139,7 +1140,7 @@ export default function PengaturanKeuangan() {
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium mt-1">Pemetaan otomatis potongan porsi amil BAZNAS dan UPZ saat penerimaan zakat/infak.</p>
                 </div>
-                {isSuperAdmin && (
+                {canEdit && (
                   <button 
                     onClick={() => handleOpenPenerimaanModal()}
                     className="hidden md:flex px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/10 hover:bg-blue-700 transition-all items-center gap-1.5 active:scale-95 cursor-pointer"
@@ -1261,7 +1262,7 @@ export default function PengaturanKeuangan() {
                     className="w-full text-sm bg-white border border-slate-200 rounded-xl pl-10 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium"
                   />
                 </div>
-                {isSuperAdmin && (
+                {canEdit && (
                   <div className="hidden md:flex gap-2">
                     <button 
                       onClick={() => setIsMigrationCOAModalOpen(true)}
@@ -2803,7 +2804,7 @@ export default function PengaturanKeuangan() {
       </AnimatePresence>
 
       {/* Floating Action Button (FAB) for Mobile */}
-      {isSuperAdmin && (
+      {canEdit && (
         <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
           <AnimatePresence>
             {isFabOpen && (

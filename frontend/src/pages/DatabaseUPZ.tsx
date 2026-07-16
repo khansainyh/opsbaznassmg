@@ -37,6 +37,7 @@ import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAuth } from '../context/AuthContext';
 
 
 function getEmbedLink(url?: string): string {
@@ -49,6 +50,9 @@ function getEmbedLink(url?: string): string {
 }
 
 export default function DatabaseUPZ() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'Super_Admin' || user?.role === 'Staf_Administrasi';
+
   const [data, setData] = useState<UPZ[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -3112,20 +3116,24 @@ export default function DatabaseUPZ() {
             <Download className="size-4 shrink-0 text-slate-400" />
             Rekapan Hak Tasaruf
           </button>
-          <button 
-            onClick={() => setIsMigrationModalOpen(true)}
-            className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap border border-slate-200 shadow-sm"
-          >
-            <Upload className="size-4 shrink-0 text-slate-400" />
-            Migrasi Data
-          </button>
-          <button 
-            onClick={openAddModal}
-            className="bg-primary hover:bg-primary/95 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95 cursor-pointer whitespace-nowrap"
-          >
-            <Plus className="size-4 shrink-0" />
-            Registrasi UPZ Baru
-          </button>
+          {canEdit && (
+            <>
+              <button 
+                onClick={() => setIsMigrationModalOpen(true)}
+                className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer whitespace-nowrap border border-slate-200 shadow-sm"
+              >
+                <Upload className="size-4 shrink-0 text-slate-400" />
+                Migrasi Data
+              </button>
+              <button 
+                onClick={openAddModal}
+                className="bg-primary hover:bg-primary/95 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="size-4 shrink-0" />
+                Registrasi UPZ Baru
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -3284,13 +3292,15 @@ export default function DatabaseUPZ() {
                       >
                         <Eye className="size-5" />
                       </button>
-                      <button 
-                        onClick={() => openEditModal(item)}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all" 
-                        title="Pembaruan UPZ"
-                      >
-                        <Settings2 className="size-5" />
-                      </button>
+                      {canEdit && (
+                        <button 
+                          onClick={() => openEditModal(item)}
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all" 
+                          title="Pembaruan UPZ"
+                        >
+                          <Settings2 className="size-5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -3401,25 +3411,27 @@ export default function DatabaseUPZ() {
                         Aksi Dinonaktifkan (UPZ {selectedUPZ.status || 'Aktif'})
                       </span>
                     ) : (
-                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        {selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' && (
-                          <button onClick={() => setHistoryView('perubahan')}
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 w-full sm:w-auto cursor-pointer">
-                            <Edit2 className="size-4" />Perubahan Pengurus
+                      canEdit && (
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                          {selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' && (
+                            <button onClick={() => setHistoryView('perubahan')}
+                              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 w-full sm:w-auto cursor-pointer">
+                              <Edit2 className="size-4" />Perubahan Pengurus
+                            </button>
+                          )}
+                          <button onClick={() => {
+                              const nextSK = selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' 
+                                ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) 
+                                : getNextBaseSKNumber(skHistory, data, selectedUPZ.category).toString();
+                              setRenewalForm({ skNumber: nextSK, startYear:'', endYear:'', pimpinanName:'', keterangan:'', scanLink: '' });
+                              setHistoryView('pembaruan');
+                            }}
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/20 w-full sm:w-auto cursor-pointer">
+                            <PlusCircle className="size-4" />
+                            {selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' ? 'Pembaruan SK' : 'Buat SK Pembentukan'}
                           </button>
-                        )}
-                        <button onClick={() => {
-                            const nextSK = selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' 
-                              ? getNextRenewalSKNumber(selectedUPZ.activeSKNumber) 
-                              : getNextBaseSKNumber(skHistory, data, selectedUPZ.category).toString();
-                            setRenewalForm({ skNumber: nextSK, startYear:'', endYear:'', pimpinanName:'', keterangan:'', scanLink: '' });
-                            setHistoryView('pembaruan');
-                          }}
-                          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary/20 w-full sm:w-auto cursor-pointer">
-                          <PlusCircle className="size-4" />
-                          {selectedUPZ.activeSKNumber && selectedUPZ.activeSKNumber !== '-' ? 'Pembaruan SK' : 'Buat SK Pembentukan'}
-                        </button>
-                      </div>
+                        </div>
+                      )
                     )}
                   </div>
 
@@ -4453,24 +4465,29 @@ export default function DatabaseUPZ() {
                 })()}
               </div>
               <div className="p-4 md:p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-2 justify-between items-center w-full">
-                {(selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
-                  <button 
-                    onClick={() => handleReactivateUPZ(selectedUPZ)}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-all text-center cursor-pointer"
-                  >
-                    Aktifkan UPZ Kembali
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => handleTriggerResignation(selectedUPZ)}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl text-sm font-bold transition-all text-center cursor-pointer"
-                  >
-                    Mengundurkan Diri
-                  </button>
+                {canEdit && (
+                  (selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
+                    <button 
+                      onClick={() => handleReactivateUPZ(selectedUPZ)}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-bold transition-all text-center cursor-pointer"
+                    >
+                      Aktifkan UPZ Kembali
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => handleTriggerResignation(selectedUPZ)}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-xl text-sm font-bold transition-all text-center cursor-pointer"
+                    >
+                      Mengundurkan Diri
+                    </button>
+                  )
                 )}
                 <button 
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="w-full sm:w-auto px-8 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all text-center cursor-pointer"
+                  className={cn(
+                    "w-full sm:w-auto px-8 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all text-center cursor-pointer",
+                    !canEdit && "sm:ml-auto"
+                  )}
                 >
                   Tutup
                 </button>
@@ -5696,59 +5713,70 @@ export default function DatabaseUPZ() {
 
       {/* Floating Action Button (FAB) for Mobile */}
       <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3 no-print">
-        {/* FAB Options */}
-        <AnimatePresence>
-          {isFabOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 15, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 15, scale: 0.9 }}
-              className="flex flex-col items-end gap-3"
-            >
-              <button
-                onClick={() => {
-                  setIsFabOpen(false);
-                  setIsDownloadRecapModalOpen(true);
-                }}
-                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
-              >
-                <Download className="size-4 text-slate-500" />
-                Rekapan Hak Tasaruf
-              </button>
-              <button
-                onClick={() => {
-                  setIsFabOpen(false);
-                  setIsMigrationModalOpen(true);
-                }}
-                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
-              >
-                <Upload className="size-4 text-slate-500" />
-                Migrasi Data
-              </button>
-              <button
-                onClick={() => {
-                  setIsFabOpen(false);
-                  openAddModal();
-                }}
-                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
-              >
-                <Plus className="size-4" />
-                Registrasi UPZ Baru
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {canEdit ? (
+          <>
+            {/* FAB Options */}
+            <AnimatePresence>
+              {isFabOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 15, scale: 0.9 }}
+                  className="flex flex-col items-end gap-3"
+                >
+                  <button
+                    onClick={() => {
+                      setIsFabOpen(false);
+                      setIsDownloadRecapModalOpen(true);
+                    }}
+                    className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+                  >
+                    <Download className="size-4 text-slate-500" />
+                    Rekapan Hak Tasaruf
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsFabOpen(false);
+                      setIsMigrationModalOpen(true);
+                    }}
+                    className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+                  >
+                    <Upload className="size-4 text-slate-500" />
+                    Migrasi Data
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsFabOpen(false);
+                      openAddModal();
+                    }}
+                    className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+                  >
+                    <Plus className="size-4" />
+                    Registrasi UPZ Baru
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-        {/* Main FAB Trigger */}
-        <button
-          onClick={() => setIsFabOpen(!isFabOpen)}
-          className={cn(
-            "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
-            isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
-          )}
-        >
-          <Plus className="size-6" />
-        </button>
+            {/* Main FAB Trigger */}
+            <button
+              onClick={() => setIsFabOpen(!isFabOpen)}
+              className={cn(
+                "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+                isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+              )}
+            >
+              <Plus className="size-6" />
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => setIsDownloadRecapModalOpen(true)}
+            className="size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer"
+          >
+            <Download className="size-6" />
+          </button>
+        )}
       </div>
     </div>
   );
