@@ -403,7 +403,7 @@ export default function UserManagement() {
                         onChange={(e) => setFormData({...formData, resetPassword: e.target.checked})}
                         className="rounded text-primary focus:ring-primary size-4" 
                       />
-                      <span className="text-sm font-medium text-slate-600">Reset password ke default (<span className="font-mono text-slate-800">password123</span>)</span>
+                      <span className="text-sm font-medium text-slate-600">Reset password ke default (<span className="font-mono text-slate-800">B4znaskotasmg#!</span>)</span>
                     </label>
                   </div>
                 )}
@@ -411,7 +411,7 @@ export default function UserManagement() {
                 {!isEdit && (
                    <div className="bg-amber-50 rounded-lg p-3 mt-2 border border-amber-200 text-xs text-amber-800 font-medium flex gap-2">
                     <AlertCircle className="size-4 shrink-0" />
-                    <p>Password default untuk akun baru adalah <strong>password123</strong>. User bisa menggantinya nanti.</p>
+                    <p>Password default untuk akun baru adalah <strong>B4znaskotasmg#!</strong>. User bisa menggantinya nanti.</p>
                    </div>
                 )}
               </div>

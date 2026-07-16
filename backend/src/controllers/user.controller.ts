@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../utils/prisma';
 import { Role } from '@prisma/client';
 
-const DEFAULT_PASSWORD = 'password123';
+const DEFAULT_PASSWORD = 'B4znaskotasmg#!';
 
 export const getUsers = async (req: Request, res: Response) => {
   try {

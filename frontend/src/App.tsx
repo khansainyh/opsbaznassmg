@@ -86,7 +86,7 @@ function App() {
         { name: "Dashboard", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Keuangan", "Kabag_Keuangan", "Staf_Pengumpulan", "Staf_Pelaporan", "Humas"] },
         { name: "Laporan Kinerja", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Keuangan", "Staf_Pelaporan"] },
         { name: "Program & Kegiatan", roles: ["Super_Admin"] },
-        { name: "Database UPZ", roles: ["Super_Admin", "Staf_Administrasi", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pengumpulan", "Staf_Pelaporan"] },
+        { name: "Database UPZ", roles: ["Super_Admin", "Staf_Administrasi", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pengumpulan", "Staf_Pelaporan", "Kabag_Pelaporan"] },
         { name: "Data Mustahik", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pelaporan"] },
         { name: "Data Muzakki", roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
         { name: "Input Proposal", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },

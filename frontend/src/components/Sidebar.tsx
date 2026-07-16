@@ -64,7 +64,7 @@ const menuGroups = [
     title: "MASTER DATA",
     items: [
       { name: "Program & Kegiatan", icon: Network, roles: ["Super_Admin"] },
-      { name: "Database UPZ", icon: Building2, roles: ["Super_Admin", "Staf_Administrasi", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pengumpulan", "Staf_Pelaporan"] },
+      { name: "Database UPZ", icon: Building2, roles: ["Super_Admin", "Staf_Administrasi", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pengumpulan", "Staf_Pelaporan", "Kabag_Pelaporan"] },
       { name: "Data Mustahik", icon: Users, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pelaporan"] },
       { name: "Data Muzakki", icon: Users, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
     ]

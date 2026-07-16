@@ -3531,28 +3531,34 @@ export default function DatabaseUPZ() {
                                         >
                                           <FileText className="size-3.5 text-emerald-600" /> Dokumen SK
                                         </button>
+                                        {canEdit && (
+                                          <button
+                                            onClick={() => {
+                                              setEditScanSkTarget(history);
+                                              setFormEditScanLink(history.scanLink || '');
+                                            }}
+                                            className="p-1 text-slate-400 hover:text-primary hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded transition-all inline-block align-middle"
+                                            title="Ubah Link SK"
+                                          >
+                                            <Edit2 className="size-3.5" />
+                                          </button>
+                                        )}
+                                      </>
+                                    ) : (
+                                      canEdit ? (
                                         <button
                                           onClick={() => {
                                             setEditScanSkTarget(history);
-                                            setFormEditScanLink(history.scanLink || '');
+                                            setFormEditScanLink('');
                                           }}
-                                          className="p-1 text-slate-400 hover:text-primary hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded transition-all inline-block align-middle"
-                                          title="Ubah Link SK"
+                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded transition-all inline-block align-middle"
+                                          title="Upload/Scan SK"
                                         >
-                                          <Edit2 className="size-3.5" />
+                                          <FileCheck className="size-3.5" />
                                         </button>
-                                      </>
-                                    ) : (
-                                      <button
-                                        onClick={() => {
-                                          setEditScanSkTarget(history);
-                                          setFormEditScanLink('');
-                                        }}
-                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded transition-all inline-block align-middle"
-                                        title="Upload/Scan SK"
-                                      >
-                                        <FileCheck className="size-3.5" />
-                                      </button>
+                                      ) : (
+                                        <span className="text-slate-400 text-xs">-</span>
+                                      )
                                     )}
                                   </div>
                                 </td>
@@ -3577,22 +3583,26 @@ export default function DatabaseUPZ() {
                                   </td>
                                 )}
                                 <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <button 
-                                      onClick={() => openEditSkModal(history)}
-                                      className="p-1.5 text-slate-400 hover:text-amber-605 hover:bg-amber-50 border border-slate-100 hover:border-amber-200 rounded transition-all cursor-pointer"
-                                      title="Edit Detail SK"
-                                    >
-                                      <Edit2 className="size-3.5" />
-                                    </button>
-                                    <button 
-                                      onClick={() => handleDeleteSK(history.id)}
-                                      className="p-1.5 text-slate-400 hover:text-rose-605 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 rounded transition-all cursor-pointer"
-                                      title="Hapus SK"
-                                    >
-                                      <Trash2 className="size-3.5" />
-                                    </button>
-                                  </div>
+                                  {canEdit ? (
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button 
+                                        onClick={() => openEditSkModal(history)}
+                                        className="p-1.5 text-slate-400 hover:text-amber-605 hover:bg-amber-50 border border-slate-100 hover:border-amber-200 rounded transition-all cursor-pointer"
+                                        title="Edit Detail SK"
+                                      >
+                                        <Edit2 className="size-3.5" />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteSK(history.id)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-605 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 rounded transition-all cursor-pointer"
+                                        title="Hapus SK"
+                                      >
+                                        <Trash2 className="size-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">-</span>
+                                  )}
                                 </td>
                               </tr>
                             );
@@ -3666,42 +3676,50 @@ export default function DatabaseUPZ() {
                                   >
                                     <FileText className="size-3.5 text-emerald-600" /> Dokumen SK
                                   </button>
+                                  {canEdit && (
+                                    <button
+                                      onClick={() => {
+                                        setEditScanSkTarget(history);
+                                        setFormEditScanLink(history.scanLink || '');
+                                      }}
+                                      className="px-3 py-2 text-slate-450 hover:text-primary hover:bg-slate-100 border border-slate-200 rounded-lg transition-all flex items-center justify-center"
+                                      title="Ubah Link SK"
+                                    >
+                                      <Edit2 className="size-3.5" />
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                canEdit && (
                                   <button
                                     onClick={() => {
                                       setEditScanSkTarget(history);
-                                      setFormEditScanLink(history.scanLink || '');
+                                      setFormEditScanLink('');
                                     }}
-                                    className="px-3 py-2 text-slate-450 hover:text-primary hover:bg-slate-100 border border-slate-200 rounded-lg transition-all flex items-center justify-center"
-                                    title="Ubah Link SK"
+                                    className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center justify-center gap-1.5 border border-blue-200 shadow-sm"
+                                  >
+                                    <FileCheck className="size-3.5 text-blue-600" /> Upload Scan SK
+                                  </button>
+                                )
+                              )}
+                              {canEdit && (
+                                <>
+                                  <button
+                                    onClick={() => openEditSkModal(history)}
+                                    className="px-3 py-2 text-slate-450 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                    title="Edit Detail SK"
                                   >
                                     <Edit2 className="size-3.5" />
                                   </button>
+                                  <button
+                                    onClick={() => handleDeleteSK(history.id)}
+                                    className="px-3 py-2 text-slate-450 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                    title="Hapus SK"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
                                 </>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    setEditScanSkTarget(history);
-                                    setFormEditScanLink('');
-                                  }}
-                                  className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors inline-flex items-center justify-center gap-1.5 border border-blue-200 shadow-sm"
-                                >
-                                  <FileCheck className="size-3.5 text-blue-600" /> Upload Scan SK
-                                </button>
                               )}
-                              <button
-                                onClick={() => openEditSkModal(history)}
-                                className="px-3 py-2 text-slate-450 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
-                                title="Edit Detail SK"
-                              >
-                                <Edit2 className="size-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteSK(history.id)}
-                                className="px-3 py-2 text-slate-450 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
-                                title="Hapus SK"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </button>
                               {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) && (
                                 <div className="flex gap-2 w-full mt-1">
                                   <button
