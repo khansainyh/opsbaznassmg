@@ -80,23 +80,8 @@ export default function BukuBesar() {
  const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
  const [coas, setCoas] = useState<COAItem[]>([]);
   const [jurnalCurrentPage, setJurnalCurrentPage] = useState(1);
-  const itemsPerPage = 50;
-  const [isPrinting, setIsPrinting] = useState(false);
-
-  // Monitor print events to render the complete list during printing
-  useEffect(() => {
-    const handleBeforePrint = () => setIsPrinting(true);
-    const handleAfterPrint = () => setIsPrinting(false);
-
-    window.addEventListener('beforeprint', handleBeforePrint);
-    window.addEventListener('afterprint', handleAfterPrint);
-
-    return () => {
-      window.removeEventListener('beforeprint', handleBeforePrint);
-      window.removeEventListener('afterprint', handleAfterPrint);
-    };
-  }, []);
- const [searchTerm, setSearchTerm] = useState('');
+  const itemsPerPage = 20;
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
  const [healthData, setHealthData] = useState<any>(null);
  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
@@ -1364,48 +1349,88 @@ export default function BukuBesar() {
     </div>
   ) : (
     <>
-      <table className="w-full text-left">
- <thead>
- <tr className="bg-slate-50/50 print:bg-white print:border-b">
- <th className="px-6 py-4 text-[10px] font-black text-slate-400 print:text-black">Tanggal Jurnal</th>
- <th className="px-6 py-4 text-[10px] font-black text-slate-400 print:text-black">Keterangan Jurnal (Realisasi)</th>
- <th className="px-6 py-4 text-[10px] font-black text-slate-400 print:text-black">Kode COA</th>
- <th className="px-6 py-4 text-[10px] font-black text-slate-400 print:text-black">Nama Akun COA</th>
- <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right print:text-black">Debet (IDR)</th>
- <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right print:text-black">Kredit (IDR)</th>
- </tr>
- </thead>
- <tbody className="divide-y divide-slate-100 text-sm">
- {sortedLedger.length === 0 ? (
- <tr>
- <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
- </tr>
- ) : (isPrinting ? sortedLedger : paginatedLedger).map((item) => (
- <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
- <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">
- <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
- {item.realisasi.createdAt && (
- <div className="text-[9px] text-slate-400 font-sans font-normal mt-0.5 print:hidden">
- Dicatat: {new Date(item.realisasi.createdAt).toLocaleDateString('id-ID')}
- </div>
- )}
- </td>
- <td className="px-6 py-5 font-bold text-slate-800 print:text-black">
- {item.realisasi.keterangan}
- {item.account && <span className="block text-[10px] text-slate-400 mt-1 font-semibold print:text-slate-500">Kas Fisik: {item.account.nama_akun}</span>}
- </td>
- <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold print:text-black">{item.coa_code}</td>
- <td className="px-6 py-5 font-bold text-slate-800 print:text-black">{item.coa.nama_akun}</td>
- <td className="px-6 py-5 text-right font-black text-emerald-700 print:text-black">
- {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) :'-'}
- </td>
- <td className="px-6 py-5 text-right font-black text-blue-700 print:text-black">
- {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) :'-'}
- </td>
- </tr>
- ))}
- </tbody>
- </table>
+      {/* Table for Screen Display (with pagination) */}
+      <table className="w-full text-left print:hidden">
+        <thead>
+          <tr className="bg-slate-50/50">
+            <th className="px-6 py-4 text-[10px] font-black text-slate-400">Tanggal Jurnal</th>
+            <th className="px-6 py-4 text-[10px] font-black text-slate-400">Keterangan Jurnal (Realisasi)</th>
+            <th className="px-6 py-4 text-[10px] font-black text-slate-400">Kode COA</th>
+            <th className="px-6 py-4 text-[10px] font-black text-slate-400">Nama Akun COA</th>
+            <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Debet (IDR)</th>
+            <th className="px-6 py-4 text-[10px] font-black text-slate-400 text-right">Kredit (IDR)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 text-sm">
+          {sortedLedger.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
+            </tr>
+          ) : paginatedLedger.map((item) => (
+            <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
+              <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold">
+                <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
+                {item.realisasi.createdAt && (
+                  <div className="text-[9px] text-slate-400 font-sans font-normal mt-0.5">
+                    Dicatat: {new Date(item.realisasi.createdAt).toLocaleDateString('id-ID')}
+                  </div>
+                )}
+              </td>
+              <td className="px-6 py-5 font-bold text-slate-800">
+                {item.realisasi.keterangan}
+                {item.account && <span className="block text-[10px] text-slate-400 mt-1 font-semibold">Kas Fisik: {item.account.nama_akun}</span>}
+              </td>
+              <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold">{item.coa_code}</td>
+              <td className="px-6 py-5 font-bold text-slate-800">{item.coa.nama_akun}</td>
+              <td className="px-6 py-5 text-right font-black text-emerald-700">
+                {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-'}
+              </td>
+              <td className="px-6 py-5 text-right font-black text-blue-700">
+                {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Table for PDF Print (complete list of all records without pagination) */}
+      <table className="w-full text-left hidden print:table">
+        <thead>
+          <tr className="print:border-b">
+            <th className="px-6 py-4 text-[10px] font-black text-black">Tanggal Jurnal</th>
+            <th className="px-6 py-4 text-[10px] font-black text-black">Keterangan Jurnal (Realisasi)</th>
+            <th className="px-6 py-4 text-[10px] font-black text-black">Kode COA</th>
+            <th className="px-6 py-4 text-[10px] font-black text-black">Nama Akun COA</th>
+            <th className="px-6 py-4 text-[10px] font-black text-right text-black">Debet (IDR)</th>
+            <th className="px-6 py-4 text-[10px] font-black text-right text-black">Kredit (IDR)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 text-sm">
+          {sortedLedger.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
+            </tr>
+          ) : sortedLedger.map((item) => (
+            <tr key={item.entry_id} className="print:border-b">
+              <td className="px-6 py-5 font-mono text-xs text-black font-bold">
+                <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
+              </td>
+              <td className="px-6 py-5 font-bold text-black">
+                {item.realisasi.keterangan}
+                {item.account && <span className="block text-[10px] text-slate-500 mt-1 font-semibold">Kas Fisik: {item.account.nama_akun}</span>}
+              </td>
+              <td className="px-6 py-5 font-mono text-xs text-black font-bold">{item.coa_code}</td>
+              <td className="px-6 py-5 font-bold text-black">{item.coa.nama_akun}</td>
+              <td className="px-6 py-5 text-right font-black text-black">
+                {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-'}
+              </td>
+              <td className="px-6 py-5 text-right font-black text-black">
+                {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       
       {/* Pagination Controls */}
       <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/20 text-xs print:hidden">
