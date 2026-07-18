@@ -1811,7 +1811,7 @@ export default function BukuBesar() {
          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
         >
          <option value="">-- Migrasi Umum (Jurnal Buku Besar) --</option>
-         {coas.filter(c => c.coa_code.startsWith('1101')).map(c => (
+         {coas.filter(c => c.coa_code.startsWith('1101') || c.coa_code.startsWith('1102')).map(c => (
           <option key={c.coa_code} value={c.coa_code}>
            {c.coa_code} - {c.nama_akun.split('|').pop()?.trim()}
           </option>
