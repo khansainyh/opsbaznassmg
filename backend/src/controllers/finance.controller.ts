@@ -68,9 +68,9 @@ export const updateCOA = async (req: Request, res: Response) => {
 
     const coa = await prisma.chartOfAccounts.update({
       where: { coa_code } as any,
-      data: { 
-        nama_akun, 
-        klasifikasi, 
+      data: {
+        nama_akun,
+        klasifikasi,
         tipe_dana,
         saldo_awal: saldo_awal !== undefined ? Number(saldo_awal) : undefined
       }
@@ -444,8 +444,8 @@ export const checkAvailability = async (req: Request, res: Response) => {
 
           // 1. Specific matching asnaf activity
           const matchedAct = details.find(
-            d => d.id === proposal.rkat_activity_id || 
-            (d.asnaf && d.asnaf.toLowerCase() === proposalAsnaf.toLowerCase())
+            d => d.id === proposal.rkat_activity_id ||
+              (d.asnaf && d.asnaf.toLowerCase() === proposalAsnaf.toLowerCase())
           );
 
           if (matchedAct) {
@@ -601,7 +601,7 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
       } else {
         tag = 'ZAKAT';
       }
-      
+
       detectedTag = tag;
 
       const rawProgramCode = proposal.jenis_permohonan || '';
@@ -609,7 +609,7 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
       if (rawProgramCode.includes('.')) {
         activeProgramCode = rawProgramCode.split('.')[0];
       }
-      
+
       let targetProgram = proposal.program;
       if (!targetProgram || targetProgram.code !== activeProgramCode) {
         targetProgram = await prisma.program.findUnique({
@@ -626,14 +626,14 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
 
           if (Array.isArray(details)) {
             const matchedAct = details.find(
-              d => d.id === proposal.rkat_activity_id || 
-              (d.asnaf && d.asnaf.toLowerCase() === (proposal.asnaf || 'miskin').toLowerCase())
+              d => d.id === proposal.rkat_activity_id ||
+                (d.asnaf && d.asnaf.toLowerCase() === (proposal.asnaf || 'miskin').toLowerCase())
             );
 
             if (matchedAct) {
               const actId = matchedAct.id;
               const total = Number(matchedAct.mustahik || 0) * Number(matchedAct.frekuensi || 1) * Number(matchedAct.nominal || 0);
-              
+
               if (!rkatStatusMap.has(actId)) {
                 const journalSum = await prisma.journalEntry.aggregate({
                   _sum: { debit: true },
@@ -654,7 +654,7 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
           }
         }
       }
-      
+
       proposalDetails.push({
         id: proposal.id,
         nama: proposal.nama_pemohon,
@@ -730,11 +730,11 @@ export const previewDisbursement = async (req: Request, res: Response) => {
     }
 
     const ids = proposalIds && Array.isArray(proposalIds) ? proposalIds : [proposalId];
-    
+
     let totalNominal = 0;
     const debitEntries: any[] = [];
     const kreditEntries: any[] = [];
-    
+
     const account = await prisma.bankAccount.findUnique({
       where: { account_id: selectedAccountId } as any,
       include: { coa: true } as any
@@ -807,7 +807,7 @@ export const previewDisbursement = async (req: Request, res: Response) => {
 
       const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
       const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
-      
+
       const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
       const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${proposal.nama_pemohon}`;
 
@@ -862,7 +862,7 @@ export const executeDisbursement = async (req: Request, res: Response) => {
     const result = await prisma.$transaction(async (tx) => {
       let totalNominal = 0;
       const proposals = [];
-      
+
       for (const id of ids) {
         const proposal = await tx.proposal.findUnique({
           where: { id: id } as any,
@@ -898,7 +898,7 @@ export const executeDisbursement = async (req: Request, res: Response) => {
       // 2. Loop through each proposal to create separate Realisasi and journal entries (1 debit + 1 credit per proposal)
       for (const proposal of proposals) {
         const nominal = Number(proposal.nominal || 0);
-        
+
         let fundSource = 'ZAKAT';
         const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan];
         for (const src of possibleSources) {
@@ -1211,7 +1211,7 @@ export const createManualExpense = async (req: Request, res: Response) => {
 
     // Path ke file mutations.json
     const mutationsFilePath = path.join(__dirname, '../data/mutations.json');
-    
+
     // Baca data yang sudah ada
     let mutations: any[] = [];
     try {
