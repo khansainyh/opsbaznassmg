@@ -326,6 +326,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  const { user } = useAuth();
  const isSuperAdmin = user?.role ==='Super_Admin';
  const canEdit = isSuperAdmin;
+ const hasOperasionalAccess = user?.role === 'Kabag_Pelaporan' || user?.role === 'Staf_Pelaporan' || isSuperAdmin;
  
  const [activeTab, setActiveTab] = useState<'Pengumpulan' |'Penyaluran' |'Operasional'>('Penyaluran');
 
@@ -352,7 +353,6 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  const [rkatOperasionalList, setRkatOperasionalList] = useState<any[]>([]);
  const [isAddOperasionalOpen, setIsAddOperasionalOpen] = useState(false);
  const [editingOperasionalItem, setEditingOperasionalItem] = useState<any | null>(null);
- const [formOperCoas, setFormOperCoas] = useState<string[]>([]);
  const [expandedOperId, setExpandedOperId] = useState<string | null>(null);
 
  // Form states for RKAT Operasional (Add/Edit)
@@ -405,15 +405,16 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  }, []);
 
  const fetchRkatOperasional = useCallback(async () => {
+ if (!hasOperasionalAccess) return;
  try {
  const res = await axios.get('/api/rkat-operasional');
- if (res.data.status ==='success') {
+ if (res.data.status === 'success') {
  setRkatOperasionalList(res.data.data);
  }
  } catch (err) {
  console.error('Failed to fetch RKAT Operasional:', err);
  }
- }, []);
+ }, [hasOperasionalAccess]);
 
  const saveNewPengumpulan = async () => {
  try {
@@ -500,7 +501,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  no: formOperNo,
  nama: formOperNama,
  keterangan: formOperKeterangan || null,
- coa_codes: formOperCoas.join(','),
+ coa_codes: null,
  volume: Number(formOperVolume) || 1,
  frekuensi: Number(formOperFrekuensi) || 1,
  unit_cost: Number(formOperUnitCost) || 0,
@@ -535,7 +536,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  no: formOperNo,
  nama: formOperNama,
  keterangan: formOperKeterangan || null,
- coa_codes: formOperCoas.join(','),
+ coa_codes: null,
  volume: Number(formOperVolume) || 1,
  frekuensi: Number(formOperFrekuensi) || 1,
  unit_cost: Number(formOperUnitCost) || 0,
@@ -1404,7 +1405,9 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 
  {/* Tabs */}
  <div className="flex border-b border-slate-200 gap-6">
- {(['Pengumpulan','Penyaluran','Operasional'] as const).map(tab => (
+ {(['Pengumpulan','Penyaluran','Operasional'] as const)
+    .filter(tab => tab !== 'Operasional' || hasOperasionalAccess)
+    .map(tab => (
  <button
  key={tab}
  onClick={() => setActiveTab(tab)}
@@ -1463,7 +1466,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </p>
  </div>
 
- {canEdit && (
+ {hasOperasionalAccess && (
  <div className="flex gap-2">
  <button
  onClick={() => setIsMigrationModalOpen(true)}
@@ -1478,7 +1481,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  setFormOperNo(`O-${Date.now().toString().slice(-4)}`);
  setFormOperNama('');
  setFormOperKeterangan('');
- setFormOperCoas([]);
+ 
  setFormOperVolume(1);
  setFormOperFrekuensi(1);
  setFormOperUnitCost(0);
@@ -1521,7 +1524,6 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </tr>
  ) : (
  rkatOperasionalList.map((item) => {
- const itemCoas = item.coa_codes ? item.coa_codes.split(',').map((c: any) => c.trim()).filter(Boolean) : [];
  const targetVal = Number(item.nilai_anggaran || 0);
  const realisasiVal = Number(item.realisasi_total || 0);
  const pct = targetVal > 0 ? (realisasiVal / targetVal) * 100 : 0;
@@ -1590,7 +1592,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </div>
  </td>
  <td className="px-4 py-4 text-center font-sans" onClick={(e) => e.stopPropagation()}>
- {canEdit ? (
+ {hasOperasionalAccess ? (
  <div className="flex items-center justify-center gap-1.5">
  <button
  onClick={() => {
@@ -1598,7 +1600,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  setFormOperNo(item.no);
  setFormOperNama(item.nama);
  setFormOperKeterangan(item.keterangan ||'');
- setFormOperCoas(item.coa_codes ? item.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : []);
+ 
  setFormOperVolume(Number(item.volume));
  setFormOperFrekuensi(Number(item.frekuensi));
  setFormOperUnitCost(Number(item.unit_cost));
@@ -1651,28 +1653,8 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </span>
  </div>
 
- {/* Related COA Details */}
- <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm flex items-center gap-3">
- <span className="text-[10px] font-black text-slate-400">COA Terkait:</span>
- {itemCoas.length === 0 ? (
- <span className="text-slate-400 italic text-[11px]">Belum dihubungkan ke COA</span>
- ) : (
- <div className="flex flex-wrap gap-1.5">
- {itemCoas.map((coa: string) => {
- const coaDetail = coas.find((c: any) => c.coa_code === coa);
- return (
- <span 
- key={coa} 
- title={coaDetail ? `${coaDetail.coa_code} - ${coaDetail.nama_akun}` : coa}
- className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100"
- >
- {coa} {coaDetail ? `- ${coaDetail.nama_akun}` :''}
- </span>
- );
- })}
- </div>
- )}
- </div>
+
+
 
  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
  {['jan','feb','mar','apr','mei','jun','jul','agt','sep','okt','nov','des'].map((m, idx) => {
@@ -2833,17 +2815,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  </div>
  </div>
 
- {/* COA mapping selection */}
- <div className="border-t border-slate-100 pt-4 space-y-2">
- <SearchableCoaDropdownMulti
- label="Hubungkan ke Akun COA Beban / Operasional"
- selectedCodes={formOperCoas}
- onChange={setFormOperCoas}
- availableCoas={coas.filter((coa: any) => coa.klasifikasi?.toLowerCase() ==='beban' || coa.coa_code.startsWith('5'))}
- placeholder="Cari COA Beban / Operasional..."
- />
- <p className="text-[10px] text-slate-400">Pilih satu atau lebih akun COA Beban. Nilai transaksi Pengeluaran (debit) pada COA terpilih akan otomatis terakumulasi sebagai Realisasi program.</p>
- </div>
+
 
  {/* Month-by-month grid */}
  <div className="border-t border-slate-100 pt-4">
@@ -2943,7 +2915,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  {activeTab ==='Pengumpulan' 
  ?'Gunakan file Excel (.xlsx) dengan kolom: No, Kategori, Nama Program, Kode COA, Target Perorangan, Target Lembaga, Nilai Anggaran, serta target bulanan (Target Jan - Target Des).'
  : activeTab ==='Operasional'
- ?'Gunakan file Excel (.xlsx) dengan kolom: No, Nama Program, Keterangan, Kode COA, Volume, Frekuensi, Unit Cost, serta target bulanan (Target Jan - Target Des).'
+ ?'Gunakan file Excel (.xlsx) dengan kolom: No, Nama Program, Keterangan, Kode COA (Opsional), Volume, Frekuensi, Unit Cost, serta target bulanan (Target Jan - Target Des).'
  :'Gunakan file Excel (.xlsx) dengan kolom: Kode Pilar, Kode Program, Nama Kegiatan, Asnaf, Keterangan, Target Jiwa, Frekuensi, Unit Cost, Kode COA.'}
  </p>
  </div>
@@ -2994,7 +2966,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 "No":"1",
 "Nama Program":"Belanja ATK Kantor",
 "Keterangan":"Pembelian kertas, pulpen, tinta printer triwulanan",
-"Kode COA":"52010101",
+
 "Volume": 4,
 "Frekuensi": 1,
 "Unit Cost": 1500000,
@@ -3012,18 +2984,13 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
 "Target Des": 0
  }
  ]);
- const refCoas = coas
- .filter(coa => coa.klasifikasi?.toLowerCase() ==='beban' || coa.coa_code.startsWith('5'))
- .map(coa => ({
-"Kode COA": (coa.coa_code ||'').replace(/\./g,''),
-"Nama Akun": coa.nama_akun,
-"Klasifikasi": coa.klasifikasi
- }));
- const wsRef = XLSX.utils.json_to_sheet(refCoas);
+ 
+
+ 
 
  const wb = XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb, ws,"Template_Operasional");
- XLSX.utils.book_append_sheet(wb, wsRef,"Referensi_COA_Beban");
+ 
  XLSX.writeFile(wb,"Template_Migrasi_RKAT_Operasional.xlsx");
  } else {
  const ws = XLSX.utils.json_to_sheet([

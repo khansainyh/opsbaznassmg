@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   ChevronRight, 
   Save, 
@@ -77,7 +77,6 @@ export default function PengeluaranManual() {
   const [payoutCatatan, setPayoutCatatan] = useState('');
   const [isPayoutSubmitLoading, setIsPayoutSubmitLoading] = useState(false);
   const [isPayoutDropdownOpen, setIsPayoutDropdownOpen] = useState(false);
-
   // General Status & Toast
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -371,7 +370,7 @@ export default function PengeluaranManual() {
       });
 
       if (res.data.status === 'success') {
-        showToast('Dana berhasil dicairkan & Jurnal otomatis terbentuk!', 'success');
+        showToast('Dana berhasil dicairkan & draft transaksi dikirim ke Pelaporan!', 'success');
         setSelectedQueueItem(null);
         setPayoutCatatan('');
         setPayoutBankAccountId('');
@@ -973,7 +972,7 @@ export default function PengeluaranManual() {
                   disabled={isPayoutSubmitLoading || !payoutBankAccountId}
                   className="w-full py-3 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-xs shadow-md shadow-primary/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  {isPayoutSubmitLoading ? 'Memproses...' : 'Cairkan & Rekam Jurnal'}
+                  {isPayoutSubmitLoading ? 'Memproses...' : 'Cairkan Dana'}
                 </button>
               </div>
             </form>

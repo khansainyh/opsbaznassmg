@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import prisma from '../utils/prisma';
 import { Prisma, StatusPengajuan } from '@prisma/client';
 
@@ -269,7 +271,7 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
 
     const pengajuan = await prisma.pengajuanPencairan.findUnique({
       where: { id },
-      include: { rkat: true, pengaju: true },
+      include: { pengaju: true },
     }) as any;
 
     if (!pengajuan) {
@@ -298,57 +300,7 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
         throw new Error(`Saldo di ${account.nama_akun} tidak mencukupi! Tersedia: ${account.saldo}, Dibutuhkan: ${nominal}`);
       }
 
-      // 2. Decrement bank account balance
-      await tx.bankAccount.update({
-        where: { account_id: bankAccountId },
-        data: {
-          saldo: { decrement: new Prisma.Decimal(nominal) },
-        },
-      });
-
-      // 3. Resolve Debit COA code
-      let debitCoaCode = '529999999'; // Fallback COA
-      if (pengajuan.rkat && pengajuan.rkat.coa_codes) {
-        const firstCoa = pengajuan.rkat.coa_codes.split(',')[0].trim();
-        if (firstCoa) {
-          debitCoaCode = firstCoa;
-        }
-      }
-
-      const formattedKeterangan = `Disbursement Pengajuan: "${pengajuan.keterangan}" an. ${pengajuan.pengaju.name}`;
-
-      // 4. Create Realisasi record
-      const realisasiTrx = await tx.realisasi.create({
-        data: {
-          rkat_id: pengajuan.rkat_id || 'OPERASIONAL_GENERAL',
-          tanggal: new Date(),
-          keterangan: formattedKeterangan,
-        },
-      });
-
-      // 5. Create Debit entry
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasiTrx.transaksi_id,
-          coa_code: debitCoaCode,
-          debit: new Prisma.Decimal(nominal),
-          kredit: new Prisma.Decimal(0.00),
-          account_id: null,
-        },
-      });
-
-      // 6. Create Kredit entry
-      await tx.journalEntry.create({
-        data: {
-          transaksi_id: realisasiTrx.transaksi_id,
-          coa_code: account.coa_code,
-          debit: new Prisma.Decimal(0.00),
-          kredit: new Prisma.Decimal(nominal),
-          account_id: bankAccountId,
-        },
-      });
-
-      // 7. Update Pengajuan record to CAIR
+      // 2. Update Pengajuan record to CAIR
       const p = await tx.pengajuanPencairan.update({
         where: { id },
         data: {
@@ -358,15 +310,47 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
         },
       });
 
-      // 8. Log the payment
+      // 3. Log the payment
       await tx.pengajuanLog.create({
         data: {
           pengajuan_id: id,
           actor_id: actorId,
           action: 'DISBURSE',
-          catatan: catatan || 'Dana dicairkan dan transaksi dicatat di buku besar.',
+          catatan: catatan || 'Dana dicairkan dan rancangan mutasi dikirim ke Pelaporan.',
         },
       });
+
+      // 4. Write PENDING draft mutation to mutations.json
+      const mutationsFilePath = path.join(__dirname, '../data/mutations.json');
+      let mutations: any[] = [];
+      try {
+        const dir = path.dirname(mutationsFilePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        if (fs.existsSync(mutationsFilePath)) {
+          const content = fs.readFileSync(mutationsFilePath, 'utf-8');
+          mutations = JSON.parse(content || '[]');
+        }
+      } catch (readErr) {
+        console.error('Error reading mutations file in disbursePengajuan:', readErr);
+      }
+
+      const newDraft = {
+        id: `mut-${Date.now()}`,
+        tanggalCatatan: new Date().toISOString().split('T')[0],
+        tanggal: new Date().toISOString().split('T')[0],
+        bankAccountId: bankAccountId,
+        bankName: account.nama_akun,
+        keteranganBank: `Disbursement Pengajuan: "${pengajuan.keterangan}" an. ${pengajuan.pengaju.name}`,
+        nominal: nominal,
+        type: 'KREDIT',
+        status: 'PENDING',
+        kategori_biaya: pengajuan.kategori_biaya || 'Lain-lain'
+      };
+
+      mutations.push(newDraft);
+      fs.writeFileSync(mutationsFilePath, JSON.stringify(mutations, null, 2), 'utf-8');
 
       return p;
     });
