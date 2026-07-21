@@ -541,7 +541,7 @@ export default function BukuBesar() {
  const coaSummaries = useMemo(() => {
  // 1. Group ledger entries by coa_code
  const ledgerByCoa: Record<string, { debit: number; kredit: number }> = {};
- filteredLedger.forEach(entry => {
+ ledger.forEach(entry => {
  if (!ledgerByCoa[entry.coa_code]) {
  ledgerByCoa[entry.coa_code] = { debit: 0, kredit: 0 };
  }
@@ -594,7 +594,7 @@ export default function BukuBesar() {
  }
 
  return result;
- }, [coas, filteredLedger, showZeroBalances, rekapSearchTerm, rekapFilterType]);
+ }, [coas, ledger, showZeroBalances, rekapSearchTerm, rekapFilterType]);
 
  // Compute Trial Balance Totals (for checking standard identity debit == kredit)
  const trialBalanceTotals = useMemo(() => {
@@ -659,7 +659,7 @@ export default function BukuBesar() {
 
  // Group ledger entries by coa_code
  const ledgerByCoa: Record<string, { debit: number; kredit: number }> = {};
- filteredLedger.forEach(entry => {
+ ledger.forEach(entry => {
  if (!ledgerByCoa[entry.coa_code]) {
  ledgerByCoa[entry.coa_code] = { debit: 0, kredit: 0 };
  }
@@ -681,7 +681,7 @@ export default function BukuBesar() {
  mutasi: totalMutasi,
  akhir: totalAwal + totalMutasi
  };
- }, [coas, filteredLedger]);
+ }, [coas, ledger]);
 
  // Handle printing as PDF using browser built-in print
  const handlePrint = () => {
