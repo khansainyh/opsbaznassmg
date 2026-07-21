@@ -91,6 +91,14 @@ export default function BukuBesar() {
   const [selectedMigrationCoa, setSelectedMigrationCoa] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [parsedTransactions, setParsedTransactions] = useState<any[]>([]);
+  const [migrationStats, setMigrationStats] = useState<{
+    total: number;
+    processed: number;
+    success: number;
+    failed: number;
+    skipped: number;
+    errors: any[];
+  } | null>(null);
 
   const downloadBukuBesarTemplate = () => {
     let ws;
@@ -298,6 +306,14 @@ export default function BukuBesar() {
 
     setMigrating(true);
     setMigrationProgress('Mempersiapkan migrasi...');
+    setMigrationStats({
+      total: validItems.length,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      skipped: 0,
+      errors: []
+    });
     
     let totalSuccess = 0;
     let totalFailed = 0;
@@ -307,15 +323,15 @@ export default function BukuBesar() {
     const BATCH_SIZE = 20;
     const totalBatches = Math.ceil(validItems.length / BATCH_SIZE);
 
-    try {
-      for (let i = 0; i < totalBatches; i++) {
-        const startIdx = i * BATCH_SIZE;
-        const endIdx = Math.min(startIdx + BATCH_SIZE, validItems.length);
-        const batchItems = validItems.slice(startIdx, endIdx);
-        
-        const pct = Math.round((i / totalBatches) * 100);
-        setMigrationProgress(`Mengirim batch ${i + 1}/${totalBatches} (${pct}%)`);
+    for (let i = 0; i < totalBatches; i++) {
+      const startIdx = i * BATCH_SIZE;
+      const endIdx = Math.min(startIdx + BATCH_SIZE, validItems.length);
+      const batchItems = validItems.slice(startIdx, endIdx);
+      
+      const pct = Math.round((i / totalBatches) * 100);
+      setMigrationProgress(`Mengirim batch ${i + 1}/${totalBatches} (${pct}%)`);
 
+      try {
         const res = await axios.post('/api/finance/ledger/migrate', {
           transactions: batchItems.map(item => ({
             tanggal: item.tanggal,
@@ -337,38 +353,31 @@ export default function BukuBesar() {
         if (errors && Array.isArray(errors)) {
           allErrors.push(...errors);
         }
-      }
-
-      setMigrationProgress('Menyelesaikan...');
-
-      if (totalFailed > 0 || totalSkipped > 0) {
-        let errMessage = `Migrasi selesai:\n\n✅ Berhasil: ${totalSuccess} transaksi\n⏭️ Dilewati (Duplikat): ${totalSkipped} transaksi\n❌ Gagal: ${totalFailed} transaksi\n`;
-        if (allErrors.length > 0) {
-          errMessage += `\nDetail 10 Error Pertama:\n`;
-          allErrors.slice(0, 10).forEach((err: any) => {
-            errMessage += `- Baris ${err.rowNum} ("${err.keterangan}"): ${err.error}\n`;
+      } catch (err: any) {
+        console.error('Batch request failed:', err);
+        totalFailed += batchItems.length;
+        batchItems.forEach(item => {
+          allErrors.push({
+            rowNum: item.rowNum,
+            keterangan: item.keterangan || 'N/A',
+            error: err.response?.data?.error || err.message || 'Koneksi jaringan terputus atau server error.'
           });
-          if (allErrors.length > 10) {
-            errMessage += `...dan ${allErrors.length - 10} error lainnya.`;
-          }
-        }
-        alert(errMessage);
-      } else {
-        alert(`Migrasi Jurnal Berhasil!\n\n✅ Berhasil: ${totalSuccess} transaksi dimasukkan\n⏭️ Dilewati (Duplikat): ${totalSkipped} transaksi`);
+        });
       }
 
-      setIsMigrationModalOpen(false);
-      setSelectedMigrationCoa('');
-      setParsedTransactions([]);
-      setFileName('');
-      fetchData();
-    } catch (err: any) {
-      console.error(err);
-      alert(err.response?.data?.error || 'Gagal mengirim data migrasi.');
-    } finally {
-      setMigrating(false);
-      setMigrationProgress('');
+      setMigrationStats({
+        total: validItems.length,
+        processed: endIdx,
+        success: totalSuccess,
+        failed: totalFailed,
+        skipped: totalSkipped,
+        errors: [...allErrors]
+      });
     }
+
+    setMigrationProgress('Menyelesaikan...');
+    setMigrating(false);
+    fetchData();
   };
 
   // Tab state
@@ -1844,172 +1853,329 @@ export default function BukuBesar() {
                 <FileSpreadsheet className="size-5 text-primary" />
                 <h3 className="text-lg font-black text-slate-900 font-sans">Migrasi Jurnal</h3>
               </div>
-              <button onClick={() => { setIsMigrationModalOpen(false); setSelectedMigrationCoa(''); setParsedTransactions([]); setFileName(''); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => { setIsMigrationModalOpen(false); setSelectedMigrationCoa(''); setParsedTransactions([]); setFileName(''); setMigrationStats(null); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                 <X className="size-5 text-slate-400" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
-              <div className="space-y-4">
-                {/* 1. Rekening Dropdown Select */}
-                <div className="space-y-2 mt-4 text-left">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Pilih Rekening Kas/Bank Utama:</label>
-                  <select
-                    value={selectedMigrationCoa}
-                    onChange={(e) => { setSelectedMigrationCoa(e.target.value); setParsedTransactions([]); setFileName(''); }}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  >
-                    <option value="">-- Migrasi Umum (Jurnal Buku Besar) --</option>
-                    {coas.filter(c => c.coa_code.startsWith('1101') || c.coa_code.startsWith('1102')).map(c => (
-                      <option key={c.coa_code} value={c.coa_code}>
-                        {c.coa_code} - {c.nama_akun.split('|').pop()?.trim()}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-slate-400 font-bold leading-normal">
-                    * Pilih Rekening Kas/Bank jika Anda ingin mengunggah riwayat mutasi per rekening. Jika dikosongkan, Anda dapat mengunggah jurnal umum secara keseluruhan.
+            {migrating ? (
+              <div className="p-12 text-center space-y-6 flex-1 flex flex-col justify-center items-center">
+                <div className="relative size-24 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-slate-100 animate-pulse" />
+                  <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+                  <FileSpreadsheet className="size-8 text-primary animate-bounce" />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-lg font-black text-slate-800">Sedang Memproses Migrasi</h4>
+                  <p className="text-xs text-slate-500 font-bold">
+                    {migrationProgress}
                   </p>
                 </div>
 
-                {/* 2. Download Template / Upload File Buttons */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Download Template */}
-                  <button
-                    onClick={downloadBukuBesarTemplate}
-                    className="flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl hover:bg-primary/10 transition-all text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Download className="size-5 text-primary" />
-                      <div className="text-left font-sans">
-                        <p className="text-xs font-bold text-primary">Download Format Template</p>
-                        <p className="text-[10px] text-primary/70 font-semibold">Unduh kolom format migrasi</p>
-                      </div>
+                {/* Progress Bar */}
+                {migrationStats && (
+                  <div className="w-full max-w-md space-y-2">
+                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-primary h-full transition-all duration-300 ease-out"
+                        style={{ width: `${Math.round((migrationStats.processed / migrationStats.total) * 100)}%` }}
+                      />
                     </div>
-                  </button>
+                    <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase">
+                      <span>Progres: {Math.round((migrationStats.processed / migrationStats.total) * 100)}%</span>
+                      <span>{migrationStats.processed} / {migrationStats.total} Baris</span>
+                    </div>
 
-                  {/* Upload File */}
-                  <label className="flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group text-left">
-                    <div className="flex items-center gap-3">
-                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
-                      <div className="text-left font-sans">
-                        <p className="text-xs font-bold text-slate-700 group-hover:text-primary transition-colors">
-                          {fileName ? 'Ganti File Excel' : 'Upload File Data Baru'}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-semibold truncate max-w-[180px]">
-                          {fileName ? fileName : 'Pilih file (.xlsx / .xls)'}
-                        </p>
+                    {/* Mini Stats Row */}
+                    <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100">
+                      <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100/50 text-center">
+                        <span className="text-[9px] font-bold text-emerald-600 block">Berhasil</span>
+                        <span className="text-sm font-black text-emerald-700">{migrationStats.success}</span>
+                      </div>
+                      <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50 text-center">
+                        <span className="text-[9px] font-bold text-amber-600 block">Dilewati</span>
+                        <span className="text-sm font-black text-amber-700">{migrationStats.skipped}</span>
+                      </div>
+                      <div className="bg-rose-50/50 p-2 rounded-xl border border-rose-100/50 text-center">
+                        <span className="text-[9px] font-bold text-rose-600 block">Gagal</span>
+                        <span className="text-sm font-black text-rose-700">{migrationStats.failed}</span>
                       </div>
                     </div>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".xlsx,.xls,.csv"
-                      onChange={handleBukuBesarFileUpload}
-                      disabled={migrating}
-                    />
-                  </label>
-                </div>
+                  </div>
+                )}
               </div>
-
-              {/* 3. Staging/Preview Table */}
-              {parsedTransactions.length > 0 && (
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  {parsedTransactions.some(p => p.warningMsg) && (
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-800 font-bold flex items-start gap-2">
-                      <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 animate-pulse" />
-                      <div>
-                        Peringatan: Terdeteksi {parsedTransactions.filter(p => p.warningMsg).length} transaksi dengan tahun yang berbeda dari tahun berjalan ({new Date().getFullYear()}). Harap pastikan tahun transaksi Anda sudah benar!
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      Pratinjau Hasil Pembacaan Excel ({parsedTransactions.length} Baris)
-                    </h4>
-                    <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <span className="size-2 rounded-full bg-emerald-500" />
-                        {parsedTransactions.filter(p => p.isValid).length} Valid
-                      </span>
-                      {parsedTransactions.filter(p => p.warningMsg).length > 0 && (
-                        <span className="flex items-center gap-1">
-                          <span className="size-2 rounded-full bg-amber-500" />
-                          {parsedTransactions.filter(p => p.warningMsg).length} Peringatan
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <span className="size-2 rounded-full bg-red-500" />
-                        {parsedTransactions.filter(p => !p.isValid).length} Error
-                      </span>
-                    </div>
+            ) : migrationStats ? (
+              <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                {/* Result Message Card */}
+                <div className={cn(
+                  "p-5 rounded-2xl border text-center flex flex-col items-center justify-center gap-3",
+                  migrationStats.failed === 0
+                    ? "bg-emerald-50/40 border-emerald-100 text-emerald-950"
+                    : "bg-amber-50/40 border-amber-100 text-amber-950"
+                )}>
+                  <div className={cn(
+                    "size-12 rounded-full flex items-center justify-center text-white shadow-md",
+                    migrationStats.failed === 0 ? "bg-emerald-500" : "bg-amber-500"
+                  )}>
+                    {migrationStats.failed === 0 ? <Check className="size-6" /> : <AlertTriangle className="size-6" />}
                   </div>
-
-                  <div className="border border-slate-100 rounded-xl overflow-hidden max-h-64 overflow-y-auto custom-scrollbar">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
-                          <th className="px-4 py-2 text-center w-12">Baris</th>
-                          <th className="px-4 py-2 w-24">Tanggal</th>
-                          <th className="px-4 py-2 w-24">Debit (Masuk)</th>
-                          <th className="px-4 py-2 w-24">Kredit (Keluar)</th>
-                          <th className="px-4 py-2">Keterangan</th>
-                          <th className="px-4 py-2 text-center w-16">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {parsedTransactions.map((item, index) => (
-                          <tr key={index} className="hover:bg-slate-50/50">
-                            <td className="px-4 py-2 text-center font-semibold text-slate-400">{item.rowNum}</td>
-                            <td className="px-4 py-2 font-semibold text-slate-700">
-                              <span className={cn(item.warningMsg ? "text-amber-700 bg-amber-50 px-1 rounded font-bold border border-amber-100" : "")}>
-                                {item.tanggal || '-'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 font-mono font-semibold text-emerald-600">
-                              {item.tipe_mutasi === 'DEBIT' ? `Rp ${item.nominal.toLocaleString('id-ID')}` : '-'}
-                            </td>
-                            <td className="px-4 py-2 font-mono font-semibold text-rose-600">
-                              {item.tipe_mutasi === 'KREDIT' ? `Rp ${item.nominal.toLocaleString('id-ID')}` : '-'}
-                            </td>
-                            <td className="px-4 py-2 text-slate-500 max-w-[200px] truncate" title={item.keterangan}>
-                              {item.keterangan || '-'}
-                            </td>
-                            <td className="px-4 py-2 text-center">
-                              {item.isValid ? (
-                                item.warningMsg ? (
-                                  <span className="inline-flex p-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title={item.warningMsg}>
-                                    <AlertTriangle className="size-3.5" />
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex p-0.5 rounded-full bg-emerald-50 text-emerald-600">
-                                    <Check className="size-3.5" />
-                                  </span>
-                                )
-                              ) : (
-                                <span className="inline-flex p-0.5 rounded-full bg-red-50 text-red-600" title={item.errorMsg}>
-                                  <ShieldAlert className="size-3.5" />
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div>
+                    <h4 className="text-base font-black">
+                      {migrationStats.failed === 0 ? "Migrasi Selesai Sempurna!" : "Migrasi Selesai dengan Catatan"}
+                    </h4>
+                    <p className="text-xs text-slate-500 font-semibold mt-1">
+                      {migrationStats.failed === 0
+                        ? `Seluruh ${migrationStats.success} transaksi valid berhasil dimasukkan ke dalam Buku Besar.`
+                        : `Sebanyak ${migrationStats.success} transaksi berhasil diimpor, ${migrationStats.skipped} dilewati (duplikat), dan ${migrationStats.failed} transaksi mengalami kesalahan.`
+                      }
+                    </p>
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* Main Stats Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+                    <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">Total Baris</span>
+                    <span className="text-xl font-black text-slate-800 mt-1 block">{migrationStats.total}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 text-center">
+                    <span className="text-[9px] font-black text-emerald-600 block uppercase tracking-wider">Berhasil</span>
+                    <span className="text-xl font-black text-emerald-700 mt-1 block">{migrationStats.success}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-100 text-center">
+                    <span className="text-[9px] font-black text-amber-600 block uppercase tracking-wider">Duplikat</span>
+                    <span className="text-xl font-black text-amber-700 mt-1 block">{migrationStats.skipped}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-100 text-center">
+                    <span className="text-[9px] font-black text-rose-600 block uppercase tracking-wider">Gagal</span>
+                    <span className="text-xl font-black text-rose-700 mt-1 block">{migrationStats.failed}</span>
+                  </div>
+                </div>
+
+                {/* Error Log Panel */}
+                {migrationStats.errors.length > 0 && (
+                  <div className="space-y-3">
+                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider pl-1">
+                      Detail Kesalahan Transaksi ({migrationStats.errors.length})
+                    </h5>
+                    <div className="border border-rose-100 rounded-2xl overflow-hidden bg-rose-50/10 max-h-56 overflow-y-auto custom-scrollbar">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-rose-50/80 text-rose-700 font-bold border-b border-rose-100">
+                            <th className="px-4 py-3 w-16 text-center">Baris</th>
+                            <th className="px-4 py-3 w-1/3">Uraian / Keterangan</th>
+                            <th className="px-4 py-3">Penyebab Gagal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-rose-100">
+                          {migrationStats.errors.map((err, idx) => (
+                            <tr key={idx} className="hover:bg-rose-50/30">
+                              <td className="px-4 py-3 text-center font-mono font-bold text-rose-800">{err.rowNum}</td>
+                              <td className="px-4 py-3 text-slate-800 font-semibold truncate max-w-[200px]" title={err.keterangan}>
+                                {err.keterangan}
+                              </td>
+                              <td className="px-4 py-3 text-rose-600 font-medium">
+                                {err.error}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                <div className="space-y-4">
+                  {/* 1. Rekening Dropdown Select */}
+                  <div className="space-y-2 mt-4 text-left">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Pilih Rekening Kas/Bank Utama:</label>
+                    <select
+                      value={selectedMigrationCoa}
+                      onChange={(e) => { setSelectedMigrationCoa(e.target.value); setParsedTransactions([]); setFileName(''); }}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    >
+                      <option value="">-- Migrasi Umum (Jurnal Buku Besar) --</option>
+                      {coas.filter(c => c.coa_code.startsWith('1101') || c.coa_code.startsWith('1102')).map(c => (
+                        <option key={c.coa_code} value={c.coa_code}>
+                          {c.coa_code} - {c.nama_akun.split('|').pop()?.trim()}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 font-bold leading-normal">
+                      * Pilih Rekening Kas/Bank jika Anda ingin mengunggah riwayat mutasi per rekening. Jika dikosongkan, Anda dapat mengunggah jurnal umum secara keseluruhan.
+                    </p>
+                  </div>
+
+                  {/* 2. Download Template / Upload File Buttons */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Download Template */}
+                    <button
+                      onClick={downloadBukuBesarTemplate}
+                      className="flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl hover:bg-primary/10 transition-all text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Download className="size-5 text-primary" />
+                        <div className="text-left font-sans">
+                          <p className="text-xs font-bold text-primary">Download Format Template</p>
+                          <p className="text-[10px] text-primary/70 font-semibold">Unduh kolom format migrasi</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Upload File */}
+                    <label className="flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group text-left">
+                      <div className="flex items-center gap-3">
+                        <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                        <div className="text-left font-sans">
+                          <p className="text-xs font-bold text-slate-700 group-hover:text-primary transition-colors">
+                            {fileName ? 'Ganti File Excel' : 'Upload File Data Baru'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-semibold truncate max-w-[180px]">
+                            {fileName ? fileName : 'Pilih file (.xlsx / .xls)'}
+                          </p>
+                        </div>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleBukuBesarFileUpload}
+                        disabled={migrating}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* 3. Staging/Preview Table */}
+                {parsedTransactions.length > 0 && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    {parsedTransactions.some(p => p.warningMsg) && (
+                      <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-800 font-bold flex items-start gap-2">
+                        <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 animate-pulse" />
+                        <div>
+                          Peringatan: Terdeteksi {parsedTransactions.filter(p => p.warningMsg).length} transaksi dengan tahun yang berbeda dari tahun berjalan ({new Date().getFullYear()}). Harap pastikan tahun transaksi Anda sudah benar!
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        Pratinjau Hasil Pembacaan Excel ({parsedTransactions.length} Baris)
+                      </h4>
+                      <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <span className="size-2 rounded-full bg-emerald-500" />
+                          {parsedTransactions.filter(p => p.isValid).length} Valid
+                        </span>
+                        {parsedTransactions.filter(p => p.warningMsg).length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <span className="size-2 rounded-full bg-amber-500" />
+                            {parsedTransactions.filter(p => p.warningMsg).length} Peringatan
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <span className="size-2 rounded-full bg-red-500" />
+                          {parsedTransactions.filter(p => !p.isValid).length} Error
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="border border-slate-100 rounded-xl overflow-hidden max-h-64 overflow-y-auto custom-scrollbar">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
+                            <th className="px-4 py-2 text-center w-12">Baris</th>
+                            <th className="px-4 py-2 w-24">Tanggal</th>
+                            <th className="px-4 py-2 w-24">Debit (Masuk)</th>
+                            <th className="px-4 py-2 w-24">Kredit (Keluar)</th>
+                            <th className="px-4 py-2">Keterangan</th>
+                            <th className="px-4 py-2 text-center w-16">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {parsedTransactions.map((item, index) => (
+                            <tr key={index} className="hover:bg-slate-50/50">
+                              <td className="px-4 py-2 text-center font-semibold text-slate-400">{item.rowNum}</td>
+                              <td className="px-4 py-2 font-semibold text-slate-700">
+                                <span className={cn(item.warningMsg ? "text-amber-700 bg-amber-50 px-1 rounded font-bold border border-amber-100" : "")}>
+                                  {item.tanggal || '-'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 font-mono font-semibold text-emerald-600">
+                                {item.tipe_mutasi === 'DEBIT' ? `Rp ${item.nominal.toLocaleString('id-ID')}` : '-'}
+                              </td>
+                              <td className="px-4 py-2 font-mono font-semibold text-rose-600">
+                                {item.tipe_mutasi === 'KREDIT' ? `Rp ${item.nominal.toLocaleString('id-ID')}` : '-'}
+                              </td>
+                              <td className="px-4 py-2 text-slate-500 max-w-[200px] truncate" title={item.keterangan}>
+                                {item.keterangan || '-'}
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                {item.isValid ? (
+                                  item.warningMsg ? (
+                                    <span className="inline-flex p-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title={item.warningMsg}>
+                                      <AlertTriangle className="size-3.5" />
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex p-0.5 rounded-full bg-emerald-50 text-emerald-600">
+                                      <Check className="size-3.5" />
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="inline-flex p-0.5 rounded-full bg-red-50 text-red-600" title={item.errorMsg}>
+                                    <ShieldAlert className="size-3.5" />
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Modal Footer Actions */}
-            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
-              <button
-                onClick={handleBulkMigrationSubmit}
-                disabled={migrating || parsedTransactions.filter(p => p.isValid).length === 0}
-                className="w-full py-3.5 bg-primary disabled:bg-slate-100 disabled:text-slate-400 hover:bg-primary/95 text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
-              >
-                {migrating ? (migrationProgress || 'Memproses Migrasi...') : `Proses Migrasi (${parsedTransactions.filter(p => p.isValid).length} Transaksi Valid)`}
-              </button>
-            </div>
+            {migrationStats && !migrating ? (
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 w-full">
+                <button
+                  onClick={() => {
+                    setMigrationStats(null);
+                    setParsedTransactions([]);
+                    setFileName('');
+                  }}
+                  className="flex-1 py-3 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="size-4" />
+                  Migrasi Data Baru
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMigrationModalOpen(false);
+                    setSelectedMigrationCoa('');
+                    setParsedTransactions([]);
+                    setFileName('');
+                    setMigrationStats(null);
+                  }}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black transition-all"
+                >
+                  Tutup
+                </button>
+              </div>
+            ) : !migrating && (
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 w-full">
+                <button
+                  onClick={handleBulkMigrationSubmit}
+                  disabled={parsedTransactions.filter(p => p.isValid).length === 0}
+                  className="w-full py-3.5 bg-primary disabled:bg-slate-100 disabled:text-slate-400 hover:bg-primary/95 text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                >
+                  Proses Migrasi ({parsedTransactions.filter(p => p.isValid).length} Transaksi Valid)
+                </button>
+              </div>
+            )}
           </motion.div>
         </div>
       )}

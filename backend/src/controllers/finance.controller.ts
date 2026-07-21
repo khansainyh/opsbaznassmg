@@ -1417,6 +1417,22 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
     const bankAccounts = await prisma.bankAccount.findMany();
     const bankAccountMap = new Map(bankAccounts.map(b => [String(b.coa_code).trim(), b.account_id]));
 
+    // Pre-fetch candidate realisasi records for all dates present in the batch
+    const dates = transactions
+      .map(t => t.tanggal ? new Date(t.tanggal) : null)
+      .filter((d): d is Date => d !== null);
+
+    const candidateRealisasis = await prisma.realisasi.findMany({
+      where: {
+        tanggal: { in: dates }
+      },
+      include: {
+        journalEntries: true
+      }
+    });
+
+    const itemsToInsert: any[] = [];
+
     for (const row of transactions) {
       const rowNum = row.rowNum || 'Unknown';
       if (!row.tanggal || !row.nominal || !row.coa_debit || !row.coa_kredit) {
@@ -1430,113 +1446,190 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
 
       const coaDebitStr = String(row.coa_debit).trim();
       const coaKreditStr = String(row.coa_kredit).trim();
+      const rowDate = new Date(row.tanggal).getTime();
+      const rowKet = (row.keterangan || 'Transaksi Historis').trim();
+      const rowNominal = Number(row.nominal);
 
-      try {
-        const nominalDecimal = new Prisma.Decimal(row.nominal);
-
-        // Deduplication check: check if this transaction already exists in the database
-        const existingTx = await prisma.realisasi.findFirst({
-          where: {
-            tanggal: new Date(row.tanggal),
-            keterangan: (row.keterangan || 'Transaksi Historis').trim(),
-            journalEntries: {
-              some: {
-                coa_code: coaDebitStr,
-                debit: nominalDecimal
-              }
-            }
-          },
-          include: {
-            journalEntries: true
-          }
-        });
-
-        if (existingTx) {
-          const hasCreditMatch = existingTx.journalEntries.some(
-            e => e.coa_code === coaKreditStr && Number(e.kredit) === Number(row.nominal)
-          );
-          if (hasCreditMatch) {
-            skippedCount++;
-            continue; // Skip inserting this row
-          }
+      // Check deduplication in-memory using candidateRealisasis
+      const existingTx = candidateRealisasis.find(tx => {
+        const txDate = new Date(tx.tanggal).getTime();
+        const txKet = (tx.keterangan || 'Transaksi Historis').trim();
+        if (txDate !== rowDate || txKet !== rowKet) {
+          return false;
         }
+        
+        const hasDebitMatch = tx.journalEntries.some(
+          e => e.coa_code === coaDebitStr && Number(e.debit) === rowNominal
+        );
+        const hasCreditMatch = tx.journalEntries.some(
+          e => e.coa_code === coaKreditStr && Number(e.kredit) === rowNominal
+        );
+        
+        return hasDebitMatch && hasCreditMatch;
+      });
 
+      if (existingTx) {
+        skippedCount++;
+        continue;
+      }
+
+      itemsToInsert.push(row);
+    }
+
+    if (itemsToInsert.length > 0) {
+      // Attempt single bulk transaction for maximum performance
+      try {
         await prisma.$transaction(async (tx) => {
-          // Resolve Bank Accounts from the pre-fetched cache
-          let debitAccountId = bankAccountMap.get(coaDebitStr) || null;
-          let kreditAccountId = bankAccountMap.get(coaKreditStr) || null;
+          for (const row of itemsToInsert) {
+            const coaDebitStr = String(row.coa_debit).trim();
+            const coaKreditStr = String(row.coa_kredit).trim();
+            const nominalDecimal = new Prisma.Decimal(row.nominal);
 
-          // Fallback to manually provided bank_account_id if any
-          if (row.bank_account_id) {
-            const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
-            if (isKredit) {
-              kreditAccountId = row.bank_account_id;
-            } else {
-              debitAccountId = row.bank_account_id;
+            let debitAccountId = bankAccountMap.get(coaDebitStr) || null;
+            let kreditAccountId = bankAccountMap.get(coaKreditStr) || null;
+
+            if (row.bank_account_id) {
+              const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
+              if (isKredit) {
+                kreditAccountId = row.bank_account_id;
+              } else {
+                debitAccountId = row.bank_account_id;
+              }
             }
-          }
 
-          // Create Realisasi (the transaction container)
-          const realisasi = await tx.realisasi.create({
-            data: {
-              tanggal: new Date(row.tanggal),
-              keterangan: row.keterangan || 'Transaksi Historis',
-              nrm: row.nrm || null,
-            }
-          });
-
-          // Create Journal Entry Debet
-          await tx.journalEntry.create({
-            data: {
-              transaksi_id: realisasi.transaksi_id,
-              coa_code: coaDebitStr,
-              debit: nominalDecimal,
-              kredit: new Prisma.Decimal(0.00),
-              account_id: debitAccountId
-            }
-          });
-
-          // Create Journal Entry Kredit
-          await tx.journalEntry.create({
-            data: {
-              transaksi_id: realisasi.transaksi_id,
-              coa_code: coaKreditStr,
-              debit: new Prisma.Decimal(0.00),
-              kredit: nominalDecimal,
-              account_id: kreditAccountId
-            }
-          });
-
-          // Update BankAccount balances dynamically
-          if (debitAccountId) {
-            await tx.bankAccount.update({
-              where: { account_id: debitAccountId } as any,
+            const realisasi = await tx.realisasi.create({
               data: {
-                saldo: { increment: nominalDecimal }
+                tanggal: new Date(row.tanggal),
+                keterangan: row.keterangan || 'Transaksi Historis',
+                nrm: row.nrm || null,
               }
             });
-          }
-          if (kreditAccountId) {
-            await tx.bankAccount.update({
-              where: { account_id: kreditAccountId } as any,
+
+            await tx.journalEntry.create({
               data: {
-                saldo: { decrement: nominalDecimal }
+                transaksi_id: realisasi.transaksi_id,
+                coa_code: coaDebitStr,
+                debit: nominalDecimal,
+                kredit: new Prisma.Decimal(0.00),
+                account_id: debitAccountId
               }
             });
+
+            await tx.journalEntry.create({
+              data: {
+                transaksi_id: realisasi.transaksi_id,
+                coa_code: coaKreditStr,
+                debit: new Prisma.Decimal(0.00),
+                kredit: nominalDecimal,
+                account_id: kreditAccountId
+              }
+            });
+
+            if (debitAccountId) {
+              await tx.bankAccount.update({
+                where: { account_id: debitAccountId } as any,
+                data: {
+                  saldo: { increment: nominalDecimal }
+                }
+              });
+            }
+            if (kreditAccountId) {
+              await tx.bankAccount.update({
+                where: { account_id: kreditAccountId } as any,
+                data: {
+                  saldo: { decrement: nominalDecimal }
+                }
+              });
+            }
           }
         }, {
-          maxWait: 5000,
-          timeout: 10000
+          maxWait: 15000,
+          timeout: 30000
         });
 
-        successCount++;
-      } catch (err: any) {
-        console.error(`Error migrating row ${rowNum}:`, err);
-        errors.push({
-          rowNum,
-          keterangan: row.keterangan || 'N/A',
-          error: err.message || String(err)
-        });
+        successCount += itemsToInsert.length;
+      } catch (batchErr: any) {
+        console.warn('Batch transaction failed, falling back to row-by-row processing:', batchErr);
+        // Fallback to row-by-row transactions so valid rows still commit and bad ones are logged
+        for (const row of itemsToInsert) {
+          const rowNum = row.rowNum || 'Unknown';
+          const coaDebitStr = String(row.coa_debit).trim();
+          const coaKreditStr = String(row.coa_kredit).trim();
+          const nominalDecimal = new Prisma.Decimal(row.nominal);
+
+          try {
+            await prisma.$transaction(async (tx) => {
+              let debitAccountId = bankAccountMap.get(coaDebitStr) || null;
+              let kreditAccountId = bankAccountMap.get(coaKreditStr) || null;
+
+              if (row.bank_account_id) {
+                const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
+                if (isKredit) {
+                  kreditAccountId = row.bank_account_id;
+                } else {
+                  debitAccountId = row.bank_account_id;
+                }
+              }
+
+              const realisasi = await tx.realisasi.create({
+                data: {
+                  tanggal: new Date(row.tanggal),
+                  keterangan: row.keterangan || 'Transaksi Historis',
+                  nrm: row.nrm || null,
+                }
+              });
+
+              await tx.journalEntry.create({
+                data: {
+                  transaksi_id: realisasi.transaksi_id,
+                  coa_code: coaDebitStr,
+                  debit: nominalDecimal,
+                  kredit: new Prisma.Decimal(0.00),
+                  account_id: debitAccountId
+                }
+              });
+
+              await tx.journalEntry.create({
+                data: {
+                  transaksi_id: realisasi.transaksi_id,
+                  coa_code: coaKreditStr,
+                  debit: new Prisma.Decimal(0.00),
+                  kredit: nominalDecimal,
+                  account_id: kreditAccountId
+                }
+              });
+
+              if (debitAccountId) {
+                await tx.bankAccount.update({
+                  where: { account_id: debitAccountId } as any,
+                  data: {
+                    saldo: { increment: nominalDecimal }
+                  }
+                });
+              }
+              if (kreditAccountId) {
+                await tx.bankAccount.update({
+                  where: { account_id: kreditAccountId } as any,
+                  data: {
+                    saldo: { decrement: nominalDecimal }
+                  }
+                });
+              }
+            }, {
+              maxWait: 5000,
+              timeout: 10000
+            });
+
+            successCount++;
+          } catch (rowErr: any) {
+            console.error(`Error migrating row ${rowNum} during fallback:`, rowErr);
+            errors.push({
+              rowNum,
+              keterangan: row.keterangan || 'N/A',
+              error: rowErr.message || String(rowErr)
+});
+          }
+        }
       }
     }
 
