@@ -87,6 +87,7 @@ export default function BukuBesar() {
   const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState('');
   const [selectedMigrationCoa, setSelectedMigrationCoa] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [parsedTransactions, setParsedTransactions] = useState<any[]>([]);
@@ -296,33 +297,64 @@ export default function BukuBesar() {
     }
 
     setMigrating(true);
-    try {
-      const res = await axios.post('/api/finance/ledger/migrate', {
-        transactions: validItems.map(item => ({
-          tanggal: item.tanggal,
-          keterangan: item.keterangan,
-          nominal: item.nominal,
-          coa_debit: item.coa_debit,
-          coa_kredit: item.coa_kredit,
-          bank_account_id: item.bank_account_id,
-          tipe_mutasi: item.tipe_mutasi,
-          nrm: item.nrm,
-          rowNum: item.rowNum
-        }))
-      });
+    setMigrationProgress('Mempersiapkan migrasi...');
+    
+    let totalSuccess = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    const allErrors: any[] = [];
+    
+    const BATCH_SIZE = 20;
+    const totalBatches = Math.ceil(validItems.length / BATCH_SIZE);
 
-      const { successCount, failedCount, errors } = res.data;
-      if (failedCount > 0) {
-        let errMessage = `Migrasi selesai dengan beberapa error:\n\n✅ Berhasil: ${successCount} transaksi\n❌ Gagal: ${failedCount} transaksi\n\nDetail 10 Error Pertama:\n`;
-        errors.slice(0, 10).forEach((err: any) => {
-          errMessage += `- Baris ${err.rowNum} ("${err.keterangan}"): ${err.error}\n`;
+    try {
+      for (let i = 0; i < totalBatches; i++) {
+        const startIdx = i * BATCH_SIZE;
+        const endIdx = Math.min(startIdx + BATCH_SIZE, validItems.length);
+        const batchItems = validItems.slice(startIdx, endIdx);
+        
+        const pct = Math.round((i / totalBatches) * 100);
+        setMigrationProgress(`Mengirim batch ${i + 1}/${totalBatches} (${pct}%)`);
+
+        const res = await axios.post('/api/finance/ledger/migrate', {
+          transactions: batchItems.map(item => ({
+            tanggal: item.tanggal,
+            keterangan: item.keterangan,
+            nominal: item.nominal,
+            coa_debit: item.coa_debit,
+            coa_kredit: item.coa_kredit,
+            bank_account_id: item.bank_account_id,
+            tipe_mutasi: item.tipe_mutasi,
+            nrm: item.nrm,
+            rowNum: item.rowNum
+          }))
         });
-        if (errors.length > 10) {
-          errMessage += `...dan ${errors.length - 10} error lainnya.`;
+
+        const { successCount, failedCount, skippedCount, errors } = res.data;
+        totalSuccess += (successCount || 0);
+        totalFailed += (failedCount || 0);
+        totalSkipped += (skippedCount || 0);
+        if (errors && Array.isArray(errors)) {
+          allErrors.push(...errors);
+        }
+      }
+
+      setMigrationProgress('Menyelesaikan...');
+
+      if (totalFailed > 0 || totalSkipped > 0) {
+        let errMessage = `Migrasi selesai:\n\n✅ Berhasil: ${totalSuccess} transaksi\n⏭️ Dilewati (Duplikat): ${totalSkipped} transaksi\n❌ Gagal: ${totalFailed} transaksi\n`;
+        if (allErrors.length > 0) {
+          errMessage += `\nDetail 10 Error Pertama:\n`;
+          allErrors.slice(0, 10).forEach((err: any) => {
+            errMessage += `- Baris ${err.rowNum} ("${err.keterangan}"): ${err.error}\n`;
+          });
+          if (allErrors.length > 10) {
+            errMessage += `...dan ${allErrors.length - 10} error lainnya.`;
+          }
         }
         alert(errMessage);
       } else {
-        alert(res.data.message || `Migrasi Jurnal Berhasil! (${successCount} transaksi dimasukkan)`);
+        alert(`Migrasi Jurnal Berhasil!\n\n✅ Berhasil: ${totalSuccess} transaksi dimasukkan\n⏭️ Dilewati (Duplikat): ${totalSkipped} transaksi`);
       }
 
       setIsMigrationModalOpen(false);
@@ -335,6 +367,7 @@ export default function BukuBesar() {
       alert(err.response?.data?.error || 'Gagal mengirim data migrasi.');
     } finally {
       setMigrating(false);
+      setMigrationProgress('');
     }
   };
 
@@ -1974,7 +2007,7 @@ export default function BukuBesar() {
                 disabled={migrating || parsedTransactions.filter(p => p.isValid).length === 0}
                 className="w-full py-3.5 bg-primary disabled:bg-slate-100 disabled:text-slate-400 hover:bg-primary/95 text-white rounded-xl text-xs font-black shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
               >
-                {migrating ? 'Memproses Migrasi...' : `Proses Migrasi (${parsedTransactions.filter(p => p.isValid).length} Transaksi Valid)`}
+                {migrating ? (migrationProgress || 'Memproses Migrasi...') : `Proses Migrasi (${parsedTransactions.filter(p => p.isValid).length} Transaksi Valid)`}
               </button>
             </div>
           </motion.div>

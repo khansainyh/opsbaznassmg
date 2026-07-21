@@ -1410,7 +1410,12 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
     }
 
     let successCount = 0;
+    let skippedCount = 0;
     const errors: any[] = [];
+
+    // Pre-fetch all bank accounts to cache them in memory and avoid querying the DB for every row
+    const bankAccounts = await prisma.bankAccount.findMany();
+    const bankAccountMap = new Map(bankAccounts.map(b => [String(b.coa_code).trim(), b.account_id]));
 
     for (const row of transactions) {
       const rowNum = row.rowNum || 'Unknown';
@@ -1429,24 +1434,37 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
       try {
         const nominalDecimal = new Prisma.Decimal(row.nominal);
 
+        // Deduplication check: check if this transaction already exists in the database
+        const existingTx = await prisma.realisasi.findFirst({
+          where: {
+            tanggal: new Date(row.tanggal),
+            keterangan: (row.keterangan || 'Transaksi Historis').trim(),
+            journalEntries: {
+              some: {
+                coa_code: coaDebitStr,
+                debit: nominalDecimal
+              }
+            }
+          },
+          include: {
+            journalEntries: true
+          }
+        });
+
+        if (existingTx) {
+          const hasCreditMatch = existingTx.journalEntries.some(
+            e => e.coa_code === coaKreditStr && Number(e.kredit) === Number(row.nominal)
+          );
+          if (hasCreditMatch) {
+            skippedCount++;
+            continue; // Skip inserting this row
+          }
+        }
+
         await prisma.$transaction(async (tx) => {
-          // Resolve Bank Accounts dynamically by COA code
-          let debitAccountId = null;
-          let kreditAccountId = null;
-
-          const bankDebit = await tx.bankAccount.findFirst({
-            where: { coa_code: coaDebitStr }
-          });
-          if (bankDebit) {
-            debitAccountId = bankDebit.account_id;
-          }
-
-          const bankKredit = await tx.bankAccount.findFirst({
-            where: { coa_code: coaKreditStr }
-          });
-          if (bankKredit) {
-            kreditAccountId = bankKredit.account_id;
-          }
+          // Resolve Bank Accounts from the pre-fetched cache
+          let debitAccountId = bankAccountMap.get(coaDebitStr) || null;
+          let kreditAccountId = bankAccountMap.get(coaKreditStr) || null;
 
           // Fallback to manually provided bank_account_id if any
           if (row.bank_account_id) {
@@ -1525,9 +1543,10 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
     res.status(200).json({
       success: true,
       successCount,
+      skippedCount,
       failedCount: errors.length,
       errors,
-      message: `Migrasi selesai: ${successCount} transaksi berhasil, ${errors.length} transaksi gagal.`
+      message: `Migrasi selesai: ${successCount} transaksi berhasil, ${skippedCount} dilewati (duplikat), ${errors.length} transaksi gagal.`
     });
   } catch (error) {
     console.error('Error migrating Buku Besar:', error);
