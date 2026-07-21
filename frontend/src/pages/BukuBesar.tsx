@@ -306,10 +306,25 @@ export default function BukuBesar() {
           coa_kredit: item.coa_kredit,
           bank_account_id: item.bank_account_id,
           tipe_mutasi: item.tipe_mutasi,
-          nrm: item.nrm
+          nrm: item.nrm,
+          rowNum: item.rowNum
         }))
       });
-      alert(res.data.message || 'Migrasi Jurnal Berhasil!');
+      
+      const { successCount, failedCount, errors } = res.data;
+      if (failedCount > 0) {
+        let errMessage = `Migrasi selesai dengan beberapa error:\n\n✅ Berhasil: ${successCount} transaksi\n❌ Gagal: ${failedCount} transaksi\n\nDetail 10 Error Pertama:\n`;
+        errors.slice(0, 10).forEach((err: any) => {
+          errMessage += `- Baris ${err.rowNum} ("${err.keterangan}"): ${err.error}\n`;
+        });
+        if (errors.length > 10) {
+          errMessage += `...dan ${errors.length - 10} error lainnya.`;
+        }
+        alert(errMessage);
+      } else {
+        alert(res.data.message || `Migrasi Jurnal Berhasil! (${successCount} transaksi dimasukkan)`);
+      }
+      
       setIsMigrationModalOpen(false);
       setSelectedMigrationCoa('');
       setParsedTransactions([]);

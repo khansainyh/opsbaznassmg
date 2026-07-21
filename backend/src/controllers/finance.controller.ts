@@ -1410,102 +1410,125 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
     }
 
     let successCount = 0;
+    const errors: any[] = [];
 
-    await prisma.$transaction(async (tx) => {
-      for (const row of transactions) {
-        if (!row.tanggal || !row.nominal || !row.coa_debit || !row.coa_kredit) {
-          continue;
-        }
+    for (const row of transactions) {
+      const rowNum = row.rowNum || 'Unknown';
+      if (!row.tanggal || !row.nominal || !row.coa_debit || !row.coa_kredit) {
+        errors.push({
+          rowNum,
+          keterangan: row.keterangan || 'N/A',
+          error: 'Kolom penting (tanggal, nominal, coa_debit, coa_kredit) tidak lengkap.'
+        });
+        continue;
+      }
 
-        const coaDebitStr = String(row.coa_debit).trim();
-        const coaKreditStr = String(row.coa_kredit).trim();
+      const coaDebitStr = String(row.coa_debit).trim();
+      const coaKreditStr = String(row.coa_kredit).trim();
+
+      try {
         const nominalDecimal = new Prisma.Decimal(row.nominal);
 
-        // Resolve Bank Accounts dynamically by COA code
-        let debitAccountId = null;
-        let kreditAccountId = null;
+        await prisma.$transaction(async (tx) => {
+          // Resolve Bank Accounts dynamically by COA code
+          let debitAccountId = null;
+          let kreditAccountId = null;
 
-        const bankDebit = await tx.bankAccount.findFirst({
-          where: { coa_code: coaDebitStr }
-        });
-        if (bankDebit) {
-          debitAccountId = bankDebit.account_id;
-        }
-
-        const bankKredit = await tx.bankAccount.findFirst({
-          where: { coa_code: coaKreditStr }
-        });
-        if (bankKredit) {
-          kreditAccountId = bankKredit.account_id;
-        }
-
-        // Fallback to manually provided bank_account_id if any
-        if (row.bank_account_id) {
-          const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
-          if (isKredit) {
-            kreditAccountId = row.bank_account_id;
-          } else {
-            debitAccountId = row.bank_account_id;
+          const bankDebit = await tx.bankAccount.findFirst({
+            where: { coa_code: coaDebitStr }
+          });
+          if (bankDebit) {
+            debitAccountId = bankDebit.account_id;
           }
-        }
 
-        // Create Realisasi (the transaction container)
-        const realisasi = await tx.realisasi.create({
-          data: {
-            tanggal: new Date(row.tanggal),
-            keterangan: row.keterangan || 'Transaksi Historis',
-            nrm: row.nrm || null,
+          const bankKredit = await tx.bankAccount.findFirst({
+            where: { coa_code: coaKreditStr }
+          });
+          if (bankKredit) {
+            kreditAccountId = bankKredit.account_id;
           }
-        });
 
-        // Create Journal Entry Debet
-        await tx.journalEntry.create({
-          data: {
-            transaksi_id: realisasi.transaksi_id,
-            coa_code: coaDebitStr,
-            debit: nominalDecimal,
-            kredit: new Prisma.Decimal(0.00),
-            account_id: debitAccountId
+          // Fallback to manually provided bank_account_id if any
+          if (row.bank_account_id) {
+            const isKredit = String(row.tipe_mutasi).toUpperCase() === 'KREDIT';
+            if (isKredit) {
+              kreditAccountId = row.bank_account_id;
+            } else {
+              debitAccountId = row.bank_account_id;
+            }
           }
-        });
 
-        // Create Journal Entry Kredit
-        await tx.journalEntry.create({
-          data: {
-            transaksi_id: realisasi.transaksi_id,
-            coa_code: coaKreditStr,
-            debit: new Prisma.Decimal(0.00),
-            kredit: nominalDecimal,
-            account_id: kreditAccountId
-          }
-        });
-
-        // Update BankAccount balances dynamically
-        if (debitAccountId) {
-          await tx.bankAccount.update({
-            where: { account_id: debitAccountId } as any,
+          // Create Realisasi (the transaction container)
+          const realisasi = await tx.realisasi.create({
             data: {
-              saldo: { increment: nominalDecimal }
+              tanggal: new Date(row.tanggal),
+              keterangan: row.keterangan || 'Transaksi Historis',
+              nrm: row.nrm || null,
             }
           });
-        }
-        if (kreditAccountId) {
-          await tx.bankAccount.update({
-            where: { account_id: kreditAccountId } as any,
+
+          // Create Journal Entry Debet
+          await tx.journalEntry.create({
             data: {
-              saldo: { decrement: nominalDecimal }
+              transaksi_id: realisasi.transaksi_id,
+              coa_code: coaDebitStr,
+              debit: nominalDecimal,
+              kredit: new Prisma.Decimal(0.00),
+              account_id: debitAccountId
             }
           });
-        }
+
+          // Create Journal Entry Kredit
+          await tx.journalEntry.create({
+            data: {
+              transaksi_id: realisasi.transaksi_id,
+              coa_code: coaKreditStr,
+              debit: new Prisma.Decimal(0.00),
+              kredit: nominalDecimal,
+              account_id: kreditAccountId
+            }
+          });
+
+          // Update BankAccount balances dynamically
+          if (debitAccountId) {
+            await tx.bankAccount.update({
+              where: { account_id: debitAccountId } as any,
+              data: {
+                saldo: { increment: nominalDecimal }
+              }
+            });
+          }
+          if (kreditAccountId) {
+            await tx.bankAccount.update({
+              where: { account_id: kreditAccountId } as any,
+              data: {
+                saldo: { decrement: nominalDecimal }
+              }
+            });
+          }
+        }, {
+          maxWait: 5000,
+          timeout: 10000
+        });
 
         successCount++;
+      } catch (err: any) {
+        console.error(`Error migrating row ${rowNum}:`, err);
+        errors.push({
+          rowNum,
+          keterangan: row.keterangan || 'N/A',
+          error: err.message || String(err)
+        });
       }
-    }, {
-      maxWait: 15000,
-      timeout: 120000
-    });
+    }
 
-    res.status(200).json({ success: true, message: `Berhasil mengimpor ${successCount} transaksi Buku Besar.` });
+    res.status(200).json({
+      success: true,
+      successCount,
+      failedCount: errors.length,
+      errors,
+      message: `Migrasi selesai: ${successCount} transaksi berhasil, ${errors.length} transaksi gagal.`
+    });
   } catch (error) {
     console.error('Error migrating Buku Besar:', error);
     res.status(500).json({ error: String(error) });
