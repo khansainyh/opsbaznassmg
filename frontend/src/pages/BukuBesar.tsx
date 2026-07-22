@@ -78,6 +78,8 @@ const KAS_SETARA_KAS_CODES = [
 
 export default function BukuBesar() {
   const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
+  const [printLedger, setPrintLedger] = useState<LedgerEntryItem[]>([]);
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [coas, setCoas] = useState<COAItem[]>([]);
   const [jurnalCurrentPage, setJurnalCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -667,8 +669,34 @@ export default function BukuBesar() {
   }, [coas, coaSummaryMap]);
 
   // Handle printing as PDF using browser built-in print
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (activeTab === 'jurnal') {
+      setIsPreparingPrint(true);
+      try {
+        const res = await axios.get('/api/finance/ledger', {
+          params: {
+            startDate,
+            endDate,
+            limit: 'all',
+            search: debouncedSearch,
+            coaCodes: selectedCoas.length > 0 ? selectedCoas.join(',') : undefined
+          }
+        });
+        const fullEntries = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setPrintLedger(fullEntries);
+
+        setTimeout(() => {
+          window.print();
+          setIsPreparingPrint(false);
+        }, 350);
+      } catch (err) {
+        console.error('Gagal menyiapkan data cetak:', err);
+        alert('Gagal mengambil data lengkap untuk dicetak');
+        setIsPreparingPrint(false);
+      }
+    } else {
+      window.print();
+    }
   };
 
   return (
@@ -1159,10 +1187,20 @@ export default function BukuBesar() {
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-primary/10"
+                  disabled={isPreparingPrint}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-primary/10 disabled:opacity-60"
                 >
-                  <Printer className="size-4" />
-                  Cetak PDF
+                  {isPreparingPrint ? (
+                    <>
+                      <RefreshCw className="size-4 animate-spin" />
+                      Menyiapkan PDF...
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="size-4" />
+                      Cetak PDF Jurnal ({paginationInfo.total})
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1394,7 +1432,7 @@ export default function BukuBesar() {
                   </tbody>
                 </table>
 
-                {/* Table for PDF Print (current page list of records) */}
+                {/* Table for PDF Print (complete list of all filtered records without pagination) */}
                 <table className="w-full text-left hidden print:table">
                   <thead>
                     <tr className="print:border-b">
@@ -1407,11 +1445,11 @@ export default function BukuBesar() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {paginatedLedger.length === 0 ? (
+                    {(printLedger.length > 0 ? printLedger : paginatedLedger).length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
                       </tr>
-                    ) : paginatedLedger.map((item: LedgerEntryItem) => (
+                    ) : (printLedger.length > 0 ? printLedger : paginatedLedger).map((item: LedgerEntryItem) => (
                       <tr key={item.entry_id} className="print:border-b">
                         <td className="px-6 py-5 font-mono text-xs text-black font-bold">
                           <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>

@@ -1171,9 +1171,10 @@ export const getJournalEntries = async (req: Request, res: Response) => {
       }
     }
 
+    const isAll = String(limit).toLowerCase() === 'all';
     const pageNum = parseInt(String(page || 1), 10) || 1;
-    const limitNum = parseInt(String(limit || 20), 10) || 20;
-    const skip = (pageNum - 1) * limitNum;
+    const limitNum = isAll ? 1000000 : (parseInt(String(limit || 20), 10) || 20);
+    const skip = isAll ? 0 : (pageNum - 1) * limitNum;
 
     const [entries, totalCount, aggregateSum] = await Promise.all([
       prisma.journalEntry.findMany({

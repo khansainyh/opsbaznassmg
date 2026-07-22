@@ -601,3 +601,161 @@ export const deletePenerimaanZis = async (req: Request, res: Response) => {
     res.status(500).json({ error: String(error) });
   }
 };
+
+export const migratePenerimaanZis = async (req: Request, res: Response) => {
+  try {
+    const { transactions, options } = req.body;
+
+    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+      res.status(400).json({ error: 'Array transactions wajib diisi' });
+      return;
+    }
+
+    const skipJournal = options?.skipJournal !== false; // Default true for historical migration
+
+    let successCount = 0;
+    let failedCount = 0;
+    const errors: any[] = [];
+
+    // Pre-fetch bank accounts and muzakkis for faster resolution
+    const bankAccounts = await prisma.bankAccount.findMany();
+    const muzakkis = await prisma.muzakki.findMany();
+
+    const bankAccountMap = new Map<string, string>();
+    bankAccounts.forEach(acc => {
+      bankAccountMap.set(acc.account_id, acc.account_id);
+      bankAccountMap.set(acc.nama_akun.toLowerCase(), acc.account_id);
+      if (acc.no_rekening) bankAccountMap.set(acc.no_rekening.trim(), acc.account_id);
+    });
+
+    const muzakkiNikMap = new Map<string, string>();
+    const muzakkiNamaMap = new Map<string, string>();
+    muzakkis.forEach(m => {
+      if (m.nik) muzakkiNikMap.set(m.nik.trim(), m.id);
+      muzakkiNamaMap.set(m.nama.toLowerCase().trim(), m.id);
+    });
+
+    for (let i = 0; i < transactions.length; i++) {
+      const txData = transactions[i];
+      const rowNum = txData.rowNum || (i + 1);
+
+      try {
+        const nominal = Number(txData.nominal || 0);
+        if (nominal <= 0) {
+          throw new Error('Nominal transaksi harus lebih besar dari 0');
+        }
+
+        // 1. Resolve Bank Account
+        let bankAccountId = txData.bank_account_id;
+        if (!bankAccountId && txData.bank_account_name) {
+          bankAccountId = bankAccountMap.get(String(txData.bank_account_name).toLowerCase().trim());
+        }
+        if (!bankAccountId) {
+          // Fallback to first active bank account if available
+          bankAccountId = bankAccounts[0]?.account_id;
+        }
+
+        if (!bankAccountId) {
+          throw new Error('Rekening bank/kas tidak valid');
+        }
+
+        // 2. Resolve Muzakki
+        let muzakkiId = txData.muzakki_id || null;
+        if (!muzakkiId && txData.nik_muzakki) {
+          muzakkiId = muzakkiNikMap.get(String(txData.nik_muzakki).trim()) || null;
+        }
+        if (!muzakkiId && txData.nama_muzakki) {
+          muzakkiId = muzakkiNamaMap.get(String(txData.nama_muzakki).toLowerCase().trim()) || null;
+        }
+
+        // 3. Resolve Kuitansi & SIMBA Transaction Number
+        const simbaNo = txData.no_transaksi_simba ? String(txData.no_transaksi_simba).trim() : null;
+        let kuitansiNo = txData.no_kuitansi ? String(txData.no_kuitansi).trim() : null;
+
+        if (!kuitansiNo) {
+          kuitansiNo = simbaNo || `PZ-HIST-${Date.now()}-${i + 1}`;
+        }
+
+        const statusSimba = txData.status_simba || (simbaNo ? 'SYNCED' : 'PENDING');
+        const tanggalTrx = txData.tanggal_pembayaran ? new Date(txData.tanggal_pembayaran) : new Date();
+
+        await prisma.$transaction(async (tx) => {
+          // Create PenerimaanZis record
+          await tx.penerimaanZis.create({
+            data: {
+              no_kuitansi: kuitansiNo,
+              no_transaksi_simba: simbaNo,
+              status_simba: statusSimba,
+              muzakki_id: muzakkiId,
+              rkat_id: txData.rkat_id || null,
+              bank_account_id: bankAccountId,
+              nominal: new Prisma.Decimal(nominal),
+              metode_pembayaran: txData.metode_pembayaran || 'TRANSFER',
+              tanggal_pembayaran: tanggalTrx,
+              keterangan: txData.keterangan || 'Migrasi Historis Pengumpulan ZIS'
+            }
+          });
+
+          // ONLY create journal and update balance if skipJournal is false
+          if (!skipJournal) {
+            await tx.bankAccount.update({
+              where: { account_id: bankAccountId },
+              data: { saldo: { increment: new Prisma.Decimal(nominal) } }
+            });
+
+            const realisasi = await tx.realisasi.create({
+              data: {
+                rkat_id: txData.rkat_id || null,
+                tanggal: tanggalTrx,
+                keterangan: txData.keterangan || 'Penerimaan ZIS'
+              }
+            });
+
+            const bankAcc = bankAccounts.find(b => b.account_id === bankAccountId);
+            const debitCoa = bankAcc ? bankAcc.coa_code : '11010101';
+            const creditCoa = txData.coa_code || '41010101';
+
+            await tx.journalEntry.createMany({
+              data: [
+                {
+                  transaksi_id: realisasi.transaksi_id,
+                  coa_code: debitCoa,
+                  debit: new Prisma.Decimal(nominal),
+                  kredit: new Prisma.Decimal(0),
+                  account_id: bankAccountId
+                },
+                {
+                  transaksi_id: realisasi.transaksi_id,
+                  coa_code: creditCoa,
+                  debit: new Prisma.Decimal(0),
+                  kredit: new Prisma.Decimal(nominal),
+                  account_id: null
+                }
+              ]
+            });
+          }
+        });
+
+        successCount++;
+      } catch (err: any) {
+        failedCount++;
+        errors.push({
+          rowNum,
+          keterangan: txData.keterangan || 'N/A',
+          error: err.message || String(err)
+        });
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      totalCount: transactions.length,
+      successCount,
+      failedCount,
+      errors
+    });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+};
