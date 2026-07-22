@@ -34,7 +34,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         rkat: true,
         upz: true,
         bankAccount: true
-      },
+      } as any,
       orderBy: {
         tanggal_pembayaran: 'desc'
       }
@@ -650,7 +650,7 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
       include: {
         upz: true,
         rkat: true
-      }
+      } as any
     });
 
     const allUpzs = await prisma.upz.findMany({
@@ -781,7 +781,8 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       const rowNum = txData.rowNum || (i + 1);
 
       try {
-        let rawNominal = txData.nominal;
+        const rawNominalVal = txData.Nominal || txData.nominal || txData.NOMINAL || txData.Nominal_Rp || txData.Jumlah;
+        let rawNominal = rawNominalVal;
         if (typeof rawNominal === 'string') {
           rawNominal = rawNominal.replace(/[^0-9.-]+/g, '');
         }
@@ -791,7 +792,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         let bankAccountId = txData.bank_account_id;
-        const sourceQuery = String(txData.sumber_dana || txData.bank_account_name || '').toLowerCase().trim();
+        const sourceQuery = String(txData['Sumber Dana'] || txData.sumber_dana || txData.bank_account_name || '').toLowerCase().trim();
 
         if (!bankAccountId && sourceQuery) {
           bankAccountId = bankAccountMap.get(sourceQuery);
@@ -809,19 +810,27 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         if (!bankAccountId) throw new Error('Rekening bank/kas tidak valid');
 
         let muzakkiId = txData.muzakki_id || null;
-        if (!muzakkiId && txData.nik_muzakki) muzakkiId = muzakkiNikMap.get(String(txData.nik_muzakki).trim()) || null;
-        if (!muzakkiId && txData.nama_muzakki) muzakkiId = muzakkiNamaMap.get(String(txData.nama_muzakki).toLowerCase().trim()) || null;
+        const inputNamaMuzakki = String(txData['Nama Muzakki'] || txData.nama_muzakki || '').trim();
+        const inputNikMuzakki = String(txData.nik_muzakki || txData.nik || '').trim();
 
-        if (!muzakkiId && txData.keterangan) {
-          const match = String(txData.keterangan).match(/(?:a\.n|an\.|dari|bapak|ibu)\s+([A-Za-z\s]+)/i);
+        if (!muzakkiId && inputNikMuzakki) muzakkiId = muzakkiNikMap.get(inputNikMuzakki) || null;
+        if (!muzakkiId && inputNamaMuzakki) muzakkiId = muzakkiNamaMap.get(inputNamaMuzakki.toLowerCase()) || null;
+
+        const rowKeterangan = String(txData.Keterangan || txData.keterangan || '').trim();
+        if (!muzakkiId && rowKeterangan) {
+          const match = rowKeterangan.match(/(?:a\.n|an\.|dari|bapak|ibu)\s+([A-Za-z\s]+)/i);
           if (match && match[1]) {
             const extractedName = match[1].trim().toLowerCase();
             muzakkiId = muzakkiNamaMap.get(extractedName) || null;
           }
         }
 
-        let kodeProgram = txData.kode_program ? String(txData.kode_program).trim() : null;
-        let jenisProgram = txData.jenis_program ? String(txData.jenis_program).trim() : null;
+        let rawKodeProgram = txData['Kode Program'] || txData.kode_program || txData.Kode_Program || txData.Kode;
+        if (typeof rawKodeProgram === 'number') rawKodeProgram = String(rawKodeProgram);
+        let kodeProgram = rawKodeProgram ? String(rawKodeProgram).trim() : null;
+
+        let rawJenisProgram = txData['Jenis Program'] || txData.jenis_program || txData.Jenis_Program;
+        let jenisProgram = rawJenisProgram ? String(rawJenisProgram).trim() : null;
         let rkatId = txData.rkat_id || null;
 
         if (kodeProgram && PROGRAM_KODE_TO_RKAT_MAP[kodeProgram]) {
@@ -834,7 +843,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         let upzId = txData.upz_id || null;
-        const upzQuery = String(txData.nama_upz || txData.upz_nama || '').toLowerCase().trim();
+        const upzQuery = String(txData['Nama UPZ'] || txData.nama_upz || txData.upz_nama || '').toLowerCase().trim();
         if (!upzId && upzQuery) {
           const matchedUpz = upzs.find(u =>
             u.nama_upz.toLowerCase().includes(upzQuery) ||
@@ -843,14 +852,14 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           if (matchedUpz) upzId = matchedUpz.id;
         }
 
-        const simbaNo = txData.no_transaksi_simba || txData.no_transaksi ? String(txData.no_transaksi_simba || txData.no_transaksi).trim() : null;
-        let kuitansiNo = txData.no_kuitansi ? String(txData.no_kuitansi).trim() : null;
+        const simbaNo = String(txData.no_transaksi_simba || txData['No Transaksi'] || txData.no_transaksi || txData['No. Transaksi'] || '').trim() || null;
+        let kuitansiNo = String(txData.no_kuitansi || txData['No Transaksi'] || txData.no_transaksi || '').trim() || null;
         if (!kuitansiNo) kuitansiNo = simbaNo || `PZ-HIST-${Date.now()}-${i + 1}`;
 
         const statusSimba = txData.status_simba || (simbaNo ? 'SYNCED' : 'PENDING');
         
         let tanggalTrx = new Date();
-        const rawDate = String(txData.tanggal_pembayaran || txData.tanggal_trx || '').trim();
+        const rawDate = String(txData['Tanggal Trx'] || txData.tanggal_pembayaran || txData.tanggal_trx || txData.Tanggal || '').trim();
         if (rawDate) {
           if (rawDate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
             const parts = rawDate.split('/');
@@ -879,7 +888,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
               metode_pembayaran: txData.metode_pembayaran || 'TRANSFER',
               tanggal_pembayaran: tanggalTrx,
               keterangan: txData.keterangan || 'Migrasi Historis Pengumpulan ZIS'
-            }
+            } as any
           });
 
           if (!skipJournal) {

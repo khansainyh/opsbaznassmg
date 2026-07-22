@@ -90,16 +90,32 @@ export default function PenerimaanZis() {
   const downloadPenerimaanTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
       {
-        no_kuitansi: 'BSZ-1234567',
-        muzakki_id: 'muzakki-uuid-atau-nama',
-        rkat_id: 'rkat-uuid-atau-program-name',
-        bank_account_id: 'acc-uuid-atau-account-name',
-        coa_code: '41010101',
-        nominal: 1000000,
-        metode_pembayaran: 'TRANSFER',
-        tanggal_pembayaran: '2026-01-15',
-        keterangan: 'Penerimaan zakat maal',
-        no_transaksi_simba: 'SIMBA-12345'
+        "No": 44879,
+        "Kode Program": "101.1",
+        "Jenis Program": "101.1 || Zakat Maal Perorangan",
+        "Kode Akun": "41020201",
+        "Nama Akun": "41020201 || Penerimaan | Zakat | Individual | Maal | Kas",
+        "Sumber Dana": "BSI-BSM",
+        "Tanggal Trx": "01/06/2026",
+        "No Transaksi": "01/06/26/km/1/0000002",
+        "Keterangan": "Terima Zakat Maal a.n Aulia Rahman",
+        "Nominal": 335000,
+        "Nama Muzakki": "Aulia Rahman",
+        "Nama UPZ": "UPZ Kecamatan Genuk"
+      },
+      {
+        "No": 44880,
+        "Kode Program": "102.1",
+        "Jenis Program": "102.1 || Zakat Maal UPZ Kota",
+        "Kode Akun": "41020201",
+        "Nama Akun": "41020201 || Penerimaan | Zakat | Individual | Maal | Kas",
+        "Sumber Dana": "BSI-BSM",
+        "Tanggal Trx": "02/06/2026",
+        "No Transaksi": "02/06/26/km/1/0000003",
+        "Keterangan": "Terima Zakat Maal via UPZ Sekretariat DPRD",
+        "Nominal": 5000000,
+        "Nama Muzakki": "UPZ Sekretariat DPRD",
+        "Nama UPZ": "UPZ Sekretariat DPRD"
       }
     ]);
     const wb = XLSX.utils.book_new();
@@ -120,86 +136,29 @@ export default function PenerimaanZis() {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const rawRows = XLSX.utils.sheet_to_json(ws);
-        
-        let successCount = 0;
-        let failCount = 0;
 
-        for (const row of rawRows as any[]) {
-          if (!row.muzakki_id || !row.nominal || Number(row.nominal) <= 0) continue;
-
-          let mId = row.muzakki_id;
-          const foundMuz = muzakkiList.find(m => 
-            m.id === String(row.muzakki_id).trim() || 
-            (m.nik && m.nik === String(row.muzakki_id).trim()) ||
-            m.nama.toLowerCase() === String(row.muzakki_id).toLowerCase().trim()
-          );
-          if (foundMuz) {
-            mId = foundMuz.id;
-          } else {
-            try {
-              const regRes = await axios.post('/api/muzakki', {
-                nama: String(row.muzakki_id).trim(),
-                kategori: 'Perorangan',
-                alamat: 'Luar Kota Semarang',
-                telepon: '080000000000',
-                status: 'Aktif',
-                nik: `NIK-${Date.now()}`
-              });
-              if (regRes.data.status === 'success') {
-                mId = regRes.data.data.id;
-              }
-            } catch (err) {
-              console.error('Gagal meregistrasi muzakki instan:', err);
-              failCount++;
-              continue;
-            }
-          }
-
-          let bankId = row.bank_account_id;
-          const foundAcc = accountsList.find(a => 
-            a.account_id === String(row.bank_account_id).trim() ||
-            a.nama_akun.toLowerCase() === String(row.bank_account_id).toLowerCase().trim()
-          );
-          if (foundAcc) {
-            bankId = foundAcc.account_id;
-          }
-
-          let rkatId = row.rkat_id || null;
-          if (row.rkat_id) {
-            const foundRkat = rkatList.find(r => 
-              r.id === String(row.rkat_id).trim() ||
-              r.nama_program.toLowerCase() === String(row.rkat_id).toLowerCase().trim()
-            );
-            if (foundRkat) {
-              rkatId = foundRkat.id;
-            }
-          }
-
-          try {
-            await axios.post('/api/penerimaan-zis', {
-              no_kuitansi: row.no_kuitansi ? String(row.no_kuitansi).trim() : undefined,
-              muzakki_id: mId,
-              rkat_id: rkatId,
-              bank_account_id: bankId,
-              coa_code: row.coa_code ? String(row.coa_code).trim() : undefined,
-              nominal: Number(row.nominal),
-              metode_pembayaran: row.metode_pembayaran || 'TRANSFER',
-              tanggal_pembayaran: row.tanggal_pembayaran ? String(row.tanggal_pembayaran).trim() : undefined,
-              keterangan: row.keterangan || null,
-              no_transaksi_simba: row.no_transaksi_simba || null
-            });
-            successCount++;
-          } catch (err) {
-            console.error('Error importing receipt row:', err);
-            failCount++;
-          }
+        if (!rawRows || !Array.isArray(rawRows) || rawRows.length === 0) {
+          alert('File Excel kosong atau tidak terbaca.');
+          return;
         }
 
-        alert(`Berhasil mengimpor ${successCount} data penerimaan ZIS. Gagal: ${failCount}`);
+        const res = await axios.post('/api/penerimaan-zis/migrate', {
+          transactions: rawRows,
+          options: { skipJournal: true }
+        });
+
+        if (res.data?.status === 'success') {
+          const s = res.data.summary || {};
+          alert(`Migrasi Data Penerimaan ZIS Selesai!\nTotal Berhasil: ${s.successCount || 0}\nGagal: ${s.failedCount || 0}`);
+        } else {
+          alert('Migrasi selesai dengan beberapa perhatian.');
+        }
+
         setIsMigrationModalOpen(false);
         fetchData();
-      } catch (err) {
-        alert('Gagal memproses file Excel.');
+      } catch (err: any) {
+        console.error('Gagal migrasi Excel:', err);
+        alert(err.response?.data?.error || 'Gagal memproses file Excel.');
       } finally {
         setMigrating(false);
         e.target.value = '';
