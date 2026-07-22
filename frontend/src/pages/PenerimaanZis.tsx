@@ -86,6 +86,8 @@ export default function PenerimaanZis() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [parsedMigrationRows, setParsedMigrationRows] = useState<any[]>([]);
+  const [rawMigrationFileRows, setRawMigrationFileRows] = useState<any[]>([]);
 
   const downloadPenerimaanTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
@@ -119,13 +121,12 @@ export default function PenerimaanZis() {
     XLSX.writeFile(wb, "Template_Migrasi_Penerimaan_ZIS.xlsx");
   };
 
-  const handlePenerimaanFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePenerimaanFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setMigrating(true);
     const reader = new FileReader();
-    reader.onload = async (evt) => {
+    reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -138,29 +139,73 @@ export default function PenerimaanZis() {
           return;
         }
 
-        const res = await axios.post('/api/penerimaan-zis/migrate', {
-          transactions: rawRows,
-          options: { skipJournal: true }
+        const previewList = rawRows.map((item: any, idx: number) => {
+          const rawNom = item.Nominal || item.nominal || item.Jumlah || item.NOMINAL || 0;
+          const nominalVal = typeof rawNom === 'string' 
+            ? Number(rawNom.replace(/[^0-9.-]+/g, '')) 
+            : Number(rawNom || 0);
+
+          return {
+            rowNum: item.No || item.no || (idx + 1),
+            kodeProgram: item['Kode Program'] || item.kode_program || item.Kode || '-',
+            kodeAkun: item['Kode Akun'] || item.kode_akun || '-',
+            sumberDana: item['Sumber Dana'] || item.sumber_dana || item.bank_account_name || '-',
+            tanggalTrx: item['Tanggal Trx'] || item.tanggal_pembayaran || item.tanggal_trx || item.Tanggal || '-',
+            noTransaksi: item['No Transaksi'] || item.no_transaksi || item.no_kuitansi || '-',
+            keterangan: item.Keterangan || item.keterangan || '-',
+            nominal: nominalVal,
+            namaMuzakki: item['Nama Muzakki'] || item.nama_muzakki || '-',
+            namaUpz: item['Nama UPZ'] || item.nama_upz || '-'
+          };
         });
 
-        if (res.data?.status === 'success') {
-          const s = res.data.summary || {};
-          alert(`Migrasi Data Penerimaan ZIS Selesai!\nTotal Berhasil: ${s.successCount || 0}\nGagal: ${s.failedCount || 0}`);
-        } else {
-          alert('Migrasi selesai dengan beberapa perhatian.');
-        }
-
-        setIsMigrationModalOpen(false);
-        fetchData();
-      } catch (err: any) {
-        console.error('Gagal migrasi Excel:', err);
-        alert(err.response?.data?.error || 'Gagal memproses file Excel.');
-      } finally {
-        setMigrating(false);
-        e.target.value = '';
+        setRawMigrationFileRows(rawRows);
+        setParsedMigrationRows(previewList);
+      } catch (err) {
+        console.error('Gagal membaca file Excel:', err);
+        alert('Gagal membaca file Excel.');
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const handleProcessMigrationSubmit = async () => {
+    if (!rawMigrationFileRows || rawMigrationFileRows.length === 0) {
+      alert('Belum ada data file yang dibaca.');
+      return;
+    }
+
+    setMigrating(true);
+    try {
+      const res = await axios.post('/api/penerimaan-zis/migrate', {
+        transactions: rawMigrationFileRows,
+        options: { skipJournal: true }
+      });
+
+      if (res.data?.status === 'success') {
+        const s = res.data.summary || {};
+        const succ = s.success !== undefined ? s.success : (s.successCount !== undefined ? s.successCount : 0);
+        const fail = s.failed !== undefined ? s.failed : (s.failedCount !== undefined ? s.failedCount : 0);
+        
+        let msg = `Migrasi Data Penerimaan ZIS Selesai!\nTotal Berhasil: ${succ} Transaksi\nGagal: ${fail} Transaksi`;
+        if (Array.isArray(s.errors) && s.errors.length > 0) {
+          msg += `\n\nRincian Gagal:\n` + s.errors.map((e: any) => `- Baris ${e.row}: ${e.error}`).join('\n');
+        }
+        alert(msg);
+
+        setIsMigrationModalOpen(false);
+        setParsedMigrationRows([]);
+        setRawMigrationFileRows([]);
+        fetchData();
+      } else {
+        alert('Migrasi selesai dengan beberapa catatan.');
+      }
+    } catch (err: any) {
+      console.error('Gagal migrasi Excel:', err);
+      alert(err.response?.data?.error || 'Gagal memproses migrasi data Penerimaan ZIS.');
+    } finally {
+      setMigrating(false);
+    }
   };
 
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -2461,63 +2506,157 @@ export default function PenerimaanZis() {
         {isMigrationModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-              onClick={() => setIsMigrationModalOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => {
+                setIsMigrationModalOpen(false);
+                setParsedMigrationRows([]);
+                setRawMigrationFileRows([]);
+              }}
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden font-sans"
+              className={cn(
+                "relative bg-white w-full rounded-2xl shadow-2xl overflow-hidden font-sans flex flex-col max-h-[calc(100dvh-2rem)] z-10 transition-all",
+                parsedMigrationRows.length > 0 ? "max-w-4xl" : "max-w-md"
+              )}
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-xl font-black text-slate-900 font-sans">Migrasi Penerimaan ZIS</h3>
-                <button onClick={() => setIsMigrationModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 rounded-xl">
+                    <FileSpreadsheet className="size-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 font-sans">Migrasi Penerimaan ZIS</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">Unggah file Excel untuk impor data historis transaksi penerimaan</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setIsMigrationModalOpen(false);
+                    setParsedMigrationRows([]);
+                    setRawMigrationFileRows([]);
+                  }} 
+                  className="p-2 hover:bg-slate-200/60 rounded-full transition-colors"
+                >
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
-              <div className="p-8 space-y-6">
-                <div className="text-center space-y-2">
-                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
-                    <FileSpreadsheet className="size-8" />
-                  </div>
-                  <h4 className="font-bold text-slate-900 font-sans">Impor Data via Excel</h4>
-                  <p className="text-xs text-slate-500 font-sans leading-relaxed">
-                    Gunakan file Excel (.xlsx) dengan kolom: <strong>no_kuitansi, muzakki_id, rkat_id, bank_account_id, coa_code, nominal, metode_pembayaran, tanggal_pembayaran, keterangan, no_transaksi_simba</strong>.
-                  </p>
-                </div>
 
+              <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 <div className="space-y-3">
-                  <button onClick={downloadPenerimaanTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                  <button onClick={downloadPenerimaanTemplate} className="w-full flex items-center justify-between p-3.5 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
                     <div className="flex items-center gap-3">
                       <Download className="size-5 text-primary" />
                       <div className="text-left font-sans">
-                        <p className="text-sm font-bold text-primary font-sans">Download Format Template</p>
-                        <p className="text-[10px] text-primary/70 font-medium font-sans">Format: .xlsx (Excel)</p>
+                        <p className="text-sm font-bold text-primary font-sans">Download Format Template Excel</p>
+                        <p className="text-[10px] text-primary/70 font-medium font-sans">Hanya Kode Program (101.1-102.11) & Kode Akun COA</p>
                       </div>
                     </div>
                   </button>
 
-                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                  <label className="w-full flex items-center justify-between p-3.5 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
                     <div className="flex items-center gap-3">
                       <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
                       <div className="text-left font-sans">
-                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors font-sans">Upload File Data Baru</p>
-                        <p className="text-[10px] text-slate-400 font-medium font-sans">Pilih file .xlsx dari perangkat.</p>
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors font-sans">
+                          {parsedMigrationRows.length > 0 ? 'Pilih File Excel Lain...' : 'Pilih File Excel Data Migrasi'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-medium font-sans">Format spreadsheet .xlsx / .xls</p>
                       </div>
                     </div>
                     <input 
                       type="file" 
                       className="hidden" 
                       accept=".xlsx,.xls,.csv" 
-                      onChange={handlePenerimaanFileUpload} 
+                      onChange={handlePenerimaanFileSelect} 
                       disabled={migrating}
                     />
                   </label>
                 </div>
+
+                {/* Staging / Preview Table */}
+                {parsedMigrationRows.length > 0 && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between text-xs">
+                      <div>
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total Transaksi Dibaca</p>
+                        <p className="text-lg font-black text-emerald-950">{parsedMigrationRows.length} Transaksi</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total Nominal Sum</p>
+                        <p className="text-lg font-black text-emerald-950">
+                          Rp {parsedMigrationRows.reduce((sum, r) => sum + Number(r.nominal || 0), 0).toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        Pratinjau Data Excel ({parsedMigrationRows.length} Baris)
+                      </h4>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-72 overflow-y-auto custom-scrollbar">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
+                            <th className="px-3 py-2 text-center w-12 bg-slate-100">#</th>
+                            <th className="px-3 py-2 bg-slate-100">Kode Prog</th>
+                            <th className="px-3 py-2 bg-slate-100">Kode Akun</th>
+                            <th className="px-3 py-2 bg-slate-100">Sumber Dana</th>
+                            <th className="px-3 py-2 bg-slate-100">Tanggal</th>
+                            <th className="px-3 py-2 bg-slate-100">Muzakki</th>
+                            <th className="px-3 py-2 bg-slate-100">UPZ</th>
+                            <th className="px-3 py-2 text-right bg-slate-100">Nominal (Rp)</th>
+                            <th className="px-3 py-2 bg-slate-100">Keterangan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {parsedMigrationRows.map((item, index) => (
+                            <tr key={index} className="hover:bg-slate-50 transition-colors text-[11px]">
+                              <td className="px-3 py-2 text-center font-bold text-slate-400">{item.rowNum}</td>
+                              <td className="px-3 py-2 font-mono font-bold text-emerald-700">{item.kodeProgram}</td>
+                              <td className="px-3 py-2 font-mono text-slate-600">{item.kodeAkun}</td>
+                              <td className="px-3 py-2 font-medium text-slate-700">{item.sumberDana}</td>
+                              <td className="px-3 py-2 text-slate-600">{item.tanggalTrx}</td>
+                              <td className="px-3 py-2 font-bold text-slate-800">{item.namaMuzakki}</td>
+                              <td className="px-3 py-2 text-slate-600">{item.namaUpz}</td>
+                              <td className="px-3 py-2 text-right font-bold text-slate-900 font-mono">
+                                Rp {Number(item.nominal || 0).toLocaleString('id-ID')}
+                              </td>
+                              <td className="px-3 py-2 text-slate-500 max-w-[180px] truncate" title={item.keterangan}>
+                                {item.keterangan}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <button
+                      onClick={handleProcessMigrationSubmit}
+                      disabled={migrating}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      {migrating ? (
+                        <>
+                          <RefreshCw className="size-4 animate-spin" />
+                          Memproses Migrasi Data...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="size-4" />
+                          Proses Impor & Migrasi Data ({parsedMigrationRows.length} Transaksi)
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
