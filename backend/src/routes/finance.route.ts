@@ -18,6 +18,7 @@ import {
    executeDisbursement,
    executeReplenishment,
    getJournalEntries,
+   getCoaSummaries,
    createManualExpense,
    checkLedgerHealth,
    getReplenishments,
@@ -55,6 +56,7 @@ router.post('/manual-expense', createManualExpense);
 
 // Journal Entries Ledger Route
 router.get('/ledger', getJournalEntries);
+router.get('/ledger/rekap', getCoaSummaries);
 router.get('/ledger/health-check', checkLedgerHealth);
 router.post('/ledger/migrate', migrateBukuBesar);
 

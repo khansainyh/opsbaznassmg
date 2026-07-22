@@ -82,6 +82,10 @@ export default function BukuBesar() {
   const [jurnalCurrentPage, setJurnalCurrentPage] = useState(1);
   const itemsPerPage = 20;
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [paginationInfo, setPaginationInfo] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
+  const [summaryTotals, setSummaryTotals] = useState({ totalDebit: 0, totalKredit: 0 });
+  const [coaSummaryMap, setCoaSummaryMap] = useState<Record<string, { debit: number; kredit: number }>>({});
   const [loading, setLoading] = useState(true);
   const [healthData, setHealthData] = useState<any>(null);
   const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
@@ -99,6 +103,13 @@ export default function BukuBesar() {
     skipped: number;
     errors: any[];
   } | null>(null);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   const downloadBukuBesarTemplate = () => {
     let ws;
@@ -457,20 +468,39 @@ export default function BukuBesar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch Ledger & COAs on Mount
+  // Fetch Ledger & COAs on Mount / Filter change
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resLedger, resCoas, resHealth] = await Promise.all([
+      const [resLedger, resCoas, resHealth, resRekap] = await Promise.all([
         axios.get('/api/finance/ledger', {
-          params: { startDate, endDate }
+          params: {
+            startDate,
+            endDate,
+            page: jurnalCurrentPage,
+            limit: itemsPerPage,
+            search: debouncedSearch,
+            coaCodes: selectedCoas.length > 0 ? selectedCoas.join(',') : undefined
+          }
         }),
         axios.get('/api/finance/coa'),
-        axios.get('/api/finance/ledger/health-check')
+        axios.get('/api/finance/ledger/health-check'),
+        axios.get('/api/finance/ledger/rekap', {
+          params: { startDate, endDate }
+        })
       ]);
-      setLedger(resLedger.data);
+
+      if (resLedger.data && Array.isArray(resLedger.data.data)) {
+        setLedger(resLedger.data.data);
+        setPaginationInfo(resLedger.data.pagination || { total: resLedger.data.data.length, page: jurnalCurrentPage, limit: itemsPerPage, totalPages: 1 });
+        setSummaryTotals(resLedger.data.summary || { totalDebit: 0, totalKredit: 0 });
+      } else if (Array.isArray(resLedger.data)) {
+        setLedger(resLedger.data);
+        setPaginationInfo({ total: resLedger.data.length, page: 1, limit: itemsPerPage, totalPages: Math.ceil(resLedger.data.length / itemsPerPage) || 1 });
+      }
       setCoas(resCoas.data);
       setHealthData(resHealth.data.health);
+      setCoaSummaryMap(resRekap.data || {});
     } catch (e) {
       console.error('Gagal mengambil data buku besar:', e);
     } finally {
@@ -480,7 +510,7 @@ export default function BukuBesar() {
 
   useEffect(() => {
     fetchData();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, jurnalCurrentPage, debouncedSearch, selectedCoas]);
 
   // Handle COA selection toggle
   const toggleCoaSelection = (code: string) => {
@@ -508,92 +538,16 @@ export default function BukuBesar() {
     );
   }, [coas, coaSearchTerm]);
 
-  // Main client-side filtered ledger entries based on dates, search, and COAs
-  const filteredLedger = useMemo(() => {
-    return ledger.filter(entry => {
-      // 1. Date Range Filter
-      const entryDate = entry.realisasi?.tanggal ? entry.realisasi.tanggal.split('T')[0] : '';
-      if (startDate && entryDate < startDate) return false;
-      if (endDate && entryDate > endDate) return false;
+  // Server-side paginated ledger entries directly from API
+  const paginatedLedger = ledger;
 
-      // 2. COA Filter
-      if (selectedCoas.length > 0 && !selectedCoas.includes(entry.coa_code)) {
-        return false;
-      }
+  const totalDebit = summaryTotals.totalDebit;
+  const totalKredit = summaryTotals.totalKredit;
 
-      // 3. Text Search Filter
-      const search = searchTerm.toLowerCase();
-      if (search) {
-        const matchesKeterangan = entry.realisasi?.keterangan?.toLowerCase().includes(search);
-        const matchesCoaCode = entry.coa_code.includes(search);
-        const matchesCoaName = entry.coa?.nama_akun?.toLowerCase().includes(search);
-        const matchesAccountName = entry.account?.nama_akun?.toLowerCase().includes(search);
-        return matchesKeterangan || matchesCoaCode || matchesCoaName || matchesAccountName;
-      }
-
-      return true;
-    });
-  }, [ledger, startDate, endDate, selectedCoas, searchTerm]);
-
-  // Sorted ledger: Newest transaction date first.
-  // Within the same transaction, show KREDIT entries before DEBIT entries.
-  const sortedLedger = useMemo(() => {
-    return [...filteredLedger].sort((a, b) => {
-      // 1. Sort by date descending
-      const dateA = new Date(a.realisasi?.tanggal || 0).getTime();
-      const dateB = new Date(b.realisasi?.tanggal || 0).getTime();
-      if (dateB !== dateA) {
-        return dateB - dateA;
-      }
-
-      // 2. If same date, sort by input time (createdAt) descending
-      const createA = new Date(a.realisasi?.createdAt || a.realisasi?.tanggal || 0).getTime();
-      const createB = new Date(b.realisasi?.createdAt || b.realisasi?.tanggal || 0).getTime();
-      if (createB !== createA) {
-        return createB - createA;
-      }
-
-      // 3. Group by transaction_id to keep entries of the same transaction together
-      if (a.transaksi_id !== b.transaksi_id) {
-        return b.transaksi_id.localeCompare(a.transaksi_id);
-      }
-
-      // 4. Within the same transaction, sort Kredit entries first (Number(kredit) > 0 before Number(debit) > 0)
-      const isKreditA = Number(a.kredit) > 0 ? 1 : 0;
-      const isKreditB = Number(b.kredit) > 0 ? 1 : 0;
-      return isKreditB - isKreditA;
-    });
-  }, [filteredLedger]);
-
-  const paginatedLedger = useMemo(() => {
-    const start = (jurnalCurrentPage - 1) * itemsPerPage;
-    return sortedLedger.slice(start, start + itemsPerPage);
-  }, [sortedLedger, jurnalCurrentPage]);
-
-  // Compute total debit/kredit of filtered list
-  const totalDebit = useMemo(() => {
-    return filteredLedger.reduce((sum, item) => sum + Number(item.debit || 0), 0);
-  }, [filteredLedger]);
-
-  const totalKredit = useMemo(() => {
-    return filteredLedger.reduce((sum, item) => sum + Number(item.kredit || 0), 0);
-  }, [filteredLedger]);
-
-  // COA Summaries calculation for Rekapitulasi tab
+  // COA Summaries calculation for Rekapitulasi tab using server-side aggregated data
   const coaSummaries = useMemo(() => {
-    // 1. Group ledger entries by coa_code
-    const ledgerByCoa: Record<string, { debit: number; kredit: number }> = {};
-    ledger.forEach(entry => {
-      if (!ledgerByCoa[entry.coa_code]) {
-        ledgerByCoa[entry.coa_code] = { debit: 0, kredit: 0 };
-      }
-      ledgerByCoa[entry.coa_code].debit += Number(entry.debit || 0);
-      ledgerByCoa[entry.coa_code].kredit += Number(entry.kredit || 0);
-    });
-
-    // 2. Map over all COAs
     const summaries = coas.map(coa => {
-      const entrySum = ledgerByCoa[coa.coa_code] || { debit: 0, kredit: 0 };
+      const entrySum = coaSummaryMap[coa.coa_code] || { debit: 0, kredit: 0 };
       const normalType = getNormalBalanceType(coa.coa_code, coa.klasifikasi, coa.nama_akun);
       const saldoAwal = Number(coa.saldo_awal || 0);
 
@@ -614,7 +568,6 @@ export default function BukuBesar() {
       };
     });
 
-    // 3. Filter by search term
     let result = summaries;
     if (rekapSearchTerm.trim()) {
       const search = rekapSearchTerm.toLowerCase();
@@ -625,18 +578,16 @@ export default function BukuBesar() {
       );
     }
 
-    // Filter by Kas & Setara Kas if active
     if (rekapFilterType === 'kas') {
       result = result.filter(s => KAS_SETARA_KAS_CODES.includes(s.coa_code));
     }
 
-    // 4. Filter by zero balance toggle
     if (!showZeroBalances) {
       result = result.filter(s => s.saldo_awal !== 0 || s.debit > 0 || s.kredit > 0 || s.saldo !== 0);
     }
 
     return result;
-  }, [coas, ledger, showZeroBalances, rekapSearchTerm, rekapFilterType]);
+  }, [coas, coaSummaryMap, showZeroBalances, rekapSearchTerm, rekapFilterType]);
 
   // Compute Trial Balance Totals (for checking standard identity debit == kredit)
   const trialBalanceTotals = useMemo(() => {
@@ -699,22 +650,12 @@ export default function BukuBesar() {
     let totalAwal = 0;
     let totalMutasi = 0;
 
-    // Group ledger entries by coa_code
-    const ledgerByCoa: Record<string, { debit: number; kredit: number }> = {};
-    ledger.forEach(entry => {
-      if (!ledgerByCoa[entry.coa_code]) {
-        ledgerByCoa[entry.coa_code] = { debit: 0, kredit: 0 };
-      }
-      ledgerByCoa[entry.coa_code].debit += Number(entry.debit || 0);
-      ledgerByCoa[entry.coa_code].kredit += Number(entry.kredit || 0);
-    });
-
     KAS_SETARA_KAS_CODES.forEach(code => {
       const coaInfo = coas.find(c => c.coa_code === code);
       const saldoAwal = Number(coaInfo?.saldo_awal || 0);
       totalAwal += saldoAwal;
 
-      const entrySum = ledgerByCoa[code] || { debit: 0, kredit: 0 };
+      const entrySum = coaSummaryMap[code] || { debit: 0, kredit: 0 };
       totalMutasi += (entrySum.debit - entrySum.kredit);
     });
 
@@ -723,7 +664,7 @@ export default function BukuBesar() {
       mutasi: totalMutasi,
       akhir: totalAwal + totalMutasi
     };
-  }, [coas, ledger]);
+  }, [coas, coaSummaryMap]);
 
   // Handle printing as PDF using browser built-in print
   const handlePrint = () => {
@@ -947,7 +888,7 @@ export default function BukuBesar() {
               </div>
               <div className="space-y-0.5">
                 <span className="text-[10px] font-black text-slate-400">Jumlah Baris Transaksi</span>
-                <p className="text-lg font-black text-slate-800">{filteredLedger.length} Baris Jurnal</p>
+                <p className="text-lg font-black text-slate-800">{paginationInfo.total} Baris Jurnal</p>
               </div>
             </motion.div>
           </>
@@ -1422,11 +1363,11 @@ export default function BukuBesar() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {sortedLedger.length === 0 ? (
+                    {paginatedLedger.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
                       </tr>
-                    ) : paginatedLedger.map((item) => (
+                    ) : paginatedLedger.map((item: LedgerEntryItem) => (
                       <tr key={item.entry_id} className="hover:bg-slate-50/30 transition-colors group">
                         <td className="px-6 py-5 font-mono text-xs text-slate-650 font-bold">
                           <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
@@ -1453,7 +1394,7 @@ export default function BukuBesar() {
                   </tbody>
                 </table>
 
-                {/* Table for PDF Print (complete list of all records without pagination) */}
+                {/* Table for PDF Print (current page list of records) */}
                 <table className="w-full text-left hidden print:table">
                   <thead>
                     <tr className="print:border-b">
@@ -1466,11 +1407,11 @@ export default function BukuBesar() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {sortedLedger.length === 0 ? (
+                    {paginatedLedger.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
                       </tr>
-                    ) : sortedLedger.map((item) => (
+                    ) : paginatedLedger.map((item: LedgerEntryItem) => (
                       <tr key={item.entry_id} className="print:border-b">
                         <td className="px-6 py-5 font-mono text-xs text-black font-bold">
                           <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
@@ -1495,7 +1436,7 @@ export default function BukuBesar() {
                 {/* Pagination Controls */}
                 <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/20 text-xs print:hidden">
                   <p className="text-slate-400 font-bold">
-                    Menampilkan {sortedLedger.length === 0 ? 0 : (jurnalCurrentPage - 1) * itemsPerPage + 1}-{Math.min(jurnalCurrentPage * itemsPerPage, sortedLedger.length)} dari {sortedLedger.length} Transaksi Jurnal
+                    Menampilkan {paginationInfo.total === 0 ? 0 : (jurnalCurrentPage - 1) * itemsPerPage + 1}-{Math.min(jurnalCurrentPage * itemsPerPage, paginationInfo.total)} dari {paginationInfo.total} Transaksi Jurnal
                   </p>
                   <div className="flex gap-1 items-center">
                     <button
@@ -1511,11 +1452,11 @@ export default function BukuBesar() {
                       <input
                         type="number"
                         min={1}
-                        max={Math.ceil(sortedLedger.length / itemsPerPage) || 1}
+                        max={paginationInfo.totalPages || 1}
                         value={jurnalCurrentPage === 0 ? '' : jurnalCurrentPage}
                         onChange={(e) => {
                           const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                          const totalPages = Math.ceil(sortedLedger.length / itemsPerPage) || 1;
+                          const totalPages = paginationInfo.totalPages || 1;
                           if (val === 0) {
                             setJurnalCurrentPage(0);
                           } else if (!isNaN(val) && val >= 1 && val <= totalPages) {
@@ -1529,12 +1470,12 @@ export default function BukuBesar() {
                         }}
                         className="w-12 text-center py-1 border border-slate-200 rounded-md bg-white text-slate-750 outline-none focus:border-primary text-[11px] font-extrabold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
-                      <span>dari {Math.ceil(sortedLedger.length / itemsPerPage) || 1}</span>
+                      <span>dari {paginationInfo.totalPages || 1}</span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setJurnalCurrentPage(prev => Math.min(prev + 1, Math.ceil(sortedLedger.length / itemsPerPage) || 1))}
-                      disabled={jurnalCurrentPage === (Math.ceil(sortedLedger.length / itemsPerPage) || 1)}
+                      onClick={() => setJurnalCurrentPage(prev => Math.min(prev + 1, paginationInfo.totalPages || 1))}
+                      disabled={jurnalCurrentPage >= (paginationInfo.totalPages || 1)}
                       className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer"
                     >
                       <ChevronRight className="size-4" />

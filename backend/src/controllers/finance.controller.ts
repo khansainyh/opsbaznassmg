@@ -1132,10 +1132,110 @@ export const executeReplenishment = async (req: Request, res: Response) => {
 
 export const getJournalEntries = async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, page, limit, search, coaCodes } = req.query;
 
     const whereClause: any = {};
 
+    if (startDate || endDate) {
+      whereClause.realisasi = whereClause.realisasi || {};
+      if (startDate) {
+        whereClause.realisasi.tanggal = {
+          ...whereClause.realisasi.tanggal,
+          gte: new Date(`${startDate}T00:00:00.000Z`)
+        };
+      }
+      if (endDate) {
+        whereClause.realisasi.tanggal = {
+          ...whereClause.realisasi.tanggal,
+          lte: new Date(`${endDate}T23:59:59.999Z`)
+        };
+      }
+    }
+
+    if (coaCodes) {
+      const codes = String(coaCodes).split(',').map(c => c.trim()).filter(Boolean);
+      if (codes.length > 0) {
+        whereClause.coa_code = { in: codes };
+      }
+    }
+
+    if (search) {
+      const searchStr = String(search).trim();
+      if (searchStr) {
+        whereClause.OR = [
+          { coa_code: { contains: searchStr } },
+          { coa: { nama_akun: { contains: searchStr } } },
+          { account: { nama_akun: { contains: searchStr } } },
+          { realisasi: { keterangan: { contains: searchStr } } }
+        ];
+      }
+    }
+
+    const pageNum = parseInt(String(page || 1), 10) || 1;
+    const limitNum = parseInt(String(limit || 20), 10) || 20;
+    const skip = (pageNum - 1) * limitNum;
+
+    const [entries, totalCount, aggregateSum] = await Promise.all([
+      prisma.journalEntry.findMany({
+        where: whereClause,
+        include: {
+          realisasi: true,
+          coa: true,
+          account: true
+        },
+        orderBy: [
+          {
+            realisasi: {
+              tanggal: 'desc'
+            }
+          },
+          {
+            realisasi: {
+              createdAt: 'desc'
+            }
+          },
+          {
+            entry_id: 'desc'
+          }
+        ],
+        skip,
+        take: limitNum
+      }),
+      prisma.journalEntry.count({ where: whereClause }),
+      prisma.journalEntry.aggregate({
+        where: whereClause,
+        _sum: {
+          debit: true,
+          kredit: true
+        }
+      })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limitNum) || 1;
+
+    res.status(200).json({
+      data: entries,
+      pagination: {
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        totalPages
+      },
+      summary: {
+        totalDebit: Number(aggregateSum._sum.debit || 0),
+        totalKredit: Number(aggregateSum._sum.kredit || 0)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const getCoaSummaries = async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const whereClause: any = {};
     if (startDate || endDate) {
       whereClause.realisasi = {};
       if (startDate) {
@@ -1151,27 +1251,24 @@ export const getJournalEntries = async (req: Request, res: Response) => {
       }
     }
 
-    const entries = await prisma.journalEntry.findMany({
+    const grouped = await prisma.journalEntry.groupBy({
+      by: ['coa_code'],
       where: whereClause,
-      include: {
-        realisasi: true,
-        coa: true,
-        account: true
-      },
-      orderBy: [
-        {
-          realisasi: {
-            tanggal: 'desc'
-          }
-        },
-        {
-          realisasi: {
-            createdAt: 'desc'
-          }
-        }
-      ]
+      _sum: {
+        debit: true,
+        kredit: true
+      }
     });
-    res.status(200).json(entries);
+
+    const summaryMap: Record<string, { debit: number; kredit: number }> = {};
+    grouped.forEach(item => {
+      summaryMap[item.coa_code] = {
+        debit: Number(item._sum.debit || 0),
+        kredit: Number(item._sum.kredit || 0)
+      };
+    });
+
+    res.status(200).json(summaryMap);
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
