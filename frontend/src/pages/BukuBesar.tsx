@@ -80,6 +80,7 @@ export default function BukuBesar() {
   const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
   const [printLedger, setPrintLedger] = useState<LedgerEntryItem[]>([]);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [coas, setCoas] = useState<COAItem[]>([]);
   const [jurnalCurrentPage, setJurnalCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -668,7 +669,7 @@ export default function BukuBesar() {
     };
   }, [coas, coaSummaryMap]);
 
-  // Handle printing as PDF using browser built-in print
+  // Handle printing as PDF using browser built-in print (optimized for large datasets)
   const handlePrint = async () => {
     if (activeTab === 'jurnal') {
       setIsPreparingPrint(true);
@@ -683,12 +684,21 @@ export default function BukuBesar() {
           }
         });
         const fullEntries = res.data?.data || (Array.isArray(res.data) ? res.data : []);
-        setPrintLedger(fullEntries);
+
+        // Pre-format strings outside JSX loop for max rendering speed
+        const preformatted = fullEntries.map((item: any) => ({
+          ...item,
+          tglStr: item.realisasi?.tanggal ? new Date(item.realisasi.tanggal).toLocaleDateString('id-ID') : '-',
+          debitStr: Number(item.debit || 0) > 0 ? formatCurrency(Number(item.debit)) : '-',
+          kreditStr: Number(item.kredit || 0) > 0 ? formatCurrency(Number(item.kredit)) : '-'
+        }));
+
+        setPrintLedger(preformatted);
 
         setTimeout(() => {
           window.print();
           setIsPreparingPrint(false);
-        }, 350);
+        }, 150);
       } catch (err) {
         console.error('Gagal menyiapkan data cetak:', err);
         alert('Gagal mengambil data lengkap untuk dicetak');
@@ -699,16 +709,54 @@ export default function BukuBesar() {
     }
   };
 
+  // 1-Click Excel Export option for ultra-fast processing
+  const handleExportExcel = async () => {
+    setIsPreparingPrint(true);
+    try {
+      const res = await axios.get('/api/finance/ledger', {
+        params: {
+          startDate,
+          endDate,
+          limit: 'all',
+          search: debouncedSearch,
+          coaCodes: selectedCoas.length > 0 ? selectedCoas.join(',') : undefined
+        }
+      });
+      const fullEntries = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+
+      const exportRows = fullEntries.map((item: any, idx: number) => ({
+        No: idx + 1,
+        'Tanggal Jurnal': item.realisasi?.tanggal ? new Date(item.realisasi.tanggal).toLocaleDateString('id-ID') : '',
+        'Keterangan Transaksi': item.realisasi?.keterangan || '',
+        'Kode COA': item.coa_code || '',
+        'Nama Akun COA': item.coa?.nama_akun || '',
+        'Debet (IDR)': Number(item.debit || 0),
+        'Kredit (IDR)': Number(item.kredit || 0),
+        'Kas/Bank Fisik': item.account?.nama_akun || '-'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Jurnal_Buku_Besar");
+      XLSX.writeFile(wb, `Laporan_Jurnal_Buku_Besar_${startDate}_sd_${endDate}.xlsx`);
+    } catch (err) {
+      console.error('Gagal mengeksport Excel:', err);
+      alert('Gagal mengeksport data ke Excel');
+    } finally {
+      setIsPreparingPrint(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50 print:bg-white print:p-0 print:overflow-visible">
 
-      {/* Custom Print CSS Styles injected dynamically */}
+      {/* Custom Print CSS Styles injected dynamically - Optimized table-layout fixed */}
       <style dangerouslySetInnerHTML={{
         __html: `
  @media print {
    @page {
      size: A4 portrait;
-     margin: 10mm 10mm;
+     margin: 8mm 8mm;
    }
    html, body, #root, .flex-1, .overflow-y-auto, [class*="overflow-y-auto"], [class*="min-h-screen"], [class*="h-screen"] {
      height: auto !important;
@@ -725,7 +773,7 @@ export default function BukuBesar() {
    }
    .print-header {
      display: block !important;
-     margin-bottom: 15px !important;
+     margin-bottom: 10px !important;
    }
    .shadow-sm, .rounded-3xl, .rounded-2xl, .bg-slate-50\/50 {
      box-shadow: none !important;
@@ -736,12 +784,14 @@ export default function BukuBesar() {
    table {
      width: 100% !important;
      border-collapse: collapse !important;
+     table-layout: fixed !important;
    }
    th, td {
      border: 1px solid #cbd5e1 !important;
-     padding: 4px 6px !important;
+     padding: 3px 5px !important;
      font-size: 8px !important;
      line-height: 1.1 !important;
+     word-break: break-word !important;
    }
    tr {
      page-break-inside: avoid !important;
@@ -1182,23 +1232,23 @@ export default function BukuBesar() {
                 </div>
               </div>
 
-              {/* Cetak PDF Button */}
+              {/* Cetak / Export Button */}
               <div className="space-y-1.5 self-end">
                 <button
                   type="button"
-                  onClick={handlePrint}
+                  onClick={() => setIsExportModalOpen(true)}
                   disabled={isPreparingPrint}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-primary/10 disabled:opacity-60"
                 >
                   {isPreparingPrint ? (
                     <>
                       <RefreshCw className="size-4 animate-spin" />
-                      Menyiapkan PDF...
+                      Menyiapkan Data...
                     </>
                   ) : (
                     <>
                       <Printer className="size-4" />
-                      Cetak PDF Jurnal ({paginationInfo.total})
+                      Cetak Laporan
                     </>
                   )}
                 </button>
@@ -1353,14 +1403,15 @@ export default function BukuBesar() {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Cetak PDF Button */}
+                {/* Cetak / Export Button */}
                 <button
                   type="button"
-                  onClick={handlePrint}
-                  className="flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-primary/10"
+                  onClick={() => setIsExportModalOpen(true)}
+                  disabled={isPreparingPrint}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white hover:bg-primary/95 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-primary/10 disabled:opacity-60"
                 >
                   <Printer className="size-4" />
-                  Cetak PDF Rekap
+                  Cetak Laporan
                 </button>
 
                 {/* Refresh Button */}
@@ -1433,38 +1484,38 @@ export default function BukuBesar() {
                 </table>
 
                 {/* Table for PDF Print (complete list of all filtered records without pagination) */}
-                <table className="w-full text-left hidden print:table">
+                <table className="w-full text-left hidden print:table [table-layout:fixed]">
                   <thead>
                     <tr className="print:border-b">
-                      <th className="px-6 py-4 text-[10px] font-black text-black">Tanggal Jurnal</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-black">Keterangan Jurnal (Realisasi)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-black">Kode COA</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-black">Nama Akun COA</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-right text-black">Debet (IDR)</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-right text-black">Kredit (IDR)</th>
+                      <th className="w-24 px-2 py-2 text-[9px] font-black text-black">Tanggal</th>
+                      <th className="px-2 py-2 text-[9px] font-black text-black">Keterangan Jurnal (Realisasi)</th>
+                      <th className="w-20 px-2 py-2 text-[9px] font-black text-black">Kode COA</th>
+                      <th className="w-36 px-2 py-2 text-[9px] font-black text-black">Nama Akun COA</th>
+                      <th className="w-28 px-2 py-2 text-[9px] font-black text-right text-black">Debet (IDR)</th>
+                      <th className="w-28 px-2 py-2 text-[9px] font-black text-right text-black">Kredit (IDR)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody className="divide-y divide-slate-100 text-xs">
                     {(printLedger.length > 0 ? printLedger : paginatedLedger).length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
+                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic font-medium">Buku besar jurnal kosong / Tidak ditemukan</td>
                       </tr>
-                    ) : (printLedger.length > 0 ? printLedger : paginatedLedger).map((item: LedgerEntryItem) => (
+                    ) : (printLedger.length > 0 ? printLedger : paginatedLedger).map((item: any) => (
                       <tr key={item.entry_id} className="print:border-b">
-                        <td className="px-6 py-5 font-mono text-xs text-black font-bold">
-                          <div>{new Date(item.realisasi.tanggal).toLocaleDateString('id-ID')}</div>
+                        <td className="px-2 py-1 font-mono text-[9px] text-black font-bold">
+                          {item.tglStr || (item.realisasi?.tanggal ? new Date(item.realisasi.tanggal).toLocaleDateString('id-ID') : '-')}
                         </td>
-                        <td className="px-6 py-5 font-bold text-black">
-                          {item.realisasi.keterangan}
-                          {item.account && <span className="block text-[10px] text-slate-500 mt-1 font-semibold">Kas Fisik: {item.account.nama_akun}</span>}
+                        <td className="px-2 py-1 font-bold text-black text-[9px] leading-tight">
+                          {item.realisasi?.keterangan}
+                          {item.account && <span className="block text-[8px] text-slate-500 font-semibold">Kas: {item.account.nama_akun}</span>}
                         </td>
-                        <td className="px-6 py-5 font-mono text-xs text-black font-bold">{item.coa_code}</td>
-                        <td className="px-6 py-5 font-bold text-black">{item.coa.nama_akun}</td>
-                        <td className="px-6 py-5 text-right font-black text-black">
-                          {Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-'}
+                        <td className="px-2 py-1 font-mono text-[9px] text-black font-bold">{item.coa_code}</td>
+                        <td className="px-2 py-1 font-bold text-black text-[9px] leading-tight">{item.coa?.nama_akun}</td>
+                        <td className="px-2 py-1 text-right font-black text-black text-[9px]">
+                          {item.debitStr || (Number(item.debit) > 0 ? formatCurrency(Number(item.debit)) : '-')}
                         </td>
-                        <td className="px-6 py-5 text-right font-black text-black">
-                          {Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-'}
+                        <td className="px-2 py-1 text-right font-black text-black text-[9px]">
+                          {item.kreditStr || (Number(item.kredit) > 0 ? formatCurrency(Number(item.kredit)) : '-')}
                         </td>
                       </tr>
                     ))}
@@ -2158,6 +2209,100 @@ export default function BukuBesar() {
           </motion.div>
         </div>
       )}
+
+      {/* Modal Dialog Cetak / Export Laporan (Bergaya Migrasi Data Mustahik) */}
+      <AnimatePresence>
+        {isExportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsExportModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Cetak & Export Laporan</h3>
+                <button
+                  onClick={() => setIsExportModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                    <Printer className="size-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-900">Pilih Format Unduhan Laporan</h4>
+                  <p className="text-xs text-slate-500">
+                    Pilih format dokumen laporan Jurnal Buku Besar yang Anda butuhkan. Seluruh data terfilter ({paginationInfo.total} Baris) akan di-export secara lengkap.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Option 1: Cetak PDF */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportModalOpen(false);
+                      handlePrint();
+                    }}
+                    disabled={isPreparingPrint}
+                    className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <Printer className="size-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-primary">Cetak Laporan PDF</p>
+                        <p className="text-[10px] text-primary/70 font-medium">Format: .pdf (Dokumen Cetak Laporan - {paginationInfo.total} Baris)</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-primary opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+
+                  {/* Option 2: Export Excel */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportModalOpen(false);
+                      handleExportExcel();
+                    }}
+                    disabled={isPreparingPrint}
+                    className="w-full flex items-center justify-between p-4 border border-emerald-500/20 bg-emerald-500/5 rounded-xl group hover:bg-emerald-500/10 transition-all cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                        <FileSpreadsheet className="size-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-emerald-800">Export Spreadsheet Excel</p>
+                        <p className="text-[10px] text-emerald-600/70 font-medium">Format: .xlsx (Spreadsheet Data - {paginationInfo.total} Baris)</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-emerald-600 opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+                </div>
+
+                <div className="p-3.5 bg-amber-50 border border-amber-200/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 font-medium">
+                  <Info className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>Seluruh data yang di-export otomatis mengikuti filter tanggal, kata kunci pencarian, dan akun COA yang aktif.</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
