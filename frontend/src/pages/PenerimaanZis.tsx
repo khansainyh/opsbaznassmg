@@ -92,9 +92,7 @@ export default function PenerimaanZis() {
       {
         "No": 44879,
         "Kode Program": "101.1",
-        "Jenis Program": "101.1 || Zakat Maal Perorangan",
         "Kode Akun": "41020201",
-        "Nama Akun": "41020201 || Penerimaan | Zakat | Individual | Maal | Kas",
         "Sumber Dana": "BSI-BSM",
         "Tanggal Trx": "01/06/2026",
         "No Transaksi": "01/06/26/km/1/0000002",
@@ -106,9 +104,7 @@ export default function PenerimaanZis() {
       {
         "No": 44880,
         "Kode Program": "102.1",
-        "Jenis Program": "102.1 || Zakat Maal UPZ Kota",
         "Kode Akun": "41020201",
-        "Nama Akun": "41020201 || Penerimaan | Zakat | Individual | Maal | Kas",
         "Sumber Dana": "BSI-BSM",
         "Tanggal Trx": "02/06/2026",
         "No Transaksi": "02/06/26/km/1/0000003",
