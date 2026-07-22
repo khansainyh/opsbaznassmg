@@ -799,12 +799,28 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       muzakkiNamaMap.set(m.nama.toLowerCase().trim(), m.id);
     });
 
+    const getVal = (obj: any, keys: string[]) => {
+      if (!obj) return null;
+      for (const k of Object.keys(obj)) {
+        const cleanK = k.trim().toLowerCase();
+        for (const targetKey of keys) {
+          if (cleanK === targetKey.trim().toLowerCase()) {
+            const val = obj[k];
+            if (val !== undefined && val !== null && String(val).trim() !== '') {
+              return val;
+            }
+          }
+        }
+      }
+      return null;
+    };
+
     for (let i = 0; i < transactions.length; i++) {
       const txData = transactions[i];
       const rowNum = txData.rowNum || (i + 1);
 
       try {
-        const rawNominalVal = txData.Nominal || txData.nominal || txData.NOMINAL || txData.Nominal_Rp || txData.Jumlah;
+        const rawNominalVal = getVal(txData, ['Nominal', 'nominal', 'NOMINAL', 'Nominal_Rp', 'Jumlah', 'Total', 'Jumlah Rp']);
         let rawNominal = rawNominalVal;
         if (typeof rawNominal === 'string') {
           rawNominal = rawNominal.replace(/[^0-9.-]+/g, '');
@@ -815,7 +831,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         let bankAccountId = txData.bank_account_id;
-        const sourceQuery = String(txData['Sumber Dana'] || txData.sumber_dana || txData.bank_account_name || '').toLowerCase().trim();
+        const sourceQuery = String(getVal(txData, ['Sumber Dana', 'sumber_dana', 'bank_account_name', 'Bank', 'Rekening', 'Kas & Bank']) || '').toLowerCase().trim();
 
         if (!bankAccountId && sourceQuery) {
           bankAccountId = bankAccountMap.get(sourceQuery);
@@ -833,13 +849,13 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         if (!bankAccountId) throw new Error('Rekening bank/kas tidak valid');
 
         let muzakkiId = txData.muzakki_id || null;
-        const inputNamaMuzakki = String(txData['Nama Muzakki'] || txData.nama_muzakki || '').trim();
-        const inputNikMuzakki = String(txData.nik_muzakki || txData.nik || '').trim();
+        const inputNamaMuzakki = String(getVal(txData, ['Nama Muzakki', 'nama_muzakki', 'Nama', 'Muzakki', 'Penyetor']) || '').trim();
+        const inputNikMuzakki = String(getVal(txData, ['nik_muzakki', 'nik', 'NIK']) || '').trim();
 
         if (!muzakkiId && inputNikMuzakki) muzakkiId = muzakkiNikMap.get(inputNikMuzakki) || null;
         if (!muzakkiId && inputNamaMuzakki) muzakkiId = muzakkiNamaMap.get(inputNamaMuzakki.toLowerCase()) || null;
 
-        const rowKeterangan = String(txData.Keterangan || txData.keterangan || '').trim();
+        const rowKeterangan = String(getVal(txData, ['Keterangan', 'keterangan', 'Uraian', 'Deskripsi', 'Catatan']) || '').trim();
         if (!muzakkiId && rowKeterangan) {
           const match = rowKeterangan.match(/(?:a\.n|an\.|dari|bapak|ibu)\s+([A-Za-z\s]+)/i);
           if (match && match[1]) {
@@ -848,11 +864,11 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           }
         }
 
-        let rawKodeProgram = txData['Kode Program'] || txData.kode_program || txData.Kode_Program || txData.Kode;
+        let rawKodeProgram = getVal(txData, ['Kode Program', 'kode_program', 'Kode_Program', 'Kode', 'Kode Prog']);
         if (typeof rawKodeProgram === 'number') rawKodeProgram = String(rawKodeProgram);
         let kodeProgram = rawKodeProgram ? String(rawKodeProgram).trim() : null;
 
-        let rawJenisProgram = txData['Jenis Program'] || txData.jenis_program || txData.Jenis_Program;
+        let rawJenisProgram = getVal(txData, ['Jenis Program', 'jenis_program', 'Jenis_Program', 'Program']);
         let jenisProgram = rawJenisProgram ? String(rawJenisProgram).trim() : null;
         let rkatId = txData.rkat_id || null;
 
@@ -866,7 +882,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         let upzId = txData.upz_id || null;
-        const upzQuery = String(txData['Nama UPZ'] || txData.nama_upz || txData.upz_nama || '').toLowerCase().trim();
+        const upzQuery = String(getVal(txData, ['Nama UPZ', 'nama_upz', 'upz_nama', 'UPZ', 'Nama OPD / UPZ', 'OPD']) || '').toLowerCase().trim();
         if (!upzId && upzQuery) {
           const matchedUpz = upzs.find(u =>
             u.nama_upz.toLowerCase().includes(upzQuery) ||
@@ -875,24 +891,39 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           if (matchedUpz) upzId = matchedUpz.id;
         }
 
-        const simbaNo = String(txData.no_transaksi_simba || txData['No Transaksi'] || txData.no_transaksi || txData['No. Transaksi'] || '').trim() || null;
-        let kuitansiNo = String(txData.no_kuitansi || txData['No Transaksi'] || txData.no_transaksi || '').trim() || null;
-        if (!kuitansiNo) kuitansiNo = simbaNo || `PZ-HIST-${Date.now()}-${i + 1}`;
+        const simbaNo = String(getVal(txData, ['no_transaksi_simba', 'No Transaksi', 'no_transaksi', 'No. Transaksi', 'No Transaksi SIMBA']) || '').trim() || null;
+        let kuitansiNo = String(getVal(txData, ['no_kuitansi', 'No Transaksi', 'no_transaksi', 'No Kuitansi', 'Kuitansi']) || '').trim() || null;
+        if (!kuitansiNo) {
+          kuitansiNo = simbaNo || `PZ-HIST-${Date.now()}-${i + 1}-${Math.floor(Math.random() * 10000)}`;
+        }
+
+        const existingKuitansi = await prisma.penerimaanZis.findUnique({ where: { no_kuitansi: kuitansiNo } });
+        if (existingKuitansi) {
+          kuitansiNo = `${kuitansiNo}-DUP-${i + 1}-${Math.floor(Math.random() * 1000)}`;
+        }
 
         const statusSimba = txData.status_simba || (simbaNo ? 'SYNCED' : 'PENDING');
         
         let tanggalTrx = new Date();
-        const rawDate = String(txData['Tanggal Trx'] || txData.tanggal_pembayaran || txData.tanggal_trx || txData.Tanggal || '').trim();
-        if (rawDate) {
-          if (rawDate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-            const parts = rawDate.split('/');
-            tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
-          } else if (rawDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
-            const parts = rawDate.split('-');
-            tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
+        const rawDateVal = getVal(txData, ['Tanggal Trx', 'tanggal_pembayaran', 'tanggal_trx', 'Tanggal', 'Tgl']);
+        if (rawDateVal !== null && rawDateVal !== undefined) {
+          if (typeof rawDateVal === 'number') {
+            tanggalTrx = new Date(Math.round((rawDateVal - 25569) * 86400 * 1000));
           } else {
-            tanggalTrx = new Date(rawDate);
+            const rawDateStr = String(rawDateVal).trim();
+            if (rawDateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+              const parts = rawDateStr.split('/');
+              tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
+            } else if (rawDateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
+              const parts = rawDateStr.split('-');
+              tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
+            } else {
+              tanggalTrx = new Date(rawDateStr);
+            }
           }
+        }
+        if (isNaN(tanggalTrx.getTime())) {
+          tanggalTrx = new Date();
         }
 
         await prisma.$transaction(async (tx) => {
@@ -955,6 +986,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
 
         successCount++;
       } catch (err: any) {
+        console.error(`[MIGRATE ERROR] Baris ${rowNum}:`, err.message || err);
         failedCount++;
         errors.push({
           rowNum,
@@ -969,7 +1001,13 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       totalCount: transactions.length,
       successCount,
       failedCount,
-      errors
+      errors,
+      summary: {
+        total: transactions.length,
+        success: successCount,
+        failed: failedCount,
+        errors
+      }
     });
   } catch (error: any) {
     console.error(error);

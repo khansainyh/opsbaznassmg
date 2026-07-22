@@ -183,13 +183,13 @@ export default function PenerimaanZis() {
       });
 
       if (res.data?.status === 'success') {
-        const s = res.data.summary || {};
-        const succ = s.success !== undefined ? s.success : (s.successCount !== undefined ? s.successCount : 0);
-        const fail = s.failed !== undefined ? s.failed : (s.failedCount !== undefined ? s.failedCount : 0);
+        const succ = res.data.successCount ?? res.data.summary?.success ?? res.data.summary?.successCount ?? 0;
+        const fail = res.data.failedCount ?? res.data.summary?.failed ?? res.data.summary?.failedCount ?? 0;
+        const errorsList = res.data.errors || res.data.summary?.errors || [];
         
         let msg = `Migrasi Data Penerimaan ZIS Selesai!\nTotal Berhasil: ${succ} Transaksi\nGagal: ${fail} Transaksi`;
-        if (Array.isArray(s.errors) && s.errors.length > 0) {
-          msg += `\n\nRincian Gagal:\n` + s.errors.map((e: any) => `- Baris ${e.row}: ${e.error}`).join('\n');
+        if (Array.isArray(errorsList) && errorsList.length > 0) {
+          msg += `\n\nRincian Gagal:\n` + errorsList.map((e: any) => `- Baris ${e.rowNum || e.row}: ${e.error}`).join('\n');
         }
         alert(msg);
 
