@@ -131,6 +131,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
       const createdItems: any[] = [];
       let totalNominal = 0;
+      const allUpzs = await tx.upz.findMany();
 
       for (let i = 0; i < transactions.length; i++) {
         const item = transactions[i];
@@ -176,6 +177,25 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         }
 
         const cleanOpd = item.opd ? (String(item.opd).startsWith('UPZ') ? String(item.opd) : `UPZ ${String(item.opd)}`) : 'UPZ';
+        const rawOpdName = item.opd ? String(item.opd).replace(/^UPZ\s+/i, '').toLowerCase().trim() : '';
+
+        let upz_id: string | null = null;
+        if (rawOpdName) {
+          const matchedUpz = allUpzs.find(u => 
+            u.nama_upz.toLowerCase().includes(rawOpdName) ||
+            rawOpdName.includes(u.nama_upz.toLowerCase())
+          );
+          if (matchedUpz) upz_id = matchedUpz.id;
+        }
+
+        let kode_program = isZakat ? '102.1' : '102.5';
+        let jenis_program = isZakat ? 'Zakat Maal UPZ Kota (UPZ Pengumpulan)' : 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kota (UPZ Pengumpulan)';
+
+        if (rawOpdName.includes('kecamatan')) {
+          kode_program = isZakat ? '102.2' : '102.6';
+          jenis_program = isZakat ? 'Zakat Maal UPZ Kecamatan (UPZ Pengumpulan)' : 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kecamatan (UPZ Pengumpulan)';
+        }
+
         const formattedKeterangan = `Terima ${isZakat ? 'Zakat Maal' : 'Infak'} a.n ${muzakki.nama} (${cleanOpd})`;
 
         // 1. Create PenerimaanZis record (status SYNCED immediately)
@@ -183,7 +203,10 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
           data: {
             no_kuitansi,
             muzakki_id: item.muzakki_id,
+            upz_id,
             rkat_id,
+            kode_program,
+            jenis_program,
             bank_account_id,
             nominal: new Prisma.Decimal(nominalVal),
             metode_pembayaran: 'TRANSFER',
@@ -191,7 +214,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
             keterangan: formattedKeterangan,
             status_simba: 'SYNCED',
             transaksi_id: null
-          }
+          } as any
         });
 
         // 2. Create Realisasi record

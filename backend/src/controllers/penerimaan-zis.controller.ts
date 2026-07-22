@@ -32,6 +32,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       include: {
         muzakki: true,
         rkat: true,
+        upz: true,
         bankAccount: true
       },
       orderBy: {
@@ -69,16 +70,16 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
     });
 
     res.status(200).json({ status: 'success', data: cleanList });
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: String(error) });
+    res.status(500).json({ error: error.message || String(error) });
   }
 };
 
 export const createPenerimaanZis = async (req: Request, res: Response) => {
   try {
     const { 
-      no_kuitansi, muzakki_id, rkat_id, bank_account_id, nominal, 
+      no_kuitansi, muzakki_id, rkat_id, upz_id, kode_program, jenis_program, bank_account_id, nominal, 
       metode_pembayaran, tanggal_pembayaran, keterangan, coa_code, no_transaksi_simba
     } = req.body;
 
@@ -109,7 +110,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
         if (!rkat) throw new Error('Program RKAT Pengumpulan tidak ditemukan');
       }
 
-      const bankAccount = await tx.bankAccount.findUnique({ where: { account_id: bank_account_id } });
+      let bankAccount = await tx.bankAccount.findUnique({ where: { account_id: bank_account_id } });
       if (!bankAccount) throw new Error('Rekening penerima tidak ditemukan');
 
       const formattedKeterangan = keterangan || (
@@ -602,6 +603,145 @@ export const deletePenerimaanZis = async (req: Request, res: Response) => {
   }
 };
 
+export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; jenis: string; isUpz: boolean }> = {
+  '101.1': { rkat_no: '2', jenis: 'Zakat Maal Perorangan', isUpz: false },
+  '101.2': { rkat_no: '5', jenis: 'Penerimaan Zakat Fitrah Perorangan', isUpz: false },
+  '101.3': { rkat_no: '16', jenis: 'CSR/PKBL', isUpz: false },
+  '101.4': { rkat_no: '14', jenis: 'Qurban', isUpz: false },
+  '101.5': { rkat_no: '15', jenis: 'Fidyah Perorangan', isUpz: false },
+  '101.8': { rkat_no: '7', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat', isUpz: false },
+  '101.9': { rkat_no: '10', jenis: 'Penerimaan Infak Sedekah Terikat Kas', isUpz: false },
+  '101.10': { rkat_no: '11', jenis: 'Penerimaan Infak Sedekah Terikat Natura', isUpz: false },
+  '101.11': { rkat_no: '13', jenis: 'Infak/Sedekah Terikat Operasional Amil', isUpz: false },
+  '101.12': { rkat_no: '10', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
+  '101.13': { rkat_no: '1', jenis: 'Zakat Maal Entitas', isUpz: false },
+  '101.14': { rkat_no: null, jenis: 'Belum Diketahui', isUpz: false },
+
+  '102.1': { rkat_no: '3', jenis: 'Zakat Maal UPZ Kota (UPZ Pengumpulan)', isUpz: true },
+  '102.2': { rkat_no: '3', jenis: 'Zakat Maal UPZ Kecamatan (UPZ Pengumpulan)', isUpz: true },
+  '102.3': { rkat_no: '4', jenis: 'Zakat Maal UPZ Penyaluran', isUpz: true },
+  '102.4': { rkat_no: '5', jenis: 'Penerimaan Zakat Fitrah via UPZ', isUpz: true },
+  '102.5': { rkat_no: '8', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kota (UPZ Pengumpulan)', isUpz: true },
+  '102.6': { rkat_no: '8', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kecamatan (UPZ Pengumpulan)', isUpz: true },
+  '102.7': { rkat_no: '8', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Pengumpulan', isUpz: true },
+  '102.7.1': { rkat_no: '9', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Penyaluran', isUpz: true },
+  '102.8': { rkat_no: '14', jenis: 'Qurban Via UPZ', isUpz: true },
+  '102.9': { rkat_no: '15', jenis: 'Fidyah Via UPZ', isUpz: true },
+  '102.10': { rkat_no: '10', jenis: 'DSKL Lainnya Via UPZ', isUpz: true },
+  '102.11': { rkat_no: '3', jenis: 'Zakat Maal UPZ Pengumpulan', isUpz: true }
+};
+
+export const getRekapitulasiBulananZis = async (req: Request, res: Response) => {
+  try {
+    const month = req.query.month ? Number(req.query.month) : (req.query.bulan ? Number(req.query.bulan) : new Date().getMonth() + 1);
+    const year = req.query.year ? Number(req.query.year) : (req.query.tahun ? Number(req.query.tahun) : new Date().getFullYear());
+
+    const startDate = new Date(year, month - 1, 1, 0, 0, 0);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    const list = await prisma.penerimaanZis.findMany({
+      where: {
+        tanggal_pembayaran: {
+          gte: startDate,
+          lte: endDate
+        },
+        status_simba: { not: 'FAILED' }
+      },
+      include: {
+        upz: true,
+        rkat: true
+      }
+    });
+
+    const allUpzs = await prisma.upz.findMany({
+      orderBy: { nama_upz: 'asc' }
+    });
+
+    const categories: Record<string, any[]> = {
+      'UNIT PENGUMPUL ZAKAT SETDA': [],
+      'UNIT PENGUMPUL ZAKAT BADAN': [],
+      'UNIT PENGUMPUL ZAKAT DINAS': [],
+      'UNIT PENGUMPUL ZAKAT BUMD': [],
+      'UNIT PENGUMPUL ZAKAT INSTANSI VERTIKAL': [],
+      'UNIT PENGUMPUL ZAKAT KECAMATAN': [],
+      'UNIT PENGUMPUL ZAKAT SEKOLAH / MADRASAH': [],
+      'UNIT PENGUMPUL ZAKAT (PENGUMPULAN)': [],
+      'PENERIMAAN ZIS UMUM': []
+    };
+
+    const upzTotalsMap = new Map<string, { zakat: number; infak: number }>();
+
+    list.forEach((tx: any) => {
+      const upzKey = tx.upz_id || tx.upz?.nama_upz || 'UMUM';
+      if (!upzTotalsMap.has(upzKey)) {
+        upzTotalsMap.set(upzKey, { zakat: 0, infak: 0 });
+      }
+      const item = upzTotalsMap.get(upzKey)!;
+      const nom = Number(tx.nominal || 0);
+
+      const kp = String(tx.kode_program || '');
+      const programName = String(tx.jenis_program || tx.rkat?.program || '').toLowerCase();
+
+      const isZakat = kp.startsWith('101.1') || kp.startsWith('101.2') || kp.startsWith('101.13') ||
+                      kp.startsWith('102.1') || kp.startsWith('102.2') || kp.startsWith('102.3') ||
+                      kp.startsWith('102.4') || kp.startsWith('102.11') ||
+                      programName.includes('zakat');
+
+      if (isZakat) {
+        item.zakat += nom;
+      } else {
+        item.infak += nom;
+      }
+    });
+
+    allUpzs.forEach((u: any) => {
+      let catName = 'UNIT PENGUMPUL ZAKAT (PENGUMPULAN)';
+      const nama = u.nama_upz.toUpperCase();
+
+      if (nama.includes('BAGIAN') || nama.includes('SETDA') || nama.includes('SEKRETARIAT DPRD')) {
+        catName = 'UNIT PENGUMPUL ZAKAT SETDA';
+      } else if (nama.includes('BADAN') || nama.includes('BAPPEDA') || nama.includes('INSPEKTORAT') || nama.includes('SATPOL') || nama.includes('BPBD')) {
+        catName = 'UNIT PENGUMPUL ZAKAT BADAN';
+      } else if (nama.includes('DINAS') || nama.includes('DISPENDUK') || nama.includes('DISCOM') || nama.includes('PUSKESMAS')) {
+        catName = 'UNIT PENGUMPUL ZAKAT DINAS';
+      } else if (nama.includes('PDAM') || nama.includes('BPR') || nama.includes('PERUSDA') || nama.includes('BUMD')) {
+        catName = 'UNIT PENGUMPUL ZAKAT BUMD';
+      } else if (nama.includes('KEMENTERIAN') || nama.includes('KEMENAG') || nama.includes('BPS') || nama.includes('VERTIKAL')) {
+        catName = 'UNIT PENGUMPUL ZAKAT INSTANSI VERTIKAL';
+      } else if (nama.includes('KECAMATAN')) {
+        catName = 'UNIT PENGUMPUL ZAKAT KECAMATAN';
+      } else if (nama.includes('SD') || nama.includes('SMP') || nama.includes('SMA') || nama.includes('MI') || nama.includes('MTS') || nama.includes('MAN') || nama.includes('SEKOLAH')) {
+        catName = 'UNIT PENGUMPUL ZAKAT SEKOLAH / MADRASAH';
+      }
+
+      const totals = upzTotalsMap.get(u.id) || upzTotalsMap.get(u.nama_upz) || { zakat: 0, infak: 0 };
+
+      if (!categories[catName]) categories[catName] = [];
+      categories[catName].push({
+        id: u.id,
+        nama_upz: u.nama_upz,
+        zakat: totals.zakat,
+        infak: totals.infak,
+        total: totals.zakat + totals.infak
+      });
+    });
+
+    const umumTotals = upzTotalsMap.get('UMUM') || { zakat: 0, infak: 0 };
+    categories['PENERIMAAN ZIS UMUM'] = [
+      { id: 'umum-1', nama_upz: 'ZIS Individu (Masyarakat)', zakat: umumTotals.zakat, infak: umumTotals.infak, total: umumTotals.zakat + umumTotals.infak }
+    ];
+
+    res.status(200).json({
+      status: 'success',
+      period: { month, year },
+      categories
+    });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+};
+
 export const migratePenerimaanZis = async (req: Request, res: Response) => {
   try {
     const { transactions, options } = req.body;
@@ -611,15 +751,16 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       return;
     }
 
-    const skipJournal = options?.skipJournal !== false; // Default true for historical migration
+    const skipJournal = options?.skipJournal !== false;
 
     let successCount = 0;
     let failedCount = 0;
     const errors: any[] = [];
 
-    // Pre-fetch bank accounts and muzakkis for faster resolution
     const bankAccounts = await prisma.bankAccount.findMany();
     const muzakkis = await prisma.muzakki.findMany();
+    const rkats = await prisma.rkatPengumpulan.findMany();
+    const upzs = await prisma.upz.findMany();
 
     const bankAccountMap = new Map<string, string>();
     bankAccounts.forEach(acc => {
@@ -649,14 +790,12 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           throw new Error('Nominal transaksi harus lebih besar dari 0');
         }
 
-        // 1. Resolve Bank Account (sumber_dana / bank_account_name / no_rekening)
         let bankAccountId = txData.bank_account_id;
         const sourceQuery = String(txData.sumber_dana || txData.bank_account_name || '').toLowerCase().trim();
 
         if (!bankAccountId && sourceQuery) {
           bankAccountId = bankAccountMap.get(sourceQuery);
           if (!bankAccountId) {
-            // Fuzzy search among available bank accounts
             const matched = bankAccounts.find(acc =>
               acc.nama_akun.toLowerCase().includes(sourceQuery) ||
               sourceQuery.includes(acc.nama_akun.toLowerCase()) ||
@@ -666,25 +805,13 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           }
         }
 
-        if (!bankAccountId) {
-          // Fallback to first active bank account if available
-          bankAccountId = bankAccounts[0]?.account_id;
-        }
+        if (!bankAccountId) bankAccountId = bankAccounts[0]?.account_id;
+        if (!bankAccountId) throw new Error('Rekening bank/kas tidak valid');
 
-        if (!bankAccountId) {
-          throw new Error('Rekening bank/kas tidak valid');
-        }
-
-        // 2. Resolve Muzakki (nik / nama / regex parse from Keterangan)
         let muzakkiId = txData.muzakki_id || null;
-        if (!muzakkiId && txData.nik_muzakki) {
-          muzakkiId = muzakkiNikMap.get(String(txData.nik_muzakki).trim()) || null;
-        }
-        if (!muzakkiId && txData.nama_muzakki) {
-          muzakkiId = muzakkiNamaMap.get(String(txData.nama_muzakki).toLowerCase().trim()) || null;
-        }
+        if (!muzakkiId && txData.nik_muzakki) muzakkiId = muzakkiNikMap.get(String(txData.nik_muzakki).trim()) || null;
+        if (!muzakkiId && txData.nama_muzakki) muzakkiId = muzakkiNamaMap.get(String(txData.nama_muzakki).toLowerCase().trim()) || null;
 
-        // Regex parse from Keterangan: e.g. "Terima Zakat Maal a.n Aulia Rahman" -> "Aulia Rahman"
         if (!muzakkiId && txData.keterangan) {
           const match = String(txData.keterangan).match(/(?:a\.n|an\.|dari|bapak|ibu)\s+([A-Za-z\s]+)/i);
           if (match && match[1]) {
@@ -693,17 +820,35 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           }
         }
 
-        // 3. Resolve Kuitansi & SIMBA Transaction Number
+        let kodeProgram = txData.kode_program ? String(txData.kode_program).trim() : null;
+        let jenisProgram = txData.jenis_program ? String(txData.jenis_program).trim() : null;
+        let rkatId = txData.rkat_id || null;
+
+        if (kodeProgram && PROGRAM_KODE_TO_RKAT_MAP[kodeProgram]) {
+          const mapItem = PROGRAM_KODE_TO_RKAT_MAP[kodeProgram];
+          if (!jenisProgram) jenisProgram = mapItem.jenis;
+          if (!rkatId && mapItem.rkat_no) {
+            const matchedRkat = rkats.find(r => r.no === mapItem.rkat_no || r.id === mapItem.rkat_no);
+            if (matchedRkat) rkatId = matchedRkat.id;
+          }
+        }
+
+        let upzId = txData.upz_id || null;
+        const upzQuery = String(txData.nama_upz || txData.upz_nama || '').toLowerCase().trim();
+        if (!upzId && upzQuery) {
+          const matchedUpz = upzs.find(u =>
+            u.nama_upz.toLowerCase().includes(upzQuery) ||
+            upzQuery.includes(u.nama_upz.toLowerCase())
+          );
+          if (matchedUpz) upzId = matchedUpz.id;
+        }
+
         const simbaNo = txData.no_transaksi_simba || txData.no_transaksi ? String(txData.no_transaksi_simba || txData.no_transaksi).trim() : null;
         let kuitansiNo = txData.no_kuitansi ? String(txData.no_kuitansi).trim() : null;
-
-        if (!kuitansiNo) {
-          kuitansiNo = simbaNo || `PZ-HIST-${Date.now()}-${i + 1}`;
-        }
+        if (!kuitansiNo) kuitansiNo = simbaNo || `PZ-HIST-${Date.now()}-${i + 1}`;
 
         const statusSimba = txData.status_simba || (simbaNo ? 'SYNCED' : 'PENDING');
         
-        // 4. Resolve Date (Supports DD/MM/YYYY or YYYY-MM-DD)
         let tanggalTrx = new Date();
         const rawDate = String(txData.tanggal_pembayaran || txData.tanggal_trx || '').trim();
         if (rawDate) {
@@ -719,14 +864,16 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         await prisma.$transaction(async (tx) => {
-          // Create PenerimaanZis record
           await tx.penerimaanZis.create({
             data: {
               no_kuitansi: kuitansiNo,
               no_transaksi_simba: simbaNo,
               status_simba: statusSimba,
               muzakki_id: muzakkiId,
-              rkat_id: txData.rkat_id || null,
+              upz_id: upzId,
+              rkat_id: rkatId,
+              kode_program: kodeProgram,
+              jenis_program: jenisProgram,
               bank_account_id: bankAccountId,
               nominal: new Prisma.Decimal(nominal),
               metode_pembayaran: txData.metode_pembayaran || 'TRANSFER',
@@ -735,7 +882,6 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
             }
           });
 
-          // ONLY create journal and update balance if skipJournal is false
           if (!skipJournal) {
             await tx.bankAccount.update({
               where: { account_id: bankAccountId },
@@ -744,7 +890,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
 
             const realisasi = await tx.realisasi.create({
               data: {
-                rkat_id: txData.rkat_id || null,
+                rkat_id: rkatId,
                 tanggal: tanggalTrx,
                 keterangan: txData.keterangan || 'Penerimaan ZIS'
               }

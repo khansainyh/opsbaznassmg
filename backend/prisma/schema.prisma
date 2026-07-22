@@ -82,12 +82,13 @@ model Muzakki {
 }
 
 model Upz {
-  id         String      @id @default(uuid())
-  kategori   KategoriUPZ
-  nama_upz   String
-  alamat     String?
-  metadata   Json?
-  created_at DateTime    @default(now())
+  id          String          @id @default(uuid())
+  kategori    KategoriUPZ
+  nama_upz    String
+  alamat      String?
+  metadata    Json?
+  created_at  DateTime        @default(now())
+  penerimaans PenerimaanZis[]
 }
 
 model Pilar {
@@ -355,6 +356,7 @@ model PenerimaanZis {
   id                 String           @id @default(uuid())
   no_kuitansi        String           @unique
   muzakki_id         String?
+  upz_id             String?
   rkat_id            String?
   bank_account_id    String
   nominal            Decimal          @db.Decimal(15, 2)
@@ -364,15 +366,19 @@ model PenerimaanZis {
   status_simba       String           @default("PENDING")
   no_transaksi_simba String?
   transaksi_id       String?
+  kode_program       String?          @db.VarChar(50)
+  jenis_program      String?          @db.VarChar(255)
   created_at         DateTime         @default(now())
   updated_at         DateTime         @updatedAt
   bankAccount        BankAccount      @relation(fields: [bank_account_id], references: [account_id])
   muzakki            Muzakki?         @relation(fields: [muzakki_id], references: [id])
   rkat               RkatPengumpulan? @relation(fields: [rkat_id], references: [id])
+  upz                Upz?             @relation(fields: [upz_id], references: [id])
 
   @@index([bank_account_id], map: "PenerimaanZis_bank_account_id_fkey")
   @@index([muzakki_id], map: "PenerimaanZis_muzakki_id_fkey")
   @@index([rkat_id], map: "PenerimaanZis_rkat_id_fkey")
+  @@index([upz_id], map: "PenerimaanZis_upz_id_fkey")
 }
 
 model RkatOperasional {

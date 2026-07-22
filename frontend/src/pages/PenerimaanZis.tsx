@@ -20,7 +20,8 @@ import {
   Printer,
   FileText,
   Upload,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -29,6 +30,34 @@ import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; jenis: string; isUpz: boolean }> = {
+  '101.1': { rkat_no: '2', jenis: 'Zakat Maal Perorangan', isUpz: false },
+  '101.2': { rkat_no: '5', jenis: 'Penerimaan Zakat Fitrah Perorangan', isUpz: false },
+  '101.3': { rkat_no: '16', jenis: 'CSR/PKBL', isUpz: false },
+  '101.4': { rkat_no: '14', jenis: 'Qurban', isUpz: false },
+  '101.5': { rkat_no: '15', jenis: 'Fidyah Perorangan', isUpz: false },
+  '101.8': { rkat_no: '7', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat', isUpz: false },
+  '101.9': { rkat_no: '10', jenis: 'Penerimaan Infak Sedekah Terikat Kas', isUpz: false },
+  '101.10': { rkat_no: '11', jenis: 'Penerimaan Infak Sedekah Terikat Natura', isUpz: false },
+  '101.11': { rkat_no: '13', jenis: 'Infak/Sedekah Terikat Operasional Amil', isUpz: false },
+  '101.12': { rkat_no: '10', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
+  '101.13': { rkat_no: '1', jenis: 'Zakat Maal Entitas', isUpz: false },
+  '101.14': { rkat_no: null, jenis: 'Belum Diketahui', isUpz: false },
+
+  '102.1': { rkat_no: '3', jenis: 'Zakat Maal UPZ Kota (UPZ Pengumpulan)', isUpz: true },
+  '102.2': { rkat_no: '3', jenis: 'Zakat Maal UPZ Kecamatan (UPZ Pengumpulan)', isUpz: true },
+  '102.3': { rkat_no: '4', jenis: 'Zakat Maal UPZ Penyaluran', isUpz: true },
+  '102.4': { rkat_no: '5', jenis: 'Penerimaan Zakat Fitrah via UPZ', isUpz: true },
+  '102.5': { rkat_no: '8', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kota', isUpz: true },
+  '102.6': { rkat_no: '8', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kecamatan', isUpz: true },
+  '102.7': { rkat_no: '8', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Pengumpulan', isUpz: true },
+  '102.7.1': { rkat_no: '9', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Penyaluran', isUpz: true },
+  '102.8': { rkat_no: '14', jenis: 'Qurban Via UPZ', isUpz: true },
+  '102.9': { rkat_no: '15', jenis: 'Fidyah Via UPZ', isUpz: true },
+  '102.10': { rkat_no: '10', jenis: 'DSKL Lainnya Via UPZ', isUpz: true },
+  '102.11': { rkat_no: '3', jenis: 'Zakat Maal UPZ Pengumpulan', isUpz: true }
+};
 
 // SummaryCard Component
 function SummaryCard({ title, value, subtext, icon, colorClass }: any) {
@@ -228,8 +257,21 @@ export default function PenerimaanZis() {
   const [isOutsideRkat, setIsOutsideRkat] = useState(false);
   const [coaSearch, setCoaSearch] = useState('');
   const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
-  // @ts-ignore
   const [noTransaksiSimba, setNoTransaksiSimba] = useState('');
+  const [selectedKodeProgram, setSelectedKodeProgram] = useState('');
+  const [selectedUpzId, setSelectedUpzId] = useState('');
+  const [upzList, setUpzList] = useState<any[]>([]);
+
+  // Laporan Bulanan Rekap ZIS State
+  const [bulananReportMonth, setBulananReportMonth] = useState<number>(new Date().getMonth() + 1);
+  const [bulananReportYear, setBulananReportYear] = useState<number>(new Date().getFullYear());
+  const [isFetchingRekap, setIsFetchingRekap] = useState(false);
+  const [rekapBulananCategories, setRekapBulananCategories] = useState<Record<string, any[]>>({});
+  const [signatoriesBulanan, setSignatoriesBulanan] = useState({
+    kepalaPelaksana: 'Muhammad Asyhar, S.Sos.I',
+    kabagPengumpulan: 'Ahmad Muhtadin, S.HI',
+    waka1: 'Drs. H. Labib, M.M'
+  });
 
   // Quick register muzakki inside modal
   const [showQuickRegister, setShowQuickRegister] = useState(false);
@@ -303,11 +345,12 @@ export default function PenerimaanZis() {
 
   const fetchMetadata = async () => {
     try {
-      const [resMuzakki, resRkat, resAccounts, resCoas] = await Promise.all([
+      const [resMuzakki, resRkat, resAccounts, resCoas, resUpz] = await Promise.all([
         axios.get('/api/muzakki'),
         axios.get('/api/rkat-pengumpulan'),
         axios.get('/api/finance/accounts'),
-        axios.get('/api/finance/coa')
+        axios.get('/api/finance/coa'),
+        axios.get('/api/upz').catch(() => ({ data: [] }))
       ]);
       
       if (resMuzakki.data?.status === 'success') {
@@ -324,8 +367,38 @@ export default function PenerimaanZis() {
 
       const coaData = resCoas.data?.status === 'success' ? resCoas.data.data : resCoas.data;
       setCoaList(Array.isArray(coaData) ? coaData : []);
+
+      const upzData = resUpz?.data?.status === 'success' ? resUpz.data.data : (resUpz?.data || []);
+      setUpzList(Array.isArray(upzData) ? upzData : []);
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleUpzChange = (upzId: string) => {
+    setSelectedUpzId(upzId);
+    if (!upzId) return;
+
+    const upzItem = upzList.find(u => u.id === upzId);
+    if (!upzItem) return;
+
+    const nama = upzItem.nama_upz.toUpperCase();
+    let suggestedKode = '102.1';
+
+    if (nama.includes('KECAMATAN')) {
+      suggestedKode = '102.2';
+    } else if (nama.includes('SD') || nama.includes('SMP') || nama.includes('SMA') || nama.includes('MI') || nama.includes('MTS') || nama.includes('MAN') || nama.includes('SEKOLAH')) {
+      suggestedKode = '102.7';
+    }
+
+    setSelectedKodeProgram(suggestedKode);
+
+    const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[suggestedKode];
+    if (mapInfo && mapInfo.rkat_no) {
+      const matchedRkat = rkatList.find(r => r.no === mapInfo.rkat_no || r.id === mapInfo.rkat_no);
+      if (matchedRkat) {
+        handleRkatChange(matchedRkat.id);
+      }
     }
   };
 
@@ -460,12 +533,16 @@ export default function PenerimaanZis() {
       const payload = {
         no_kuitansi: noKuitansi,
         muzakki_id: selectedMuzakkiId,
+        upz_id: selectedUpzId || null,
         rkat_id: needsRkat ? selectedRkatId : null,
+        kode_program: selectedKodeProgram || null,
+        jenis_program: selectedKodeProgram && PROGRAM_KODE_TO_RKAT_MAP[selectedKodeProgram] ? PROGRAM_KODE_TO_RKAT_MAP[selectedKodeProgram].jenis : null,
         bank_account_id: selectedAccountId,
         coa_code: selectedCoaCode,
         nominal: Number(nominal),
         metode_pembayaran: metodePembayaran,
         tanggal_pembayaran: tanggalPembayaran,
+        no_transaksi_simba: noTransaksiSimba || null,
         keterangan
       };
 
@@ -1382,12 +1459,91 @@ export default function PenerimaanZis() {
                     </label>
                   </div>
 
+                  {/* Select UPZ (Pilihan UPZ jika via UPZ) */}
+                  <div className={`space-y-1 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Pilih UPZ (Khusus Penerimaan via UPZ)
+                    </label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-800"
+                      value={selectedUpzId}
+                      onChange={(e) => handleUpzChange(e.target.value)}
+                      disabled={isOutsideRkat}
+                    >
+                      <option value="">Pilih UPZ (Auto-Select Program &amp; RKAT)...</option>
+                      {upzList.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.nama_upz} {u.kategori ? `(${u.kategori})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Kode Program Pengumpulan (101.1 - 102.11) */}
+                  <div className={`space-y-1 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Kode Program Pengumpulan (Materi SIMBA / Laporan)
+                    </label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-800"
+                      value={selectedKodeProgram}
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        setSelectedKodeProgram(code);
+                        if (code && PROGRAM_KODE_TO_RKAT_MAP[code]) {
+                          const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[code];
+                          if (mapInfo.rkat_no) {
+                            const matchedRkat = rkatList.find(r => 
+                              r.no === mapInfo.rkat_no || 
+                              r.id === mapInfo.rkat_no ||
+                              r.nama_program.toLowerCase().includes(mapInfo.jenis.toLowerCase().split(' ')[0])
+                            );
+                            if (matchedRkat) {
+                              handleRkatChange(matchedRkat.id);
+                            }
+                          }
+                        }
+                      }}
+                      disabled={isOutsideRkat}
+                    >
+                      <option value="">Pilih Kode Program (Auto-select RKAT)...</option>
+                      <optgroup label="101.x - Penghimpunan Dana Langsung">
+                        <option value="101.1">101.1 || Zakat Maal Perorangan</option>
+                        <option value="101.2">101.2 || Penerimaan Zakat Fitrah Perorangan</option>
+                        <option value="101.3">101.3 || CSR/PKBL</option>
+                        <option value="101.4">101.4 || Qurban</option>
+                        <option value="101.5">101.5 || Fidyah Perorangan</option>
+                        <option value="101.8">101.8 || Penerimaan Infak/Sedekah Tidak Terikat</option>
+                        <option value="101.9">101.9 || Penerimaan Infak Sedekah Terikat Kas</option>
+                        <option value="101.10">101.10 || Penerimaan Infak Sedekah Terikat Natura</option>
+                        <option value="101.11">101.11 || Infak/Sedekah Terikat Operasional Amil</option>
+                        <option value="101.12">101.12 || Infak dan Sedekah Terikat DSK Lainnya</option>
+                        <option value="101.13">101.13 || Zakat Maal Entitas</option>
+                        <option value="101.14">101.14 || Belum Diketahui</option>
+                      </optgroup>
+                      <optgroup label="102.x - Penghimpunan Dana via UPZ">
+                        <option value="102.1">102.1 || Zakat Maal UPZ Kota (UPZ Pengumpulan)</option>
+                        <option value="102.2">102.2 || Zakat Maal UPZ Kecamatan (UPZ Pengumpulan)</option>
+                        <option value="102.3">102.3 || Zakat Maal UPZ Penyaluran</option>
+                        <option value="102.4">102.4 || Penerimaan Zakat Fitrah via UPZ</option>
+                        <option value="102.5">102.5 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kota</option>
+                        <option value="102.6">102.6 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kecamatan</option>
+                        <option value="102.7">102.7 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Pengumpulan</option>
+                        <option value="102.7.1">102.7.1 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Penyaluran</option>
+                        <option value="102.8">102.8 || Qurban Via UPZ</option>
+                        <option value="102.9">102.9 || Fidyah Via UPZ</option>
+                        <option value="102.10">102.10 || DSKL Lainnya Via UPZ</option>
+                        <option value="102.11">102.11 || Zakat Maal UPZ Pengumpulan</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
                   {/* RKAT Program selection */}
                   <div className={`space-y-1 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT) *</label>
                     <select 
                       required={!isOutsideRkat} 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 font-bold text-slate-800"
                       value={selectedRkatId}
                       onChange={(e) => handleRkatChange(e.target.value)}
                       disabled={isOutsideRkat}
@@ -2086,6 +2242,119 @@ export default function PenerimaanZis() {
                   </button>
                 </div>
 
+                {/* Opsi 3: Laporan Bulanan Rekapitulasi ZIS per UPZ */}
+                <div className="border border-teal-200 bg-teal-50/40 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-teal-800">
+                    <Printer className="size-5" />
+                    <h4 className="text-xs font-black uppercase tracking-wider">Cetak Laporan Bulanan Rekapitulasi ZIS (Per UPZ)</h4>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Cetak Rekapitulasi Penerimaan Zakat, Infak, Sedekah (ZIS) per UPZ sesuai format resmi BAZNAS Kota Semarang.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Bulan</label>
+                      <select
+                        value={bulananReportMonth}
+                        onChange={(e) => setBulananReportMonth(Number(e.target.value))}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
+                      >
+                        <option value={1}>Januari</option>
+                        <option value={2}>Februari</option>
+                        <option value={3}>Maret</option>
+                        <option value={4}>April</option>
+                        <option value={5}>Mei</option>
+                        <option value={6}>Juni</option>
+                        <option value={7}>Juli</option>
+                        <option value={8}>Agustus</option>
+                        <option value={9}>September</option>
+                        <option value={10}>Oktober</option>
+                        <option value={11}>November</option>
+                        <option value={12}>Desember</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Tahun</label>
+                      <input
+                        type="number"
+                        value={bulananReportYear}
+                        onChange={(e) => setBulananReportYear(Number(e.target.value))}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white/80 rounded-xl border border-teal-100 space-y-2 text-xs">
+                    <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">
+                      Penandatangan Laporan Bulanan
+                    </h5>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500">Kepala Pelaksana</label>
+                      <input
+                        type="text"
+                        value={signatoriesBulanan.kepalaPelaksana}
+                        onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500">Kabag Pengumpulan</label>
+                      <input
+                        type="text"
+                        value={signatoriesBulanan.kabagPengumpulan}
+                        onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kabagPengumpulan: e.target.value }))}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500">Waka I Bidang Pengumpulan</label>
+                      <input
+                        type="text"
+                        value={signatoriesBulanan.waka1}
+                        onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, waka1: e.target.value }))}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      setIsFetchingRekap(true);
+                      try {
+                        const res = await axios.get('/api/penerimaan-zis/rekap-bulanan', {
+                          params: { month: bulananReportMonth, year: bulananReportYear }
+                        });
+                        setRekapBulananCategories(res.data?.categories || {});
+                        setTimeout(() => {
+                          window.print();
+                          setIsFetchingRekap(false);
+                          setIsReportModalOpen(false);
+                        }, 250);
+                      } catch (err) {
+                        console.error('Gagal mengambil data rekap bulanan:', err);
+                        alert('Gagal mengambil data Laporan Bulanan Rekap ZIS');
+                        setIsFetchingRekap(false);
+                      }
+                    }}
+                    disabled={isFetchingRekap}
+                    className="w-full py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {isFetchingRekap ? (
+                      <>
+                        <RefreshCw className="size-4 animate-spin" />
+                        Menyiapkan Laporan...
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="size-4" />
+                        Cetak Laporan Bulanan Rekap ZIS
+                      </>
+                    )}
+                  </button>
+                </div>
+
               </div>
 
               <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
@@ -2220,6 +2489,95 @@ export default function PenerimaanZis() {
           </div>
         )}
       </AnimatePresence>
+      {/* Print Layout for Laporan Bulanan Rekapitulasi ZIS per UPZ */}
+      <div className="hidden print:block w-full text-black font-sans text-xs p-2">
+        <div className="text-center font-bold text-xs uppercase tracking-wide mb-3">
+          <p className="text-sm font-black">REKAPITULASI PENERIMAAN ZAKAT, INFAK, SEDEKAH (ZIS)</p>
+          <p className="text-xs font-black">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</p>
+          <p className="text-xs font-bold mt-0.5">
+            PERIODE {['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'][bulananReportMonth - 1]} {bulananReportYear}
+          </p>
+        </div>
+
+        <table className="w-full border-collapse text-left [table-layout:fixed] text-[9px]">
+          <thead>
+            <tr className="border border-black bg-slate-100 font-bold text-[9px]">
+              <th className="w-8 border border-black p-1 text-center">NO</th>
+              <th className="border border-black p-1">NAMA UPZ</th>
+              <th className="w-24 border border-black p-1 text-right">ZAKAT</th>
+              <th className="w-24 border border-black p-1 text-right">INFAK</th>
+              <th className="w-28 border border-black p-1 text-right">JUMLAH ZIS</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black border border-black">
+            {Object.entries(rekapBulananCategories).map(([catName, items]: [string, any]) => {
+              const catZakat = items.reduce((sum: number, it: any) => sum + Number(it.zakat || 0), 0);
+              const catInfak = items.reduce((sum: number, it: any) => sum + Number(it.infak || 0), 0);
+              const catTotal = catZakat + catInfak;
+
+              return (
+                <React.Fragment key={catName}>
+                  <tr className="bg-slate-100 font-black border border-black">
+                    <td colSpan={5} className="p-1 uppercase tracking-wide font-black">
+                      {catName}
+                    </td>
+                  </tr>
+                  {items.map((it: any, idx: number) => (
+                    <tr key={it.id || idx} className="border-b border-slate-300">
+                      <td className="p-1 text-center font-mono text-[8px]">{idx + 1}</td>
+                      <td className="p-1 font-bold text-[8px]">{it.nama_upz}</td>
+                      <td className="p-1 text-right font-mono text-[8px]">
+                        {it.zakat > 0 ? `Rp ${Number(it.zakat).toLocaleString('id-ID')}` : 'Rp -'}
+                      </td>
+                      <td className="p-1 text-right font-mono text-[8px]">
+                        {it.infak > 0 ? `Rp ${Number(it.infak).toLocaleString('id-ID')}` : 'Rp -'}
+                      </td>
+                      <td className="p-1 text-right font-mono font-bold text-[8px]">
+                        {it.total > 0 ? `Rp ${Number(it.total).toLocaleString('id-ID')}` : 'Rp -'}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="font-black border border-black bg-slate-50">
+                    <td colSpan={2} className="p-1 text-right font-black">JUMLAH</td>
+                    <td className="p-1 text-right font-mono font-black">
+                      {catZakat > 0 ? `Rp ${catZakat.toLocaleString('id-ID')}` : 'Rp -'}
+                    </td>
+                    <td className="p-1 text-right font-mono font-black">
+                      {catInfak > 0 ? `Rp ${catInfak.toLocaleString('id-ID')}` : 'Rp -'}
+                    </td>
+                    <td className="p-1 text-right font-mono font-black">
+                      {catTotal > 0 ? `Rp ${catTotal.toLocaleString('id-ID')}` : 'Rp -'}
+                    </td>
+                  </tr>
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* Footer Tanda Tangan Resmi BAZNAS Kota Semarang */}
+        <div className="mt-8 text-[9px] font-bold flex justify-between items-start">
+          <div className="text-center w-1/3">
+            <p>Kepala Pelaksana</p>
+            <div className="h-14" />
+            <p className="underline font-black">{signatoriesBulanan.kepalaPelaksana}</p>
+          </div>
+
+          <div className="text-center w-1/3">
+            <p>Semarang, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p>Kepala Bagian Pengumpulan</p>
+            <div className="h-14" />
+            <p className="underline font-black">{signatoriesBulanan.kabagPengumpulan}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 text-center text-[9px] font-bold">
+          <p>Mengetahui,</p>
+          <p>Wakil Ketua I Bidang Pengumpulan</p>
+          <div className="h-14" />
+          <p className="underline font-black">{signatoriesBulanan.waka1}</p>
+        </div>
+      </div>
     </div>
   );
 }
