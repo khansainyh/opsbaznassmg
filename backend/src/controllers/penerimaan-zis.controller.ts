@@ -640,16 +640,32 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       const rowNum = txData.rowNum || (i + 1);
 
       try {
-        const nominal = Number(txData.nominal || 0);
+        let rawNominal = txData.nominal;
+        if (typeof rawNominal === 'string') {
+          rawNominal = rawNominal.replace(/[^0-9.-]+/g, '');
+        }
+        const nominal = Number(rawNominal || 0);
         if (nominal <= 0) {
           throw new Error('Nominal transaksi harus lebih besar dari 0');
         }
 
-        // 1. Resolve Bank Account
+        // 1. Resolve Bank Account (sumber_dana / bank_account_name / no_rekening)
         let bankAccountId = txData.bank_account_id;
-        if (!bankAccountId && txData.bank_account_name) {
-          bankAccountId = bankAccountMap.get(String(txData.bank_account_name).toLowerCase().trim());
+        const sourceQuery = String(txData.sumber_dana || txData.bank_account_name || '').toLowerCase().trim();
+
+        if (!bankAccountId && sourceQuery) {
+          bankAccountId = bankAccountMap.get(sourceQuery);
+          if (!bankAccountId) {
+            // Fuzzy search among available bank accounts
+            const matched = bankAccounts.find(acc =>
+              acc.nama_akun.toLowerCase().includes(sourceQuery) ||
+              sourceQuery.includes(acc.nama_akun.toLowerCase()) ||
+              (acc.no_rekening && sourceQuery.includes(acc.no_rekening.toLowerCase()))
+            );
+            if (matched) bankAccountId = matched.account_id;
+          }
         }
+
         if (!bankAccountId) {
           // Fallback to first active bank account if available
           bankAccountId = bankAccounts[0]?.account_id;
@@ -659,7 +675,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           throw new Error('Rekening bank/kas tidak valid');
         }
 
-        // 2. Resolve Muzakki
+        // 2. Resolve Muzakki (nik / nama / regex parse from Keterangan)
         let muzakkiId = txData.muzakki_id || null;
         if (!muzakkiId && txData.nik_muzakki) {
           muzakkiId = muzakkiNikMap.get(String(txData.nik_muzakki).trim()) || null;
@@ -668,8 +684,17 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           muzakkiId = muzakkiNamaMap.get(String(txData.nama_muzakki).toLowerCase().trim()) || null;
         }
 
+        // Regex parse from Keterangan: e.g. "Terima Zakat Maal a.n Aulia Rahman" -> "Aulia Rahman"
+        if (!muzakkiId && txData.keterangan) {
+          const match = String(txData.keterangan).match(/(?:a\.n|an\.|dari|bapak|ibu)\s+([A-Za-z\s]+)/i);
+          if (match && match[1]) {
+            const extractedName = match[1].trim().toLowerCase();
+            muzakkiId = muzakkiNamaMap.get(extractedName) || null;
+          }
+        }
+
         // 3. Resolve Kuitansi & SIMBA Transaction Number
-        const simbaNo = txData.no_transaksi_simba ? String(txData.no_transaksi_simba).trim() : null;
+        const simbaNo = txData.no_transaksi_simba || txData.no_transaksi ? String(txData.no_transaksi_simba || txData.no_transaksi).trim() : null;
         let kuitansiNo = txData.no_kuitansi ? String(txData.no_kuitansi).trim() : null;
 
         if (!kuitansiNo) {
@@ -677,7 +702,21 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         const statusSimba = txData.status_simba || (simbaNo ? 'SYNCED' : 'PENDING');
-        const tanggalTrx = txData.tanggal_pembayaran ? new Date(txData.tanggal_pembayaran) : new Date();
+        
+        // 4. Resolve Date (Supports DD/MM/YYYY or YYYY-MM-DD)
+        let tanggalTrx = new Date();
+        const rawDate = String(txData.tanggal_pembayaran || txData.tanggal_trx || '').trim();
+        if (rawDate) {
+          if (rawDate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+            const parts = rawDate.split('/');
+            tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
+          } else if (rawDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
+            const parts = rawDate.split('-');
+            tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
+          } else {
+            tanggalTrx = new Date(rawDate);
+          }
+        }
 
         await prisma.$transaction(async (tx) => {
           // Create PenerimaanZis record
