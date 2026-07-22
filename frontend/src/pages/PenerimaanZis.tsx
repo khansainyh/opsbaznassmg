@@ -231,6 +231,7 @@ export default function PenerimaanZis() {
     kabagPengumpulan: 'Ahmad Muhtadin, S.HI',
     waka1: 'Drs. H. Labib, M.M'
   });
+  const [selectedReportType, setSelectedReportType] = useState<'harian' | 'bulanan_upz' | 'excel'>('harian');
 
   // Quick register muzakki inside modal
   const [showQuickRegister, setShowQuickRegister] = useState(false);
@@ -2042,277 +2043,297 @@ export default function PenerimaanZis() {
               {/* Body */}
               <div className="p-4 md:p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1 min-h-0">
                 
-                {/* Opsi 1: Laporan Excel */}
-                <div className="border border-slate-200 rounded-xl p-4 space-y-4">
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <FileSpreadsheet className="size-5" />
-                    <h4 className="text-xs font-black uppercase tracking-wider">Download Laporan Penerimaan (Excel)</h4>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Unduh rekapan penerimaan ZIS dalam format spreadsheet Excel.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dari Tanggal</label>
-                      <input 
-                        type="date"
-                        value={reportStartDate}
-                        onChange={(e) => setReportStartDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sampai Tanggal</label>
-                      <input 
-                        type="date"
-                        value={reportEndDate}
-                        onChange={(e) => setReportEndDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleExportExcel}
-                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                {/* Select Type Laporan Dropdown */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Laporan Yang Ingin Dicetak / Diunduh *</label>
+                  <select
+                    value={selectedReportType}
+                    onChange={(e) => setSelectedReportType(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
                   >
-                    <FileSpreadsheet className="size-4" />
-                    Unduh Excel
-                  </button>
+                    <option value="harian">PDF Laporan Penerimaan ZIS Harian (Kas Tunai)</option>
+                    <option value="bulanan_upz">PDF Laporan Rekapitulasi ZIS Bulanan Per UPZ (Format Resmi BAZNAS)</option>
+                    <option value="excel">Export Data Penerimaan ZIS (Spreadsheet Excel .xlsx)</option>
+                  </select>
                 </div>
 
-                {/* Opsi 2: Laporan Harian PDF */}
-                <div className="border border-slate-200 rounded-xl p-4 space-y-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <FileText className="size-5" />
-                    <h4 className="text-xs font-black uppercase tracking-wider">PDF Laporan Harian (Kas Tunai)</h4>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Cetak Laporan Kas Masuk khusus pembayaran Kas Tunai pada tanggal tertentu dalam format PDF BAZNAS.
-                  </p>
-                  
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Tanggal Laporan</label>
-                    <input 
-                      type="date"
-                      value={pdfReportDate}
-                      onChange={(e) => setPdfReportDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                    />
-                  </div>
-
-                  {/* Penandatangan (Signatories) */}
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
-                    <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">
-                      Penandatangan Laporan Harian
-                    </h5>
-
-                    {/* Kabag Keuangan */}
+                {/* Option 1: PDF Laporan Harian */}
+                {selectedReportType === 'harian' && (
+                  <div className="border border-slate-200 rounded-xl p-4 space-y-4 animate-fade-in">
+                    <div className="flex items-center gap-2 text-primary">
+                      <FileText className="size-5" />
+                      <h4 className="text-xs font-black uppercase tracking-wider">PDF Laporan Harian (Kas Tunai)</h4>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Cetak Laporan Kas Masuk khusus pembayaran Kas Tunai pada tanggal tertentu dalam format PDF BAZNAS.
+                    </p>
+                    
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Kabag Keuangan</label>
-                      <div className="flex gap-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pilih Tanggal Laporan</label>
+                      <input 
+                        type="date"
+                        value={pdfReportDate}
+                        onChange={(e) => setPdfReportDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Penandatangan (Signatories) */}
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                      <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">
+                        Penandatangan Laporan Harian
+                      </h5>
+
+                      {/* Kabag Keuangan */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-slate-600">Kabag Keuangan</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, kabagKeuangan: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.kabagKeuangan) ? signatories.kabagKeuangan : ''}
+                          >
+                            <option value="">-- Pilih --</option>
+                            {users.filter(u => u.role === 'Kabag_Keuangan' || u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.kabagKeuangan}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, kabagKeuangan: e.target.value }))}
+                            placeholder="Nama..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Kabid Pengumpulan */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-slate-600">Kabid Pengumpulan</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, kabidPengumpulan: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.kabidPengumpulan) ? signatories.kabidPengumpulan : ''}
+                          >
+                            <option value="">-- Pilih --</option>
+                            {users.filter(u => u.role === 'Kabag_Pengumpulan').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.kabidPengumpulan}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, kabidPengumpulan: e.target.value }))}
+                            placeholder="Nama..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Staff Bid. Pengumpulan */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-slate-600">Staff Bid. Pengumpulan</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, stafPengumpulan: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.stafPengumpulan) ? signatories.stafPengumpulan : ''}
+                          >
+                            <option value="">-- Pilih --</option>
+                            {users.filter(u => u.role === 'Staf_Pengumpulan').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.stafPengumpulan}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, stafPengumpulan: e.target.value }))}
+                            placeholder="Nama..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <button
+                      onClick={handleExportPDFDaily}
+                      className="w-full py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                    >
+                      <FileText className="size-4" />
+                      Cetak Laporan Harian PDF
+                    </button>
+                  </div>
+                )}
+
+                {/* Option 2: PDF Laporan Bulanan Rekapitulasi ZIS per UPZ */}
+                {selectedReportType === 'bulanan_upz' && (
+                  <div className="border border-teal-200 bg-teal-50/40 rounded-xl p-4 space-y-4 animate-fade-in">
+                    <div className="flex items-center gap-2 text-teal-800">
+                      <Printer className="size-5" />
+                      <h4 className="text-xs font-black uppercase tracking-wider">Cetak Laporan Bulanan Rekapitulasi ZIS (Per UPZ)</h4>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Cetak Rekapitulasi Penerimaan Zakat, Infak, Sedekah (ZIS) per UPZ sesuai format resmi BAZNAS Kota Semarang.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Bulan</label>
                         <select
-                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              setSignatories(prev => ({ ...prev, kabagKeuangan: e.target.value }));
-                            }
-                          }}
-                          value={users.some(u => u.name === signatories.kabagKeuangan) ? signatories.kabagKeuangan : ''}
+                          value={bulananReportMonth}
+                          onChange={(e) => setBulananReportMonth(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
                         >
-                          <option value="">-- Pilih --</option>
-                           {users.filter(u => u.role === 'Kabag_Keuangan' || u.role === 'Staf_Keuangan' || u.role === 'Kabag_Administrasi').map(u => (
-                            <option key={u.id} value={u.name}>{u.name}</option>
-                          ))}
+                          <option value={1}>Januari</option>
+                          <option value={2}>Februari</option>
+                          <option value={3}>Maret</option>
+                          <option value={4}>April</option>
+                          <option value={5}>Mei</option>
+                          <option value={6}>Juni</option>
+                          <option value={7}>Juli</option>
+                          <option value={8}>Agustus</option>
+                          <option value={9}>September</option>
+                          <option value={10}>Oktober</option>
+                          <option value={11}>November</option>
+                          <option value={12}>Desember</option>
                         </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Tahun</label>
                         <input
-                          type="text"
-                          value={signatories.kabagKeuangan}
-                          onChange={(e) => setSignatories(prev => ({ ...prev, kabagKeuangan: e.target.value }))}
-                          placeholder="Nama..."
-                          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          type="number"
+                          value={bulananReportYear}
+                          onChange={(e) => setBulananReportYear(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
                         />
                       </div>
                     </div>
 
-                    {/* Kabid Pengumpulan */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Kabid Pengumpulan</label>
-                      <div className="flex gap-2">
-                        <select
-                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              setSignatories(prev => ({ ...prev, kabidPengumpulan: e.target.value }));
-                            }
-                          }}
-                          value={users.some(u => u.name === signatories.kabidPengumpulan) ? signatories.kabidPengumpulan : ''}
-                        >
-                          <option value="">-- Pilih --</option>
-                          {users.filter(u => u.role === 'Kabag_Pengumpulan').map(u => (
-                            <option key={u.id} value={u.name}>{u.name}</option>
-                          ))}
-                        </select>
+                    <div className="p-3 bg-white/80 rounded-xl border border-teal-100 space-y-2 text-xs">
+                      <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">
+                        Penandatangan Laporan Bulanan
+                      </h5>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500">Kepala Pelaksana</label>
                         <input
                           type="text"
-                          value={signatories.kabidPengumpulan}
-                          onChange={(e) => setSignatories(prev => ({ ...prev, kabidPengumpulan: e.target.value }))}
-                          placeholder="Nama..."
-                          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          value={signatoriesBulanan.kepalaPelaksana}
+                          onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500">Kabag Pengumpulan</label>
+                        <input
+                          type="text"
+                          value={signatoriesBulanan.kabagPengumpulan}
+                          onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kabagPengumpulan: e.target.value }))}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500">Waka I Bidang Pengumpulan</label>
+                        <input
+                          type="text"
+                          value={signatoriesBulanan.waka1}
+                          onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, waka1: e.target.value }))}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
                         />
                       </div>
                     </div>
 
-                    {/* Staff Bid. Pengumpulan */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Staff Bid. Pengumpulan</label>
-                      <div className="flex gap-2">
-                        <select
-                          className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              setSignatories(prev => ({ ...prev, stafPengumpulan: e.target.value }));
-                            }
-                          }}
-                          value={users.some(u => u.name === signatories.stafPengumpulan) ? signatories.stafPengumpulan : ''}
-                        >
-                          <option value="">-- Pilih --</option>
-                          {users.filter(u => u.role === 'Staf_Pengumpulan').map(u => (
-                            <option key={u.id} value={u.name}>{u.name}</option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          value={signatories.stafPengumpulan}
-                          onChange={(e) => setSignatories(prev => ({ ...prev, stafPengumpulan: e.target.value }))}
-                          placeholder="Nama..."
-                          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                        />
-                      </div>
-                    </div>
-
-                  </div>
-
-                  <button
-                    onClick={handleExportPDFDaily}
-                    className="w-full py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
-                  >
-                    <FileText className="size-4" />
-                    Cetak Laporan Harian PDF
-                  </button>
-                </div>
-
-                {/* Opsi 3: Laporan Bulanan Rekapitulasi ZIS per UPZ */}
-                <div className="border border-teal-200 bg-teal-50/40 rounded-xl p-4 space-y-4">
-                  <div className="flex items-center gap-2 text-teal-800">
-                    <Printer className="size-5" />
-                    <h4 className="text-xs font-black uppercase tracking-wider">Cetak Laporan Bulanan Rekapitulasi ZIS (Per UPZ)</h4>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Cetak Rekapitulasi Penerimaan Zakat, Infak, Sedekah (ZIS) per UPZ sesuai format resmi BAZNAS Kota Semarang.
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Bulan</label>
-                      <select
-                        value={bulananReportMonth}
-                        onChange={(e) => setBulananReportMonth(Number(e.target.value))}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
-                      >
-                        <option value={1}>Januari</option>
-                        <option value={2}>Februari</option>
-                        <option value={3}>Maret</option>
-                        <option value={4}>April</option>
-                        <option value={5}>Mei</option>
-                        <option value={6}>Juni</option>
-                        <option value={7}>Juli</option>
-                        <option value={8}>Agustus</option>
-                        <option value={9}>September</option>
-                        <option value={10}>Oktober</option>
-                        <option value={11}>November</option>
-                        <option value={12}>Desember</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Tahun</label>
-                      <input
-                        type="number"
-                        value={bulananReportYear}
-                        onChange={(e) => setBulananReportYear(Number(e.target.value))}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-white/80 rounded-xl border border-teal-100 space-y-2 text-xs">
-                    <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">
-                      Penandatangan Laporan Bulanan
-                    </h5>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500">Kepala Pelaksana</label>
-                      <input
-                        type="text"
-                        value={signatoriesBulanan.kepalaPelaksana}
-                        onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500">Kabag Pengumpulan</label>
-                      <input
-                        type="text"
-                        value={signatoriesBulanan.kabagPengumpulan}
-                        onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kabagPengumpulan: e.target.value }))}
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500">Waka I Bidang Pengumpulan</label>
-                      <input
-                        type="text"
-                        value={signatoriesBulanan.waka1}
-                        onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, waka1: e.target.value }))}
-                        className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={async () => {
-                      setIsFetchingRekap(true);
-                      try {
-                        const res = await axios.get('/api/penerimaan-zis/rekap-bulanan', {
-                          params: { month: bulananReportMonth, year: bulananReportYear }
-                        });
-                        setRekapBulananCategories(res.data?.categories || {});
-                        setTimeout(() => {
-                          window.print();
+                    <button
+                      onClick={async () => {
+                        setIsFetchingRekap(true);
+                        try {
+                          const res = await axios.get('/api/penerimaan-zis/rekap-bulanan', {
+                            params: { month: bulananReportMonth, year: bulananReportYear }
+                          });
+                          setRekapBulananCategories(res.data?.categories || {});
+                          setTimeout(() => {
+                            window.print();
+                            setIsFetchingRekap(false);
+                            setIsReportModalOpen(false);
+                          }, 250);
+                        } catch (err) {
+                          console.error('Gagal mengambil data rekap bulanan:', err);
+                          alert('Gagal mengambil data Laporan Bulanan Rekap ZIS');
                           setIsFetchingRekap(false);
-                          setIsReportModalOpen(false);
-                        }, 250);
-                      } catch (err) {
-                        console.error('Gagal mengambil data rekap bulanan:', err);
-                        alert('Gagal mengambil data Laporan Bulanan Rekap ZIS');
-                        setIsFetchingRekap(false);
-                      }
-                    }}
-                    disabled={isFetchingRekap}
-                    className="w-full py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
-                  >
-                    {isFetchingRekap ? (
-                      <>
-                        <RefreshCw className="size-4 animate-spin" />
-                        Menyiapkan Laporan...
-                      </>
-                    ) : (
-                      <>
-                        <Printer className="size-4" />
-                        Cetak Laporan Bulanan Rekap ZIS
-                      </>
-                    )}
-                  </button>
-                </div>
+                        }
+                      }}
+                      disabled={isFetchingRekap}
+                      className="w-full py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      {isFetchingRekap ? (
+                        <>
+                          <RefreshCw className="size-4 animate-spin" />
+                          Menyiapkan Laporan...
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="size-4" />
+                          Cetak Laporan Bulanan Rekap ZIS
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* Option 3: Laporan Excel */}
+                {selectedReportType === 'excel' && (
+                  <div className="border border-slate-200 rounded-xl p-4 space-y-4 animate-fade-in">
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <FileSpreadsheet className="size-5" />
+                      <h4 className="text-xs font-black uppercase tracking-wider">Download Laporan Penerimaan (Excel)</h4>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Unduh rekapan penerimaan ZIS dalam format spreadsheet Excel.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dari Tanggal</label>
+                        <input 
+                          type="date"
+                          value={reportStartDate}
+                          onChange={(e) => setReportStartDate(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sampai Tanggal</label>
+                        <input 
+                          type="date"
+                          value={reportEndDate}
+                          onChange={(e) => setReportEndDate(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleExportExcel}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                    >
+                      <FileSpreadsheet className="size-4" />
+                      Unduh Excel
+                    </button>
+                  </div>
+                )}
 
               </div>
 
