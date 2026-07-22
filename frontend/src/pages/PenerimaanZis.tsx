@@ -197,6 +197,13 @@ export default function PenerimaanZis() {
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
 
+  // Pagination & Debounced Search State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [paginationInfo, setPaginationInfo] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
+  const [summaryTotals, setSummaryTotals] = useState({ totalTransactions: 0, totalNominal: 0 });
+
   // Form State
   const [selectedMuzakkiId, setSelectedMuzakkiId] = useState('');
   const [selectedRkatId, setSelectedRkatId] = useState('');
@@ -285,12 +292,32 @@ export default function PenerimaanZis() {
     }
   }, [isReportModalOpen]);
 
+  // Debounce search term
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get('/api/penerimaan-zis');
-      const list = res.data?.status === 'success' ? res.data.data : res.data;
-      setPenerimaanData(Array.isArray(list) ? list : []);
+      const res = await axios.get('/api/penerimaan-zis', {
+        params: {
+          page: currentPage,
+          limit: itemsPerPage,
+          search: debouncedSearch,
+          startDate: reportStartDate || undefined,
+          endDate: reportEndDate || undefined
+        }
+      });
+      if (res.data?.status === 'success') {
+        setPenerimaanData(res.data.data || []);
+        if (res.data.pagination) setPaginationInfo(res.data.pagination);
+        if (res.data.summary) setSummaryTotals(res.data.summary);
+      }
     } catch (error) {
       console.error(error);
       setMessages([{ type: 'error', text: 'Gagal memuat data Penerimaan ZIS.' }]);
@@ -298,6 +325,10 @@ export default function PenerimaanZis() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, [currentPage, itemsPerPage, debouncedSearch, reportStartDate, reportEndDate]);
 
   const fetchMetadata = async () => {
     try {
@@ -399,21 +430,21 @@ export default function PenerimaanZis() {
 
   // Calculations for stats
   const stats = useMemo(() => {
-    let total = 0;
+    let total = summaryTotals.totalNominal || 0;
+    let count = summaryTotals.totalTransactions || 0;
     let zakat = 0;
     let infak = 0;
     let dskl = 0;
 
     penerimaanData.forEach(item => {
       const nominalVal = Number(item.nominal || 0);
-      total += nominalVal;
       if (item.rkat?.kategori === 'Zakat') zakat += nominalVal;
       else if (item.rkat?.kategori === 'Infak') infak += nominalVal;
       else dskl += nominalVal;
     });
 
-    return { total, zakat, infak, dskl };
-  }, [penerimaanData]);
+    return { total, count, zakat, infak, dskl };
+  }, [penerimaanData, summaryTotals]);
 
   const handleQuickRegisterMuzakki = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -1229,16 +1260,43 @@ export default function PenerimaanZis() {
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/20 text-xs">
-          <p className="text-slate-400 font-bold">
-            Menampilkan 1-{Math.min(filteredData.length, 10)} dari {filteredData.length} transaksi
-          </p>
-          <div className="flex gap-1">
-            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+        <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50/40 text-xs">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-500 font-bold">
+              Menampilkan {paginationInfo.total === 0 ? 0 : (paginationInfo.page - 1) * paginationInfo.limit + 1} - {Math.min(paginationInfo.page * paginationInfo.limit, paginationInfo.total)} dari {paginationInfo.total} transaksi
+            </span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+            >
+              <option value={25}>25 per halaman</option>
+              <option value={50}>50 per halaman</option>
+              <option value={100}>100 per halaman</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-600 disabled:opacity-40"
+            >
               <ChevronLeft className="size-4" />
             </button>
-            <button className="w-8 h-8 bg-primary text-white rounded-lg font-bold text-xs">1</button>
-            <button className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400">
+            
+            <span className="px-3 py-1 font-bold text-slate-700">
+              Halaman {currentPage} dari {paginationInfo.totalPages || 1}
+            </span>
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(paginationInfo.totalPages, prev + 1))}
+              disabled={currentPage >= paginationInfo.totalPages}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-600 disabled:opacity-40"
+            >
               <ChevronRightIcon className="size-4" />
             </button>
           </div>

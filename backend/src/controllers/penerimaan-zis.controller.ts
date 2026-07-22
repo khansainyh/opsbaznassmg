@@ -4,41 +4,61 @@ import { Prisma } from '@prisma/client';
 
 export const getPenerimaanZis = async (req: Request, res: Response) => {
   try {
-    const list = await prisma.penerimaanZis.findMany({
-      where: {
-        status_simba: {
-          not: 'FAILED'
-        },
-        NOT: [
-          {
-            no_kuitansi: {
-              contains: 'Gagal'
-            }
-          },
-          {
-            AND: [
-              { keterangan: { not: null } },
-              { keterangan: { contains: 'Gagal Potong' } }
-            ]
-          },
-          {
-            AND: [
-              { keterangan: { not: null } },
-              { keterangan: { contains: 'failed_deduction' } }
-            ]
-          }
-        ]
-      },
-      include: {
-        muzakki: true,
-        rkat: true,
-        upz: true,
-        bankAccount: true
-      } as any,
-      orderBy: {
-        tanggal_pembayaran: 'desc'
-      }
-    });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 25;
+    const isAll = req.query.all === 'true';
+    const search = ((req.query.search as string) || '').trim();
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+
+    const baseWhere: any = {
+      status_simba: { not: 'FAILED' },
+      NOT: [
+        { no_kuitansi: { contains: 'Gagal' } },
+        { AND: [{ keterangan: { not: null } }, { keterangan: { contains: 'Gagal Potong' } }] },
+        { AND: [{ keterangan: { not: null } }, { keterangan: { contains: 'failed_deduction' } }] }
+      ]
+    };
+
+    if (startDate && endDate) {
+      baseWhere.tanggal_pembayaran = {
+        gte: new Date(`${startDate}T00:00:00.000Z`),
+        lte: new Date(`${endDate}T23:59:59.999Z`)
+      };
+    }
+
+    if (search) {
+      baseWhere.OR = [
+        { no_kuitansi: { contains: search } },
+        { keterangan: { contains: search } },
+        { kode_program: { contains: search } },
+        { jenis_program: { contains: search } },
+        { muzakki: { is: { nama: { contains: search } } } },
+        { upz: { is: { nama_upz: { contains: search } } } }
+      ];
+    }
+
+    const [totalRecords, aggregateSum, list] = await prisma.$transaction([
+      prisma.penerimaanZis.count({ where: baseWhere }),
+      prisma.penerimaanZis.aggregate({
+        where: baseWhere,
+        _sum: { nominal: true }
+      }),
+      prisma.penerimaanZis.findMany({
+        where: baseWhere,
+        include: {
+          muzakki: true,
+          rkat: true,
+          upz: true,
+          bankAccount: true
+        } as any,
+        orderBy: { tanggal_pembayaran: 'desc' },
+        ...(isAll ? {} : { skip: (page - 1) * limit, take: limit })
+      })
+    ]);
+
+    const totalPages = isAll ? 1 : Math.ceil(totalRecords / limit);
+    const totalNominal = Number(aggregateSum._sum.nominal || 0);
 
     const listWithCoa = await Promise.all(list.map(async (item: any) => {
       let coa_code = '';
@@ -59,17 +79,20 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       };
     }));
 
-    // Double-ensure in-memory filtering for Gagal Potong and FAILED
-    const cleanList = listWithCoa.filter((item: any) => {
-      const k = (item.keterangan || '').toLowerCase();
-      const nk = (item.no_kuitansi || '').toLowerCase();
-      if (item.status_simba === 'FAILED') return false;
-      if (nk.includes('/ gagal /') || nk.includes('gagal potong') || nk.includes('gagal')) return false;
-      if (k.includes('gagal potong') || k.includes('failed_deduction') || k.includes('failed')) return false;
-      return true;
+    res.status(200).json({
+      status: 'success',
+      data: listWithCoa,
+      pagination: {
+        total: totalRecords,
+        page,
+        limit: isAll ? totalRecords : limit,
+        totalPages
+      },
+      summary: {
+        totalTransactions: totalRecords,
+        totalNominal
+      }
     });
-
-    res.status(200).json({ status: 'success', data: cleanList });
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ error: error.message || String(error) });
