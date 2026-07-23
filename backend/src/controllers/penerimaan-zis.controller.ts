@@ -774,15 +774,18 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
       });
     });
 
-    const umumTotals = upzTotalsMap.get('UMUM') || { zakat: 0, infak: 0 };
-    categories['PENERIMAAN ZIS UMUM'] = [
-      { id: 'umum-1', nama_upz: 'ZIS Individu (Masyarakat)', zakat: umumTotals.zakat, infak: umumTotals.infak, total: umumTotals.zakat + umumTotals.infak }
-    ];
+    const filteredCategories: Record<string, any[]> = {};
+    Object.entries(categories).forEach(([catName, items]) => {
+      const activeItems = items.filter((it: any) => (it.total || 0) > 0 || (it.zakat || 0) > 0 || (it.infak || 0) > 0);
+      if (activeItems.length > 0) {
+        filteredCategories[catName] = activeItems;
+      }
+    });
 
     res.status(200).json({
       status: 'success',
       period: { month, year },
-      categories
+      categories: filteredCategories
     });
   } catch (error: any) {
     console.error(error);

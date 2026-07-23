@@ -116,7 +116,7 @@ function UpzSearchDropdown({
   }, []);
 
   return (
-    <div className="relative font-sans" ref={dropdownRef}>
+    <div className={cn("relative font-sans", isOpen ? "z-[100]" : "z-10")} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => {
@@ -136,7 +136,7 @@ function UpzSearchDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute z-40 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2 space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar">
+        <div className="absolute z-[100] left-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl p-2 space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar w-72 md:w-80">
           <div className="relative">
             <Search className="size-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -700,16 +700,21 @@ export default function PenerimaanZis() {
       const k = (item.keterangan || '').toLowerCase();
       const isGagalPotong = 
         isFailed ||
-        nk.includes('/ gagal /') || nk.includes('gagal potong') || nk.includes('gagal') ||
-        k.includes('gagal potong') || k.includes('failed_deduction') || k.includes('failed');
+        nk.includes('/ gagal /') || nk.includes('gagal potong') ||
+        k.includes('gagal potong') || k.includes('failed_deduction');
       
       if (isGagalPotong) return false;
 
+      const cleanSearch = searchTerm.trim().toLowerCase();
+
       const matchesSearch = 
-        (item.no_kuitansi && item.no_kuitansi.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.muzakki?.nama && item.muzakki.nama.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.muzakki?.npwz && item.muzakki.npwz.includes(searchTerm)) ||
-        (item.rkat?.nama_program && item.rkat.nama_program.toLowerCase().includes(searchTerm.toLowerCase()));
+        !cleanSearch ||
+        (item.no_kuitansi && item.no_kuitansi.toLowerCase().includes(cleanSearch)) ||
+        (item.muzakki?.nama && item.muzakki.nama.toLowerCase().includes(cleanSearch)) ||
+        (item.muzakki?.npwz && item.muzakki.npwz.toLowerCase().includes(cleanSearch)) ||
+        (item.rkat?.nama_program && item.rkat.nama_program.toLowerCase().includes(cleanSearch)) ||
+        (item.jenis_program && item.jenis_program.toLowerCase().includes(cleanSearch)) ||
+        (item.upz?.nama_upz && item.upz.nama_upz.toLowerCase().includes(cleanSearch));
       
       const matchesCategory = categoryFilter === 'Semua' || item.rkat?.kategori === categoryFilter;
       const matchesSimba = activeTab === 'simba-queue' 
@@ -2871,7 +2876,7 @@ export default function PenerimaanZis() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className={cn(
                 "relative bg-white w-full rounded-2xl shadow-2xl overflow-hidden font-sans flex flex-col max-h-[calc(100dvh-4rem)] z-10 transition-all",
-                parsedMigrationRows.length > 0 ? "max-w-3xl" : "max-w-md"
+                parsedMigrationRows.length > 0 ? "max-w-5xl" : "max-w-md"
               )}
             >
               <div className="p-4 md:p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
@@ -2961,14 +2966,14 @@ export default function PenerimaanZis() {
                           <Building2 className="size-4 text-slate-500" />
                           <span>Konsolidasi Nama UPZ Excel ke Database UPZ ({uniqueUnmatchedUpzNames.length} Nama Belum Terhubung)</span>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-36 overflow-y-auto custom-scrollbar">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-44 overflow-y-auto custom-scrollbar">
                           {uniqueUnmatchedUpzNames.map(({ name, count }) => (
-                            <div key={name} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200 gap-2 text-xs">
+                            <div key={name} className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200 gap-3 text-xs shadow-sm">
                               <div className="min-w-0 flex-1">
                                 <p className="font-bold text-slate-800 truncate" title={name}>{name}</p>
                                 <p className="text-[10px] text-slate-500 font-medium">{count} Transaksi</p>
                               </div>
-                              <div className="w-[180px] shrink-0">
+                              <div className="w-[230px] shrink-0">
                                 <UpzSearchDropdown
                                   value=""
                                   onSelect={(upzId) => handleMapExcelUpzNameToDatabase(name, upzId)}
@@ -2982,17 +2987,17 @@ export default function PenerimaanZis() {
                       </div>
                     )}
 
-                    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-72 overflow-y-auto custom-scrollbar">
+                    <div className="border border-slate-200 rounded-xl overflow-x-auto min-h-[340px] max-h-[460px] custom-scrollbar">
                       <table className="w-full text-left text-xs">
                         <thead>
-                          <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-10">
+                          <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-20">
                             <th className="px-3 py-2 text-center w-12 bg-slate-100">#</th>
                             <th className="px-3 py-2 bg-slate-100">Kode Prog / RKAT</th>
                             <th className="px-3 py-2 bg-slate-100">Kode Akun</th>
                             <th className="px-3 py-2 bg-slate-100">Sumber Dana</th>
                             <th className="px-3 py-2 bg-slate-100">Tanggal</th>
                             <th className="px-3 py-2 bg-slate-100">Muzakki</th>
-                            <th className="px-3 py-2 bg-slate-100 min-w-[210px]">Status UPZ</th>
+                            <th className="px-3 py-2 bg-slate-100 min-w-[280px]">Status UPZ</th>
                             <th className="px-3 py-2 text-right bg-slate-100">Nominal (Rp)</th>
                             <th className="px-3 py-2 bg-slate-100">Keterangan</th>
                           </tr>
@@ -3019,7 +3024,7 @@ export default function PenerimaanZis() {
                               <td className="px-3 py-2 font-medium text-slate-700">{item.sumberDana}</td>
                               <td className="px-3 py-2 text-slate-600">{item.tanggalTrx}</td>
                               <td className="px-3 py-2 font-bold text-slate-800">{item.namaMuzakki}</td>
-                              <td className="px-3 py-2 font-medium min-w-[210px]">
+                              <td className="px-3 py-2 font-medium min-w-[280px]">
                                 {item.matchedUpz ? (
                                   <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 truncate" title={`Terhubung DB UPZ: ${item.matchedUpz.nama_upz || item.matchedUpz.name}`}>
                                     <CheckCircle2 className="size-3 text-emerald-600 shrink-0" />
@@ -3031,7 +3036,7 @@ export default function PenerimaanZis() {
                                       <AlertCircle className="size-3 text-amber-600 shrink-0" />
                                       {item.namaUpz}
                                     </span>
-                                    <div className="w-[130px] shrink-0">
+                                    <div className="w-[170px] shrink-0">
                                       <UpzSearchDropdown
                                         value={item.upz_id || ''}
                                         onSelect={(upzId) => handleConsolidateRowUpz(index, upzId)}
