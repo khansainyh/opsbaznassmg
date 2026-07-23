@@ -759,6 +759,8 @@ export default function PenerimaanZis() {
         (item.no_kuitansi && item.no_kuitansi.toLowerCase().includes(cleanSearch)) ||
         (item.muzakki?.nama && item.muzakki.nama.toLowerCase().includes(cleanSearch)) ||
         (item.muzakki?.npwz && item.muzakki.npwz.toLowerCase().includes(cleanSearch)) ||
+        (item.muzakki?.upz && item.muzakki.upz.toLowerCase().includes(cleanSearch)) ||
+        (item.keterangan && item.keterangan.toLowerCase().includes(cleanSearch)) ||
         (item.rkat?.nama_program && item.rkat.nama_program.toLowerCase().includes(cleanSearch)) ||
         (item.jenis_program && item.jenis_program.toLowerCase().includes(cleanSearch)) ||
         (item.upz?.nama_upz && item.upz.nama_upz.toLowerCase().includes(cleanSearch));
@@ -772,29 +774,35 @@ export default function PenerimaanZis() {
     });
   }, [penerimaanData, searchTerm, categoryFilter, simbaFilter, activeTab]);
 
-  // Calculations for stats
+  // Calculations for stats dynamically from filteredData
   const stats = useMemo(() => {
-    const total = summaryTotals.totalNominal || 0;
-    const count = summaryTotals.totalTransactions || 0;
-    let zakat = summaryTotals.totalZakat ?? 0;
-    let infak = summaryTotals.totalInfak ?? 0;
-    let dskl = summaryTotals.totalDskl ?? 0;
+    let total = 0;
+    let count = filteredData.length;
+    let zakat = 0;
+    let infak = 0;
+    let dskl = 0;
 
-    // Fallback if backend didn't return breakdown
-    if (summaryTotals.totalZakat === undefined) {
-      zakat = 0;
-      infak = 0;
-      dskl = 0;
-      penerimaanData.forEach(item => {
-        const nominalVal = Number(item.nominal || 0);
-        if (item.rkat?.kategori === 'Zakat') zakat += nominalVal;
-        else if (item.rkat?.kategori === 'Infak') infak += nominalVal;
-        else dskl += nominalVal;
-      });
+    filteredData.forEach(item => {
+      const nominalVal = Number(item.nominal || 0);
+      total += nominalVal;
+      const cat = item.rkat?.kategori || (item.jenis_program?.toLowerCase().includes('zakat') ? 'Zakat' : item.jenis_program?.toLowerCase().includes('infak') ? 'Infak' : 'Infak/Sedekah');
+      if (cat.toLowerCase().includes('zakat')) zakat += nominalVal;
+      else if (cat.toLowerCase().includes('infak')) infak += nominalVal;
+      else dskl += nominalVal;
+    });
+
+    if (filteredData.length === 0 && summaryTotals.totalNominal > 0) {
+      return {
+        total: summaryTotals.totalNominal,
+        count: summaryTotals.totalTransactions,
+        zakat: summaryTotals.totalZakat || 0,
+        infak: summaryTotals.totalInfak || 0,
+        dskl: summaryTotals.totalDskl || 0
+      };
     }
 
     return { total, count, zakat, infak, dskl };
-  }, [penerimaanData, summaryTotals]);
+  }, [filteredData, summaryTotals]);
 
   const handleQuickRegisterMuzakki = async (e: React.MouseEvent) => {
     e.preventDefault();

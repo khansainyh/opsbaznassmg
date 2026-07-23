@@ -34,6 +34,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         { kode_program: { contains: search } },
         { jenis_program: { contains: search } },
         { muzakki: { is: { nama: { contains: search } } } },
+        { muzakki: { is: { upz: { contains: search } } } },
         { upz: { is: { nama_upz: { contains: search } } } }
       ];
     }
