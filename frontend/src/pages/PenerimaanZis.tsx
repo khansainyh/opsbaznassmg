@@ -1525,6 +1525,7 @@ export default function PenerimaanZis() {
                   <th className="px-6 py-4">Tanggal Transaksi</th>
                   <th className="px-6 py-4">NPWZ</th>
                   <th className="px-6 py-4">Nama Muzakki</th>
+                  <th className="px-6 py-4">Keterangan</th>
                   <th className="px-6 py-4">Jenis Dana</th>
                   <th className="px-6 py-4">Kegiatan (RKAT)</th>
                   <th className="px-6 py-4">via (Kas & Bank)</th>
@@ -1537,7 +1538,7 @@ export default function PenerimaanZis() {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center text-slate-400 italic font-medium">
+                    <td colSpan={11} className="px-6 py-12 text-center text-slate-400 italic font-medium">
                       Belum ada data penerimaan ZIS yang sesuai filter.
                     </td>
                   </tr>
@@ -1551,7 +1552,7 @@ export default function PenerimaanZis() {
                         {item.muzakki?.npwz && !/^(WZ-|PENDING-|NIK-)/i.test(item.muzakki.npwz) ? item.muzakki.npwz : '-'}
                       </td>
                       <td className="px-6 py-4 font-bold text-slate-900">
-                        <div>{item.muzakki?.nama || item.keterangan || '-'}</div>
+                        <div>{item.muzakki?.nama || '-'}</div>
                         {(() => {
                           const upzObj = item.upz || (item.upz_id ? upzList.find(u => u.id === item.upz_id) : null);
                           if (upzObj) {
@@ -1564,6 +1565,11 @@ export default function PenerimaanZis() {
                           }
                           return null;
                         })()}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-600 font-medium max-w-[220px]">
+                        <p className="line-clamp-2" title={item.keterangan || '-'}>
+                          {item.keterangan || '-'}
+                        </p>
                       </td>
                       <td className="px-6 py-4">
                         {(() => {
