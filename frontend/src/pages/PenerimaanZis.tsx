@@ -500,7 +500,13 @@ export default function PenerimaanZis() {
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [paginationInfo, setPaginationInfo] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
-  const [summaryTotals, setSummaryTotals] = useState({ totalTransactions: 0, totalNominal: 0 });
+  const [summaryTotals, setSummaryTotals] = useState<{ 
+    totalTransactions: number; 
+    totalNominal: number; 
+    totalZakat?: number; 
+    totalInfak?: number; 
+    totalDskl?: number; 
+  }>({ totalTransactions: 0, totalNominal: 0, totalZakat: 0, totalInfak: 0, totalDskl: 0 });
 
   // Form State
   const [selectedMuzakkiId, setSelectedMuzakkiId] = useState('');
