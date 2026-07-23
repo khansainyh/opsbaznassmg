@@ -21,7 +21,8 @@ import {
   FileText,
   Upload,
   Download,
-  RefreshCw
+  RefreshCw,
+  Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -71,6 +72,122 @@ function SummaryCard({ title, value, subtext, icon, colorClass }: any) {
       <div className={cn("p-3 rounded-xl", colorClass || "bg-slate-50 text-slate-500")}>
         {icon}
       </div>
+    </div>
+  );
+}
+
+interface UpzSearchDropdownProps {
+  value: string;
+  onSelect: (upzId: string) => void;
+  placeholder?: string;
+  className?: string;
+  upzList: any[];
+}
+
+function UpzSearchDropdown({
+  value,
+  onSelect,
+  placeholder = 'Pilih UPZ Database...',
+  className,
+  upzList
+}: UpzSearchDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const selectedUpz = useMemo(() => {
+    return upzList.find(u => u.id === value || u.nama_upz === value || u.name === value);
+  }, [upzList, value]);
+
+  const filteredUpzs = useMemo(() => {
+    if (!query) return upzList;
+    const q = query.toLowerCase();
+    return upzList.filter(u => (u.nama_upz || u.name || '').toLowerCase().includes(q));
+  }, [upzList, query]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative font-sans" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setQuery('');
+        }}
+        className={cn(
+          "w-full text-left text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-primary/20 outline-none transition-all font-semibold flex items-center justify-between gap-2 shadow-sm hover:border-slate-300",
+          selectedUpz ? "text-emerald-700 font-bold border-emerald-200 bg-emerald-50/40" : "text-slate-500",
+          className
+        )}
+      >
+        <span className="truncate">
+          {selectedUpz ? (selectedUpz.nama_upz || selectedUpz.name) : placeholder}
+        </span>
+        <ChevronRight className={cn("size-3.5 text-slate-400 shrink-0 transition-transform duration-200", isOpen ? "-rotate-90" : "rotate-90")} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-40 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl p-2 space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar">
+          <div className="relative">
+            <Search className="size-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari nama UPZ..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-primary/20 text-slate-800"
+            />
+          </div>
+          <div className="space-y-0.5 max-h-36 overflow-y-auto custom-scrollbar">
+            {value && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSelect('');
+                  setIsOpen(false);
+                  setQuery('');
+                }}
+                className="w-full text-left px-2 py-1 rounded hover:bg-rose-50 text-[11px] text-rose-600 font-bold transition-colors"
+              >
+                -- Reset Pemetaan UPZ --
+              </button>
+            )}
+            {filteredUpzs.map(u => (
+              <button
+                type="button"
+                key={u.id}
+                onClick={() => {
+                  onSelect(u.id);
+                  setIsOpen(false);
+                  setQuery('');
+                }}
+                className={cn(
+                  "w-full text-left px-2 py-1.5 rounded hover:bg-slate-100 text-xs transition-colors flex items-center justify-between gap-1",
+                  (value === u.id || value === u.nama_upz || value === u.name) ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                )}
+              >
+                <span className="truncate">{u.nama_upz || u.name}</span>
+                {u.kategori && (
+                  <span className="text-[9px] text-slate-400 shrink-0 font-normal">({u.kategori})</span>
+                )}
+              </button>
+            ))}
+            {filteredUpzs.length === 0 && (
+              <p className="text-[11px] text-slate-400 italic p-2 text-center font-sans">Tidak ada UPZ yang cocok</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -198,6 +315,94 @@ export default function PenerimaanZis() {
     reader.readAsBinaryString(file);
   };
 
+  const handleConsolidateRowUpz = (index: number, upzId: string) => {
+    const targetUpz = upzList.find(u => u.id === upzId);
+    setParsedMigrationRows(prev => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = {
+          ...updated[index],
+          matchedUpz: targetUpz || null,
+          upz_id: upzId || null,
+          namaUpz: targetUpz ? (targetUpz.nama_upz || targetUpz.name) : updated[index].namaUpz
+        };
+      }
+      return updated;
+    });
+
+    if (rawMigrationFileRows[index]) {
+      rawMigrationFileRows[index]['upz_id'] = upzId || null;
+      if (targetUpz) {
+        rawMigrationFileRows[index]['Nama UPZ'] = targetUpz.nama_upz || targetUpz.name;
+        rawMigrationFileRows[index]['upz_nama'] = targetUpz.nama_upz || targetUpz.name;
+      }
+    }
+  };
+
+  const handleMapExcelUpzNameToDatabase = (rawUpzName: string, targetUpzId: string) => {
+    if (!rawUpzName) return;
+    const targetUpz = upzList.find(u => u.id === targetUpzId);
+    const cleanRaw = rawUpzName.trim().toLowerCase();
+
+    setParsedMigrationRows(prev => prev.map((row, idx) => {
+      if (row.namaUpz && row.namaUpz.trim().toLowerCase() === cleanRaw) {
+        if (rawMigrationFileRows[idx]) {
+          rawMigrationFileRows[idx]['upz_id'] = targetUpzId || null;
+          if (targetUpz) {
+            rawMigrationFileRows[idx]['Nama UPZ'] = targetUpz.nama_upz || targetUpz.name;
+            rawMigrationFileRows[idx]['upz_nama'] = targetUpz.nama_upz || targetUpz.name;
+          }
+        }
+        return {
+          ...row,
+          matchedUpz: targetUpz || null,
+          upz_id: targetUpzId || null,
+          namaUpz: targetUpz ? (targetUpz.nama_upz || targetUpz.name) : row.namaUpz
+        };
+      }
+      return row;
+    }));
+  };
+
+  const uniqueUnmatchedUpzNames = useMemo(() => {
+    if (!parsedMigrationRows || parsedMigrationRows.length === 0) return [];
+    const map = new Map<string, number>();
+    parsedMigrationRows.forEach(r => {
+      if (r.namaUpz && r.namaUpz !== '-' && !r.matchedUpz) {
+        const clean = r.namaUpz.trim();
+        map.set(clean, (map.get(clean) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  }, [parsedMigrationRows]);
+
+  const migrationSummaryStats = useMemo(() => {
+    if (!parsedMigrationRows || parsedMigrationRows.length === 0) {
+      return { total: 0, validCount: 0, warningCount: 0, totalNominal: 0 };
+    }
+
+    let validCount = 0;
+    let warningCount = 0;
+    let totalNominal = 0;
+
+    parsedMigrationRows.forEach(r => {
+      totalNominal += Number(r.nominal || 0);
+      const isUnmatchedUpz = r.namaUpz && r.namaUpz !== '-' && !r.matchedUpz;
+      if (isUnmatchedUpz) {
+        warningCount++;
+      } else {
+        validCount++;
+      }
+    });
+
+    return {
+      total: parsedMigrationRows.length,
+      validCount,
+      warningCount,
+      totalNominal
+    };
+  }, [parsedMigrationRows]);
+
   const handleProcessMigrationSubmit = async () => {
     if (!rawMigrationFileRows || rawMigrationFileRows.length === 0) {
       alert('Belum ada data file yang dibaca.');
@@ -206,8 +411,21 @@ export default function PenerimaanZis() {
 
     setMigrating(true);
     try {
+      const updatedTransactions = rawMigrationFileRows.map((rawItem, idx) => {
+        const parsedRow = parsedMigrationRows[idx];
+        if (parsedRow) {
+          return {
+            ...rawItem,
+            upz_id: parsedRow.upz_id || (parsedRow.matchedUpz ? parsedRow.matchedUpz.id : rawItem.upz_id),
+            nama_upz: parsedRow.matchedUpz ? (parsedRow.matchedUpz.nama_upz || parsedRow.matchedUpz.name) : (parsedRow.namaUpz || rawItem.nama_upz),
+            rkat_id: parsedRow.matchedRkat ? parsedRow.matchedRkat.id : rawItem.rkat_id
+          };
+        }
+        return rawItem;
+      });
+
       const res = await axios.post('/api/penerimaan-zis/migrate', {
-        transactions: rawMigrationFileRows,
+        transactions: updatedTransactions,
         options: { skipJournal: true }
       });
 
@@ -2606,7 +2824,7 @@ export default function PenerimaanZis() {
       {/* Migration Modal */}
       <AnimatePresence>
         {isMigrationModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2623,17 +2841,17 @@ export default function PenerimaanZis() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className={cn(
-                "relative bg-white w-full rounded-2xl shadow-2xl overflow-hidden font-sans flex flex-col max-h-[calc(100dvh-2rem)] z-10 transition-all",
-                parsedMigrationRows.length > 0 ? "max-w-4xl" : "max-w-md"
+                "relative bg-white w-full rounded-2xl shadow-2xl overflow-hidden font-sans flex flex-col max-h-[calc(100dvh-4rem)] z-10 transition-all",
+                parsedMigrationRows.length > 0 ? "max-w-3xl" : "max-w-md"
               )}
             >
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+              <div className="p-4 md:p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-100 rounded-xl">
                     <FileSpreadsheet className="size-5 text-emerald-700" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 font-sans">Migrasi Penerimaan ZIS</h3>
+                    <h3 className="text-base md:text-lg font-black text-slate-900 font-sans">Migrasi Penerimaan ZIS</h3>
                     <p className="text-[10px] text-slate-500 font-medium">Unggah file Excel untuk impor data historis transaksi penerimaan</p>
                   </div>
                 </div>
@@ -2649,7 +2867,7 @@ export default function PenerimaanZis() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+              <div className="p-4 md:p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 <div className="space-y-3">
                   <button onClick={downloadPenerimaanTemplate} className="w-full flex items-center justify-between p-3.5 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
                     <div className="flex items-center gap-3">
@@ -2684,36 +2902,68 @@ export default function PenerimaanZis() {
                 {/* Staging / Preview Table */}
                 {parsedMigrationRows.length > 0 && (
                   <div className="space-y-4 pt-4 border-t border-slate-100">
-                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between text-xs">
-                      <div>
-                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total Transaksi Dibaca</p>
-                        <p className="text-lg font-black text-emerald-950">{parsedMigrationRows.length} Transaksi</p>
+                    {/* Sleek Summary Bar (CatatMutasi / BukuBesar Style) */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 text-xs font-sans">
+                      <div className="flex items-center gap-2 font-bold text-slate-700">
+                        <FileText className="size-4 text-slate-400" />
+                        <span>Hasil Pembacaan Excel ({parsedMigrationRows.length} Baris)</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total Nominal Sum</p>
-                        <p className="text-lg font-black text-emerald-950">
-                          Rp {parsedMigrationRows.reduce((sum, r) => sum + Number(r.nominal || 0), 0).toLocaleString('id-ID')}
-                        </p>
+                      <div className="flex flex-wrap items-center gap-3 font-semibold text-slate-600">
+                        <span className="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 font-bold">
+                          <CheckCircle2 className="size-3.5 text-emerald-600" />
+                          {migrationSummaryStats.validCount} Valid / Terhubung
+                        </span>
+                        {migrationSummaryStats.warningCount > 0 && (
+                          <span className="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100 font-bold">
+                            <AlertCircle className="size-3.5 text-amber-600" />
+                            {migrationSummaryStats.warningCount} Belum Terhubung
+                          </span>
+                        )}
+                        <span className="font-mono text-slate-900 font-bold">
+                          Total: Rp {migrationSummaryStats.totalNominal.toLocaleString('id-ID')}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                        Pratinjau Data Excel ({parsedMigrationRows.length} Baris)
-                      </h4>
-                    </div>
+                    {/* Bulk Konsolidasi Nama UPZ (Penerimaan Bank Jateng Style) */}
+                    {uniqueUnmatchedUpzNames.length > 0 && (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 font-sans">
+                        <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
+                          <Building2 className="size-4 text-slate-500" />
+                          <span>Konsolidasi Nama UPZ Excel ke Database UPZ ({uniqueUnmatchedUpzNames.length} Nama Belum Terhubung)</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-36 overflow-y-auto custom-scrollbar">
+                          {uniqueUnmatchedUpzNames.map(({ name, count }) => (
+                            <div key={name} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200 gap-2 text-xs">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-800 truncate" title={name}>{name}</p>
+                                <p className="text-[10px] text-slate-500 font-medium">{count} Transaksi</p>
+                              </div>
+                              <div className="w-[180px] shrink-0">
+                                <UpzSearchDropdown
+                                  value=""
+                                  onSelect={(upzId) => handleMapExcelUpzNameToDatabase(name, upzId)}
+                                  placeholder="Pilih UPZ Tujuan..."
+                                  upzList={upzList}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="border border-slate-200 rounded-xl overflow-hidden max-h-72 overflow-y-auto custom-scrollbar">
                       <table className="w-full text-left text-xs">
                         <thead>
-                          <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
+                          <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-10">
                             <th className="px-3 py-2 text-center w-12 bg-slate-100">#</th>
-                            <th className="px-3 py-2 bg-slate-100">Kode Prog</th>
+                            <th className="px-3 py-2 bg-slate-100">Kode Prog / RKAT</th>
                             <th className="px-3 py-2 bg-slate-100">Kode Akun</th>
                             <th className="px-3 py-2 bg-slate-100">Sumber Dana</th>
                             <th className="px-3 py-2 bg-slate-100">Tanggal</th>
                             <th className="px-3 py-2 bg-slate-100">Muzakki</th>
-                            <th className="px-3 py-2 bg-slate-100">UPZ</th>
+                            <th className="px-3 py-2 bg-slate-100 min-w-[210px]">Status UPZ</th>
                             <th className="px-3 py-2 text-right bg-slate-100">Nominal (Rp)</th>
                             <th className="px-3 py-2 bg-slate-100">Keterangan</th>
                           </tr>
@@ -2740,17 +2990,27 @@ export default function PenerimaanZis() {
                               <td className="px-3 py-2 font-medium text-slate-700">{item.sumberDana}</td>
                               <td className="px-3 py-2 text-slate-600">{item.tanggalTrx}</td>
                               <td className="px-3 py-2 font-bold text-slate-800">{item.namaMuzakki}</td>
-                              <td className="px-3 py-2 font-medium">
+                              <td className="px-3 py-2 font-medium min-w-[210px]">
                                 {item.matchedUpz ? (
-                                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100" title={`Terhubung DB UPZ: ${item.matchedUpz.nama_upz || item.matchedUpz.name}`}>
+                                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 truncate" title={`Terhubung DB UPZ: ${item.matchedUpz.nama_upz || item.matchedUpz.name}`}>
                                     <CheckCircle2 className="size-3 text-emerald-600 shrink-0" />
                                     {item.matchedUpz.nama_upz || item.matchedUpz.name}
                                   </span>
                                 ) : item.namaUpz && item.namaUpz !== '-' ? (
-                                  <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[10px] bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100" title="Nama UPZ di Excel belum tercatat di Database UPZ">
-                                    <AlertCircle className="size-3 text-amber-600 shrink-0" />
-                                    {item.namaUpz}
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 truncate max-w-[110px]" title="Nama UPZ dari Excel belum cocok">
+                                      <AlertCircle className="size-3 text-amber-600 shrink-0" />
+                                      {item.namaUpz}
+                                    </span>
+                                    <div className="w-[130px] shrink-0">
+                                      <UpzSearchDropdown
+                                        value={item.upz_id || ''}
+                                        onSelect={(upzId) => handleConsolidateRowUpz(index, upzId)}
+                                        placeholder="Hubungkan..."
+                                        upzList={upzList}
+                                      />
+                                    </div>
+                                  </div>
                                 ) : (
                                   <span className="text-slate-400 font-mono text-[10px]">-</span>
                                 )}

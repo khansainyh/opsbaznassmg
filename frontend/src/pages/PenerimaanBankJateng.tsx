@@ -652,7 +652,12 @@ export default function PenerimaanBankJateng() {
         const banksOnly = bankData.filter((acc: any) => acc.tipe_kas === 'BANK');
         setBankAccounts(banksOnly);
         if (banksOnly.length > 0) {
-          setSelectedBankAccountId(banksOnly[0].account_id);
+          const bankJatengAcc = banksOnly.find((acc: any) => 
+            acc.coa_code === '11011501' || 
+            acc.coa?.coa_code === '11011501' || 
+            acc.nama_akun?.toLowerCase().includes('jateng')
+          ) || banksOnly[0];
+          setSelectedBankAccountId(bankJatengAcc.account_id);
         }
       }
     } catch (err) {
