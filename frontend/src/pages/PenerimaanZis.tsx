@@ -338,6 +338,7 @@ export default function PenerimaanZis() {
       }
     }
   };
+  void handleConsolidateRowUpz;
 
   const handleMapExcelUpzNameToDatabase = (rawUpzName: string, targetUpzId: string) => {
     if (!rawUpzName) return;
@@ -593,6 +594,12 @@ export default function PenerimaanZis() {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
+  const [mainFilterStartDate, setMainFilterStartDate] = useState('');
+  const [mainFilterEndDate, setMainFilterEndDate] = useState('');
+  // Suppress unused warning for setters
+  void setMainFilterStartDate;
+  void setMainFilterEndDate;
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -601,8 +608,8 @@ export default function PenerimaanZis() {
           page: currentPage,
           limit: itemsPerPage,
           search: debouncedSearch,
-          startDate: reportStartDate || undefined,
-          endDate: reportEndDate || undefined
+          startDate: mainFilterStartDate || undefined,
+          endDate: mainFilterEndDate || undefined
         }
       });
       if (res.data?.status === 'success') {
@@ -620,7 +627,7 @@ export default function PenerimaanZis() {
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, itemsPerPage, debouncedSearch, reportStartDate, reportEndDate]);
+  }, [currentPage, itemsPerPage, debouncedSearch, mainFilterStartDate, mainFilterEndDate]);
 
   const fetchMetadata = async () => {
     try {
@@ -3024,27 +3031,17 @@ export default function PenerimaanZis() {
                               <td className="px-3 py-2 font-medium text-slate-700">{item.sumberDana}</td>
                               <td className="px-3 py-2 text-slate-600">{item.tanggalTrx}</td>
                               <td className="px-3 py-2 font-bold text-slate-800">{item.namaMuzakki}</td>
-                              <td className="px-3 py-2 font-medium min-w-[280px]">
+                              <td className="px-3 py-2 font-medium min-w-[200px]">
                                 {item.matchedUpz ? (
-                                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 truncate" title={`Terhubung DB UPZ: ${item.matchedUpz.nama_upz || item.matchedUpz.name}`}>
-                                    <CheckCircle2 className="size-3 text-emerald-600 shrink-0" />
+                                  <span className="inline-flex items-center gap-1.5 text-emerald-700 font-bold text-[10px] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 truncate max-w-full" title={`Terhubung DB UPZ: ${item.matchedUpz.nama_upz || item.matchedUpz.name}`}>
+                                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
                                     {item.matchedUpz.nama_upz || item.matchedUpz.name}
                                   </span>
                                 ) : item.namaUpz && item.namaUpz !== '-' ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 truncate max-w-[110px]" title="Nama UPZ dari Excel belum cocok">
-                                      <AlertCircle className="size-3 text-amber-600 shrink-0" />
-                                      {item.namaUpz}
-                                    </span>
-                                    <div className="w-[170px] shrink-0">
-                                      <UpzSearchDropdown
-                                        value={item.upz_id || ''}
-                                        onSelect={(upzId) => handleConsolidateRowUpz(index, upzId)}
-                                        placeholder="Hubungkan..."
-                                        upzList={upzList}
-                                      />
-                                    </div>
-                                  </div>
+                                  <span className="inline-flex items-center gap-1.5 text-amber-700 font-bold text-[10px] bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100 truncate max-w-full" title="Belum terhubung ke Database UPZ. Hubungkan menggunakan panel Konsolidasi di atas.">
+                                    <AlertCircle className="size-3.5 text-amber-600 shrink-0" />
+                                    {item.namaUpz} (Belum Terhubung)
+                                  </span>
                                 ) : (
                                   <span className="text-slate-400 font-mono text-[10px]">-</span>
                                 )}
