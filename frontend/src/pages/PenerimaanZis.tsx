@@ -812,7 +812,7 @@ export default function PenerimaanZis() {
       };
 
       if (quickKategori === 'Perorangan') {
-        payload.nik = quickNik || `NIK-${Date.now()}`;
+        payload.nik = quickNik && quickNik.trim() ? quickNik.trim() : null;
         payload.handphone = quickHandphone;
         payload.jenis_kelamin = quickJenisKelamin;
       } else {
@@ -1108,42 +1108,65 @@ export default function PenerimaanZis() {
     }
   };
 
-  const handleExportExcel = () => {
-    const start = new Date(reportStartDate);
-    start.setHours(0,0,0,0);
-    const end = new Date(reportEndDate);
-    end.setHours(23,59,59,999);
+  const handleExportExcel = async () => {
+    setIsLoading(true);
+    try {
+      let dataFiltered: any[] = [];
+      const res = await axios.get('/api/penerimaan-zis', { params: { all: 'true' } });
+      const allData: any[] = res.data?.data || penerimaanData;
 
-    const dataFiltered = penerimaanData.filter(item => {
-      const pDate = new Date(item.tanggal_pembayaran);
-      const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
-      if (isFailed) return false;
-      return pDate >= start && pDate <= end;
-    });
+      if (reportStartDate && reportEndDate) {
+        const start = new Date(reportStartDate);
+        start.setHours(0,0,0,0);
+        const end = new Date(reportEndDate);
+        end.setHours(23,59,59,999);
 
-    if (dataFiltered.length === 0) {
-      alert('Tidak ada data penerimaan ZIS pada rentang tanggal tersebut.');
-      return;
+        dataFiltered = allData.filter(item => {
+          const pDate = new Date(item.tanggal_pembayaran);
+          const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
+          if (isFailed) return false;
+          return pDate >= start && pDate <= end;
+        });
+      } else {
+        dataFiltered = allData.filter(item => item.status_simba !== 'FAILED' && !(item.keterangan || '').toLowerCase().includes('gagal potong'));
+      }
+
+      if (dataFiltered.length === 0) {
+        alert('Tidak ada data penerimaan ZIS pada rentang tanggal tersebut.');
+        return;
+      }
+
+      const reportData = dataFiltered.map((item, idx) => ({
+        'No': idx + 1,
+        'Tanggal Transaksi': item.tanggal_pembayaran ? new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID') : '-',
+        'No Registrasi (NPWZ)': (item.muzakki?.npwz && !/^(WZ-|PENDING-|NIK-)/i.test(item.muzakki.npwz)) ? item.muzakki.npwz : '-',
+        'No Kuitansi / BSZ': item.no_kuitansi || '-',
+        'Nama Muzakki': item.muzakki?.nama || '-',
+        'Nama UPZ': item.upz?.nama_upz || '-',
+        'Keterangan': item.keterangan || '-',
+        'Jenis Dana': item.rkat?.kategori || (item.jenis_program?.toLowerCase().includes('zakat') ? 'Zakat' : item.jenis_program?.toLowerCase().includes('infak') ? 'Infak' : 'Infak/Sedekah'),
+        'Kegiatan (RKAT)': item.rkat?.nama_program || item.jenis_program || '-',
+        'Kode Program': item.kode_program || '-',
+        'via (Kas & Bank)': item.bankAccount?.nama_akun || '-',
+        'Program Kegiatan (COA)': item.rkat?.coa_codes || item.coa_code || '-',
+        'Nominal (Rp)': Number(item.nominal || 0),
+        'No Transaksi SIMBA': item.no_transaksi_simba || '-',
+        'Status SIMBA': item.status_simba || 'PENDING'
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(reportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Penerimaan ZIS');
+      const filename = (reportStartDate && reportEndDate) 
+        ? `Laporan_Penerimaan_ZIS_${reportStartDate}_sd_${reportEndDate}.xlsx`
+        : `Laporan_Penerimaan_ZIS_Lengkap_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(workbook, filename);
+    } catch (err) {
+      console.error('Error exporting Excel:', err);
+      alert('Gagal mengunduh file Excel penerimaan.');
+    } finally {
+      setIsLoading(false);
     }
-
-    const reportData = dataFiltered.map(item => ({
-      'Tanggal Transaksi': new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID'),
-      'No Registrasi (NPWZ)': item.muzakki?.npwz || '-',
-      'No Kuitansi / BSZ': item.no_kuitansi,
-      'Nama Muzakki': item.muzakki?.nama || '-',
-      'Jenis Dana': item.rkat?.kategori || '-',
-      'Kegiatan (RKAT)': item.rkat?.nama_program || '-',
-      'via (Kas & Bank)': item.bankAccount?.nama_akun || '-',
-      'Program Kegiatan (COA)': item.rkat?.coa_codes || '-',
-      'Nominal': Number(item.nominal || 0),
-      'No Transaksi SIMBA': item.no_transaksi_simba || '-',
-      'Status SIMBA': item.status_simba
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(reportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Penerimaan ZIS');
-    XLSX.writeFile(workbook, `Laporan_Penerimaan_ZIS_${reportStartDate}_sd_${reportEndDate}.xlsx`);
   };
 
   const handleExportPDFDaily = () => {

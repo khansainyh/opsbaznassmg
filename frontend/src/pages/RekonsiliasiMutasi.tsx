@@ -620,7 +620,7 @@ export default function RekonsiliasiMutasi() {
  };
 
  if (quickKategori ==='Perorangan') {
- payload.nik = quickNik || `NIK-${Date.now()}`;
+ payload.nik = quickNik && quickNik.trim() ? quickNik.trim() : null;
  payload.handphone = quickHandphone;
  payload.jenis_kelamin = quickJenisKelamin;
  } else {
