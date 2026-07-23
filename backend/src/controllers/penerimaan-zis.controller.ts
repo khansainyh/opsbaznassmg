@@ -60,6 +60,13 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
     const totalPages = isAll ? 1 : Math.ceil(totalRecords / limit);
     const totalNominal = Number(aggregateSum._sum.nominal || 0);
 
+    const allRkats = await prisma.rkatPengumpulan.findMany();
+    const rkatMap = new Map<string, any>();
+    allRkats.forEach(r => {
+      rkatMap.set(r.id, r);
+      rkatMap.set(r.no, r);
+    });
+
     const listWithCoa = await Promise.all(list.map(async (item: any) => {
       let coa_code = '';
       if (item.transaksi_id) {
@@ -73,8 +80,26 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
           coa_code = creditEntry.coa_code;
         }
       }
+
+      let rkatObj = item.rkat;
+      if (!rkatObj && item.rkat_id) {
+        rkatObj = rkatMap.get(item.rkat_id) || null;
+      }
+      if (!rkatObj && item.kode_program && typeof item.kode_program === 'string' && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program]) {
+        const rNo = PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no;
+        if (rNo) {
+          rkatObj = rkatMap.get(rNo) || null;
+        }
+      }
+
+      const statusSimba = (item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0)
+        ? 'SYNCED'
+        : item.status_simba;
+
       return {
         ...item,
+        rkat: rkatObj,
+        status_simba: statusSimba,
         coa_code
       };
     }));
@@ -870,7 +895,13 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
 
         let rawJenisProgram = getVal(txData, ['Jenis Program', 'jenis_program', 'Jenis_Program', 'Program']);
         let jenisProgram = rawJenisProgram ? String(rawJenisProgram).trim() : null;
-        let rkatId = txData.rkat_id || null;
+
+        let rawRkatId = txData.rkat_id || null;
+        let rkatId: string | null = null;
+        if (rawRkatId) {
+          const matchedRkat = rkats.find(r => r.id === rawRkatId || r.no === String(rawRkatId));
+          if (matchedRkat) rkatId = matchedRkat.id;
+        }
 
         if (kodeProgram && PROGRAM_KODE_TO_RKAT_MAP[kodeProgram]) {
           const mapItem = PROGRAM_KODE_TO_RKAT_MAP[kodeProgram];
@@ -902,7 +933,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           kuitansiNo = `${kuitansiNo}-DUP-${i + 1}-${Math.floor(Math.random() * 1000)}`;
         }
 
-        const statusSimba = txData.status_simba || (simbaNo ? 'SYNCED' : 'PENDING');
+        const statusSimba = (simbaNo && simbaNo.length > 0) ? 'SYNCED' : (txData.status_simba || 'PENDING');
         
         let tanggalTrx = new Date();
         const rawDateVal = getVal(txData, ['Tanggal Trx', 'tanggal_pembayaran', 'tanggal_trx', 'Tanggal', 'Tgl']);

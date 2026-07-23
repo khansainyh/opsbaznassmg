@@ -1471,30 +1471,59 @@ export default function PenerimaanZis() {
                         })()}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={cn(
-                          "px-2 py-0.5 text-[10px] font-bold rounded uppercase",
-                          item.rkat?.kategori === 'Zakat' ? 'bg-emerald-100 text-emerald-800' :
-                          item.rkat?.kategori === 'Infak' ? 'bg-blue-100 text-blue-800' :
-                          'bg-amber-100 text-amber-800'
-                        )}>
-                          {item.rkat?.kategori || '-'}
-                        </span>
+                        {(() => {
+                          const rkatObj = item.rkat || (item.rkat_id ? rkatList.find(r => r.id === item.rkat_id || r.no === String(item.rkat_id)) : null);
+                          const cat = rkatObj?.kategori || (item.jenis_program?.toLowerCase().includes('zakat') ? 'Zakat' : item.jenis_program?.toLowerCase().includes('infak') ? 'Infak' : 'Infak/Sedekah');
+                          return (
+                            <span className={cn(
+                              "px-2 py-0.5 text-[10px] font-bold rounded uppercase",
+                              cat.toLowerCase().includes('zakat') ? 'bg-emerald-100 text-emerald-800' :
+                              cat.toLowerCase().includes('infak') ? 'bg-blue-100 text-blue-800' :
+                              'bg-amber-100 text-amber-800'
+                            )}>
+                              {cat}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-slate-700 font-medium">
-                        {item.rkat?.nama_program || '-'}
+                        {(() => {
+                          const rkatObj = item.rkat || (item.rkat_id ? rkatList.find(r => r.id === item.rkat_id || r.no === String(item.rkat_id)) : null) || (item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program] ? rkatList.find(r => r.no === PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no) : null);
+                          const progName = rkatObj?.nama_program || item.jenis_program || '-';
+                          const progNo = rkatObj?.no || (item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program] ? PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no : null);
+
+                          return (
+                            <div className="space-y-1">
+                              <p className="font-bold text-slate-900 text-xs">{progName}</p>
+                              <div className="flex flex-wrap items-center gap-1">
+                                {progNo && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono font-bold rounded bg-blue-50 text-blue-700 border border-blue-100" title={`Terhubung ke RKAT Program No. ${progNo}`}>
+                                    <CheckCircle2 className="size-3 text-blue-600 shrink-0" />
+                                    RKAT #{progNo}
+                                  </span>
+                                )}
+                                {item.kode_program && item.kode_program !== '-' && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono font-medium rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                    Kode {item.kode_program}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-xs font-medium text-slate-600">
                         {item.bankAccount?.nama_akun || '-'}
                       </td>
                       <td className="px-6 py-4 text-xs font-mono text-slate-500">
-                        {item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : '-'}
+                        {item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : (item.coa_code || '-')}
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900">
                         Rp {Number(item.nominal || 0).toLocaleString('id-ID')}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex justify-center">
-                          {item.status_simba === 'SYNCED' ? (
+                          {(item.status_simba === 'SYNCED' || (item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0)) ? (
                             <div className="flex flex-col items-center gap-0.5">
                               <span className="inline-flex px-2 py-0.5 text-[9px] font-black rounded-lg uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
                                 SYNCED
