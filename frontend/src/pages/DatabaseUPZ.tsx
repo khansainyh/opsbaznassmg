@@ -181,10 +181,21 @@ export default function DatabaseUPZ() {
       !tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
     );
 
-    const successJtg = bankJatengRecords.filter(tx => tx.status_simba !== 'FAILED');
-    const failedJtg = bankJatengRecords.filter(tx => tx.status_simba === 'FAILED');
-    const successZis = manualZisRecords.filter(tx => tx.status_simba !== 'FAILED');
-    const failedZis = manualZisRecords.filter(tx => tx.status_simba === 'FAILED');
+    const checkIsGagalPotong = (tx: any) => {
+      const isFailed = tx.status_simba === 'FAILED';
+      const nk = (tx.no_kuitansi || '').toLowerCase();
+      const k = (tx.keterangan || '').toLowerCase();
+      return (
+        isFailed ||
+        nk.includes('/ gagal /') || nk.includes('gagal potong') ||
+        k.includes('gagal potong') || k.includes('failed_deduction')
+      );
+    };
+
+    const successJtg = bankJatengRecords.filter(tx => !checkIsGagalPotong(tx));
+    const failedJtg = bankJatengRecords.filter(tx => checkIsGagalPotong(tx));
+    const successZis = manualZisRecords.filter(tx => !checkIsGagalPotong(tx));
+    const failedZis = manualZisRecords.filter(tx => checkIsGagalPotong(tx));
 
     const totalBankJateng = successJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
     const totalZis = successZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
@@ -312,10 +323,21 @@ export default function DatabaseUPZ() {
       !tx.no_kuitansi?.startsWith('Penerimaan Bank Jateng (')
     );
 
-    const successJtg = bankJatengRecords.filter(tx => tx.status_simba !== 'FAILED');
-    const failedJtg = bankJatengRecords.filter(tx => tx.status_simba === 'FAILED');
-    const successZis = manualZisRecords.filter(tx => tx.status_simba !== 'FAILED');
-    const failedZis = manualZisRecords.filter(tx => tx.status_simba === 'FAILED');
+    const checkIsGagalPotong = (tx: any) => {
+      const isFailed = tx.status_simba === 'FAILED';
+      const nk = (tx.no_kuitansi || '').toLowerCase();
+      const k = (tx.keterangan || '').toLowerCase();
+      return (
+        isFailed ||
+        nk.includes('/ gagal /') || nk.includes('gagal potong') ||
+        k.includes('gagal potong') || k.includes('failed_deduction')
+      );
+    };
+
+    const successJtg = bankJatengRecords.filter(tx => !checkIsGagalPotong(tx));
+    const failedJtg = bankJatengRecords.filter(tx => checkIsGagalPotong(tx));
+    const successZis = manualZisRecords.filter(tx => !checkIsGagalPotong(tx));
+    const failedZis = manualZisRecords.filter(tx => checkIsGagalPotong(tx));
 
     const totalBankJateng = successJtg.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
     const totalZis = successZis.reduce((sum, tx) => sum + Number(tx.nominal || 0), 0);
