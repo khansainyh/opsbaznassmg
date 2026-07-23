@@ -303,7 +303,7 @@ export default function PenerimaanZis() {
             noTransaksi: item['No Transaksi'] || item.no_transaksi || item.no_kuitansi || '-',
             keterangan: item.Keterangan || item.keterangan || '-',
             nominal: nominalVal,
-            namaMuzakki: item['Nama Muzakki'] || item.nama_muzakki || '-',
+            namaMuzakki: item['Nama Muzakki'] || item.nama_muzakki || item.Muzakki || item.muzakki || item.Nama || item.nama || item.Penyetor || item.penyetor || item['Nama Penyetor'] || item.Donatur || item.donatur || '-',
             namaUpz: rawUpzName || '-',
             matchedUpz: matchedUpzObj || null,
             matchedRkat: matchedRkatObj || null
@@ -1536,10 +1536,10 @@ export default function PenerimaanZis() {
                         {new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID')}
                       </td>
                       <td className="px-6 py-4 font-mono text-xs text-slate-500 font-bold">
-                        {item.muzakki?.npwz || '-'}
+                        {item.muzakki?.npwz && !item.muzakki.npwz.startsWith('PENDING') && !item.muzakki.npwz.startsWith('NIK-') ? item.muzakki.npwz : '-'}
                       </td>
                       <td className="px-6 py-4 font-bold text-slate-900">
-                        <div>{item.muzakki?.nama || '-'}</div>
+                        <div>{item.muzakki?.nama || item.keterangan || '-'}</div>
                         {(() => {
                           const upzObj = item.upz || (item.upz_id ? upzList.find(u => u.id === item.upz_id) : null);
                           if (upzObj) {

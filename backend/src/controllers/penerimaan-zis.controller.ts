@@ -877,8 +877,12 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         if (!bankAccountId) throw new Error('Rekening bank/kas tidak valid');
 
         let muzakkiId = txData.muzakki_id || null;
-        const inputNamaMuzakki = String(getVal(txData, ['Nama Muzakki', 'nama_muzakki', 'Nama', 'Muzakki', 'Penyetor']) || '').trim();
-        const inputNikMuzakki = String(getVal(txData, ['nik_muzakki', 'nik', 'NIK']) || '').trim();
+        const rawMuzakki = getVal(txData, ['Nama Muzakki', 'nama_muzakki', 'Nama', 'Muzakki', 'Penyetor', 'Nama Penyetor', 'Donatur', 'Nama Donatur', 'Nama Munfiq', 'Nama Muzakki/Penyetor']);
+        const inputNamaMuzakki = String(rawMuzakki || '').trim();
+        const rawNik = getVal(txData, ['nik_muzakki', 'nik', 'NIK']);
+        const inputNikMuzakki = String(rawNik || '').trim();
+        const rawNpwz = getVal(txData, ['npwz', 'NPWZ', 'no_npwz', 'No NPWZ', 'No Registrasi (NPWZ)']);
+        const inputNpwzMuzakki = String(rawNpwz || '').trim() || null;
 
         if (!muzakkiId && inputNikMuzakki) muzakkiId = muzakkiNikMap.get(inputNikMuzakki) || null;
         if (!muzakkiId && inputNamaMuzakki) muzakkiId = muzakkiNamaMap.get(inputNamaMuzakki.toLowerCase()) || null;
@@ -889,6 +893,26 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           if (match && match[1]) {
             const extractedName = match[1].trim().toLowerCase();
             muzakkiId = muzakkiNamaMap.get(extractedName) || null;
+          }
+        }
+
+        if (!muzakkiId && inputNamaMuzakki && inputNamaMuzakki.length >= 2 && !['-', '--', 'null', 'undefined', 'hamba allah', 'anonim'].includes(inputNamaMuzakki.toLowerCase())) {
+          const cleanNik = inputNikMuzakki && inputNikMuzakki.length >= 5 ? inputNikMuzakki : `NIK-MIG-${Date.now()}-${i + 1}`;
+          try {
+            const newMuz = await prisma.muzakki.create({
+              data: {
+                nama: inputNamaMuzakki,
+                nik: cleanNik,
+                npwz: inputNpwzMuzakki,
+                kategori: 'Perorangan',
+                telepon: '-',
+                alamat: '-'
+              }
+            });
+            muzakkiId = newMuz.id;
+            muzakkiNamaMap.set(inputNamaMuzakki.toLowerCase(), newMuz.id);
+          } catch (e) {
+            // Ignore duplicate NIK fallback
           }
         }
 
