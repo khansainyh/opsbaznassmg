@@ -533,6 +533,7 @@ export default function PenerimaanZis() {
   const [bulananReportYear, setBulananReportYear] = useState<number>(new Date().getFullYear());
   const [isFetchingRekap, setIsFetchingRekap] = useState(false);
   const [rekapBulananCategories, setRekapBulananCategories] = useState<Record<string, any[]>>({});
+  const [rekapBulananUmumItems, setRekapBulananUmumItems] = useState<any[]>([]);
   const [signatoriesBulanan, setSignatoriesBulanan] = useState({
     kepalaPelaksana: 'Muhammad Asyhar, S.Sos.I',
     kabagPengumpulan: 'Ahmad Muhtadin, S.HI',
@@ -1116,16 +1117,18 @@ export default function PenerimaanZis() {
       const allData: any[] = res.data?.data || penerimaanData;
 
       if (reportStartDate && reportEndDate) {
-        const start = new Date(reportStartDate);
-        start.setHours(0,0,0,0);
-        const end = new Date(reportEndDate);
-        end.setHours(23,59,59,999);
+        const [sY, sM, sD] = reportStartDate.split('-').map(Number);
+        const start = new Date(sY, sM - 1, sD, 0, 0, 0, 0);
+
+        const [eY, eM, eD] = reportEndDate.split('-').map(Number);
+        const end = new Date(eY, eM - 1, eD, 23, 59, 59, 999);
 
         dataFiltered = allData.filter(item => {
+          if (!item.tanggal_pembayaran) return false;
           const pDate = new Date(item.tanggal_pembayaran);
           const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
           if (isFailed) return false;
-          return pDate >= start && pDate <= end;
+          return pDate.getTime() >= start.getTime() && pDate.getTime() <= end.getTime();
         });
       } else {
         dataFiltered = allData.filter(item => item.status_simba !== 'FAILED' && !(item.keterangan || '').toLowerCase().includes('gagal potong'));
@@ -1318,24 +1321,69 @@ export default function PenerimaanZis() {
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8">
-      {/* Breadcrumbs & Title */}
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-2"
-      >
-        <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
-          <span className="text-slate-400 shrink-0">Pengumpulan</span>
-          <ChevronRight className="size-4 text-slate-300 shrink-0" />
-          <span className="text-primary font-bold shrink-0">Penerimaan ZIS</span>
-        </nav>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
-          Penerimaan ZIS
-        </h2>
-        <p className="text-slate-500 font-medium">
-          Mencatat dan mengelola penerimaan dana zakat, infak, sedekah, dan dana sosial keagamaan.
-        </p>
-      </motion.div>
+      {/* Custom Print CSS Styles */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 8mm 8mm;
+            }
+            html, body, #root, .flex-1, .overflow-y-auto, [class*="overflow-y-auto"], [class*="min-h-screen"], [class*="h-screen"] {
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              position: static !important;
+            }
+            body {
+              background-color: white !important;
+              color: black !important;
+            }
+            aside, nav, header, button, .no-print, input, select, [role="tablist"], .fixed, .no-print-area, [class*="z-50"] {
+              display: none !important;
+            }
+            .print-only-container {
+              display: block !important;
+              visibility: visible !important;
+            }
+            table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: fixed !important;
+            }
+            th, td {
+              border: 1px solid #000000 !important;
+              padding: 3px 5px !important;
+              font-size: 8px !important;
+              line-height: 1.1 !important;
+              word-break: break-word !important;
+            }
+            tr {
+              page-break-inside: avoid !important;
+            }
+          }
+        `
+      }} />
+
+      <div className="no-print-area space-y-8">
+        {/* Breadcrumbs & Title */}
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-2"
+        >
+          <nav className="flex text-sm gap-2 items-center overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+            <span className="text-slate-400 shrink-0">Pengumpulan</span>
+            <ChevronRight className="size-4 text-slate-300 shrink-0" />
+            <span className="text-primary font-bold shrink-0">Penerimaan ZIS</span>
+          </nav>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+            Penerimaan ZIS
+          </h2>
+          <p className="text-slate-500 font-medium">
+            Mencatat dan mengelola penerimaan dana zakat, infak, sedekah, dan dana sosial keagamaan.
+          </p>
+        </motion.div>
 
       {/* Toast Notifications */}
       <AnimatePresence>
@@ -1745,9 +1793,31 @@ export default function PenerimaanZis() {
               <ChevronLeft className="size-4" />
             </button>
             
-            <span className="px-3 py-1 font-bold text-slate-700">
-              Halaman {currentPage} dari {paginationInfo.totalPages || 1}
-            </span>
+            <div className="flex items-center gap-1.5 text-slate-600 font-bold px-2">
+              <span>Halaman</span>
+              <input
+                type="number"
+                min={1}
+                max={paginationInfo.totalPages || 1}
+                value={currentPage === 0 ? '' : currentPage}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                  const totalPages = paginationInfo.totalPages || 1;
+                  if (val === 0) {
+                    setCurrentPage(0);
+                  } else if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                    setCurrentPage(val);
+                  }
+                }}
+                onBlur={() => {
+                  if (currentPage === 0) {
+                    setCurrentPage(1);
+                  }
+                }}
+                className="w-12 text-center py-1 border border-slate-200 rounded-md bg-white text-slate-800 outline-none focus:border-primary text-xs font-extrabold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span>dari {paginationInfo.totalPages || 1}</span>
+            </div>
 
             <button
               onClick={() => setCurrentPage(prev => Math.min(paginationInfo.totalPages, prev + 1))}
@@ -2797,36 +2867,93 @@ export default function PenerimaanZis() {
                       </div>
                     </div>
 
-                    <div className="p-3 bg-white/80 rounded-xl border border-teal-100 space-y-2 text-xs">
+                    <div className="p-3 bg-white/80 rounded-xl border border-teal-100 space-y-3 text-xs">
                       <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">
                         Penandatangan Laporan Bulanan
                       </h5>
+
+                      {/* Kepala Pelaksana */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500">Kepala Pelaksana</label>
-                        <input
-                          type="text"
-                          value={signatoriesBulanan.kepalaPelaksana}
-                          onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
-                        />
+                        <label className="text-[10px] font-bold text-slate-600">Kepala Pelaksana</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all cursor-pointer"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatoriesBulanan(prev => ({ ...prev, kepalaPelaksana: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatoriesBulanan.kepalaPelaksana) ? signatoriesBulanan.kepalaPelaksana : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatoriesBulanan.kepalaPelaksana}
+                            onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-800"
+                            placeholder="Nama Kepala Pelaksana"
+                          />
+                        </div>
                       </div>
+
+                      {/* Kabid / Kabag Pengumpulan */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500">Kabag Pengumpulan</label>
-                        <input
-                          type="text"
-                          value={signatoriesBulanan.kabagPengumpulan}
-                          onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kabagPengumpulan: e.target.value }))}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
-                        />
+                        <label className="text-[10px] font-bold text-slate-600">Kabid / Kabag Pengumpulan</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all cursor-pointer"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatoriesBulanan(prev => ({ ...prev, kabagPengumpulan: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatoriesBulanan.kabagPengumpulan) ? signatoriesBulanan.kabagPengumpulan : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatoriesBulanan.kabagPengumpulan}
+                            onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, kabagPengumpulan: e.target.value }))}
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-800"
+                            placeholder="Nama Kabag Pengumpulan"
+                          />
+                        </div>
                       </div>
+
+                      {/* Waka I Bidang Pengumpulan */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500">Waka I Bidang Pengumpulan</label>
-                        <input
-                          type="text"
-                          value={signatoriesBulanan.waka1}
-                          onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, waka1: e.target.value }))}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none font-bold"
-                        />
+                        <label className="text-[10px] font-bold text-slate-600">Wakil I Bidang Pengumpulan</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all cursor-pointer"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatoriesBulanan(prev => ({ ...prev, waka1: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatoriesBulanan.waka1) ? signatoriesBulanan.waka1 : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatoriesBulanan.waka1}
+                            onChange={(e) => setSignatoriesBulanan(prev => ({ ...prev, waka1: e.target.value }))}
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-800"
+                            placeholder="Nama Waka I Bidang Pengumpulan"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -2838,11 +2965,12 @@ export default function PenerimaanZis() {
                             params: { month: bulananReportMonth, year: bulananReportYear }
                           });
                           setRekapBulananCategories(res.data?.categories || {});
+                          setRekapBulananUmumItems(res.data?.umumItems || []);
+                          setIsFetchingRekap(false);
+                          setIsReportModalOpen(false);
                           setTimeout(() => {
                             window.print();
-                            setIsFetchingRekap(false);
-                            setIsReportModalOpen(false);
-                          }, 250);
+                          }, 200);
                         } catch (err) {
                           console.error('Gagal mengambil data rekap bulanan:', err);
                           alert('Gagal mengambil data Laporan Bulanan Rekap ZIS');
@@ -3194,8 +3322,10 @@ export default function PenerimaanZis() {
           </div>
         )}
       </AnimatePresence>
+      </div>
+
       {/* Print Layout for Laporan Bulanan Rekapitulasi ZIS per UPZ */}
-      <div className="hidden print:block w-full text-black font-sans text-xs p-2">
+      <div className="print-only-container hidden print:block w-full text-black font-sans text-xs p-2">
         <div className="text-center font-bold text-xs uppercase tracking-wide mb-3">
           <p className="text-sm font-black">REKAPITULASI PENERIMAAN ZAKAT, INFAK, SEDEKAH (ZIS)</p>
           <p className="text-xs font-black">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</p>
@@ -3215,48 +3345,138 @@ export default function PenerimaanZis() {
             </tr>
           </thead>
           <tbody className="divide-y divide-black border border-black">
-            {Object.entries(rekapBulananCategories).map(([catName, items]: [string, any]) => {
-              const catZakat = items.reduce((sum: number, it: any) => sum + Number(it.zakat || 0), 0);
-              const catInfak = items.reduce((sum: number, it: any) => sum + Number(it.infak || 0), 0);
-              const catTotal = catZakat + catInfak;
+            {(() => {
+              let upzKotaZakat = 0;
+              let upzKotaInfak = 0;
+              let upzKotaTotal = 0;
+
+              Object.values(rekapBulananCategories).forEach((items: any[]) => {
+                items.forEach((it: any) => {
+                  upzKotaZakat += Number(it.zakat || 0);
+                  upzKotaInfak += Number(it.infak || 0);
+                  upzKotaTotal += Number(it.total || 0);
+                });
+              });
+
+              let umumZakat = (rekapBulananUmumItems || []).reduce((sum, it) => sum + Number(it.zakat || 0), 0);
+              let umumInfak = (rekapBulananUmumItems || []).reduce((sum, it) => sum + Number(it.infak || 0), 0);
+              let umumTotal = umumZakat + umumInfak;
+
+              let grandZakat = upzKotaZakat + umumZakat;
+              let grandInfak = upzKotaInfak + umumInfak;
+              let grandTotal = upzKotaTotal + umumTotal;
 
               return (
-                <React.Fragment key={catName}>
-                  <tr className="bg-slate-100 font-black border border-black">
-                    <td colSpan={5} className="p-1 uppercase tracking-wide font-black">
-                      {catName}
+                <React.Fragment>
+                  {Object.entries(rekapBulananCategories).map(([catName, items]: [string, any]) => {
+                    const catZakat = items.reduce((sum: number, it: any) => sum + Number(it.zakat || 0), 0);
+                    const catInfak = items.reduce((sum: number, it: any) => sum + Number(it.infak || 0), 0);
+                    const catTotal = catZakat + catInfak;
+
+                    return (
+                      <React.Fragment key={catName}>
+                        <tr className="bg-slate-100 font-black border border-black">
+                          <td colSpan={5} className="p-1 uppercase tracking-wide font-black">
+                            {catName}
+                          </td>
+                        </tr>
+                        {items.map((it: any, idx: number) => (
+                          <tr key={it.id || idx} className="border-b border-slate-300">
+                            <td className="p-1 text-center font-mono text-[8px]">{idx + 1}</td>
+                            <td className="p-1 font-bold text-[8px]">{it.nama_upz}</td>
+                            <td className="p-1 text-right font-mono text-[8px]">
+                              {it.zakat > 0 ? `Rp ${Number(it.zakat).toLocaleString('id-ID')}` : 'Rp -'}
+                            </td>
+                            <td className="p-1 text-right font-mono text-[8px]">
+                              {it.infak > 0 ? `Rp ${Number(it.infak).toLocaleString('id-ID')}` : 'Rp -'}
+                            </td>
+                            <td className="p-1 text-right font-mono font-bold text-[8px]">
+                              {it.total > 0 ? `Rp ${Number(it.total).toLocaleString('id-ID')}` : 'Rp -'}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="font-black border border-black bg-slate-50">
+                          <td colSpan={2} className="p-1 text-right font-black">JUMLAH</td>
+                          <td className="p-1 text-right font-mono font-black">
+                            {catZakat > 0 ? `Rp ${catZakat.toLocaleString('id-ID')}` : 'Rp -'}
+                          </td>
+                          <td className="p-1 text-right font-mono font-black">
+                            {catInfak > 0 ? `Rp ${catInfak.toLocaleString('id-ID')}` : 'Rp -'}
+                          </td>
+                          <td className="p-1 text-right font-mono font-black">
+                            {catTotal > 0 ? `Rp ${catTotal.toLocaleString('id-ID')}` : 'Rp -'}
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
+
+                  {/* TOTAL PENERIMAAN ZIS (UPZ KOTA) */}
+                  <tr className="font-black border-2 border-black bg-slate-200 text-[8.5px]">
+                    <td colSpan={2} className="p-1 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS (UPZ KOTA)</td>
+                    <td className="p-1 text-right font-mono font-black">
+                      {upzKotaZakat > 0 ? `Rp ${upzKotaZakat.toLocaleString('id-ID')}` : 'Rp -'}
+                    </td>
+                    <td className="p-1 text-right font-mono font-black">
+                      {upzKotaInfak > 0 ? `Rp ${upzKotaInfak.toLocaleString('id-ID')}` : 'Rp -'}
+                    </td>
+                    <td className="p-1 text-right font-mono font-black">
+                      {upzKotaTotal > 0 ? `Rp ${upzKotaTotal.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
                   </tr>
-                  {items.map((it: any, idx: number) => (
-                    <tr key={it.id || idx} className="border-b border-slate-300">
-                      <td className="p-1 text-center font-mono text-[8px]">{idx + 1}</td>
-                      <td className="p-1 font-bold text-[8px]">{it.nama_upz}</td>
-                      <td className="p-1 text-right font-mono text-[8px]">
-                        {it.zakat > 0 ? `Rp ${Number(it.zakat).toLocaleString('id-ID')}` : 'Rp -'}
-                      </td>
-                      <td className="p-1 text-right font-mono text-[8px]">
-                        {it.infak > 0 ? `Rp ${Number(it.infak).toLocaleString('id-ID')}` : 'Rp -'}
-                      </td>
-                      <td className="p-1 text-right font-mono font-bold text-[8px]">
-                        {it.total > 0 ? `Rp ${Number(it.total).toLocaleString('id-ID')}` : 'Rp -'}
+
+                  {/* PENERIMAAN ZIS UMUM */}
+                  <React.Fragment>
+                    <tr className="bg-slate-100 font-black border border-black">
+                      <td colSpan={5} className="p-1 uppercase tracking-wide font-black">
+                        PENERIMAAN ZIS UMUM
                       </td>
                     </tr>
-                  ))}
-                  <tr className="font-black border border-black bg-slate-50">
-                    <td colSpan={2} className="p-1 text-right font-black">JUMLAH</td>
+                    {(rekapBulananUmumItems || []).map((it: any, idx: number) => (
+                      <tr key={it.id || idx} className="border-b border-slate-300">
+                        <td className="p-1 text-center font-mono text-[8px]">{idx + 1}</td>
+                        <td className="p-1 font-bold text-[8px]">{it.nama_upz}</td>
+                        <td className="p-1 text-right font-mono text-[8px]">
+                          {it.zakat > 0 ? `Rp ${Number(it.zakat).toLocaleString('id-ID')}` : 'Rp -'}
+                        </td>
+                        <td className="p-1 text-right font-mono text-[8px]">
+                          {it.infak > 0 ? `Rp ${Number(it.infak).toLocaleString('id-ID')}` : 'Rp -'}
+                        </td>
+                        <td className="p-1 text-right font-mono font-bold text-[8px]">
+                          {it.total > 0 ? `Rp ${Number(it.total).toLocaleString('id-ID')}` : 'Rp -'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="font-black border border-black bg-slate-50">
+                      <td colSpan={2} className="p-1 text-right font-black">JUMLAH</td>
+                      <td className="p-1 text-right font-mono font-black">
+                        {umumZakat > 0 ? `Rp ${umumZakat.toLocaleString('id-ID')}` : 'Rp -'}
+                      </td>
+                      <td className="p-1 text-right font-mono font-black">
+                        {umumInfak > 0 ? `Rp ${umumInfak.toLocaleString('id-ID')}` : 'Rp -'}
+                      </td>
+                      <td className="p-1 text-right font-mono font-black">
+                        {umumTotal > 0 ? `Rp ${umumTotal.toLocaleString('id-ID')}` : 'Rp -'}
+                      </td>
+                    </tr>
+                  </React.Fragment>
+
+                  {/* TOTAL PENERIMAAN ZIS */}
+                  <tr className="font-black border-2 border-black bg-emerald-100 text-[8.5px]">
+                    <td colSpan={2} className="p-1 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS</td>
                     <td className="p-1 text-right font-mono font-black">
-                      {catZakat > 0 ? `Rp ${catZakat.toLocaleString('id-ID')}` : 'Rp -'}
+                      {grandZakat > 0 ? `Rp ${grandZakat.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
                     <td className="p-1 text-right font-mono font-black">
-                      {catInfak > 0 ? `Rp ${catInfak.toLocaleString('id-ID')}` : 'Rp -'}
+                      {grandInfak > 0 ? `Rp ${grandInfak.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
                     <td className="p-1 text-right font-mono font-black">
-                      {catTotal > 0 ? `Rp ${catTotal.toLocaleString('id-ID')}` : 'Rp -'}
+                      {grandTotal > 0 ? `Rp ${grandTotal.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
                   </tr>
                 </React.Fragment>
               );
-            })}
+            })()}
           </tbody>
         </table>
 

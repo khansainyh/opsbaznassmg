@@ -758,35 +758,77 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
       'UNIT PENGUMPUL ZAKAT INSTANSI VERTIKAL': [],
       'UNIT PENGUMPUL ZAKAT KECAMATAN': [],
       'UNIT PENGUMPUL ZAKAT SEKOLAH / MADRASAH': [],
-      'UNIT PENGUMPUL ZAKAT (PENGUMPULAN)': [],
-      'PENERIMAAN ZIS UMUM': []
+      'UNIT PENGUMPUL ZAKAT (PENGUMPULAN)': []
     };
 
     const upzTotalsMap = new Map<string, { zakat: number; infak: number }>();
+    
+    // Track non-UPZ / general ZIS items
+    const umumTotals = {
+      individu: { zakat: 0, infak: 0 },
+      infakTerikatKas: { zakat: 0, infak: 0 },
+      infakTerikatNatura: { zakat: 0, infak: 0 },
+      zakatFitrah: { zakat: 0, infak: 0 },
+      fidyah: { zakat: 0, infak: 0 },
+      kurban: { zakat: 0, infak: 0 },
+      infakOpAmil: { zakat: 0, infak: 0 },
+      hibahCsr: { zakat: 0, infak: 0 }
+    };
 
     list.forEach((tx: any) => {
-      const upzKey = tx.upz_id || tx.upz?.nama_upz || 'UMUM';
-      if (!upzTotalsMap.has(upzKey)) {
-        upzTotalsMap.set(upzKey, { zakat: 0, infak: 0 });
-      }
-      const item = upzTotalsMap.get(upzKey)!;
       const nom = Number(tx.nominal || 0);
-
       const kp = String(tx.kode_program || '');
-      const programName = String(tx.jenis_program || tx.rkat?.program || '').toLowerCase();
-
+      const programName = String(tx.jenis_program || tx.rkat?.nama_program || '').toLowerCase();
       const isZakat = kp.startsWith('101.1') || kp.startsWith('101.2') || kp.startsWith('101.13') ||
                       kp.startsWith('102.1') || kp.startsWith('102.2') || kp.startsWith('102.3') ||
                       kp.startsWith('102.4') || kp.startsWith('102.11') ||
                       programName.includes('zakat');
 
-      if (isZakat) {
-        item.zakat += nom;
+      const upzIdKey = tx.upz_id ? String(tx.upz_id).toLowerCase().trim() : null;
+      const upzNameKey = tx.upz?.nama_upz ? String(tx.upz.nama_upz).toLowerCase().trim() : (tx.muzakki?.upz ? String(tx.muzakki.upz).toLowerCase().trim() : null);
+
+      if (upzIdKey || upzNameKey) {
+        // UPZ transaction
+        const primaryKey = upzIdKey || upzNameKey!;
+        if (!upzTotalsMap.has(primaryKey)) {
+          upzTotalsMap.set(primaryKey, { zakat: 0, infak: 0 });
+        }
+        const item = upzTotalsMap.get(primaryKey)!;
+        if (isZakat) {
+          item.zakat += nom;
+        } else {
+          item.infak += nom;
+        }
+
+        if (upzNameKey && upzNameKey !== primaryKey) {
+          upzTotalsMap.set(upzNameKey, item);
+        }
       } else {
-        item.infak += nom;
+        // General ZIS (Umum)
+        if (kp === '101.9') {
+          umumTotals.infakTerikatKas.infak += nom;
+        } else if (kp === '101.10') {
+          umumTotals.infakTerikatNatura.infak += nom;
+        } else if (kp === '101.2') {
+          if (isZakat) umumTotals.zakatFitrah.zakat += nom;
+          else umumTotals.zakatFitrah.infak += nom;
+        } else if (kp === '101.5') {
+          umumTotals.fidyah.infak += nom;
+        } else if (kp === '101.4') {
+          umumTotals.kurban.infak += nom;
+        } else if (kp === '101.11') {
+          umumTotals.infakOpAmil.infak += nom;
+        } else if (kp === '101.3') {
+          umumTotals.hibahCsr.infak += nom;
+        } else {
+          // ZIS Individu / Masyarakat
+          if (isZakat) umumTotals.individu.zakat += nom;
+          else umumTotals.individu.infak += nom;
+        }
       }
     });
 
+    // Populate all UPZs into their respective categories
     allUpzs.forEach((u: any) => {
       let catName = 'UNIT PENGUMPUL ZAKAT (PENGUMPULAN)';
       const nama = u.nama_upz.toUpperCase();
@@ -803,11 +845,11 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
         catName = 'UNIT PENGUMPUL ZAKAT INSTANSI VERTIKAL';
       } else if (nama.includes('KECAMATAN')) {
         catName = 'UNIT PENGUMPUL ZAKAT KECAMATAN';
-      } else if (nama.includes('SD') || nama.includes('SMP') || nama.includes('SMA') || nama.includes('MI') || nama.includes('MTS') || nama.includes('MAN') || nama.includes('SEKOLAH')) {
+      } else if (nama.includes('SD ') || nama.includes('SDN') || nama.includes('SMP') || nama.includes('SMA') || nama.includes('MI ') || nama.includes('MTS') || nama.includes('MAN ') || nama.includes('SEKOLAH')) {
         catName = 'UNIT PENGUMPUL ZAKAT SEKOLAH / MADRASAH';
       }
 
-      const totals = upzTotalsMap.get(u.id) || upzTotalsMap.get(u.nama_upz) || { zakat: 0, infak: 0 };
+      const totals = upzTotalsMap.get(String(u.id).toLowerCase().trim()) || upzTotalsMap.get(String(u.nama_upz).toLowerCase().trim()) || { zakat: 0, infak: 0 };
 
       if (!categories[catName]) categories[catName] = [];
       categories[catName].push({
@@ -819,18 +861,22 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
       });
     });
 
-    const filteredCategories: Record<string, any[]> = {};
-    Object.entries(categories).forEach(([catName, items]) => {
-      const activeItems = items.filter((it: any) => (it.total || 0) > 0 || (it.zakat || 0) > 0 || (it.infak || 0) > 0);
-      if (activeItems.length > 0) {
-        filteredCategories[catName] = activeItems;
-      }
-    });
+    const umumItems = [
+      { id: 'u1', nama_upz: 'ZIS Individu (Masyarakat)', zakat: umumTotals.individu.zakat, infak: umumTotals.individu.infak, total: umumTotals.individu.zakat + umumTotals.individu.infak },
+      { id: 'u2', nama_upz: 'Infak/Sedekah Terikat (Kas)', zakat: umumTotals.infakTerikatKas.zakat, infak: umumTotals.infakTerikatKas.infak, total: umumTotals.infakTerikatKas.zakat + umumTotals.infakTerikatKas.infak },
+      { id: 'u3', nama_upz: 'Infak/Sedekah Terikat (Natura)', zakat: umumTotals.infakTerikatNatura.zakat, infak: umumTotals.infakTerikatNatura.infak, total: umumTotals.infakTerikatNatura.zakat + umumTotals.infakTerikatNatura.infak },
+      { id: 'u4', nama_upz: 'Zakat Fitrah', zakat: umumTotals.zakatFitrah.zakat, infak: umumTotals.zakatFitrah.infak, total: umumTotals.zakatFitrah.zakat + umumTotals.zakatFitrah.infak },
+      { id: 'u5', nama_upz: 'Fidyah', zakat: umumTotals.fidyah.zakat, infak: umumTotals.fidyah.infak, total: umumTotals.fidyah.zakat + umumTotals.fidyah.infak },
+      { id: 'u6', nama_upz: 'Kurban', zakat: umumTotals.kurban.zakat, infak: umumTotals.kurban.infak, total: umumTotals.kurban.zakat + umumTotals.kurban.infak },
+      { id: 'u7', nama_upz: 'Infak/Sedekah Terikat Operasional Amil', zakat: umumTotals.infakOpAmil.zakat, infak: umumTotals.infakOpAmil.infak, total: umumTotals.infakOpAmil.zakat + umumTotals.infakOpAmil.infak },
+      { id: 'u8', nama_upz: 'Hibah Perusahaan/TJSL/CSR', zakat: umumTotals.hibahCsr.zakat, infak: umumTotals.hibahCsr.infak, total: umumTotals.hibahCsr.zakat + umumTotals.hibahCsr.infak }
+    ];
 
     res.status(200).json({
       status: 'success',
       period: { month, year },
-      categories: filteredCategories
+      categories,
+      umumItems
     });
   } catch (error: any) {
     console.error(error);
