@@ -128,6 +128,23 @@ export default function DatabaseUPZ() {
 
     const upzZisHistory = zisHistory.filter(tx => {
       if (!tx) return false;
+
+      // 1. Direct UPZ relation ID or joined UPZ object match
+      if (tx.upz_id) {
+        const txUpzId = String(tx.upz_id).toLowerCase().trim();
+        if (txUpzId === String(item.id).toLowerCase().trim()) return true;
+        if (upzCode && txUpzId === upzCode) return true;
+      }
+      if (tx.upz) {
+        if (tx.upz.id && String(tx.upz.id).toLowerCase().trim() === String(item.id).toLowerCase().trim()) return true;
+        if (tx.upz.nama_upz) {
+          const txUpzName = String(tx.upz.nama_upz).toLowerCase().trim();
+          const cleanTxUpzName = txUpzName.replace(/^upz\s+/i, '');
+          if (txUpzName === targetUpz || cleanTxUpzName === cleanTargetUpz) return true;
+        }
+      }
+
+      // 2. Muzakki UPZ string field match
       const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
       if (upzCode && muzakkiUpz === upzCode) return true;
       if (muzakkiUpz === targetUpz) return true;
@@ -243,6 +260,22 @@ export default function DatabaseUPZ() {
         return false;
       }
 
+      // 1. Direct UPZ relation ID or joined UPZ object match
+      if (tx.upz_id) {
+        const txUpzId = String(tx.upz_id).toLowerCase().trim();
+        if (txUpzId === String(item.id).toLowerCase().trim()) return true;
+        if (upzCode && txUpzId === upzCode) return true;
+      }
+      if (tx.upz) {
+        if (tx.upz.id && String(tx.upz.id).toLowerCase().trim() === String(item.id).toLowerCase().trim()) return true;
+        if (tx.upz.nama_upz) {
+          const txUpzName = String(tx.upz.nama_upz).toLowerCase().trim();
+          const cleanTxUpzName = txUpzName.replace(/^upz\s+/i, '');
+          if (txUpzName === targetUpz || cleanTxUpzName === cleanTargetUpz) return true;
+        }
+      }
+
+      // 2. Muzakki UPZ string field match
       const muzakkiUpz = tx.muzakki?.upz?.toLowerCase().trim();
       if (upzCode && muzakkiUpz === upzCode) return true;
       if (muzakkiUpz === targetUpz) return true;
@@ -497,7 +530,7 @@ export default function DatabaseUPZ() {
     const fetchHistories = async () => {
       try {
         const [resZis, resMappings] = await Promise.all([
-          axios.get('/api/penerimaan-zis'),
+          axios.get('/api/penerimaan-zis', { params: { all: 'true' } }),
           axios.get('/api/penerimaan-mapping').catch(() => null)
         ]);
         if (resZis.data.status === 'success') {
