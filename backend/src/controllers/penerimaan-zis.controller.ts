@@ -927,7 +927,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         await prisma.$transaction(async (tx) => {
-          await tx.penerimaanZis.create({
+          const createdRecord = await tx.penerimaanZis.create({
             data: {
               no_kuitansi: kuitansiNo,
               no_transaksi_simba: simbaNo,
@@ -957,6 +957,11 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
                 tanggal: tanggalTrx,
                 keterangan: txData.keterangan || 'Penerimaan ZIS'
               }
+            });
+
+            await tx.penerimaanZis.update({
+              where: { id: createdRecord.id },
+              data: { transaksi_id: realisasi.transaksi_id }
             });
 
             const bankAcc = bankAccounts.find(b => b.account_id === bankAccountId);

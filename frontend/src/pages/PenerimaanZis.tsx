@@ -426,7 +426,7 @@ export default function PenerimaanZis() {
 
       const res = await axios.post('/api/penerimaan-zis/migrate', {
         transactions: updatedTransactions,
-        options: { skipJournal: true }
+        options: { skipJournal: false }
       });
 
       if (res.data?.status === 'success') {

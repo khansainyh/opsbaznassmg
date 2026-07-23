@@ -16,12 +16,50 @@ export const getRkatPengumpulan = async (req: Request, res: Response) => {
       };
     });
 
-    // Query JournalEntries joined with Realisasi, matching by rkat_id in the Realisasi record
+    const monthKeys = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
+    const rkatIds = list.map((item: any) => item.id);
+
+    // 1. Query PenerimaanZis transactions mapped to RKAT programs
+    const penerimaanList = await prisma.penerimaanZis.findMany({
+      where: {
+        rkat_id: { in: rkatIds },
+        status_simba: { not: 'FAILED' }
+      },
+      select: {
+        rkat_id: true,
+        nominal: true,
+        tanggal_pembayaran: true,
+        transaksi_id: true
+      }
+    });
+
+    // Track transaksi_ids accounted for via PenerimaanZis to prevent double counting
+    const countedTransaksiIds = new Set<string>();
+
+    penerimaanList.forEach(item => {
+      if (item.transaksi_id) {
+        countedTransaksiIds.add(item.transaksi_id);
+      }
+      const rkatId = item.rkat_id;
+      if (rkatId && realizationMap[rkatId]) {
+        const amount = Number(item.nominal || 0);
+        realizationMap[rkatId].total += amount;
+        if (item.tanggal_pembayaran) {
+          const mIdx = new Date(item.tanggal_pembayaran).getMonth();
+          const mKey = monthKeys[mIdx];
+          if (mKey) {
+            realizationMap[rkatId].monthly[mKey] += amount;
+          }
+        }
+      }
+    });
+
+    // 2. Query JournalEntries joined with Realisasi, matching by rkat_id in the Realisasi record
     const journalEntries = await prisma.journalEntry.findMany({
       where: {
         kredit: { gt: 0 },
         realisasi: {
-          rkat_id: { in: list.map((item: any) => item.id) }
+          rkat_id: { in: rkatIds }
         }
       },
       include: {
@@ -31,10 +69,13 @@ export const getRkatPengumpulan = async (req: Request, res: Response) => {
       }
     });
 
-    const monthKeys = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
-
     journalEntries.forEach(entry => {
       if (entry.realisasi && entry.realisasi.rkat_id) {
+        // Prevent double counting: skip if this entry belongs to a transaction already counted via PenerimaanZis
+        if (entry.transaksi_id && countedTransaksiIds.has(entry.transaksi_id)) {
+          return;
+        }
+
         const rkatId = entry.realisasi.rkat_id;
         const amount = Number(entry.kredit || 0);
         if (realizationMap[rkatId]) {
