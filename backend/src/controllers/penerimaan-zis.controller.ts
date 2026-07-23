@@ -934,7 +934,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         if (!muzakkiId && inputNikMuzakki) muzakkiId = muzakkiNikMap.get(inputNikMuzakki) || null;
         if (!muzakkiId && inputNamaMuzakki) muzakkiId = muzakkiNamaMap.get(inputNamaMuzakki.toLowerCase()) || null;
 
-        const rowKeterangan = String(getVal(txData, ['Keterangan', 'keterangan', 'Uraian', 'Deskripsi', 'Catatan']) || '').trim();
+        const rowKeterangan = String(getVal(txData, ['Keterangan', 'keterangan', 'Uraian', 'uraian', 'Deskripsi', 'deskripsi', 'Catatan', 'catatan', 'Detail', 'detail', 'Keterangan Transaksi', 'Peruntukan', 'Rincian']) || '').trim();
         if (!muzakkiId && rowKeterangan) {
           const match = rowKeterangan.match(/(?:a\.n|an\.|dari|bapak|ibu)\s+([A-Za-z\s]+)/i);
           if (match && match[1]) {
@@ -1052,7 +1052,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
               nominal: new Prisma.Decimal(nominal),
               metode_pembayaran: txData.metode_pembayaran || 'TRANSFER',
               tanggal_pembayaran: tanggalTrx,
-              keterangan: txData.keterangan || 'Migrasi Historis Pengumpulan ZIS'
+              keterangan: rowKeterangan || txData.keterangan || 'Migrasi Historis Pengumpulan ZIS'
             } as any
           });
 

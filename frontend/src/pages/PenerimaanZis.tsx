@@ -301,7 +301,7 @@ export default function PenerimaanZis() {
             sumberDana: item['Sumber Dana'] || item.sumber_dana || item.bank_account_name || '-',
             tanggalTrx: item['Tanggal Trx'] || item.tanggal_pembayaran || item.tanggal_trx || item.Tanggal || '-',
             noTransaksi: item['No Transaksi'] || item.no_transaksi || item.no_kuitansi || '-',
-            keterangan: item.Keterangan || item.keterangan || '-',
+            keterangan: item.Keterangan || item.keterangan || item.Uraian || item.uraian || item.Deskripsi || item.deskripsi || item.Catatan || item.catatan || item.Detail || item.detail || item['Keterangan Transaksi'] || item.Peruntukan || item.Rincian || '-',
             nominal: nominalVal,
             namaMuzakki: item['Nama Muzakki'] || item.nama_muzakki || item.Muzakki || item.muzakki || item.Nama || item.nama || item.Penyetor || item.penyetor || item['Nama Penyetor'] || item.Donatur || item.donatur || '-',
             namaUpz: rawUpzName || '-',
