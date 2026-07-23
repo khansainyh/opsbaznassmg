@@ -882,7 +882,9 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         const rawNik = getVal(txData, ['nik_muzakki', 'nik', 'NIK']);
         const inputNikMuzakki = String(rawNik || '').trim();
         const rawNpwz = getVal(txData, ['npwz', 'NPWZ', 'no_npwz', 'No NPWZ', 'No Registrasi (NPWZ)']);
-        const inputNpwzMuzakki = String(rawNpwz || '').trim() || null;
+        const rawNpwzStr = String(rawNpwz || '').trim();
+        const invalidNpwzValues = ['-', '--', '---', 'none', 'null', 'undefined', 'n/a', 'tidak ada', 'tanpa npwz'];
+        const inputNpwzMuzakki = (rawNpwzStr && !invalidNpwzValues.includes(rawNpwzStr.toLowerCase())) ? rawNpwzStr : null;
 
         if (!muzakkiId && inputNikMuzakki) muzakkiId = muzakkiNikMap.get(inputNikMuzakki) || null;
         if (!muzakkiId && inputNamaMuzakki) muzakkiId = muzakkiNamaMap.get(inputNamaMuzakki.toLowerCase()) || null;
@@ -897,7 +899,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         if (!muzakkiId && inputNamaMuzakki && inputNamaMuzakki.length >= 2 && !['-', '--', 'null', 'undefined', 'hamba allah', 'anonim'].includes(inputNamaMuzakki.toLowerCase())) {
-          const cleanNik = inputNikMuzakki && inputNikMuzakki.length >= 5 ? inputNikMuzakki : `NIK-MIG-${Date.now()}-${i + 1}`;
+          const cleanNik = (inputNikMuzakki && inputNikMuzakki.length >= 5 && !invalidNpwzValues.includes(inputNikMuzakki.toLowerCase())) ? inputNikMuzakki : null;
           try {
             const newMuz = await prisma.muzakki.create({
               data: {
@@ -912,7 +914,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
             muzakkiId = newMuz.id;
             muzakkiNamaMap.set(inputNamaMuzakki.toLowerCase(), newMuz.id);
           } catch (e) {
-            // Ignore duplicate NIK fallback
+            // Fallback if null nik conflict occurs
           }
         }
 

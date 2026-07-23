@@ -358,7 +358,9 @@ export const importMuzakki = async (req: Request, res: Response): Promise<void> 
 
       const nama = row.nama || row['nama lengkap'] || row['nama lembaga'] || row['name'] || 'Muzakki Tanpa Nama';
       const kategori = (row.kategori || '').toLowerCase() === 'lembaga' ? 'Lembaga' : 'Perorangan';
-      const npwz = row.npwz || row.nrm || row['no. register'] || row['no register'] || `WZ-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`;
+      const rawNpwzInput = row.npwz || row.nrm || row['no. register'] || row['no register'];
+      const invalidNpwzs = ['-', '--', '---', 'none', 'null', 'undefined', 'n/a', 'tidak ada'];
+      const npwz = (rawNpwzInput && !invalidNpwzs.includes(String(rawNpwzInput).toLowerCase().trim())) ? String(rawNpwzInput).trim() : null;
       const npwp = row.npwp || null;
       const zakat_per_bulan = row.zakat_per_bulan || row['zakat per bulan'] || null;
       const keterangan = row.keterangan || row.catatan || row.catatan_tambahan || null;
