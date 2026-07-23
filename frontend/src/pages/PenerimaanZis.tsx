@@ -767,18 +767,24 @@ export default function PenerimaanZis() {
 
   // Calculations for stats
   const stats = useMemo(() => {
-    let total = summaryTotals.totalNominal || 0;
-    let count = summaryTotals.totalTransactions || 0;
-    let zakat = 0;
-    let infak = 0;
-    let dskl = 0;
+    const total = summaryTotals.totalNominal || 0;
+    const count = summaryTotals.totalTransactions || 0;
+    let zakat = summaryTotals.totalZakat ?? 0;
+    let infak = summaryTotals.totalInfak ?? 0;
+    let dskl = summaryTotals.totalDskl ?? 0;
 
-    penerimaanData.forEach(item => {
-      const nominalVal = Number(item.nominal || 0);
-      if (item.rkat?.kategori === 'Zakat') zakat += nominalVal;
-      else if (item.rkat?.kategori === 'Infak') infak += nominalVal;
-      else dskl += nominalVal;
-    });
+    // Fallback if backend didn't return breakdown
+    if (summaryTotals.totalZakat === undefined) {
+      zakat = 0;
+      infak = 0;
+      dskl = 0;
+      penerimaanData.forEach(item => {
+        const nominalVal = Number(item.nominal || 0);
+        if (item.rkat?.kategori === 'Zakat') zakat += nominalVal;
+        else if (item.rkat?.kategori === 'Infak') infak += nominalVal;
+        else dskl += nominalVal;
+      });
+    }
 
     return { total, count, zakat, infak, dskl };
   }, [penerimaanData, summaryTotals]);

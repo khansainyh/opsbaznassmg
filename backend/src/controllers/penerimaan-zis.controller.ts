@@ -104,6 +104,48 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       };
     }));
 
+    const summaryItems = await prisma.penerimaanZis.findMany({
+      where: baseWhere,
+      select: {
+        nominal: true,
+        rkat_id: true,
+        kode_program: true,
+        jenis_program: true,
+        rkat: { select: { kategori: true } }
+      }
+    });
+
+    let totalZakat = 0;
+    let totalInfak = 0;
+    let totalDskl = 0;
+
+    summaryItems.forEach((item: any) => {
+      const nom = Number(item.nominal || 0);
+      let cat = item.rkat?.kategori;
+      if (!cat && item.rkat_id) {
+        const r = rkatMap.get(item.rkat_id);
+        if (r) cat = r.kategori;
+      }
+      if (!cat && item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program]) {
+        const rNo = PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no;
+        if (rNo && rkatMap.get(rNo)) {
+          cat = rkatMap.get(rNo).kategori;
+        }
+      }
+
+      const strKat = cat ? String(cat).toLowerCase() : '';
+      const strKode = item.kode_program ? String(item.kode_program).trim() : '';
+      const strJenis = item.jenis_program ? String(item.jenis_program).toLowerCase() : '';
+
+      if (strKat.includes('zakat') || ['101.1', '101.2', '101.13', '102.1', '102.2', '102.3', '102.4', '102.11'].includes(strKode) || strJenis.includes('zakat')) {
+        totalZakat += nom;
+      } else if (strKat.includes('infak') || strKat.includes('infaq') || strKat.includes('sedekah') || ['101.8', '101.9', '101.10', '101.11', '101.12', '102.5', '102.6', '102.7', '102.7.1', '102.8', '102.9'].includes(strKode) || strJenis.includes('infak') || strJenis.includes('sedekah')) {
+        totalInfak += nom;
+      } else {
+        totalDskl += nom;
+      }
+    });
+
     res.status(200).json({
       status: 'success',
       data: listWithCoa,
@@ -115,7 +157,10 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       },
       summary: {
         totalTransactions: totalRecords,
-        totalNominal
+        totalNominal,
+        totalZakat,
+        totalInfak,
+        totalDskl
       }
     });
   } catch (error: any) {
