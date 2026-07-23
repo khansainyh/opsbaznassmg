@@ -1536,7 +1536,7 @@ export default function PenerimaanZis() {
                         {new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID')}
                       </td>
                       <td className="px-6 py-4 font-mono text-xs text-slate-500 font-bold">
-                        {item.muzakki?.npwz && !item.muzakki.npwz.startsWith('PENDING') && !item.muzakki.npwz.startsWith('NIK-') ? item.muzakki.npwz : '-'}
+                        {item.muzakki?.npwz && !/^(WZ-|PENDING-|NIK-)/i.test(item.muzakki.npwz) ? item.muzakki.npwz : '-'}
                       </td>
                       <td className="px-6 py-4 font-bold text-slate-900">
                         <div>{item.muzakki?.nama || item.keterangan || '-'}</div>
