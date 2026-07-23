@@ -596,9 +596,37 @@ export default function PenerimaanZis() {
 
   const [mainFilterStartDate, setMainFilterStartDate] = useState('');
   const [mainFilterEndDate, setMainFilterEndDate] = useState('');
-  // Suppress unused warning for setters
-  void setMainFilterStartDate;
-  void setMainFilterEndDate;
+  const [selectedFilterMonth, setSelectedFilterMonth] = useState<number | 'all'>('all');
+  const [selectedFilterYear, setSelectedFilterYear] = useState<number>(new Date().getFullYear());
+
+  const handleMonthFilterChange = (m: number | 'all') => {
+    setSelectedFilterMonth(m);
+    setCurrentPage(1);
+    if (m === 'all') {
+      setMainFilterStartDate('');
+      setMainFilterEndDate('');
+    } else {
+      const y = selectedFilterYear;
+      const startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      setMainFilterStartDate(startStr);
+      setMainFilterEndDate(endStr);
+    }
+  };
+
+  const handleYearFilterChange = (y: number) => {
+    setSelectedFilterYear(y);
+    setCurrentPage(1);
+    if (selectedFilterMonth !== 'all') {
+      const m = selectedFilterMonth;
+      const startStr = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      setMainFilterStartDate(startStr);
+      setMainFilterEndDate(endStr);
+    }
+  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -1377,6 +1405,42 @@ export default function PenerimaanZis() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+
+            {/* Filter Bulan */}
+            <select 
+              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer font-medium text-slate-700"
+              value={selectedFilterMonth}
+              onChange={(e) => handleMonthFilterChange(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            >
+              <option value="all">Bulan: Semua Bulan</option>
+              <option value="1">Januari</option>
+              <option value="2">Februari</option>
+              <option value="3">Maret</option>
+              <option value="4">April</option>
+              <option value="5">Mei</option>
+              <option value="6">Juni</option>
+              <option value="7">Juli</option>
+              <option value="8">Agustus</option>
+              <option value="9">September</option>
+              <option value="10">Oktober</option>
+              <option value="11">November</option>
+              <option value="12">Desember</option>
+            </select>
+
+            {/* Filter Tahun */}
+            {selectedFilterMonth !== 'all' && (
+              <select 
+                className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer font-medium text-slate-700"
+                value={selectedFilterYear}
+                onChange={(e) => handleYearFilterChange(Number(e.target.value))}
+              >
+                {[2023, 2024, 2025, 2026, 2027].map((y) => (
+                  <option key={y} value={y}>
+                    Tahun: {y}
+                  </option>
+                ))}
+              </select>
+            )}
 
             {/* Category Filter */}
             <select 
@@ -2968,23 +3032,23 @@ export default function PenerimaanZis() {
 
                     {/* Bulk Konsolidasi Nama UPZ (Penerimaan Bank Jateng Style) */}
                     {uniqueUnmatchedUpzNames.length > 0 && (
-                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 font-sans">
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 font-sans">
                         <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
-                          <Building2 className="size-4 text-slate-500" />
+                          <Building2 className="size-4 text-emerald-600" />
                           <span>Konsolidasi Nama UPZ Excel ke Database UPZ ({uniqueUnmatchedUpzNames.length} Nama Belum Terhubung)</span>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-44 overflow-y-auto custom-scrollbar">
+                        <div className="space-y-2">
                           {uniqueUnmatchedUpzNames.map(({ name, count }) => (
-                            <div key={name} className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200 gap-3 text-xs shadow-sm">
+                            <div key={name} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-3 rounded-xl border border-slate-200 gap-3 text-xs shadow-sm hover:border-slate-300 transition-all">
                               <div className="min-w-0 flex-1">
-                                <p className="font-bold text-slate-800 truncate" title={name}>{name}</p>
-                                <p className="text-[10px] text-slate-500 font-medium">{count} Transaksi</p>
+                                <p className="font-bold text-slate-900 text-sm" title={name}>{name}</p>
+                                <p className="text-xs text-slate-500 font-medium">{count} Transaksi di Excel belum terhubung</p>
                               </div>
-                              <div className="w-[230px] shrink-0">
+                              <div className="w-full sm:w-[320px] shrink-0">
                                 <UpzSearchDropdown
                                   value=""
                                   onSelect={(upzId) => handleMapExcelUpzNameToDatabase(name, upzId)}
-                                  placeholder="Pilih UPZ Tujuan..."
+                                  placeholder="Cari & Hubungkan ke Database UPZ..."
                                   upzList={upzList}
                                 />
                               </div>
