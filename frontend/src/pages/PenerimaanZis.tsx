@@ -145,9 +145,36 @@ export default function PenerimaanZis() {
             ? Number(rawNom.replace(/[^0-9.-]+/g, '')) 
             : Number(rawNom || 0);
 
+          const rawUpzName = item['Nama UPZ'] || item.nama_upz || item['UPZ'] || item['Nama OPD / UPZ'] || item.upz || '';
+          const matchedUpzObj = upzList.find((u: any) => {
+            if (!rawUpzName) return false;
+            const cleanRaw = String(rawUpzName).toLowerCase().replace(/upz/gi, '').trim();
+            const cleanDb = String(u.nama_upz || u.name || '').toLowerCase().replace(/upz/gi, '').trim();
+            return cleanDb === cleanRaw || (cleanRaw.length >= 3 && cleanDb.includes(cleanRaw)) || (cleanDb.length >= 3 && cleanRaw.includes(cleanDb));
+          });
+
+          const rawKodeProg = item['Kode Program'] || item.kode_program || item.Kode || '';
+          let matchedRkatObj = null;
+          if (rawKodeProg && PROGRAM_KODE_TO_RKAT_MAP[rawKodeProg]) {
+            const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[rawKodeProg];
+            if (mapInfo.rkat_no) {
+              matchedRkatObj = rkatList.find((r: any) => r.no === mapInfo.rkat_no || r.id === mapInfo.rkat_no);
+            }
+          }
+          if (!matchedRkatObj) {
+            const rawKegiatan = item['Kegiatan (RKAT)'] || item.kegiatan || item.rkat || item.nama_program || '';
+            if (rawKegiatan) {
+              const cleanKeg = String(rawKegiatan).toLowerCase().trim();
+              matchedRkatObj = rkatList.find((r: any) => 
+                (r.nama_program && r.nama_program.toLowerCase().includes(cleanKeg)) ||
+                (cleanKeg.length >= 3 && r.nama_program && cleanKeg.includes(r.nama_program.toLowerCase()))
+              );
+            }
+          }
+
           return {
             rowNum: item.No || item.no || (idx + 1),
-            kodeProgram: item['Kode Program'] || item.kode_program || item.Kode || '-',
+            kodeProgram: rawKodeProg || '-',
             kodeAkun: item['Kode Akun'] || item.kode_akun || '-',
             sumberDana: item['Sumber Dana'] || item.sumber_dana || item.bank_account_name || '-',
             tanggalTrx: item['Tanggal Trx'] || item.tanggal_pembayaran || item.tanggal_trx || item.Tanggal || '-',
@@ -155,7 +182,9 @@ export default function PenerimaanZis() {
             keterangan: item.Keterangan || item.keterangan || '-',
             nominal: nominalVal,
             namaMuzakki: item['Nama Muzakki'] || item.nama_muzakki || '-',
-            namaUpz: item['Nama UPZ'] || item.nama_upz || '-'
+            namaUpz: rawUpzName || '-',
+            matchedUpz: matchedUpzObj || null,
+            matchedRkat: matchedRkatObj || null
           };
         });
 
@@ -1209,7 +1238,19 @@ export default function PenerimaanZis() {
                         {item.muzakki?.npwz || '-'}
                       </td>
                       <td className="px-6 py-4 font-bold text-slate-900">
-                        {item.muzakki?.nama || '-'}
+                        <div>{item.muzakki?.nama || '-'}</div>
+                        {(() => {
+                          const upzObj = item.upz || (item.upz_id ? upzList.find(u => u.id === item.upz_id) : null);
+                          if (upzObj) {
+                            return (
+                              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 text-[9px] font-black rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase tracking-wide" title={`Database UPZ: ${upzObj.nama_upz || upzObj.name}`}>
+                                <span className="size-1.5 rounded-full bg-emerald-500"></span>
+                                via {upzObj.nama_upz || upzObj.name}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn(
@@ -1887,6 +1928,38 @@ export default function PenerimaanZis() {
                   </div>
                 </div>
 
+                {/* UPZ Database Relationship */}
+                {(() => {
+                  const upzObj = selectedData.upz || (selectedData.upz_id ? upzList.find(u => u.id === selectedData.upz_id) : null);
+                  if (upzObj) {
+                    return (
+                      <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200/70 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1.5">
+                            <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Terhubung ke Database UPZ
+                          </span>
+                          {upzObj.kategori && (
+                            <span className="px-2 py-0.5 text-[9px] font-black rounded bg-emerald-200/70 text-emerald-950 uppercase">
+                              {upzObj.kategori}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-black text-emerald-950">{upzObj.nama_upz || upzObj.name}</p>
+                        {upzObj.alamat && (
+                          <p className="text-xs text-emerald-800 font-medium">{upzObj.alamat}</p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                      <span className="font-bold text-[10px] uppercase tracking-wider text-slate-400">Penerimaan via UPZ</span>
+                      <span className="font-medium text-slate-600">Setoran Mandiri / Bukan via UPZ</span>
+                    </div>
+                  );
+                })()}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori Dana</p>
@@ -1900,10 +1973,39 @@ export default function PenerimaanZis() {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT)</p>
-                  <p className="text-sm font-bold text-slate-800">{selectedData.rkat?.nama_program || '-'}</p>
-                </div>
+                {/* Program RKAT Relationship Box */}
+                {(() => {
+                  const rkatObj = selectedData.rkat || (selectedData.rkat_id ? rkatList.find(r => r.id === selectedData.rkat_id) : null);
+                  if (rkatObj) {
+                    return (
+                      <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200/70 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest flex items-center gap-1.5">
+                            <span className="size-2 rounded-full bg-blue-500 animate-pulse"></span>
+                            Terhubung ke Program RKAT
+                          </span>
+                          {rkatObj.no && (
+                            <span className="px-2 py-0.5 text-[9px] font-black rounded bg-blue-200/70 text-blue-950 uppercase">
+                              No. {rkatObj.no}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-black text-blue-950">{rkatObj.nama_program}</p>
+                        {rkatObj.target_nominal && (
+                          <p className="text-xs text-blue-800 font-bold">
+                            Target RKAT: Rp {Number(rkatObj.target_nominal).toLocaleString('id-ID')}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT)</p>
+                      <p className="text-sm font-bold text-slate-800">Di luar RKAT (Penerimaan Khusus)</p>
+                    </div>
+                  );
+                })()}
 
                 <div className="space-y-1">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program Kegiatan (COA)</p>
@@ -2620,12 +2722,39 @@ export default function PenerimaanZis() {
                           {parsedMigrationRows.map((item, index) => (
                             <tr key={index} className="hover:bg-slate-50 transition-colors text-[11px]">
                               <td className="px-3 py-2 text-center font-bold text-slate-400">{item.rowNum}</td>
-                              <td className="px-3 py-2 font-mono font-bold text-emerald-700">{item.kodeProgram}</td>
+                              <td className="px-3 py-2 font-medium">
+                                {item.matchedRkat ? (
+                                  <span className="inline-flex items-center gap-1 text-blue-700 font-bold text-[10px] bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100" title={`Program RKAT: ${item.matchedRkat.nama_program}`}>
+                                    <CheckCircle2 className="size-3 text-blue-600 shrink-0" />
+                                    {item.kodeProgram !== '-' ? item.kodeProgram : item.matchedRkat.no || 'RKAT'}
+                                  </span>
+                                ) : item.kodeProgram && item.kodeProgram !== '-' ? (
+                                  <span className="inline-flex items-center gap-1 text-slate-700 font-bold text-[10px] bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200" title="Kode program di Excel belum terhubung langsung ke RKAT">
+                                    {item.kodeProgram}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 font-mono text-[10px]">-</span>
+                                )}
+                              </td>
                               <td className="px-3 py-2 font-mono text-slate-600">{item.kodeAkun}</td>
                               <td className="px-3 py-2 font-medium text-slate-700">{item.sumberDana}</td>
                               <td className="px-3 py-2 text-slate-600">{item.tanggalTrx}</td>
                               <td className="px-3 py-2 font-bold text-slate-800">{item.namaMuzakki}</td>
-                              <td className="px-3 py-2 text-slate-600">{item.namaUpz}</td>
+                              <td className="px-3 py-2 font-medium">
+                                {item.matchedUpz ? (
+                                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[10px] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100" title={`Terhubung DB UPZ: ${item.matchedUpz.nama_upz || item.matchedUpz.name}`}>
+                                    <CheckCircle2 className="size-3 text-emerald-600 shrink-0" />
+                                    {item.matchedUpz.nama_upz || item.matchedUpz.name}
+                                  </span>
+                                ) : item.namaUpz && item.namaUpz !== '-' ? (
+                                  <span className="inline-flex items-center gap-1 text-amber-700 font-bold text-[10px] bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100" title="Nama UPZ di Excel belum tercatat di Database UPZ">
+                                    <AlertCircle className="size-3 text-amber-600 shrink-0" />
+                                    {item.namaUpz}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 font-mono text-[10px]">-</span>
+                                )}
+                              </td>
                               <td className="px-3 py-2 text-right font-bold text-slate-900 font-mono">
                                 Rp {Number(item.nominal || 0).toLocaleString('id-ID')}
                               </td>
