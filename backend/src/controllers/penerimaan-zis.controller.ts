@@ -1177,3 +1177,29 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message || String(error) });
   }
 };
+
+export const getZisSummaryForUpz = async (req: Request, res: Response) => {
+  try {
+    const list = await prisma.penerimaanZis.findMany({
+      where: {
+        status_simba: { not: 'FAILED' }
+      },
+      select: {
+        id: true,
+        upz_id: true,
+        nominal: true,
+        no_kuitansi: true,
+        status_simba: true,
+        keterangan: true,
+        tanggal_pembayaran: true,
+        upz: { select: { id: true, nama_upz: true } },
+        muzakki: { select: { upz: true } }
+      }
+    });
+
+    res.status(200).json({ status: 'success', data: list });
+  } catch (error) {
+    console.error('Error fetching ZIS summary for UPZ:', error);
+    res.status(500).json({ status: 'error', error: String(error) });
+  }
+};

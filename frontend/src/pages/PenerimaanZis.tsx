@@ -774,8 +774,18 @@ export default function PenerimaanZis() {
     });
   }, [penerimaanData, searchTerm, categoryFilter, simbaFilter, activeTab]);
 
-  // Calculations for stats dynamically from filteredData
+  // Calculations for stats: Prioritize server-wide summaryTotals from backend when search/filtering
   const stats = useMemo(() => {
+    if (summaryTotals && summaryTotals.totalNominal > 0) {
+      return {
+        total: summaryTotals.totalNominal,
+        count: summaryTotals.totalTransactions,
+        zakat: summaryTotals.totalZakat || 0,
+        infak: summaryTotals.totalInfak || 0,
+        dskl: summaryTotals.totalDskl || 0
+      };
+    }
+
     let total = 0;
     let count = filteredData.length;
     let zakat = 0;
@@ -791,18 +801,8 @@ export default function PenerimaanZis() {
       else dskl += nominalVal;
     });
 
-    if (filteredData.length === 0 && summaryTotals.totalNominal > 0) {
-      return {
-        total: summaryTotals.totalNominal,
-        count: summaryTotals.totalTransactions,
-        zakat: summaryTotals.totalZakat || 0,
-        infak: summaryTotals.totalInfak || 0,
-        dskl: summaryTotals.totalDskl || 0
-      };
-    }
-
     return { total, count, zakat, infak, dskl };
-  }, [filteredData, summaryTotals]);
+  }, [summaryTotals, filteredData]);
 
   const handleQuickRegisterMuzakki = async (e: React.MouseEvent) => {
     e.preventDefault();

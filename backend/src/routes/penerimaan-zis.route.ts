@@ -6,13 +6,15 @@ import {
   updateSimbaStatus, 
   deletePenerimaanZis,
   migratePenerimaanZis,
-  getRekapitulasiBulananZis
+  getRekapitulasiBulananZis,
+  getZisSummaryForUpz
 } from '../controllers/penerimaan-zis.controller';
 
 const router = Router();
 
 router.get('/', getPenerimaanZis);
 router.get('/rekap-bulanan', getRekapitulasiBulananZis);
+router.get('/rekap-upz-totals', getZisSummaryForUpz);
 router.post('/', createPenerimaanZis);
 router.post('/migrate', migratePenerimaanZis);
 router.put('/:id', updatePenerimaanZis);

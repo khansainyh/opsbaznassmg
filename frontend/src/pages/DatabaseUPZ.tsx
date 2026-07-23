@@ -530,7 +530,7 @@ export default function DatabaseUPZ() {
     const fetchHistories = async () => {
       try {
         const [resZis, resMappings] = await Promise.all([
-          axios.get('/api/penerimaan-zis', { params: { all: 'true' } }),
+          axios.get('/api/penerimaan-zis/rekap-upz-totals'),
           axios.get('/api/penerimaan-mapping').catch(() => null)
         ]);
         if (resZis.data.status === 'success') {
