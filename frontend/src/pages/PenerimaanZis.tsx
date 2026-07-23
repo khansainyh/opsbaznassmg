@@ -263,12 +263,17 @@ export default function PenerimaanZis() {
             : Number(rawNom || 0);
 
           const rawUpzName = item['Nama UPZ'] || item.nama_upz || item['UPZ'] || item['Nama OPD / UPZ'] || item.upz || '';
-          const matchedUpzObj = upzList.find((u: any) => {
-            if (!rawUpzName) return false;
-            const cleanRaw = String(rawUpzName).toLowerCase().replace(/upz/gi, '').trim();
-            const cleanDb = String(u.nama_upz || u.name || '').toLowerCase().replace(/upz/gi, '').trim();
-            return cleanDb === cleanRaw || (cleanRaw.length >= 3 && cleanDb.includes(cleanRaw)) || (cleanDb.length >= 3 && cleanRaw.includes(cleanDb));
-          });
+          const cleanUpzStr = String(rawUpzName || '').trim();
+          const invalidUpzStrings = ['-', '--', '---', 'none', 'null', 'undefined', 'n/a', 'tidak ada', 'tanpa upz', 'umum'];
+
+          const matchedUpzObj = (!cleanUpzStr || invalidUpzStrings.includes(cleanUpzStr.toLowerCase()) || cleanUpzStr.length < 3)
+            ? null
+            : upzList.find((u: any) => {
+                const cleanRaw = cleanUpzStr.toLowerCase().replace(/upz/gi, '').trim();
+                const cleanDb = String(u.nama_upz || u.name || '').toLowerCase().replace(/upz/gi, '').trim();
+                if (!cleanRaw || cleanRaw.length < 3) return false;
+                return cleanDb === cleanRaw || (cleanRaw.length >= 4 && cleanDb.includes(cleanRaw)) || (cleanDb.length >= 4 && cleanRaw.includes(cleanDb));
+              });
 
           const rawKodeProg = item['Kode Program'] || item.kode_program || item.Kode || '';
           let matchedRkatObj = null;
@@ -1020,6 +1025,8 @@ export default function PenerimaanZis() {
     setCoaSearch('');
     setIsCoaDropdownOpen(false);
     setNoTransaksiSimba('');
+    setSelectedUpzId('');
+    setSelectedKodeProgram('');
   };
 
   // Filtered muzakki list for autocomplete dropdown

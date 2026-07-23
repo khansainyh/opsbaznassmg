@@ -916,13 +916,19 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         let upzId = txData.upz_id || null;
-        const upzQuery = String(getVal(txData, ['Nama UPZ', 'nama_upz', 'upz_nama', 'UPZ', 'Nama OPD / UPZ', 'OPD']) || '').toLowerCase().trim();
-        if (!upzId && upzQuery) {
-          const matchedUpz = upzs.find(u =>
-            u.nama_upz.toLowerCase().includes(upzQuery) ||
-            upzQuery.includes(u.nama_upz.toLowerCase())
-          );
-          if (matchedUpz) upzId = matchedUpz.id;
+        const rawUpz = getVal(txData, ['Nama UPZ', 'nama_upz', 'upz_nama', 'UPZ', 'Nama OPD / UPZ', 'OPD']);
+        const upzQuery = String(rawUpz || '').toLowerCase().trim();
+        const invalidUpzValues = ['-', '--', '---', 'none', 'null', 'undefined', 'n/a', 'tidak ada', 'tanpa upz', 'umum'];
+
+        if (!upzId && upzQuery && !invalidUpzValues.includes(upzQuery) && upzQuery.length >= 3) {
+          const cleanQuery = upzQuery.replace(/upz/gi, '').trim();
+          if (cleanQuery.length >= 3) {
+            const matchedUpz = upzs.find(u => {
+              const cleanDb = u.nama_upz.toLowerCase().replace(/upz/gi, '').trim();
+              return cleanDb === cleanQuery || (cleanDb.length >= 4 && cleanDb.includes(cleanQuery)) || (cleanQuery.length >= 4 && cleanQuery.includes(cleanDb));
+            });
+            if (matchedUpz) upzId = matchedUpz.id;
+          }
         }
 
         const simbaNo = String(getVal(txData, ['no_transaksi_simba', 'No Transaksi', 'no_transaksi', 'No. Transaksi', 'No Transaksi SIMBA']) || '').trim() || null;
