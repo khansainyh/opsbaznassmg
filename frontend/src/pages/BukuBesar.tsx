@@ -2212,7 +2212,21 @@ export default function BukuBesar() {
                 </button>
               </div>
             ) : !migrating && (
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 w-full">
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3 w-full">
+                {parsedTransactions.length > 0 && (
+                  <div className="w-full flex items-center gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-left">
+                    <input
+                      type="checkbox"
+                      id="allowDuplicatesCheckboxFooter"
+                      checked={allowDuplicates}
+                      onChange={(e) => setAllowDuplicates(e.target.checked)}
+                      className="size-4 text-primary rounded border-slate-300 focus:ring-primary cursor-pointer"
+                    />
+                    <label htmlFor="allowDuplicatesCheckboxFooter" className="text-xs font-bold text-amber-900 cursor-pointer select-none">
+                      Impor Seluruh Transaksi (Abaikan Deteksi Duplikat Transaksi dengan Keterangan & Tanggal Sama)
+                    </label>
+                  </div>
+                )}
                 <button
                   onClick={handleBulkMigrationSubmit}
                   disabled={parsedTransactions.filter(p => p.isValid).length === 0}
