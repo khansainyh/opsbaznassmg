@@ -188,8 +188,8 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
 
 export const createPenerimaanZis = async (req: Request, res: Response) => {
   try {
-    const { 
-      no_kuitansi, muzakki_id, rkat_id, upz_id, kode_program, jenis_program, bank_account_id, nominal, 
+    const {
+      no_kuitansi, muzakki_id, rkat_id, upz_id, kode_program, jenis_program, bank_account_id, nominal,
       metode_pembayaran, tanggal_pembayaran, keterangan, coa_code, no_transaksi_simba
     } = req.body;
 
@@ -224,7 +224,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       if (!bankAccount) throw new Error('Rekening penerima tidak ditemukan');
 
       const formattedKeterangan = keterangan || (
-        rkat 
+        rkat
           ? `Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama}`
           : `Penerimaan ZIS di luar RKAT via ${bankAccount.nama_akun} dari ${muzakki.nama}`
       );
@@ -242,7 +242,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       if (rkat) {
         creditCoaCode = coa_code || (rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101');
       }
-      
+
       const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
       if (!coaExists) {
         await tx.chartOfAccounts.create({
@@ -328,7 +328,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
               ]
             }
           });
-          
+
           if (upzObj) {
             isPembantuan = ((upzObj.metadata as any)?.type === 'On-Balance') &&
               ((upzObj.metadata as any)?.metadata?.onBalanceType === 'Pembantuan Pendistribusian dan Pendayagunaan');
@@ -380,67 +380,67 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
               const amilBaznasCredit = tNominal * (baznasAmilPct / 100);
               const amilUpzCredit = tNominal * (upzAmilPct / 100);
 
-            // Create Journal Entries for Hak Amil if amilDebit > 0
-            if (amilDebit > 0) {
-              const ensureCoaExists = async (code: string, name: string, klasifikasi: string, tipeDana: string) => {
-                const exists = await tx.chartOfAccounts.findUnique({ where: { coa_code: code } });
-                if (!exists) {
-                  await tx.chartOfAccounts.create({
+              // Create Journal Entries for Hak Amil if amilDebit > 0
+              if (amilDebit > 0) {
+                const ensureCoaExists = async (code: string, name: string, klasifikasi: string, tipeDana: string) => {
+                  const exists = await tx.chartOfAccounts.findUnique({ where: { coa_code: code } });
+                  if (!exists) {
+                    await tx.chartOfAccounts.create({
+                      data: {
+                        coa_code: code,
+                        nama_akun: name,
+                        klasifikasi: klasifikasi,
+                        tipe_dana: tipeDana
+                      }
+                    });
+                  }
+                };
+
+                await ensureCoaExists(coaDebitBeban, `Beban Hak Amil ${mappedKategoriRule}`, 'Beban', 'AMIL');
+                await ensureCoaExists(coaKreditAmil, `Pendapatan Hak Amil ${mappedKategoriRule}`, 'Pendapatan', 'AMIL');
+                await ensureCoaExists(coaKreditUtang, `Utang Bagian Hak Amil UPZ ${mappedKategoriRule}`, 'Kewajiban', 'AMIL');
+
+                // Debit: Beban Hak Amil
+                await tx.journalEntry.create({
+                  data: {
+                    transaksi_id: realisasiTrx.transaksi_id,
+                    coa_code: coaDebitBeban,
+                    debit: new Prisma.Decimal(amilDebit),
+                    kredit: new Prisma.Decimal(0.00),
+                    account_id: null
+                  }
+                });
+
+                // Credit: Pendapatan Hak Amil (Baznas portion)
+                if (amilBaznasCredit > 0) {
+                  await tx.journalEntry.create({
                     data: {
-                      coa_code: code,
-                      nama_akun: name,
-                      klasifikasi: klasifikasi,
-                      tipe_dana: tipeDana
+                      transaksi_id: realisasiTrx.transaksi_id,
+                      coa_code: coaKreditAmil,
+                      debit: new Prisma.Decimal(0.00),
+                      kredit: new Prisma.Decimal(amilBaznasCredit),
+                      account_id: null
                     }
                   });
                 }
-              };
 
-              await ensureCoaExists(coaDebitBeban, `Beban Hak Amil ${mappedKategoriRule}`, 'Beban', 'AMIL');
-              await ensureCoaExists(coaKreditAmil, `Pendapatan Hak Amil ${mappedKategoriRule}`, 'Pendapatan', 'AMIL');
-              await ensureCoaExists(coaKreditUtang, `Utang Bagian Hak Amil UPZ ${mappedKategoriRule}`, 'Kewajiban', 'AMIL');
-
-              // Debit: Beban Hak Amil
-              await tx.journalEntry.create({
-                data: {
-                  transaksi_id: realisasiTrx.transaksi_id,
-                  coa_code: coaDebitBeban,
-                  debit: new Prisma.Decimal(amilDebit),
-                  kredit: new Prisma.Decimal(0.00),
-                  account_id: null
+                // Credit: Utang UPZ (UPZ portion)
+                if (amilUpzCredit > 0) {
+                  await tx.journalEntry.create({
+                    data: {
+                      transaksi_id: realisasiTrx.transaksi_id,
+                      coa_code: coaKreditUtang,
+                      debit: new Prisma.Decimal(0.00),
+                      kredit: new Prisma.Decimal(amilUpzCredit),
+                      account_id: null
+                    }
+                  });
                 }
-              });
-
-              // Credit: Pendapatan Hak Amil (Baznas portion)
-              if (amilBaznasCredit > 0) {
-                await tx.journalEntry.create({
-                  data: {
-                    transaksi_id: realisasiTrx.transaksi_id,
-                    coa_code: coaKreditAmil,
-                    debit: new Prisma.Decimal(0.00),
-                    kredit: new Prisma.Decimal(amilBaznasCredit),
-                    account_id: null
-                  }
-                });
-              }
-
-              // Credit: Utang UPZ (UPZ portion)
-              if (amilUpzCredit > 0) {
-                await tx.journalEntry.create({
-                  data: {
-                    transaksi_id: realisasiTrx.transaksi_id,
-                    coa_code: coaKreditUtang,
-                    debit: new Prisma.Decimal(0.00),
-                    kredit: new Prisma.Decimal(amilUpzCredit),
-                    account_id: null
-                  }
-                });
               }
             }
           }
         }
       }
-    }
 
 
       // 3. Create PenerimaanZis record in PENDING state (but with transaksi_id set)
@@ -527,8 +527,8 @@ export const updateSimbaStatus = async (req: Request, res: Response) => {
 export const updatePenerimaanZis = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { 
-      muzakki_id, rkat_id, bank_account_id, nominal, 
+    const {
+      muzakki_id, rkat_id, bank_account_id, nominal,
       metode_pembayaran, tanggal_pembayaran, keterangan, coa_code, no_transaksi_simba
     } = req.body;
 
@@ -779,7 +779,7 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
     };
 
     const upzTotalsMap = new Map<string, { zakat: number; infak: number }>();
-    
+
     // Track non-UPZ / general ZIS items
     const umumTotals = {
       individu: { zakat: 0, infak: 0 },
@@ -797,9 +797,9 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
       const kp = String(tx.kode_program || '');
       const programName = String(tx.jenis_program || tx.rkat?.nama_program || '').toLowerCase();
       const isZakat = kp.startsWith('101.1') || kp.startsWith('101.2') || kp.startsWith('101.13') ||
-                      kp.startsWith('102.1') || kp.startsWith('102.2') || kp.startsWith('102.3') ||
-                      kp.startsWith('102.4') || kp.startsWith('102.11') ||
-                      programName.includes('zakat');
+        kp.startsWith('102.1') || kp.startsWith('102.2') || kp.startsWith('102.3') ||
+        kp.startsWith('102.4') || kp.startsWith('102.11') ||
+        programName.includes('zakat');
 
       const upzIdKey = tx.upz_id ? String(tx.upz_id).toLowerCase().trim() : null;
       const upzNameKey = tx.upz?.nama_upz ? String(tx.upz.nama_upz).toLowerCase().trim() : (tx.muzakki?.upz ? String(tx.muzakki.upz).toLowerCase().trim() : null);
@@ -910,9 +910,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       return;
     }
 
-    // Historical migration must ALWAYS skip updating BankAccount balance and generating new journals
-    // to prevent double counting cash balances.
-    const skipJournal = true;
+    const skipJournal = options?.skipJournal !== false;
 
     let successCount = 0;
     let failedCount = 0;
@@ -1079,7 +1077,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         const statusSimba = (simbaNo && simbaNo.length > 0) ? 'SYNCED' : (txData.status_simba || 'PENDING');
-        
+
         let tanggalTrx = new Date();
         const rawDateVal = getVal(txData, ['Tanggal Trx', 'tanggal_pembayaran', 'tanggal_trx', 'Tanggal', 'Tgl']);
         if (rawDateVal !== null && rawDateVal !== undefined) {
