@@ -1501,7 +1501,9 @@ export const getReplenishments = async (req: Request, res: Response) => {
 
 export const migrateBukuBesar = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { transactions } = req.body;
+    const { transactions, force, allowDuplicates } = req.body;
+    const shouldSkipDeduplication = force === true || allowDuplicates === true;
+
     if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
       res.status(400).json({ error: 'Data transaksi tidak ditemukan atau kosong' });
       return;
@@ -1548,27 +1550,29 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
       const rowKet = (row.keterangan || 'Transaksi Historis').trim();
       const rowNominal = Number(row.nominal);
 
-      // Check deduplication in-memory using candidateRealisasis
-      const existingTx = candidateRealisasis.find(tx => {
-        const txDate = new Date(tx.tanggal).getTime();
-        const txKet = (tx.keterangan || 'Transaksi Historis').trim();
-        if (txDate !== rowDate || txKet !== rowKet) {
-          return false;
-        }
-        
-        const hasDebitMatch = tx.journalEntries.some(
-          e => e.coa_code === coaDebitStr && Number(e.debit) === rowNominal
-        );
-        const hasCreditMatch = tx.journalEntries.some(
-          e => e.coa_code === coaKreditStr && Number(e.kredit) === rowNominal
-        );
-        
-        return hasDebitMatch && hasCreditMatch;
-      });
+      if (!shouldSkipDeduplication) {
+        // Check deduplication in-memory using candidateRealisasis
+        const existingTx = candidateRealisasis.find(tx => {
+          const txDate = new Date(tx.tanggal).getTime();
+          const txKet = (tx.keterangan || 'Transaksi Historis').trim();
+          if (txDate !== rowDate || txKet !== rowKet) {
+            return false;
+          }
+          
+          const hasDebitMatch = tx.journalEntries.some(
+            e => e.coa_code === coaDebitStr && Number(e.debit) === rowNominal
+          );
+          const hasCreditMatch = tx.journalEntries.some(
+            e => e.coa_code === coaKreditStr && Number(e.kredit) === rowNominal
+          );
+          
+          return hasDebitMatch && hasCreditMatch;
+        });
 
-      if (existingTx) {
-        skippedCount++;
-        continue;
+        if (existingTx) {
+          skippedCount++;
+          continue;
+        }
       }
 
       itemsToInsert.push(row);

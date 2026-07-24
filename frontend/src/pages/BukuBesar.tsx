@@ -97,6 +97,7 @@ export default function BukuBesar() {
   const [migrationProgress, setMigrationProgress] = useState('');
   const [selectedMigrationCoa, setSelectedMigrationCoa] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
+  const [allowDuplicates, setAllowDuplicates] = useState(false);
   const [parsedTransactions, setParsedTransactions] = useState<any[]>([]);
   const [migrationStats, setMigrationStats] = useState<{
     total: number;
@@ -347,6 +348,7 @@ export default function BukuBesar() {
 
       try {
         const res = await axios.post('/api/finance/ledger/migrate', {
+          allowDuplicates: allowDuplicates,
           transactions: batchItems.map(item => ({
             tanggal: item.tanggal,
             keterangan: item.keterangan,
@@ -2036,6 +2038,20 @@ export default function BukuBesar() {
                     <p className="text-[10px] text-slate-400 font-bold leading-normal">
                       * Pilih Rekening Kas/Bank jika Anda ingin mengunggah riwayat mutasi per rekening. Jika dikosongkan, Anda dapat mengunggah jurnal umum secara keseluruhan.
                     </p>
+
+                    {/* Checkbox Paksa Import / Abaikan Duplikat */}
+                    <div className="flex items-center gap-2 pt-2 p-3 bg-amber-50/50 border border-amber-200/60 rounded-xl">
+                      <input
+                        type="checkbox"
+                        id="allowDuplicatesCheckbox"
+                        checked={allowDuplicates}
+                        onChange={(e) => setAllowDuplicates(e.target.checked)}
+                        className="size-4 text-primary rounded border-slate-300 focus:ring-primary cursor-pointer"
+                      />
+                      <label htmlFor="allowDuplicatesCheckbox" className="text-xs font-bold text-amber-900 cursor-pointer select-none">
+                        Impor Seluruh Transaksi (Abaikan Deteksi Duplikat Transaksi dengan Keterangan & Tanggal Sama)
+                      </label>
+                    </div>
                   </div>
 
                   {/* 2. Download Template / Upload File Buttons */}
