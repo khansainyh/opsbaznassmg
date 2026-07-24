@@ -910,7 +910,9 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       return;
     }
 
-    const skipJournal = options?.skipJournal !== false;
+    // Historical migration must ALWAYS skip updating BankAccount balance and generating new journals
+    // to prevent double counting cash balances.
+    const skipJournal = true;
 
     let successCount = 0;
     let failedCount = 0;
