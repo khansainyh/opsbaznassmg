@@ -230,6 +230,9 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
       .catch(console.error);
   }, [selectedProposal, programTipeMap]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+
   const years = Array.from(new Set(data.map(d => new Date(d.tanggalMasuk).getFullYear().toString()))).sort().reverse();
   if (!years.includes(selectedYear)) years.push(selectedYear);
 
@@ -252,6 +255,18 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
       })
       .sort((a, b) => Number(b.agendaNo) - Number(a.agendaNo));
   }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus]);
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+
+  const paginatedItems = useMemo(() => {
+    const page = currentPage === 0 ? 1 : currentPage;
+    const start = (page - 1) * itemsPerPage;
+    return filtered.slice(start, start + itemsPerPage);
+  }, [filtered, currentPage, itemsPerPage]);
 
   const stats = useMemo(() => ({
     total: filtered.length,
@@ -337,7 +352,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     </div>
                   </td>
                 </tr>
-              ) : filtered.map(item => (
+              ) : paginatedItems.map(item => (
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-5 py-3 whitespace-nowrap">
                     <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo}</span>
@@ -397,12 +412,52 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           </table>
         </div>
 
-        {/* Pagination row */}
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Menampilkan {filtered.length} entri</p>
-          <div className="flex gap-2">
-            <button className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-white transition-all"><ChevronLeft className="size-4"/></button>
-            <button className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-white transition-all"><ChevronRight className="size-4"/></button>
+        {/* Pagination Controls */}
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/20 text-xs print:hidden">
+          <p className="text-slate-400 font-bold">
+            Menampilkan {filtered.length === 0 ? 0 : (currentPage === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1)}-{Math.min((currentPage === 0 ? 1 : currentPage) * itemsPerPage, filtered.length)} dari {filtered.length} Proposal
+          </p>
+          <div className="flex gap-1 items-center">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage <= 1}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <div className="flex items-center gap-1.5 text-slate-500 font-bold px-2">
+              <span>Halaman</span>
+              <input
+                type="number"
+                min={1}
+                max={totalPages}
+                value={currentPage === 0 ? '' : currentPage}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                  if (val === 0) {
+                    setCurrentPage(0);
+                  } else if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                    setCurrentPage(val);
+                  }
+                }}
+                onBlur={() => {
+                  if (currentPage === 0) {
+                    setCurrentPage(1);
+                  }
+                }}
+                className="w-12 text-center py-1 border border-slate-200 rounded-md bg-white text-slate-750 outline-none focus:border-primary text-[11px] font-extrabold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span>dari {totalPages}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage >= totalPages}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-white transition-colors text-slate-400 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer"
+            >
+              <ChevronRight className="size-4" />
+            </button>
           </div>
         </div>
       </motion.div>

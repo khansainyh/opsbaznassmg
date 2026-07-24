@@ -4,11 +4,41 @@ import { uploadToDrive, formatScanFileName, createFolderInDrive } from '../utils
 import path from 'path';
 
 export const getProposals = async (req: Request, res: Response) => {
-  console.log('Fetching proposals...');
   try {
-    const proposals = await prisma.proposal.findMany({
-      include: { program: true, mustahik: true }
-    });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const isPaginated = req.query.paginate === 'true' || req.query.page !== undefined;
+
+    if (!isPaginated && req.query.all === 'true') {
+      const proposals = await prisma.proposal.findMany({
+        include: { program: true, mustahik: true }
+      });
+      return res.status(200).json(proposals);
+    }
+
+    const [total, proposals] = await prisma.$transaction([
+      prisma.proposal.count(),
+      prisma.proposal.findMany({
+        include: { program: true, mustahik: true },
+        orderBy: { agenda_no: 'desc' },
+        ...(isPaginated ? { skip: (page - 1) * limit, take: limit } : {})
+      })
+    ]);
+
+    if (isPaginated) {
+      const totalPages = Math.ceil(total / limit) || 1;
+      return res.status(200).json({
+        status: 'success',
+        data: proposals,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages
+        }
+      });
+    }
+
     res.status(200).json(proposals);
   } catch (error) {
     res.status(500).json({ error: String(error) });

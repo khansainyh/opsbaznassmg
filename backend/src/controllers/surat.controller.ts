@@ -6,7 +6,37 @@ import { sendNotificationEmail } from '../utils/email';
 
 export const getSurats = async (req: Request, res: Response) => {
   try {
-    const surats = await prisma.surat.findMany();
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const isPaginated = req.query.paginate === 'true' || req.query.page !== undefined;
+
+    if (!isPaginated && req.query.all === 'true') {
+      const surats = await prisma.surat.findMany();
+      return res.status(200).json(surats);
+    }
+
+    const [total, surats] = await prisma.$transaction([
+      prisma.surat.count(),
+      prisma.surat.findMany({
+        orderBy: { agenda_no: 'desc' },
+        ...(isPaginated ? { skip: (page - 1) * limit, take: limit } : {})
+      })
+    ]);
+
+    if (isPaginated) {
+      const totalPages = Math.ceil(total / limit) || 1;
+      return res.status(200).json({
+        status: 'success',
+        data: surats,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages
+        }
+      });
+    }
+
     res.status(200).json(surats);
   } catch (error) {
     res.status(500).json({ error: String(error) });

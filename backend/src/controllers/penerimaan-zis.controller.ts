@@ -84,19 +84,28 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       rkatMap.set(r.no, r);
     });
 
-    const listWithCoa = await Promise.all(list.map(async (item: any) => {
-      let coa_code = '';
-      if (item.transaksi_id) {
-        const creditEntry = await prisma.journalEntry.findFirst({
-          where: {
-            transaksi_id: item.transaksi_id,
-            kredit: { gt: 0 }
-          }
-        });
-        if (creditEntry) {
-          coa_code = creditEntry.coa_code;
+    const trxIds = list.map((item: any) => item.transaksi_id).filter(Boolean);
+    const coaMap = new Map<string, string>();
+    if (trxIds.length > 0) {
+      const creditEntries = await prisma.journalEntry.findMany({
+        where: {
+          transaksi_id: { in: trxIds },
+          kredit: { gt: 0 }
+        },
+        select: {
+          transaksi_id: true,
+          coa_code: true
         }
-      }
+      });
+      creditEntries.forEach(entry => {
+        if (entry.transaksi_id && !coaMap.has(entry.transaksi_id)) {
+          coaMap.set(entry.transaksi_id, entry.coa_code);
+        }
+      });
+    }
+
+    const listWithCoa = list.map((item: any) => {
+      const coa_code = item.transaksi_id ? (coaMap.get(item.transaksi_id) || '') : '';
 
       let rkatObj = item.rkat;
       if (!rkatObj && item.rkat_id) {
@@ -119,7 +128,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         status_simba: statusSimba,
         coa_code
       };
-    }));
+    });
 
     const summaryItems = await prisma.penerimaanZis.findMany({
       where: baseWhere,
