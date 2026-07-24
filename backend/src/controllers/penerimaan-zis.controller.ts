@@ -28,6 +28,18 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
     }
 
     if (search) {
+      // Find if search keyword matches any UPZ in the database (by name or code)
+      const matchedUpzs = await prisma.upz.findMany({
+        where: {
+          OR: [
+            { nama_upz: { contains: search } },
+            { id: { contains: search } }
+          ]
+        },
+        select: { id: true, nama_upz: true }
+      });
+      const matchedUpzIds = matchedUpzs.map(u => u.id).filter(Boolean);
+
       baseWhere.OR = [
         { no_kuitansi: { contains: search } },
         { keterangan: { contains: search } },
@@ -35,7 +47,11 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         { jenis_program: { contains: search } },
         { muzakki: { is: { nama: { contains: search } } } },
         { muzakki: { is: { upz: { contains: search } } } },
-        { upz: { is: { nama_upz: { contains: search } } } }
+        { upz: { is: { nama_upz: { contains: search } } } },
+        ...(matchedUpzIds.length > 0 ? [
+          { upz_id: { in: matchedUpzIds } },
+          { muzakki: { is: { upz: { in: matchedUpzIds } } } }
+        ] : [])
       ];
     }
 

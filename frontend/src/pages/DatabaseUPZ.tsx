@@ -129,19 +129,27 @@ export default function DatabaseUPZ() {
     const upzZisHistory = zisHistory.filter(tx => {
       if (!tx) return false;
 
-      // 1. Direct UPZ relation ID or joined UPZ object match
-      if (tx.upz_id) {
-        const txUpzId = String(tx.upz_id).toLowerCase().trim();
-        if (txUpzId === String(item.id).toLowerCase().trim()) return true;
-        if (upzCode && txUpzId === upzCode) return true;
-      }
-      if (tx.upz) {
-        if (tx.upz.id && String(tx.upz.id).toLowerCase().trim() === String(item.id).toLowerCase().trim()) return true;
-        if (tx.upz.nama_upz) {
-          const txUpzName = String(tx.upz.nama_upz).toLowerCase().trim();
-          const cleanTxUpzName = txUpzName.replace(/^upz\s+/i, '');
-          if (txUpzName === targetUpz || cleanTxUpzName === cleanTargetUpz) return true;
+      // 1. Direct UPZ relation ID or joined UPZ object match (PRIMARY REASON)
+      if (tx.upz_id || tx.upz) {
+        let isDirectMatch = false;
+        if (tx.upz_id) {
+          const txUpzId = String(tx.upz_id).toLowerCase().trim();
+          if (txUpzId === String(item.id).toLowerCase().trim() || (upzCode && txUpzId === upzCode)) {
+            isDirectMatch = true;
+          }
         }
+        if (!isDirectMatch && tx.upz) {
+          if (tx.upz.id && String(tx.upz.id).toLowerCase().trim() === String(item.id).toLowerCase().trim()) isDirectMatch = true;
+          if (tx.upz.nama_upz) {
+            const txUpzName = String(tx.upz.nama_upz).toLowerCase().trim();
+            const cleanTxUpzName = txUpzName.replace(/^upz\s+/i, '');
+            if (txUpzName === targetUpz || cleanTxUpzName === cleanTargetUpz) isDirectMatch = true;
+          }
+        }
+        if (isDirectMatch) return true;
+        // CRITICAL FIX: If transaction has explicit upz_id / upz relation pointing to another UPZ,
+        // do not let fallback muzakki.upz string override it!
+        if (tx.upz_id || (tx.upz && tx.upz.id)) return false;
       }
 
       // 2. Muzakki UPZ string field match
@@ -271,19 +279,27 @@ export default function DatabaseUPZ() {
         return false;
       }
 
-      // 1. Direct UPZ relation ID or joined UPZ object match
-      if (tx.upz_id) {
-        const txUpzId = String(tx.upz_id).toLowerCase().trim();
-        if (txUpzId === String(item.id).toLowerCase().trim()) return true;
-        if (upzCode && txUpzId === upzCode) return true;
-      }
-      if (tx.upz) {
-        if (tx.upz.id && String(tx.upz.id).toLowerCase().trim() === String(item.id).toLowerCase().trim()) return true;
-        if (tx.upz.nama_upz) {
-          const txUpzName = String(tx.upz.nama_upz).toLowerCase().trim();
-          const cleanTxUpzName = txUpzName.replace(/^upz\s+/i, '');
-          if (txUpzName === targetUpz || cleanTxUpzName === cleanTargetUpz) return true;
+      // 1. Direct UPZ relation ID or joined UPZ object match (PRIMARY REASON)
+      if (tx.upz_id || tx.upz) {
+        let isDirectMatch = false;
+        if (tx.upz_id) {
+          const txUpzId = String(tx.upz_id).toLowerCase().trim();
+          if (txUpzId === String(item.id).toLowerCase().trim() || (upzCode && txUpzId === upzCode)) {
+            isDirectMatch = true;
+          }
         }
+        if (!isDirectMatch && tx.upz) {
+          if (tx.upz.id && String(tx.upz.id).toLowerCase().trim() === String(item.id).toLowerCase().trim()) isDirectMatch = true;
+          if (tx.upz.nama_upz) {
+            const txUpzName = String(tx.upz.nama_upz).toLowerCase().trim();
+            const cleanTxUpzName = txUpzName.replace(/^upz\s+/i, '');
+            if (txUpzName === targetUpz || cleanTxUpzName === cleanTargetUpz) isDirectMatch = true;
+          }
+        }
+        if (isDirectMatch) return true;
+        // CRITICAL FIX: If transaction has explicit upz_id / upz relation pointing to another UPZ,
+        // do not let fallback muzakki.upz string override it!
+        if (tx.upz_id || (tx.upz && tx.upz.id)) return false;
       }
 
       // 2. Muzakki UPZ string field match
