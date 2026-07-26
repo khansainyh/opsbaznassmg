@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import {
   AreaChart,
@@ -24,17 +24,11 @@ import {
   Users,
   X,
   MapPin,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
-import {
-  bigThreeData,
-  proporsiPilar,
-  trenBulanan,
-  topProgram,
-  tahunAnggaran,
-  sebaranKecamatan,
-} from '../data/executiveDashboardData';
 
 // ─── Helpers ────────────────────────────────────────────────
 const formatRupiah = (val: number) =>
@@ -45,8 +39,14 @@ const formatRupiah = (val: number) =>
     maximumFractionDigits: 1,
   }).format(val);
 
+const pct = (v: number, t: number) => (t > 0 ? Math.round((v / t) * 100) : 0);
 
-const pct = (v: number, t: number) => Math.round((v / t) * 100);
+// Default structure when liveData is not loaded
+const defaultBigThreeData = {
+  pengumpulan: { realisasi: 0, target: 0, bulan: '-' },
+  pendistribusian: { realisasi: 0, target: 0, bulan: '-' },
+  sisaAnggaran: { nilai: 0, keterangan: 'Saldo tersedia untuk didistribusikan' },
+};
 
 // ─── Custom Tooltip ─────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -73,41 +73,105 @@ const PilarTooltip = ({ active, payload }: any) => {
       <p className="font-black text-slate-800">{d.nama}</p>
       <p className="text-slate-500">Realisasi: <span className="font-bold text-slate-700">{formatRupiah(d.realisasi)}</span></p>
       <p className="text-slate-500">Target: <span className="font-bold text-slate-700">{formatRupiah(d.target)}</span></p>
-      <p className="text-slate-500">Penerima: <span className="font-bold text-slate-700">{d.penerima} orang</span></p>
+      <p className="text-slate-500">Penerima: <span className="font-bold text-slate-700">{d.penerima || 0} orang</span></p>
     </div>
   );
 };
 
+// ─── Skeleton Loading Component ──────────────────────────────
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8 animate-pulse">
+      {/* 3 Cards Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-44 bg-slate-200/70 rounded-2xl p-6 flex flex-col justify-between">
+            <div className="flex justify-between items-center">
+              <div className="size-10 bg-slate-300 rounded-xl" />
+              <div className="w-16 h-6 bg-slate-300 rounded-full" />
+            </div>
+            <div className="space-y-2">
+              <div className="w-28 h-3 bg-slate-300 rounded" />
+              <div className="w-44 h-8 bg-slate-300 rounded" />
+              <div className="w-36 h-3 bg-slate-300 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2 Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3 h-80 bg-slate-200/70 rounded-2xl p-6 flex flex-col justify-between">
+          <div className="w-40 h-5 bg-slate-300 rounded" />
+          <div className="w-full h-52 bg-slate-300/50 rounded-xl" />
+        </div>
+        <div className="lg:col-span-2 h-80 bg-slate-200/70 rounded-2xl p-6 flex flex-col justify-between">
+          <div className="w-36 h-5 bg-slate-300 rounded" />
+          <div className="size-40 mx-auto bg-slate-300/50 rounded-full" />
+          <div className="space-y-2">
+            <div className="w-full h-4 bg-slate-300 rounded" />
+            <div className="w-full h-4 bg-slate-300 rounded" />
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3 Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3 h-72 bg-slate-200/70 rounded-2xl p-6 flex flex-col justify-between">
+          <div className="w-48 h-5 bg-slate-300 rounded" />
+          <div className="w-full h-48 bg-slate-300/50 rounded-xl" />
+        </div>
+        <div className="lg:col-span-2 h-72 bg-slate-200/70 rounded-2xl p-6 flex flex-col justify-between">
+          <div className="w-40 h-5 bg-slate-300 rounded" />
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((n) => (
+              <div key={n} className="w-full h-8 bg-slate-300/50 rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────
 export default function ExecutiveDashboard() {
   const [liveData, setLiveData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [activePilar, setActivePilar] = useState<any>(null);
+
+  const fetchDashboardData = useCallback(async (year: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.get(`/api/executive-dashboard?year=${year}`);
+      setLiveData(res.data);
+    } catch (err: any) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError(
+        err?.response?.data?.error ||
+          'Gagal memuat data dashboard dari server. Silakan periksa koneksi atau coba lagi.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    setLoading(true);
-    axios.get(`/api/executive-dashboard?year=${selectedYear}`)
-      .then(res => {
-        setLiveData(res.data);
-      })
-      .catch(err => {
-        console.error('Failed to fetch dashboard data:', err);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [selectedYear]);
+    fetchDashboardData(selectedYear);
+  }, [selectedYear, fetchDashboardData]);
 
-  // Fallbacks to dummy data if liveData is not loaded yet
-  const currentTahunAnggaran = liveData?.tahunAnggaran ?? tahunAnggaran;
-  const currentBigThreeData = liveData?.bigThreeData ?? bigThreeData;
-  const currentProporsiPilar = liveData?.proporsiPilar ?? proporsiPilar;
-  const currentTrenBulanan = liveData?.trenBulanan ?? trenBulanan;
-  const currentTopProgram = liveData?.topProgram ?? topProgram;
-  const currentSebaranKecamatan = liveData?.sebaranKecamatan ?? sebaranKecamatan;
+  // Clean values without falling back to dummy data
+  const currentTahunAnggaran = liveData?.tahunAnggaran ?? selectedYear;
+  const currentBigThreeData = liveData?.bigThreeData ?? defaultBigThreeData;
+  const currentProporsiPilar = liveData?.proporsiPilar ?? [];
+  const currentTrenBulanan = liveData?.trenBulanan ?? [];
+  const currentTopProgram = liveData?.topProgram ?? [];
+  const currentSebaranKecamatan = liveData?.sebaranKecamatan ?? {};
 
   const { pengumpulan, pendistribusian, sisaAnggaran } = currentBigThreeData;
-  const [activePilar, setActivePilar] = useState<any>(null);
 
   const kecamatanData = activePilar ? (currentSebaranKecamatan[activePilar.kode] ?? []) : [];
 
@@ -115,11 +179,11 @@ export default function ExecutiveDashboard() {
   const pctDistribusi = pct(pendistribusian.realisasi, pendistribusian.target);
 
   const totalPenerima = useMemo(() => {
-    return currentProporsiPilar.reduce((a: number, b: any) => a + b.penerima, 0);
+    return currentProporsiPilar.reduce((a: number, b: any) => a + (b.penerima || 0), 0);
   }, [currentProporsiPilar]);
 
   const pieData = useMemo(() => {
-    return currentProporsiPilar.map((p: any) => ({ ...p, value: p.realisasi }));
+    return currentProporsiPilar.map((p: any) => ({ ...p, value: p.realisasi || 0 }));
   }, [currentProporsiPilar]);
 
   const availableYears = [2024, 2025, 2026, 2027];
@@ -152,12 +216,35 @@ export default function ExecutiveDashboard() {
             </div>
 
             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-              <span className={`size-2 rounded-full ${loading ? 'bg-amber-400 animate-spin' : 'bg-emerald-400 animate-pulse'}`} />
-              {loading ? 'Memuat...' : 'Data Real-time'}
+              <span className={`size-2 rounded-full ${loading ? 'bg-amber-400 animate-spin' : error ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
+              {loading ? 'Memuat...' : error ? 'Error Server' : 'Data Real-time'}
             </div>
           </div>
         </div>
       </motion.div>
+
+      {/* ── CONDITIONAL RENDER: SKELETON / ERROR / CONTENT ── */}
+      {loading && !liveData ? (
+        <DashboardSkeleton />
+      ) : error && !liveData ? (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center space-y-4 max-w-xl mx-auto my-12 shadow-sm">
+          <div className="size-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+            <AlertCircle className="size-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Gagal Memuat Data Dashboard</h3>
+            <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">{error}</p>
+          </div>
+          <button
+            onClick={() => fetchDashboardData(selectedYear)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+          >
+            <RefreshCw className="size-4 animate-spin-reverse" />
+            Coba Lagi
+          </button>
+        </div>
+      ) : (
+        <>
 
       {/* ── THE BIG 3 ── */}
       <motion.div
@@ -508,7 +595,10 @@ export default function ExecutiveDashboard() {
           </motion.div>
         </div>
       )}
+        </>
+      )}
 
     </div>
   );
 }
+

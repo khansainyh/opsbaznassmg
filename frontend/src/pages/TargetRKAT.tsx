@@ -326,7 +326,19 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  const { user } = useAuth();
  const isSuperAdmin = user?.role ==='Super_Admin';
  const canEdit = isSuperAdmin;
- const hasOperasionalAccess = user?.role === 'Kabag_Pelaporan' || user?.role === 'Staf_Pelaporan' || isSuperAdmin;
+  const operasionalRoles = [
+    'Super_Admin',
+    'Kabag_Pelaporan',
+    'Staf_Pelaporan',
+    'Kabag_Keuangan',
+    'Staf_Keuangan',
+    'Ketua',
+    'Wakil_Ketua_I',
+    'Wakil_Ketua_II',
+    'Wakil_Ketua_III',
+    'Wakil_Ketua_IV',
+  ];
+  const hasOperasionalAccess = isSuperAdmin || (user?.role && operasionalRoles.includes(user.role));
  
  const [activeTab, setActiveTab] = useState<'Pengumpulan' |'Penyaluran' |'Operasional'>('Penyaluran');
 

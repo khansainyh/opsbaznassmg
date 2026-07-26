@@ -15,7 +15,9 @@ import {
   X,
   Save,
   Edit2,
-  Plus
+  Plus,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -57,6 +59,7 @@ export default function LaporanKinerja() {
   const [activeTab, setActiveTab] = useState<'pengumpulan' | 'penyaluran'>('pengumpulan');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Data states
@@ -159,6 +162,7 @@ export default function LaporanKinerja() {
   // Fetch report data
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [resRkat, resMuzakki, resPenyaluran] = await Promise.all([
         axios.get(`/api/laporan-kinerja/pengumpulan?year=${selectedYear}`),
@@ -176,8 +180,12 @@ export default function LaporanKinerja() {
         setRkatPenyaluranList(resPenyaluran.data.rkatPenyaluranList);
         setMustahikGrowthList(resPenyaluran.data.mustahikGrowthList);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Gagal mengambil data Laporan Kinerja:', err);
+      setError(
+        err?.response?.data?.error ||
+          'Gagal memuat data Laporan Kinerja. Silakan periksa koneksi backend atau coba lagi.'
+      );
     } finally {
       setLoading(false);
     }
@@ -749,16 +757,45 @@ export default function LaporanKinerja() {
           )}
         </div>
       </div>
-      <AnimatePresence mode="wait">
-        {activeTab === 'pengumpulan' ? (
-          <motion.div
-            key="pengumpulan-tab"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-8"
+
+      {loading && rkatPengumpulanList.length === 0 && rkatPenyaluranList.length === 0 ? (
+        <div className="space-y-6 animate-pulse py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-slate-200/70 rounded-2xl p-5" />
+            ))}
+          </div>
+          <div className="h-96 bg-slate-200/70 rounded-2xl p-6" />
+          <div className="h-96 bg-slate-200/70 rounded-2xl p-6" />
+        </div>
+      ) : error && rkatPengumpulanList.length === 0 && rkatPenyaluranList.length === 0 ? (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center space-y-4 max-w-xl mx-auto my-12 shadow-sm">
+          <div className="size-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+            <AlertCircle className="size-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-slate-900">Gagal Memuat Laporan Kinerja</h3>
+            <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">{error}</p>
+          </div>
+          <button
+            onClick={fetchData}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
           >
+            <RefreshCw className="size-4 animate-spin-reverse" />
+            Coba Lagi
+          </button>
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          {activeTab === 'pengumpulan' ? (
+            <motion.div
+              key="pengumpulan-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+              className="space-y-8"
+            >
             {/* Quick KPI Dashboard */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Card 1: Total Target */}
@@ -1672,6 +1709,7 @@ export default function LaporanKinerja() {
           </motion.div>
         )}
       </AnimatePresence>
+      )}
 
       {/* Settings COA Mapping Modal */}
       <AnimatePresence>

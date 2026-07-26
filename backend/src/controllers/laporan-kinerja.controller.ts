@@ -77,17 +77,19 @@ const defaultMappings = [
 ];
 
 const ensureDefaultMappingsExist = async () => {
-  for (const m of defaultMappings) {
-    const existing = await prisma.laporanKinerjaMapping.findUnique({
-      where: { row_key: m.row_key }
+  const existingMappings = await prisma.laporanKinerjaMapping.findMany({
+    select: { row_key: true }
+  });
+  const existingKeys = new Set(existingMappings.map(e => e.row_key));
+  const missing = defaultMappings.filter(m => !existingKeys.has(m.row_key));
+  if (missing.length > 0) {
+    await prisma.laporanKinerjaMapping.createMany({
+      data: missing,
+      skipDuplicates: true
     });
-    if (!existing) {
-      await prisma.laporanKinerjaMapping.create({
-        data: m
-      });
-    }
   }
 };
+
 
 export const getLaporanKinerjaMappings = async (req: Request, res: Response) => {
   try {
@@ -214,6 +216,12 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
     // Set map to avoid double-counting the same registered muzakki in the same category/month
     const uniqueDonors = new Map<string, Set<string>>();
 
+    // Pre-compute cleaned COA codes for fast matching
+    const dbMappingsTargetCoas = dbMappings.map(m => ({
+      row_key: m.row_key,
+      targetCoas: m.coa_codes ? m.coa_codes.split(',').map(c => c.trim().replace(/[\s\.]/g, '')) : []
+    }));
+
     receipts.forEach(p => {
       const date = new Date(p.tanggal_pembayaran);
       const mIdx = date.getMonth(); // 0-11
@@ -225,15 +233,14 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
       const rkatCoaCodesStr = p.rkat?.coa_codes || '';
       if (rkatCoaCodesStr) {
         const rkatCoaCodes = rkatCoaCodesStr.split(',').map(c => c.trim().replace(/[\s\.]/g, ''));
-        const matched = dbMappings.find(m => {
-          if (!m.coa_codes) return false;
-          const targetCoas = m.coa_codes.split(',').map(c => c.trim().replace(/[\s\.]/g, ''));
-          return rkatCoaCodes.some(rc => targetCoas.some(tc => rc.startsWith(tc)));
-        });
+        const matched = dbMappingsTargetCoas.find(m => 
+          rkatCoaCodes.some(rc => m.targetCoas.some(tc => rc.startsWith(tc)))
+        );
         if (matched) {
           targetKey = matched.row_key;
         }
       }
+
 
       // 2. Fallback to legacy string matching if COA match fails
       if (!targetKey) {
@@ -363,6 +370,73 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       include: { journalEntries: true }
     });
 
+    // Pre-build Map lookups for O(1) matching
+    const realisasiMap = new Map<string, any>();
+    realisasiList.forEach(r => {
+      if (r.proposal_id) realisasiMap.set(r.proposal_id, r);
+    });
+
+    const coaRuleMap = new Map<string, string>();
+    coaMappingRules.forEach(r => {
+      const ruleKey = `${r.program_code}_${(r.asnaf_id || '').toLowerCase().trim()}`;
+      coaRuleMap.set(ruleKey, r.debit_coa_code);
+    });
+
+    const dbMappingsTargetCoas = dbMappings.map(m => ({
+      row_key: m.row_key,
+      targetCoas: m.coa_codes ? m.coa_codes.split(',').map(c => c.trim().replace(/[\s\.]/g, '')) : []
+    }));
+
+    // Pre-process proposals into lightweight structure ONCE
+    const processedProposals = realizedProposals.map(p => {
+      const date = new Date(p.tanggal_masuk);
+      const mIdx = date.getMonth();
+      const amt = Number(p.nominal) || 0;
+      const mustahikId = p.mustahik_id || p.id;
+      const normAsnaf = (p.asnaf || '').toLowerCase().trim();
+
+      const matchingRealisasi = realisasiMap.get(p.id);
+      let coaCode = '';
+      if (matchingRealisasi) {
+        const debitEntry = matchingRealisasi.journalEntries.find((je: any) => Number(je.debit) > 0);
+        if (debitEntry) {
+          coaCode = debitEntry.coa_code;
+        }
+      }
+
+      if (!coaCode) {
+        const ruleKey = `${p.program?.code || ''}_${normAsnaf}`;
+        coaCode = coaRuleMap.get(ruleKey) || '';
+      }
+
+      let matchedRowKey = '';
+      if (coaCode) {
+        const cleanCoa = coaCode.replace(/[\s\.]/g, '');
+        const matched = dbMappingsTargetCoas.find(m => m.targetCoas.some(tc => cleanCoa.startsWith(tc)));
+        if (matched) {
+          matchedRowKey = matched.row_key;
+        }
+      }
+
+      return {
+        id: p.id,
+        mustahikId,
+        mIdx,
+        amt,
+        coaCode,
+        matchedRowKey,
+        programCode: p.program?.code || '',
+        programName: (p.program?.name || '').toLowerCase(),
+        programTipe: p.program?.tipe || 'Konsumtif',
+        pilarCode: p.program?.pilar_code,
+        asnaf: normAsnaf,
+        mustahikAlamat: (p.mustahik?.alamat || '').toLowerCase(),
+        mustahikNrm: p.mustahik?.nrm,
+        mustahikStatusGraduasi: p.mustahik?.status_graduasi,
+        mustahikNik: p.mustahik?.nik,
+      };
+    });
+
     // ----------------------------------------------------
     // TABLE 1: RKAT Penyaluran (Target vs Realisasi)
     // ----------------------------------------------------
@@ -488,99 +562,59 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       // Initialize monthly values
       const monthly = Array(12).fill(0);
 
-      // Distribute realization values
-      realizedProposals.forEach(p => {
-        const date = new Date(p.tanggal_masuk);
-        const mIdx = date.getMonth();
-        if (mIdx < 0 || mIdx > 11) return;
+      // Distribute realization values from pre-processed proposals
+      processedProposals.forEach(p => {
+        if (p.mIdx < 0 || p.mIdx > 11) return;
 
-        const amt = Number(p.nominal) || 0;
         let isMatch = false;
 
-        // Fetch COA code for this proposal
-        const matchingRealisasi = realisasiList.find(r => r.proposal_id === p.id);
-        let coaCode = '';
-        if (matchingRealisasi) {
-          const debitEntry = matchingRealisasi.journalEntries.find(je => Number(je.debit) > 0);
-          if (debitEntry) {
-            coaCode = debitEntry.coa_code;
-          }
-        }
-        
-        if (!coaCode) {
-          const normAsnaf = (p.asnaf || '').toLowerCase().trim();
-          const rule = coaMappingRules.find(r => 
-            r.program_code === (p.program?.code || '') && 
-            (r.asnaf_id || '').toLowerCase().trim() === normAsnaf
-          );
-          if (rule) {
-            coaCode = rule.debit_coa_code;
-          }
-        }
-
-        // Try COA Mapping match first
-        if (coaCode) {
-          const cleanCoa = coaCode.replace(/[\s\.]/g, '');
-          const matched = dbMappings.find(m => {
-            if (!m.coa_codes) return false;
-            const targetCoas = m.coa_codes.split(',').map(c => c.trim().replace(/[\s\.]/g, ''));
-            return targetCoas.some(tc => cleanCoa.startsWith(tc));
-          });
-          if (matched && matched.row_key === row.key) {
-            isMatch = true;
-          }
-        }
-
-        // Fallback to legacy string-matching if COA match fails
-        if (!isMatch) {
-          const programCode = p.program?.code || '';
-          const programName = (p.program?.name || '').toLowerCase();
-          const pAsnaf = (p.asnaf || '').toLowerCase();
+        if (p.matchedRowKey && p.matchedRowKey === row.key) {
+          isMatch = true;
+        } else if (!p.matchedRowKey) {
           const rowAsnaf = (row.asnaf || '').toLowerCase();
-          const isPilarMatch = p.program?.pilar_code === row.pilarCode;
 
           if (row.type === 'zakat') {
-            const isZakatGeneral = !programCode.startsWith('210103') && !programName.includes('fitrah') && 
-                                   !programName.includes('csr') && !programName.includes('qurban') && 
-                                   !programName.includes('kurban') && !programName.includes('fidyah') && 
-                                   !programName.includes('dskl');
-            if (isZakatGeneral && pAsnaf === rowAsnaf) {
+            const isZakatGeneral = !p.programCode.startsWith('210103') && !p.programName.includes('fitrah') && 
+                                   !p.programName.includes('csr') && !p.programName.includes('qurban') && 
+                                   !p.programName.includes('kurban') && !p.programName.includes('fidyah') && 
+                                   !p.programName.includes('dskl');
+            if (isZakatGeneral && p.asnaf === rowAsnaf) {
               isMatch = true;
             }
           } else if (row.type === 'fitrah') {
-            const isFitrah = programCode.startsWith('210103') || programName.includes('fitrah');
-            if (isFitrah && pAsnaf === rowAsnaf) {
+            const isFitrah = p.programCode.startsWith('210103') || p.programName.includes('fitrah');
+            if (isFitrah && p.asnaf === rowAsnaf) {
               isMatch = true;
             }
           } else if (row.type === 'infaq_tidak_terikat') {
-            isMatch = programName.includes('tidak terikat');
+            isMatch = p.programName.includes('tidak terikat');
           } else if (row.type === 'infaq_terikat') {
-            isMatch = programName.includes('terikat') && !programName.includes('tidak terikat');
+            isMatch = p.programName.includes('terikat') && !p.programName.includes('tidak terikat');
           } else if (row.type === 'infaq_penyaluran') {
-            isMatch = programName.includes('infaq penyaluran');
+            isMatch = p.programName.includes('infaq penyaluran');
           } else if (row.type === 'csr') {
-            isMatch = programName.includes('csr') || programCode.includes('240106.1');
+            isMatch = p.programName.includes('csr') || p.programCode.includes('240106.1');
           } else if (row.type === 'qurban') {
-            isMatch = programName.includes('qurban') || programName.includes('kurban') || programCode.includes('210104');
+            isMatch = p.programName.includes('qurban') || p.programName.includes('kurban') || p.programCode.includes('210104');
           } else if (row.type === 'fidyah') {
-            isMatch = programName.includes('fidyah');
+            isMatch = p.programName.includes('fidyah');
           } else if (row.type === 'dskl') {
-            isMatch = programName.includes('dskl');
+            isMatch = p.programName.includes('dskl');
           } else if (row.type === 'infaq_amil') {
-            isMatch = programName.includes('infaq amil') || programName.includes('infaq untuk amil');
+            isMatch = p.programName.includes('infaq amil') || p.programName.includes('infaq untuk amil');
           } else if (row.type === 'pilar') {
-            isMatch = isPilarMatch;
+            isMatch = p.pilarCode === row.pilarCode;
           } else if (row.type === 'titipan_pilar') {
-            isMatch = isPilarMatch && (programName.includes('titipan') || programName.includes('dana titipan'));
+            isMatch = p.pilarCode === row.pilarCode && (p.programName.includes('titipan') || p.programName.includes('dana titipan'));
           } else if (row.type === 'apbd_kab_kota') {
-            isMatch = programName.includes('apbd');
+            isMatch = p.programName.includes('apbd');
           } else if (row.type === 'hak_pimpinan_amil') {
-            isMatch = programName.includes('pimpinan') || programName.includes('hak pimpinan');
+            isMatch = p.programName.includes('pimpinan') || p.programName.includes('hak pimpinan');
           }
         }
 
         if (isMatch) {
-          monthly[mIdx] += amt;
+          monthly[p.mIdx] += p.amt;
         }
       });
 
@@ -629,21 +663,15 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
     });
     const muzakkiNiks = new Set(muzakkis.map(m => m.nik));
 
-    // Compute unique mustahiks
+    // Compute unique mustahiks from pre-processed proposals
     const finalMustahikList = mustahikConfig.map(row => {
       const monthly = Array(12).fill(0);
       const uniqueDonorsMap = new Map<number, Set<string>>();
 
-      realizedProposals.forEach(p => {
-        const date = new Date(p.tanggal_masuk);
-        const mIdx = date.getMonth();
-        if (mIdx < 0 || mIdx > 11) return;
+      processedProposals.forEach(p => {
+        if (p.mIdx < 0 || p.mIdx > 11) return;
 
-        const mustahikId = p.mustahik_id || p.id;
-        const programCode = p.program?.code || '';
-        const programTipe = p.program?.tipe || 'Konsumtif';
-        const isPilarMatch = p.program?.pilar_code === row.pilarCode;
-
+        const isPilarMatch = p.pilarCode === row.pilarCode;
         let isMatch = false;
 
         if (row.type === 'pilar') {
@@ -651,29 +679,29 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
         } else if (row.type === 'total_mustahik') {
           isMatch = true;
         } else if (row.type === 'pendistribusian') {
-          isMatch = programTipe === 'Konsumtif';
+          isMatch = p.programTipe === 'Konsumtif';
         } else if (row.type === 'pendayagunaan') {
-          isMatch = programTipe === 'Produktif';
+          isMatch = p.programTipe === 'Produktif';
         } else if (row.type === 'nim_nrm') {
-          isMatch = !!p.mustahik?.nrm;
+          isMatch = !!p.mustahikNrm;
         } else if (row.type === 'kemiskinan') {
-          isMatch = p.mustahik?.status_graduasi === 'Sudah';
+          isMatch = p.mustahikStatusGraduasi === 'Sudah';
         } else if (row.type === 'desa_zakat') {
-          isMatch = (p.mustahik?.alamat || '').toLowerCase().includes('desa') || (p.mustahik?.alamat || '').toLowerCase().includes('kelurahan');
+          isMatch = p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan');
         } else if (row.type === 'desa_pemberdayaan') {
-          isMatch = programTipe === 'Produktif' && ((p.mustahik?.alamat || '').toLowerCase().includes('desa') || (p.mustahik?.alamat || '').toLowerCase().includes('kelurahan'));
+          isMatch = p.programTipe === 'Produktif' && (p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan'));
         } else if (row.type === 'mustahik_to_muzakki') {
-          isMatch = !!p.mustahik?.nik && muzakkiNiks.has(p.mustahik.nik);
+          isMatch = !!p.mustahikNik && muzakkiNiks.has(p.mustahikNik);
         }
 
         if (isMatch) {
-          if (!uniqueDonorsMap.has(mIdx)) {
-            uniqueDonorsMap.set(mIdx, new Set<string>());
+          if (!uniqueDonorsMap.has(p.mIdx)) {
+            uniqueDonorsMap.set(p.mIdx, new Set<string>());
           }
-          const set = uniqueDonorsMap.get(mIdx)!;
-          if (!set.has(mustahikId)) {
-            set.add(mustahikId);
-            monthly[mIdx]++;
+          const set = uniqueDonorsMap.get(p.mIdx)!;
+          if (!set.has(p.mustahikId)) {
+            set.add(p.mustahikId);
+            monthly[p.mIdx]++;
           }
         }
       });
@@ -718,6 +746,13 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
     // Fetch all RKAT Pengumpulan items from DB (used to override target budgets)
     const dbRkatList = await prisma.rkatPengumpulan.findMany();
 
+    // Map for fast O(1) lookup of RKAT items
+    const dbRkatMap = new Map<string, any>();
+    dbRkatList.forEach(item => {
+      if (item.no) dbRkatMap.set(item.no.trim(), item);
+      if (item.nama_program) dbRkatMap.set(item.nama_program.toLowerCase().trim(), item);
+    });
+
     // Fetch all PenerimaanZis receipts within the year
     const receipts = await prisma.penerimaanZis.findMany({
       where: {
@@ -729,6 +764,41 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
       include: {
         rkat: true
       }
+    });
+
+    const dbMappingsTargetCoas = dbMappings.map(m => ({
+      row_key: m.row_key,
+      targetCoas: m.coa_codes ? m.coa_codes.split(',').map(c => c.trim().replace(/[\s\.]/g, '')) : []
+    }));
+
+    const monthKeys = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
+
+    // Pre-process receipts ONCE
+    const processedReceipts = receipts.map(p => {
+      const date = new Date(p.tanggal_pembayaran);
+      const mIdx = date.getMonth();
+      const mKey = monthKeys[mIdx] || '';
+      const amt = Number(p.nominal) || 0;
+      const programName = (p.rkat?.nama_program || '').toLowerCase();
+
+      let matchedRowKey = '';
+      const rkatCoaCodesStr = p.rkat?.coa_codes || '';
+      if (rkatCoaCodesStr) {
+        const cleanCoas = rkatCoaCodesStr.split(',').map(c => c.trim().replace(/[\s\.]/g, ''));
+        const matched = dbMappingsTargetCoas.find(m => 
+          cleanCoas.some(rc => m.targetCoas.some(tc => rc.startsWith(tc)))
+        );
+        if (matched) {
+          matchedRowKey = matched.row_key;
+        }
+      }
+
+      return {
+        mKey,
+        amt,
+        programName,
+        matchedRowKey,
+      };
     });
 
     const rowsConfig: any[] = [
@@ -762,7 +832,6 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
     dbMappings.forEach(dbm => {
       const exists = rowsConfig.some(row => row.key === dbm.row_key);
       if (!exists && dbm.row_key.startsWith('rkat_')) {
-        // Find if it belongs to zakat, infak, or dskl/csr based on label/key
         let section = 'zakat';
         let kategori = 'Zakat';
         const lowerLabel = dbm.row_label.toLowerCase();
@@ -800,11 +869,8 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
     });
 
     const finalRkatList = rowsConfig.map(row => {
-      // Find matching item in DB to override targets
-      const dbRkat = dbRkatList.find(item => 
-        (item.nama_program || '').toLowerCase().trim() === row.nama_program.toLowerCase().trim() ||
-        (item.no || '').trim() === row.no.trim()
-      );
+      // Find matching item in DB Map to override targets
+      const dbRkat = dbRkatMap.get(row.no.trim()) || dbRkatMap.get(row.nama_program.toLowerCase().trim());
 
       let nilai_anggaran = row.fallbackTarget;
       let target_jan = null, target_feb = null, target_mar = null, target_apr = null, target_mei = null, target_jun = null;
@@ -832,35 +898,14 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
         jul: 0, agt: 0, sep: 0, okt: 0, nov: 0, des: 0
       };
 
-      const monthKeys = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
-
-      receipts.forEach(p => {
-        const date = new Date(p.tanggal_pembayaran);
-        const mIdx = date.getMonth();
-        const mKey = monthKeys[mIdx];
-        if (!mKey) return;
-
-        const amt = Number(p.nominal) || 0;
+      processedReceipts.forEach(p => {
+        if (!p.mKey) return;
         let isMatch = false;
 
-        // Try mapping by COA Mapping in DB first
-        const rkatCoaCodesStr = p.rkat?.coa_codes || '';
-        if (rkatCoaCodesStr) {
-          const cleanCoas = rkatCoaCodesStr.split(',').map(c => c.trim().replace(/[\s\.]/g, ''));
-          const matched = dbMappings.find(m => {
-            if (!m.coa_codes) return false;
-            const targetCoas = m.coa_codes.split(',').map(c => c.trim().replace(/[\s\.]/g, ''));
-            return cleanCoas.some(rc => targetCoas.some(tc => rc.startsWith(tc)));
-          });
-
-          if (matched && matched.row_key === row.key) {
-            isMatch = true;
-          }
-        }
-
-        // Fallback to legacy matching if COA match fails
-        if (!isMatch) {
-          const programName = (p.rkat?.nama_program || '').toLowerCase();
+        if (p.matchedRowKey && p.matchedRowKey === row.key) {
+          isMatch = true;
+        } else if (!p.matchedRowKey) {
+          const programName = p.programName;
           
           if (row.key === 'rkat_zakat_maal_badan') {
             isMatch = programName.includes('maal') && programName.includes('badan');
@@ -900,11 +945,12 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
         }
 
         if (isMatch) {
-          monthly[mKey as keyof typeof monthly] += amt;
+          monthly[p.mKey as keyof typeof monthly] += p.amt;
         }
       });
 
       const realisasi_total = Object.values(monthly).reduce((s, v) => s + v, 0);
+
 
       return {
         id: row.key,
