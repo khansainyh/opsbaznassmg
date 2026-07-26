@@ -107,6 +107,13 @@ export const getLaporanKinerjaMappings = async (req: Request, res: Response) => 
   }
 };
 
+const reportCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 30 * 1000;
+
+export const invalidateReportCache = () => {
+  reportCache.clear();
+};
+
 export const updateLaporanKinerjaMapping = async (req: Request, res: Response) => {
   try {
     const { row_key, coa_codes, tab, row_label } = req.body;
@@ -129,6 +136,7 @@ export const updateLaporanKinerjaMapping = async (req: Request, res: Response) =
       }
     });
 
+    invalidateReportCache();
     res.status(200).json({ status: 'success', mapping });
   } catch (error) {
     console.error(error);
@@ -141,16 +149,23 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
     const yearStr = req.query.year as string;
     const year = yearStr ? parseInt(yearStr) : new Date().getFullYear();
 
+    const cacheKey = `muzakki_munfiq_${year}`;
+    const cached = reportCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return res.status(200).json(cached.data);
+    }
+
     const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
     const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
 
     // Ensure mapping exists
     await ensureDefaultMappingsExist();
     const dbMappings = await prisma.laporanKinerjaMapping.findMany({
-      where: { tab: 'pengumpulan' }
+      where: { tab: 'pengumpulan' },
+      select: { row_key: true, row_label: true, coa_codes: true }
     });
 
-    // Fetch all ZIS receipts within the year
+    // Fetch all ZIS receipts within the year using select projection
     const receipts = await prisma.penerimaanZis.findMany({
       where: {
         tanggal_pembayaran: {
@@ -158,9 +173,15 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
           lte: endDate
         }
       },
-      include: {
-        muzakki: true,
-        rkat: true
+      select: {
+        tanggal_pembayaran: true,
+        muzakki_id: true,
+        muzakki: {
+          select: { kategori: true }
+        },
+        rkat: {
+          select: { coa_codes: true, kategori: true, nama_program: true }
+        }
       }
     });
 
@@ -329,21 +350,32 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
     const yearStr = req.query.year as string;
     const year = yearStr ? parseInt(yearStr) : new Date().getFullYear();
 
+    const cacheKey = `penyaluran_${year}`;
+    const cached = reportCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return res.status(200).json(cached.data);
+    }
+
     const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
     const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
 
     // Ensure mapping exists
     await ensureDefaultMappingsExist();
     const dbMappings = await prisma.laporanKinerjaMapping.findMany({
-      where: { tab: 'penyaluran' }
+      where: { tab: 'penyaluran' },
+      select: { row_key: true, row_label: true, coa_codes: true }
     });
 
-    // Fetch all programs in the DB
+    // Fetch all programs in the DB using select projection
     const dbPrograms = await prisma.program.findMany({
-      include: { pilar: true }
+      select: {
+        code: true,
+        budget_rkat: true,
+        pilar_code: true
+      }
     });
 
-    // Fetch realized proposals
+    // Fetch realized proposals using select projection
     const realizedProposals = await prisma.proposal.findMany({
       where: {
         status: {
@@ -354,20 +386,51 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
           lte: endDate
         }
       },
-      include: {
+      select: {
+        id: true,
+        mustahik_id: true,
+        tanggal_masuk: true,
+        nominal: true,
+        asnaf: true,
         program: {
-          include: { pilar: true }
+          select: {
+            code: true,
+            name: true,
+            tipe: true,
+            pilar_code: true
+          }
         },
-        mustahik: true
+        mustahik: {
+          select: {
+            alamat: true,
+            nrm: true,
+            status_graduasi: true,
+            nik: true
+          }
+        }
       }
     });
 
-    // Fetch COA mappings and realized entries for proposals
-    const coaMappingRules = await prisma.coaMappingRule.findMany();
-    const proposalIds = realizedProposals.map(p => p.id);
+    // Fetch COA mappings and realized entries for proposals using select projection
+    const coaMappingRules = await prisma.coaMappingRule.findMany({
+      select: {
+        program_code: true,
+        asnaf_id: true,
+        debit_coa_code: true
+      }
+    });
+
     const realisasiList = await prisma.realisasi.findMany({
-      where: { proposal_id: { in: proposalIds } },
-      include: { journalEntries: true }
+      where: { proposal_id: { not: null } },
+      select: {
+        proposal_id: true,
+        journalEntries: {
+          select: {
+            debit: true,
+            coa_code: true
+          }
+        }
+      }
     });
 
     // Pre-build Map lookups for O(1) matching
@@ -717,12 +780,14 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       };
     });
 
-    res.status(200).json({
+    const responsePayload = {
       status: 'success',
       year,
       rkatPenyaluranList: finalRkatList,
       mustahikGrowthList: finalMustahikList
-    });
+    };
+    reportCache.set(cacheKey, { timestamp: Date.now(), data: responsePayload });
+    res.status(200).json(responsePayload);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: String(error) });
@@ -734,13 +799,20 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
     const yearStr = req.query.year as string;
     const year = yearStr ? parseInt(yearStr) : new Date().getFullYear();
 
+    const cacheKey = `pengumpulan_${year}`;
+    const cached = reportCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return res.status(200).json(cached.data);
+    }
+
     const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
     const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
 
     // Ensure mapping exists
     await ensureDefaultMappingsExist();
     const dbMappings = await prisma.laporanKinerjaMapping.findMany({
-      where: { tab: 'pengumpulan' }
+      where: { tab: 'pengumpulan' },
+      select: { row_key: true, row_label: true, coa_codes: true }
     });
 
     // Fetch all RKAT Pengumpulan items from DB (used to override target budgets)
@@ -965,11 +1037,13 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
       };
     });
 
-    res.status(200).json({
+    const responsePayload = {
       status: 'success',
       year,
       data: finalRkatList
-    });
+    };
+    reportCache.set(cacheKey, { timestamp: Date.now(), data: responsePayload });
+    res.status(200).json(responsePayload);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: String(error) });
