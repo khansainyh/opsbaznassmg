@@ -6,6 +6,7 @@ import {
   AlertCircle, 
   X, 
   ChevronRight, 
+  ChevronDown,
   Plus, 
   Search, 
   Building, 
@@ -52,6 +53,31 @@ export default function PenerimaanBankJateng() {
   const [tanggalPembayaran, setTanggalPembayaran] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+  const [isTransitSource, setIsTransitSource] = useState(false);
+  const [transitEntries, setTransitEntries] = useState<any[]>([]);
+  const [selectedTransitId, setSelectedTransitId] = useState<string>('');
+  const [isTransitDropdownOpen, setIsTransitDropdownOpen] = useState(false);
+  const [transitSearchTerm, setTransitSearchTerm] = useState('');
+
+  const selectedTransitObj = useMemo(() => {
+    return transitEntries.find(t => t.transaksi_id === selectedTransitId) || null;
+  }, [transitEntries, selectedTransitId]);
+
+  const filteredTransitEntries = useMemo(() => {
+    if (!transitSearchTerm.trim()) return transitEntries;
+    const term = transitSearchTerm.toLowerCase();
+    return transitEntries.filter(t => {
+      const ket = (t.keterangan || '').toLowerCase();
+      const tgl = (t.tanggal || '').toLowerCase();
+      const bank = (t.bank_account_name || '').toLowerCase();
+      const nom = String(t.nominal_awal || '');
+      return ket.includes(term) || tgl.includes(term) || bank.includes(term) || nom.includes(term);
+    });
+  }, [transitEntries, transitSearchTerm]);
+
+  const totalSelectedByNameNominal = useMemo(() => {
+    return fileData.filter(i => i.selected && i.matched).reduce((sum, item) => sum + Number(item.nominal || 0), 0);
+  }, [fileData]);
   
   // UI States
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,6 +129,25 @@ export default function PenerimaanBankJateng() {
     };
     fetchUpzList();
   }, []);
+
+  useEffect(() => {
+    const fetchTransitEntries = async () => {
+      try {
+        const res = await axios.get('/api/finance/transit-entries');
+        if (res.data.status === 'success') {
+          setTransitEntries(res.data.data);
+          if (res.data.data.length > 0) {
+            setSelectedTransitId(res.data.data[0].transaksi_id);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching transit entries:', err);
+      }
+    };
+    if (isTransitSource) {
+      fetchTransitEntries();
+    }
+  }, [isTransitSource]);
 
 
   const findMatchingUpzName = (rawOpd: string) => {
@@ -652,12 +697,13 @@ export default function PenerimaanBankJateng() {
         const banksOnly = bankData.filter((acc: any) => acc.tipe_kas === 'BANK');
         setBankAccounts(banksOnly);
         if (banksOnly.length > 0) {
-          const bankJatengAcc = banksOnly.find((acc: any) => 
-            acc.coa_code === '11011501' || 
-            acc.coa?.coa_code === '11011501' || 
-            acc.nama_akun?.toLowerCase().includes('jateng')
-          ) || banksOnly[0];
-          setSelectedBankAccountId(bankJatengAcc.account_id);
+          const bankJatengAcc = banksOnly.find((acc: any) => acc.coa_code === '11011501') || 
+            banksOnly.find((acc: any) => acc.coa?.coa_code === '11011501') || 
+            banksOnly.find((acc: any) => acc.nama_akun?.toLowerCase().includes('jateng')) || 
+            banksOnly[0];
+          if (bankJatengAcc) {
+            setSelectedBankAccountId(bankJatengAcc.account_id);
+          }
         }
       }
     } catch (err) {
@@ -1012,7 +1058,10 @@ export default function PenerimaanBankJateng() {
           keterangan: fd.keterangan || 'Gagal Potong'
         })),
         bank_account_id: selectedBankAccountId,
-        tanggal_pembayaran: tanggalPembayaran
+        tanggal_pembayaran: tanggalPembayaran,
+        is_transit_source: isTransitSource,
+        source_coa: isTransitSource ? '49000001' : undefined,
+        selected_transit_id: isTransitSource ? selectedTransitId : undefined
       };
 
       const res = await axios.post('/api/bank-jateng/approve', payload);
@@ -1735,6 +1784,141 @@ export default function PenerimaanBankJateng() {
                     onChange={(e) => setTanggalPembayaran(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-slate-800"
                   />
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl bg-amber-50/60 border border-amber-200/70 hover:bg-amber-100/60 transition-colors">
+                    <input 
+                      type="checkbox"
+                      checked={isTransitSource}
+                      onChange={(e) => setIsTransitSource(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 text-amber-600 rounded focus:ring-amber-500 border-slate-300 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">Dari Dana Transit (COA 49000001)</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                        Centang jika mutasi bank (belum teridentifikasi) sudah diinput sebelumnya agar saldo bank tidak terduplikasi.
+                      </span>
+                    </div>
+                  </label>
+
+                  {isTransitSource && (
+                    <div className="space-y-3 p-3.5 bg-amber-500/5 rounded-2xl border border-amber-500/20 relative">
+                      <div className="space-y-1 relative">
+                        <label className="text-[10px] font-black text-amber-900 uppercase tracking-wider block">
+                          Pilih Mutasi Transit *
+                        </label>
+                        {transitEntries.length === 0 ? (
+                          <p className="text-xs text-amber-700 italic py-1">Belum ada mutasi transit di database.</p>
+                        ) : (
+                          <div className="relative">
+                            <div 
+                              onClick={() => setIsTransitDropdownOpen(!isTransitDropdownOpen)}
+                              className="w-full bg-white border border-amber-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 outline-none focus-within:ring-2 focus-within:ring-amber-500/20 font-semibold cursor-pointer flex items-center justify-between shadow-sm hover:border-amber-300 transition-all"
+                            >
+                              {selectedTransitObj ? (
+                                <div className="text-left overflow-hidden pr-2">
+                                  <span className="font-extrabold text-slate-900 block truncate leading-snug">{selectedTransitObj.keterangan}</span>
+                                  <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
+                                    {selectedTransitObj.tanggal ? new Date(selectedTransitObj.tanggal).toISOString().split('T')[0] : ''} • {selectedTransitObj.bank_account_name} • <span className="font-extrabold text-amber-700">Rp {Number(selectedTransitObj.nominal_awal || 0).toLocaleString('id-ID')}</span>
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 font-normal">Cari atau pilih mutasi transit...</span>
+                              )}
+                              <ChevronDown className={cn("w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ml-1", isTransitDropdownOpen && "rotate-180")} />
+                            </div>
+
+                            {isTransitDropdownOpen && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-20" 
+                                  onClick={() => setIsTransitDropdownOpen(false)} 
+                                />
+                                <div className="absolute left-0 right-0 mt-1.5 bg-white border border-amber-200/90 rounded-xl shadow-xl z-30 overflow-hidden max-h-72 flex flex-col animate-in fade-in zoom-in-95 duration-150">
+                                  <div className="p-2 border-b border-slate-100 bg-slate-50/80 sticky top-0 z-10 flex items-center gap-2">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
+                                    <input 
+                                      type="text"
+                                      autoFocus
+                                      placeholder="Cari keterangan, tanggal, nominal..."
+                                      value={transitSearchTerm}
+                                      onChange={(e) => setTransitSearchTerm(e.target.value)}
+                                      className="w-full bg-transparent text-xs text-slate-800 placeholder:text-slate-400 outline-none font-medium py-1"
+                                    />
+                                    {transitSearchTerm && (
+                                      <button 
+                                        type="button" 
+                                        onClick={() => setTransitSearchTerm('')}
+                                        className="text-slate-400 hover:text-slate-600 p-0.5"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  <div className="overflow-y-auto max-h-56 custom-scrollbar divide-y divide-slate-100">
+                                    {filteredTransitEntries.length === 0 ? (
+                                      <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                                        Tidak ditemukan mutasi yang sesuai "{transitSearchTerm}"
+                                      </div>
+                                    ) : (
+                                      filteredTransitEntries.map((t) => (
+                                        <button
+                                          key={t.transaksi_id}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedTransitId(t.transaksi_id);
+                                            setIsTransitDropdownOpen(false);
+                                            setTransitSearchTerm('');
+                                          }}
+                                          className={cn(
+                                            "w-full text-left p-3 hover:bg-amber-50/70 transition-colors flex flex-col gap-1",
+                                            selectedTransitId === t.transaksi_id && "bg-amber-50 border-l-4 border-amber-500 pl-2.5 font-bold"
+                                          )}
+                                        >
+                                          <span className="text-xs font-black text-slate-900 leading-snug">
+                                            {t.keterangan}
+                                          </span>
+                                          <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium pt-0.5">
+                                            <span>
+                                              {t.tanggal ? new Date(t.tanggal).toISOString().split('T')[0] : ''} • {t.bank_account_name}
+                                            </span>
+                                            <span className="font-extrabold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md">
+                                              Rp {Number(t.nominal_awal || 0).toLocaleString('id-ID')}
+                                            </span>
+                                          </div>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedTransitObj && (
+                        <div className="bg-white p-3 rounded-xl border border-amber-200 text-xs space-y-1.5 shadow-sm">
+                          <div className="flex justify-between text-slate-600">
+                            <span>Nominal Mutasi Transit (Awal):</span>
+                            <span className="font-bold text-slate-800">Rp {Number(selectedTransitObj.nominal_awal || 0).toLocaleString('id-ID')}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>Total Rincian Import:</span>
+                            <span className="font-bold text-emerald-600">Rp {totalSelectedByNameNominal.toLocaleString('id-ID')}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-dashed border-slate-200 pt-1 text-slate-700">
+                            <span>Sisa Mengendap di Transit:</span>
+                            <span className={cn("font-extrabold", (Number(selectedTransitObj.nominal_awal || 0) - totalSelectedByNameNominal) < 0 ? "text-red-600" : "text-amber-600")}>
+                              Rp {(Number(selectedTransitObj.nominal_awal || 0) - totalSelectedByNameNominal).toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -191,5 +191,15 @@
     "nominal": 2000000,
     "type": "KREDIT",
     "status": "PENDING"
+  },
+  {
+    "id": "mut-1785139164016",
+    "tanggal": "2026-07-27",
+    "bankAccountId": "070f7061-c198-4e71-baa7-c34c0f701180",
+    "bankName": "Bank Jateng",
+    "keteranganBank": "Bank Jateng UPZ Dinas Pendidikan",
+    "nominal": 20000000,
+    "type": "DEBIT",
+    "status": "PENDING"
   }
 ]

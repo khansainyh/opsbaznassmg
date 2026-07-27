@@ -10,6 +10,18 @@ import path from 'path';
 
 export const getCOAs = async (req: Request, res: Response) => {
   try {
+    const transitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: '49000001' } });
+    if (!transitCoa) {
+      await prisma.chartOfAccounts.create({
+        data: {
+          coa_code: '49000001',
+          nama_akun: 'Penerimaan ZIS Belum Teridentifikasi (Transit)',
+          klasifikasi: 'Penerimaan Transit',
+          tipe_dana: 'TRANSIT'
+        }
+      });
+    }
+
     const coas = await prisma.chartOfAccounts.findMany({
       orderBy: { coa_code: 'asc' }
     });
@@ -1746,6 +1758,65 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
   } catch (error) {
     console.error('Error migrating Buku Besar:', error);
     res.status(500).json({ error: String(error) });
+  }
+};
+
+export const getTransitEntries = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const results: any[] = [];
+
+    // 1. Fetch from Prisma JournalEntry (COA 49000001)
+    const transitCredits = await prisma.journalEntry.findMany({
+      where: {
+        coa_code: '49000001',
+        kredit: { gt: 0 }
+      },
+      include: {
+        realisasi: true,
+        account: true
+      },
+      orderBy: {
+        realisasi: { tanggal: 'desc' }
+      }
+    });
+
+    for (const c of transitCredits) {
+      results.push({
+        transaksi_id: c.transaksi_id,
+        tanggal: c.realisasi?.tanggal,
+        keterangan: c.realisasi?.keterangan || 'Mutasi Transit (Belum Teridentifikasi)',
+        nominal_awal: Number(c.kredit || 0),
+        account_id: c.account_id,
+        bank_account_name: c.account?.nama_akun || 'Bank',
+        source: 'JOURNAL'
+      });
+    }
+
+    // 2. Fetch from mutations.json (Pending mutations from Identifikasi Mutasi)
+    const jsonPath = path.join(__dirname, '../data/mutations.json');
+    if (fs.existsSync(jsonPath)) {
+      const muts = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '[]');
+      const pendingMuts = muts.filter((m: any) => m.status === 'PENDING' && (m.type === 'DEBIT' || !m.type));
+      
+      for (const m of pendingMuts) {
+        if (!results.some(r => r.transaksi_id === m.id)) {
+          results.push({
+            transaksi_id: m.id,
+            tanggal: m.tanggal || m.tanggalCatatan,
+            keterangan: m.keteranganBank || 'Mutasi Belum Teridentifikasi',
+            nominal_awal: Number(m.nominal || 0),
+            account_id: m.bankAccountId,
+            bank_account_name: m.bankName || 'Bank Jateng',
+            source: 'MUTATION_JSON'
+          });
+        }
+      }
+    }
+
+    res.status(200).json({ status: 'success', data: results });
+  } catch (error: any) {
+    console.error('Error fetching transit entries:', error);
+    res.status(500).json({ status: 'error', error: error.message || String(error) });
   }
 };
 

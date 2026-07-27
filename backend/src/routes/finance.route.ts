@@ -22,7 +22,8 @@ import {
    createManualExpense,
    checkLedgerHealth,
    getReplenishments,
-   migrateBukuBesar
+   migrateBukuBesar,
+   getTransitEntries
  } from '../controllers/finance.controller';
 
 const router = Router();
@@ -59,5 +60,6 @@ router.get('/ledger', getJournalEntries);
 router.get('/ledger/rekap', getCoaSummaries);
 router.get('/ledger/health-check', checkLedgerHealth);
 router.post('/ledger/migrate', migrateBukuBesar);
+router.get('/transit-entries', getTransitEntries);
 
 export default router;

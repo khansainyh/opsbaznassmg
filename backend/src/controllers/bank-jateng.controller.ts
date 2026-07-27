@@ -48,7 +48,8 @@ export const lookupMuzakki = async (req: Request, res: Response): Promise<void> 
 
 export const approveBankJateng = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { transactions, bank_account_id, tanggal_pembayaran } = req.body;
+    const { transactions, bank_account_id, tanggal_pembayaran, is_transit_source, source_coa, selected_transit_id } = req.body;
+    const isTransit = is_transit_source === true || is_transit_source === 'true' || source_coa === '49000001';
     // transactions: Array of { muzakki_id: string, nominal: number, keterangan: string }
     
     if (!bank_account_id || !Array.isArray(transactions) || transactions.length === 0) {
@@ -232,14 +233,17 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
           data: { transaksi_id: realisasiTrx.transaksi_id }
         });
 
-        // 4. Create Debit entry (Cash/Bank account)
+        // 4. Create Debit entry (Cash/Bank account or Transit Account)
+        const debitCoaCode = isTransit ? '49000001' : bankAccount.coa_code;
+        const debitAccountId = isTransit ? null : bank_account_id;
+
         await tx.journalEntry.create({
           data: {
             transaksi_id: realisasiTrx.transaksi_id,
-            coa_code: bankAccount.coa_code,
+            coa_code: debitCoaCode,
             debit: new Prisma.Decimal(nominalVal),
             kredit: new Prisma.Decimal(0.00),
-            account_id: bank_account_id
+            account_id: debitAccountId
           }
         });
 
@@ -287,16 +291,47 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         });
       }
 
-      // 6. Update BankAccount balance with total sum (batch addition)
-      await tx.bankAccount.update({
-        where: { account_id: bank_account_id },
-        data: {
-          saldo: { increment: new Prisma.Decimal(totalNominal) }
-        }
-      });
+      // 6. Update BankAccount balance only if not transit source
+      if (!isTransit) {
+        await tx.bankAccount.update({
+          where: { account_id: bank_account_id },
+          data: {
+            saldo: { increment: new Prisma.Decimal(totalNominal) }
+          }
+        });
+      }
 
       return createdItems;
     });
+
+    if (selected_transit_id) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const jsonPath = path.join(__dirname, '../data/mutations.json');
+        if (fs.existsSync(jsonPath)) {
+          const muts = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '[]');
+          let updated = false;
+          const newMuts = muts.map((m: any) => {
+            if (m.id === selected_transit_id) {
+              updated = true;
+              return {
+                ...m,
+                status: 'RECONCILED',
+                reconciledAt: new Date().toISOString(),
+                reconciledBy: 'System / Bank Jateng Import'
+              };
+            }
+            return m;
+          });
+          if (updated) {
+            fs.writeFileSync(jsonPath, JSON.stringify(newMuts, null, 2), 'utf-8');
+          }
+        }
+      } catch (mErr) {
+        console.error('Error updating mutations.json status:', mErr);
+      }
+    }
 
     res.status(200).json({ status: 'success', data: results });
   } catch (error: any) {
