@@ -2347,10 +2347,10 @@ export default function PenerimaanZis() {
                         if (code && PROGRAM_KODE_TO_RKAT_MAP[code]) {
                           const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[code];
                           if (mapInfo.rkat_no && !isOutsideRkat) {
+                            const targetNo = String(mapInfo.rkat_no).trim();
                             const matchedRkat = rkatList.find(r => 
-                              r.no === mapInfo.rkat_no || 
-                              r.id === mapInfo.rkat_no ||
-                              r.nama_program.toLowerCase().includes(mapInfo.jenis.toLowerCase().split(' ')[0])
+                              String(r.no || '').trim() === targetNo || 
+                              String(r.id || '').trim() === targetNo
                             );
                             if (matchedRkat) {
                               handleRkatChange(matchedRkat.id);

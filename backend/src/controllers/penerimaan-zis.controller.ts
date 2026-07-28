@@ -272,9 +272,19 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       if (!muzakki) throw new Error('Muzakki tidak ditemukan');
 
       let rkat = null;
-      if (rkat_id) {
-        rkat = await tx.rkatPengumpulan.findUnique({ where: { id: rkat_id } });
-        if (!rkat) throw new Error('Program RKAT Pengumpulan tidak ditemukan');
+      let effectiveRkatId = rkat_id || null;
+      if (!effectiveRkatId && kode_program && PROGRAM_KODE_TO_RKAT_MAP[kode_program]) {
+        const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[kode_program];
+        if (mapInfo.rkat_no) {
+          const matchedRkat = await tx.rkatPengumpulan.findFirst({
+            where: { OR: [{ no: mapInfo.rkat_no }, { id: mapInfo.rkat_no }] }
+          });
+          if (matchedRkat) effectiveRkatId = matchedRkat.id;
+        }
+      }
+      if (effectiveRkatId) {
+        rkat = await tx.rkatPengumpulan.findUnique({ where: { id: effectiveRkatId } });
+        if (!rkat && rkat_id) throw new Error('Program RKAT Pengumpulan tidak ditemukan');
       }
 
       let bankAccount = await tx.bankAccount.findUnique({ where: { account_id: bank_account_id } });
