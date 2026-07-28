@@ -494,7 +494,13 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     });
 
     // Update JSON mutation state
-    mutation.status = 'RECONCILED';
+    const prevAllocated = Number(mutation.allocatedNominal || 0);
+    const newAllocated = isEdit ? nominal : prevAllocated + nominal;
+    const totalMutNominal = Number(mutation.nominal || 0);
+    const isFullyReconciled = newAllocated >= totalMutNominal - 0.01;
+
+    mutation.allocatedNominal = newAllocated;
+    mutation.status = isFullyReconciled ? 'RECONCILED' : 'PARTIAL';
     mutation.reconciledAt = new Date().toISOString();
     mutation.reconciledBy = userName || 'Staff';
     mutation.muzakkiId = muzakkiId || null;
@@ -735,7 +741,13 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
     });
 
     // Update JSON mutation state
-    mutation.status = 'RECONCILED';
+    const prevAllocated = Number(mutation.allocatedNominal || 0);
+    const newAllocated = isEdit ? nominal : prevAllocated + nominal;
+    const totalMutNominal = Number(mutation.nominal || 0);
+    const isFullyReconciled = newAllocated >= totalMutNominal - 0.01;
+
+    mutation.allocatedNominal = newAllocated;
+    mutation.status = isFullyReconciled ? 'RECONCILED' : 'PARTIAL';
     mutation.reconciledAt = new Date().toISOString();
     mutation.reconciledBy = userName || 'Staff';
     mutation.muzakkiId = muzakkiId;

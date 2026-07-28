@@ -1781,30 +1781,68 @@ export const getTransitEntries = async (req: Request, res: Response): Promise<vo
     });
 
     for (const c of transitCredits) {
-      results.push({
-        transaksi_id: c.transaksi_id,
-        tanggal: c.realisasi?.tanggal,
-        keterangan: c.realisasi?.keterangan || 'Mutasi Transit (Belum Teridentifikasi)',
-        nominal_awal: Number(c.kredit || 0),
-        account_id: c.account_id,
-        bank_account_name: c.account?.nama_akun || 'Bank',
-        source: 'JOURNAL'
+      const nominalAwal = Number(c.kredit || 0);
+
+      // Check allocated receipts for this transit
+      const linkedReceipts = await prisma.penerimaanZis.aggregate({
+        where: {
+          OR: [
+            { no_kuitansi: { contains: c.transaksi_id } },
+            { keterangan: { contains: c.transaksi_id } }
+          ],
+          status_simba: { not: 'FAILED' }
+        },
+        _sum: { nominal: true }
       });
+
+      const allocated = Number(linkedReceipts._sum.nominal || 0);
+      const sisa = Math.max(0, nominalAwal - allocated);
+
+      if (sisa > 0.01) {
+        results.push({
+          transaksi_id: c.transaksi_id,
+          tanggal: c.realisasi?.tanggal,
+          keterangan: allocated > 0
+            ? `${c.realisasi?.keterangan || 'Mutasi Transit'} (Sisa Potongan: Rp ${sisa.toLocaleString('id-ID')} / Total: Rp ${nominalAwal.toLocaleString('id-ID')})`
+            : (c.realisasi?.keterangan || 'Mutasi Transit (Belum Teridentifikasi)'),
+          nominal_awal: sisa,
+          total_nominal_awal: nominalAwal,
+          allocated_nominal: allocated,
+          account_id: c.account_id,
+          bank_account_name: c.account?.nama_akun || 'Bank',
+          source: 'JOURNAL'
+        });
+      }
     }
 
-    // 2. Fetch from mutations.json (Pending mutations from Identifikasi Mutasi)
+    // 2. Fetch from mutations.json (Pending or Partial mutations with remaining balance)
     const jsonPath = path.join(__dirname, '../data/mutations.json');
     if (fs.existsSync(jsonPath)) {
       const muts = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '[]');
-      const pendingMuts = muts.filter((m: any) => m.status === 'PENDING' && (m.type === 'DEBIT' || !m.type));
+      const availableMuts = muts.filter((m: any) => {
+        const isNotFullyReconciled = m.status === 'PENDING' || m.status === 'PARTIAL';
+        const isDebit = m.type === 'DEBIT' || !m.type;
+        const totalNom = Number(m.nominal || 0);
+        const allocatedNom = Number(m.allocatedNominal || 0);
+        const sisaNom = totalNom - allocatedNom;
+        return isNotFullyReconciled && isDebit && sisaNom > 0.01;
+      });
       
-      for (const m of pendingMuts) {
+      for (const m of availableMuts) {
         if (!results.some(r => r.transaksi_id === m.id)) {
+          const totalNominal = Number(m.nominal || 0);
+          const allocated = Number(m.allocatedNominal || 0);
+          const sisa = Math.max(0, totalNominal - allocated);
+
           results.push({
             transaksi_id: m.id,
             tanggal: m.tanggal || m.tanggalCatatan,
-            keterangan: m.keteranganBank || 'Mutasi Belum Teridentifikasi',
-            nominal_awal: Number(m.nominal || 0),
+            keterangan: allocated > 0
+              ? `${m.keteranganBank || 'Mutasi'} (Sisa Potongan: Rp ${sisa.toLocaleString('id-ID')} / Total: Rp ${totalNominal.toLocaleString('id-ID')})`
+              : (m.keteranganBank || 'Mutasi Belum Teridentifikasi'),
+            nominal_awal: sisa,
+            total_nominal_awal: totalNominal,
+            allocated_nominal: allocated,
             account_id: m.bankAccountId,
             bank_account_name: m.bankName || 'Bank Jateng',
             source: 'MUTATION_JSON'

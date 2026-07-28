@@ -32,6 +32,7 @@ import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ExcelJS from 'exceljs';
 
 export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; jenis: string; isUpz: boolean }> = {
   '101.1': { rkat_no: '2', jenis: 'Zakat Maal Perorangan', isUpz: false },
@@ -371,8 +372,7 @@ function CustomSelect({
 }
 
 export default function PenerimaanZis() {
-  const { user } = useAuth();
-  const isSuperAdmin = user?.role === 'Super_Admin';
+  const { user: _user } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
@@ -838,6 +838,31 @@ export default function PenerimaanZis() {
             kabidPengumpulan: kpUser ? kpUser.name : '',
             stafPengumpulan: spUser ? spUser.name : ''
           });
+
+          // Auto-fill Laporan Bulanan Rekap ZIS Signatories
+          const kepalaUser = uList.find((u: any) => {
+            const r = (u.role || '').toLowerCase();
+            const n = (u.name || '').toLowerCase();
+            return r.includes('kepala') || r.includes('pelaksana') || n.includes('asyhar') || n.includes('kepala');
+          });
+
+          const kabagUser = uList.find((u: any) => {
+            const r = (u.role || '').toLowerCase();
+            const n = (u.name || '').toLowerCase();
+            return r.includes('kabid') || r.includes('kabag') || r.includes('pengumpulan') || n.includes('muhtadin') || n.includes('pengumpulan');
+          });
+
+          const wakaUser = uList.find((u: any) => {
+            const r = (u.role || '').toLowerCase();
+            const n = (u.name || '').toLowerCase();
+            return r.includes('waka') || r.includes('wakil') || n.includes('labib') || n.includes('waka');
+          });
+
+          setSignatoriesBulanan(prev => ({
+            kepalaPelaksana: kepalaUser ? kepalaUser.name : (prev.kepalaPelaksana || 'Muhammad Asyhar, S.Sos.I'),
+            kabagPengumpulan: kabagUser ? kabagUser.name : (prev.kabagPengumpulan || 'Ahmad Muhtadin, S.HI'),
+            waka1: wakaUser ? wakaUser.name : (prev.waka1 || 'Drs. H. Labib, M.M')
+          }));
         })
         .catch(err => console.error('Error fetching users:', err));
     }
@@ -1068,6 +1093,348 @@ export default function PenerimaanZis() {
 
     return { total, count, zakat, infak, dskl };
   }, [summaryTotals, filteredData]);
+
+  const handleDownloadBulananExcel = async () => {
+    setIsFetchingRekap(true);
+    try {
+      let categories = rekapBulananCategories;
+      let umumItems = rekapBulananUmumItems;
+
+      const res = await axios.get('/api/penerimaan-zis/rekap-bulanan', {
+        params: { month: bulananReportMonth, year: bulananReportYear }
+      });
+      categories = res.data?.categories || {};
+      umumItems = res.data?.umumItems || [];
+      setRekapBulananCategories(categories);
+      setRekapBulananUmumItems(umumItems);
+
+      const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const monthStr = monthNames[bulananReportMonth - 1] || 'ALL';
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Rekap ZIS Bulanan');
+
+      worksheet.columns = [
+        { width: 8 },  // A: NO
+        { width: 48 }, // B: NAMA UPZ
+        { width: 24 }, // C: ZAKAT
+        { width: 24 }, // D: INFAK
+        { width: 26 }  // E: JUMLAH ZIS
+      ];
+
+      // Title Header
+      worksheet.mergeCells('A1:E1');
+      const r1 = worksheet.getCell('A1');
+      r1.value = 'REKAPITULASI PENERIMAAN ZAKAT, INFAK, SEDEKAH (ZIS)';
+      r1.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF064E3B' } };
+      r1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      worksheet.mergeCells('A2:E2');
+      const r2 = worksheet.getCell('A2');
+      r2.value = 'BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG';
+      r2.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0F766E' } };
+      r2.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      worksheet.mergeCells('A3:E3');
+      const r3 = worksheet.getCell('A3');
+      r3.value = `PERIODE ${monthStr.toUpperCase()} ${bulananReportYear}`;
+      r3.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF475569' } };
+      r3.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      worksheet.addRow([]); // Blank Row 4
+
+      // Table Header Row (Row 5)
+      const headerRow = worksheet.addRow(['NO', 'NAMA UPZ', 'ZAKAT', 'INFAK', 'JUMLAH ZIS']);
+      headerRow.height = 28;
+      headerRow.eachCell((cell, colNumber) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF0F766E' } // Dark Teal Fill
+        };
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }; // White bold font
+        cell.alignment = {
+          horizontal: colNumber === 1 ? 'center' : colNumber === 2 ? 'left' : 'right',
+          vertical: 'middle'
+        };
+        cell.border = {
+          top: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF064E3B' } },
+          bottom: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF064E3B' } },
+          left: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FF14B8A6' } },
+          right: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FF14B8A6' } }
+        };
+      });
+
+      let upzKotaZakat = 0;
+      let upzKotaInfak = 0;
+      let upzKotaTotal = 0;
+
+      const thinBorder: Partial<ExcelJS.Borders> = {
+        top: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFE2E8F0' } }
+      };
+
+      Object.entries(categories).forEach(([catName, items]: [string, any]) => {
+        const catRow = worksheet.addRow([catName.toUpperCase(), '', '', '', '']);
+        catRow.height = 24;
+        worksheet.mergeCells(`A${catRow.number}:E${catRow.number}`);
+        const catCell = catRow.getCell(1);
+        catCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFD1FAE5' } // Emerald Tint Fill
+        };
+        catCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF065F46' } };
+        catCell.alignment = { horizontal: 'left', vertical: 'middle' };
+        catCell.border = {
+          top: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFA7F3D0' } },
+          bottom: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFA7F3D0' } }
+        };
+
+        let catZakat = 0;
+        let catInfak = 0;
+        let catTotal = 0;
+
+        items.forEach((it: any, idx: number) => {
+          const z = Number(it.zakat || 0);
+          const i = Number(it.infak || 0);
+          const t = z + i;
+          catZakat += z;
+          catInfak += i;
+          catTotal += t;
+
+          const dataRow = worksheet.addRow([
+            idx + 1,
+            it.nama_upz || '-',
+            z,
+            i,
+            t
+          ]);
+          dataRow.height = 20;
+
+          dataRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+          dataRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+          dataRow.getCell(2).font = { name: 'Calibri', size: 10, bold: true };
+
+          [3, 4, 5].forEach(colIdx => {
+            const c = dataRow.getCell(colIdx);
+            c.numFmt = '"Rp "#,##0;("Rp "#,##0);"-"';
+            c.alignment = { horizontal: 'right', vertical: 'middle' };
+            c.font = { name: 'Calibri', size: 10 };
+          });
+
+          [1, 2, 3, 4, 5].forEach(colIdx => {
+            dataRow.getCell(colIdx).border = thinBorder;
+          });
+        });
+
+        upzKotaZakat += catZakat;
+        upzKotaInfak += catInfak;
+        upzKotaTotal += catTotal;
+
+        const subtotalRow = worksheet.addRow(['', 'JUMLAH', catZakat, catInfak, catTotal]);
+        subtotalRow.height = 22;
+        subtotalRow.eachCell((c, colIdx) => {
+          c.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFECFDF5' }
+          };
+          c.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF047857' } };
+          if (colIdx >= 3) {
+            c.numFmt = '"Rp "#,##0;("Rp "#,##0);"-"';
+            c.alignment = { horizontal: 'right', vertical: 'middle' };
+          } else {
+            c.alignment = { horizontal: 'right', vertical: 'middle' };
+          }
+          c.border = {
+            top: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFA7F3D0' } },
+            bottom: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF047857' } }
+          };
+        });
+      });
+
+      // Total UPZ Kota Row
+      const totalUpzRow = worksheet.addRow(['', 'TOTAL PENERIMAAN ZIS (UPZ KOTA)', upzKotaZakat, upzKotaInfak, upzKotaTotal]);
+      totalUpzRow.height = 25;
+      worksheet.mergeCells(`A${totalUpzRow.number}:B${totalUpzRow.number}`);
+      totalUpzRow.eachCell((c, colIdx) => {
+        c.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFCCFBF1' }
+        };
+        c.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF0F766E' } };
+        if (colIdx >= 3) {
+          c.numFmt = '"Rp "#,##0;("Rp "#,##0);"-"';
+          c.alignment = { horizontal: 'right', vertical: 'middle' };
+        } else {
+          c.alignment = { horizontal: 'left', vertical: 'middle' };
+        }
+        c.border = {
+          top: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF0F766E' } },
+          bottom: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF0F766E' } }
+        };
+      });
+
+      // Penerimaan ZIS Umum
+      let umumZakat = 0;
+      let umumInfak = 0;
+      let umumTotal = 0;
+
+      if (Array.isArray(umumItems) && umumItems.length > 0) {
+        const umumCatRow = worksheet.addRow(['PENERIMAAN ZIS UMUM', '', '', '', '']);
+        umumCatRow.height = 24;
+        worksheet.mergeCells(`A${umumCatRow.number}:E${umumCatRow.number}`);
+        const uCell = umumCatRow.getCell(1);
+        uCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0F2FE' }
+        };
+        uCell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF0369A1' } };
+        uCell.alignment = { horizontal: 'left', vertical: 'middle' };
+        uCell.border = {
+          top: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFBAE6FD' } },
+          bottom: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFBAE6FD' } }
+        };
+
+        umumItems.forEach((it: any, idx: number) => {
+          const z = Number(it.zakat || 0);
+          const i = Number(it.infak || 0);
+          const t = z + i;
+          umumZakat += z;
+          umumInfak += i;
+          umumTotal += t;
+
+          const dataRow = worksheet.addRow([
+            idx + 1,
+            it.nama_upz || 'Muzakki Umum / Perorangan',
+            z,
+            i,
+            t
+          ]);
+          dataRow.height = 20;
+
+          dataRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+          dataRow.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+          dataRow.getCell(2).font = { name: 'Calibri', size: 10, bold: true };
+
+          [3, 4, 5].forEach(colIdx => {
+            const c = dataRow.getCell(colIdx);
+            c.numFmt = '"Rp "#,##0;("Rp "#,##0);"-"';
+            c.alignment = { horizontal: 'right', vertical: 'middle' };
+            c.font = { name: 'Calibri', size: 10 };
+          });
+
+          [1, 2, 3, 4, 5].forEach(colIdx => {
+            dataRow.getCell(colIdx).border = thinBorder;
+          });
+        });
+
+        umumTotal = umumZakat + umumInfak;
+        const subtotalUmum = worksheet.addRow(['', 'JUMLAH', umumZakat, umumInfak, umumTotal]);
+        subtotalUmum.height = 22;
+        subtotalUmum.eachCell((c, colIdx) => {
+          c.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF0F9FF' }
+          };
+          c.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0369A1' } };
+          if (colIdx >= 3) {
+            c.numFmt = '"Rp "#,##0;("Rp "#,##0);"-"';
+            c.alignment = { horizontal: 'right', vertical: 'middle' };
+          } else {
+            c.alignment = { horizontal: 'right', vertical: 'middle' };
+          }
+          c.border = {
+            top: { style: 'thin' as ExcelJS.BorderStyle, color: { argb: 'FFBAE6FD' } },
+            bottom: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF0369A1' } }
+          };
+        });
+      }
+
+      // Grand Total Row
+      const grandZakat = upzKotaZakat + umumZakat;
+      const grandInfak = upzKotaInfak + umumInfak;
+      const grandTotal = upzKotaTotal + umumTotal;
+
+      const grandRow = worksheet.addRow(['', 'TOTAL PENERIMAAN ZIS', grandZakat, grandInfak, grandTotal]);
+      grandRow.height = 28;
+      worksheet.mergeCells(`A${grandRow.number}:B${grandRow.number}`);
+      grandRow.eachCell((c, colIdx) => {
+        c.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF047857' }
+        };
+        c.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+        if (colIdx >= 3) {
+          c.numFmt = '"Rp "#,##0;("Rp "#,##0);"-"';
+          c.alignment = { horizontal: 'right', vertical: 'middle' };
+        } else {
+          c.alignment = { horizontal: 'left', vertical: 'middle' };
+        }
+        c.border = {
+          top: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF064E3B' } },
+          bottom: { style: 'medium' as ExcelJS.BorderStyle, color: { argb: 'FF064E3B' } }
+        };
+      });
+
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+
+      // Signatures Block
+      const dateRow = worksheet.addRow(['', '', '', `Semarang, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, '']);
+      dateRow.getCell(4).font = { name: 'Calibri', size: 10, bold: true };
+      dateRow.getCell(4).alignment = { horizontal: 'center' };
+
+      const titleRow = worksheet.addRow(['Kepala Pelaksana', '', 'Kepala Bagian Pengumpulan', '', 'Wakil I Bidang Pengumpulan']);
+      titleRow.getCell(1).font = { name: 'Calibri', size: 10, bold: true };
+      titleRow.getCell(1).alignment = { horizontal: 'center' };
+      titleRow.getCell(3).font = { name: 'Calibri', size: 10, bold: true };
+      titleRow.getCell(3).alignment = { horizontal: 'center' };
+      titleRow.getCell(5).font = { name: 'Calibri', size: 10, bold: true };
+      titleRow.getCell(5).alignment = { horizontal: 'center' };
+
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+      worksheet.addRow([]);
+
+      const nameRow = worksheet.addRow([
+        signatoriesBulanan.kepalaPelaksana || 'Kepala Pelaksana',
+        '',
+        signatoriesBulanan.kabagPengumpulan || 'Kabag Pengumpulan',
+        '',
+        signatoriesBulanan.waka1 || 'Waka I Bidang Pengumpulan'
+      ]);
+      nameRow.getCell(1).font = { name: 'Calibri', size: 10, bold: true, underline: true };
+      nameRow.getCell(1).alignment = { horizontal: 'center' };
+      nameRow.getCell(3).font = { name: 'Calibri', size: 10, bold: true, underline: true };
+      nameRow.getCell(3).alignment = { horizontal: 'center' };
+      nameRow.getCell(5).font = { name: 'Calibri', size: 10, bold: true, underline: true };
+      nameRow.getCell(5).alignment = { horizontal: 'center' };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `Laporan_Bulanan_Rekap_ZIS_${monthStr}_${bulananReportYear}.xlsx`;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+
+      setMessages([{ type: 'success', text: `Laporan Bulanan Rekap ZIS (${monthStr} ${bulananReportYear}) berhasil diunduh (Excel Premium Berwarna)!` }]);
+    } catch (err) {
+      console.error(err);
+      alert('Gagal mengunduh Laporan Bulanan Excel.');
+    } finally {
+      setIsFetchingRekap(false);
+    }
+  };
 
   const handleQuickRegisterMuzakki = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -3283,41 +3650,61 @@ export default function PenerimaanZis() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={async () => {
-                        setIsFetchingRekap(true);
-                        try {
-                          const res = await axios.get('/api/penerimaan-zis/rekap-bulanan', {
-                            params: { month: bulananReportMonth, year: bulananReportYear }
-                          });
-                          setRekapBulananCategories(res.data?.categories || {});
-                          setRekapBulananUmumItems(res.data?.umumItems || []);
-                          setIsFetchingRekap(false);
-                          setIsReportModalOpen(false);
-                          setTimeout(() => {
-                            window.print();
-                          }, 200);
-                        } catch (err) {
-                          console.error('Gagal mengambil data rekap bulanan:', err);
-                          alert('Gagal mengambil data Laporan Bulanan Rekap ZIS');
-                          setIsFetchingRekap(false);
-                        }
-                      }}
-                      disabled={isFetchingRekap}
-                      className="w-full py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
-                    >
-                      {isFetchingRekap ? (
-                        <>
-                          <RefreshCw className="size-4 animate-spin" />
-                          Menyiapkan Laporan...
-                        </>
-                      ) : (
-                        <>
-                          <Printer className="size-4" />
-                          Cetak Laporan Bulanan Rekap ZIS
-                        </>
-                      )}
-                    </button>
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <button
+                        onClick={async () => {
+                          setIsFetchingRekap(true);
+                          try {
+                            const res = await axios.get('/api/penerimaan-zis/rekap-bulanan', {
+                              params: { month: bulananReportMonth, year: bulananReportYear }
+                            });
+                            setRekapBulananCategories(res.data?.categories || {});
+                            setRekapBulananUmumItems(res.data?.umumItems || []);
+                            setIsFetchingRekap(false);
+                            setIsReportModalOpen(false);
+                            setTimeout(() => {
+                              window.print();
+                            }, 200);
+                          } catch (err) {
+                            console.error('Gagal mengambil data rekap bulanan:', err);
+                            alert('Gagal mengambil data Laporan Bulanan Rekap ZIS');
+                            setIsFetchingRekap(false);
+                          }
+                        }}
+                        disabled={isFetchingRekap}
+                        className="py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                      >
+                        {isFetchingRekap ? (
+                          <>
+                            <RefreshCw className="size-4 animate-spin" />
+                            Menyiapkan...
+                          </>
+                        ) : (
+                          <>
+                            <Printer className="size-4" />
+                            Cetak / Download PDF
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={handleDownloadBulananExcel}
+                        disabled={isFetchingRekap}
+                        className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                      >
+                        {isFetchingRekap ? (
+                          <>
+                            <RefreshCw className="size-4 animate-spin" />
+                            Menyiapkan...
+                          </>
+                        ) : (
+                          <>
+                            <FileSpreadsheet className="size-4" />
+                            Download Excel (.xlsx)
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -3651,26 +4038,26 @@ export default function PenerimaanZis() {
       </div>
 
       {/* Print Layout for Laporan Bulanan Rekapitulasi ZIS per UPZ */}
-      <div className="print-only-container hidden print:block w-full text-black font-sans text-xs p-2">
+      <div className="print-only-container hidden print:block w-full text-black font-sans text-xs p-2 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
         <div className="text-center font-bold text-xs uppercase tracking-wide mb-3">
-          <p className="text-sm font-black">REKAPITULASI PENERIMAAN ZAKAT, INFAK, SEDEKAH (ZIS)</p>
-          <p className="text-xs font-black">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</p>
-          <p className="text-xs font-bold mt-0.5">
+          <p className="text-sm font-black text-slate-900">REKAPITULASI PENERIMAAN ZAKAT, INFAK, SEDEKAH (ZIS)</p>
+          <p className="text-xs font-black text-slate-800">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</p>
+          <p className="text-xs font-bold mt-0.5 text-slate-600">
             PERIODE {['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'][bulananReportMonth - 1]} {bulananReportYear}
           </p>
         </div>
 
-        <table className="w-full border-collapse text-left [table-layout:fixed] text-[9px]">
+        <table className="w-full border-collapse text-left [table-layout:fixed] text-[9px] border border-slate-400">
           <thead>
-            <tr className="border border-black bg-slate-100 font-bold text-[9px]">
-              <th className="w-8 border border-black p-1 text-center">NO</th>
-              <th className="border border-black p-1">NAMA UPZ</th>
-              <th className="w-24 border border-black p-1 text-right">ZAKAT</th>
-              <th className="w-24 border border-black p-1 text-right">INFAK</th>
-              <th className="w-28 border border-black p-1 text-right">JUMLAH ZIS</th>
+            <tr className="bg-teal-800 text-white font-black text-[9.5px] border border-teal-900">
+              <th className="w-8 border border-teal-900 p-1.5 text-center">NO</th>
+              <th className="border border-teal-900 p-1.5">NAMA UPZ</th>
+              <th className="w-28 border border-teal-900 p-1.5 text-right">ZAKAT</th>
+              <th className="w-28 border border-teal-900 p-1.5 text-right">INFAK</th>
+              <th className="w-32 border border-teal-900 p-1.5 text-right">JUMLAH ZIS</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black border border-black">
+          <tbody className="divide-y divide-slate-300 border border-slate-400">
             {(() => {
               let upzKotaZakat = 0;
               let upzKotaInfak = 0;
@@ -3701,13 +4088,13 @@ export default function PenerimaanZis() {
 
                     return (
                       <React.Fragment key={catName}>
-                        <tr className="bg-slate-100 font-black border border-black">
-                          <td colSpan={5} className="p-1 uppercase tracking-wide font-black">
+                        <tr className="bg-emerald-100 text-emerald-950 font-black border border-emerald-300">
+                          <td colSpan={5} className="p-1.5 uppercase tracking-wide font-black text-[9px] bg-emerald-100">
                             {catName}
                           </td>
                         </tr>
                         {items.map((it: any, idx: number) => (
-                          <tr key={it.id || idx} className="border-b border-slate-300">
+                          <tr key={it.id || idx} className="border-b border-slate-200">
                             <td className="p-1 text-center font-mono text-[8px]">{idx + 1}</td>
                             <td className="p-1 font-bold text-[8px]">{it.nama_upz}</td>
                             <td className="p-1 text-right font-mono text-[8px]">
@@ -3721,7 +4108,7 @@ export default function PenerimaanZis() {
                             </td>
                           </tr>
                         ))}
-                        <tr className="font-black border border-black bg-slate-50">
+                        <tr className="font-black border border-emerald-200 bg-emerald-50 text-emerald-900">
                           <td colSpan={2} className="p-1 text-right font-black">JUMLAH</td>
                           <td className="p-1 text-right font-mono font-black">
                             {catZakat > 0 ? `Rp ${catZakat.toLocaleString('id-ID')}` : 'Rp -'}
@@ -3738,28 +4125,28 @@ export default function PenerimaanZis() {
                   })}
 
                   {/* TOTAL PENERIMAAN ZIS (UPZ KOTA) */}
-                  <tr className="font-black border-2 border-black bg-slate-200 text-[8.5px]">
-                    <td colSpan={2} className="p-1 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS (UPZ KOTA)</td>
-                    <td className="p-1 text-right font-mono font-black">
+                  <tr className="font-black border-2 border-emerald-700 bg-teal-100 text-teal-950 text-[9px]">
+                    <td colSpan={2} className="p-1.5 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS (UPZ KOTA)</td>
+                    <td className="p-1.5 text-right font-mono font-black">
                       {upzKotaZakat > 0 ? `Rp ${upzKotaZakat.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
-                    <td className="p-1 text-right font-mono font-black">
+                    <td className="p-1.5 text-right font-mono font-black">
                       {upzKotaInfak > 0 ? `Rp ${upzKotaInfak.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
-                    <td className="p-1 text-right font-mono font-black">
+                    <td className="p-1.5 text-right font-mono font-black">
                       {upzKotaTotal > 0 ? `Rp ${upzKotaTotal.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
                   </tr>
 
                   {/* PENERIMAAN ZIS UMUM */}
                   <React.Fragment>
-                    <tr className="bg-slate-100 font-black border border-black">
-                      <td colSpan={5} className="p-1 uppercase tracking-wide font-black">
+                    <tr className="bg-sky-100 text-sky-950 font-black border border-sky-300">
+                      <td colSpan={5} className="p-1.5 uppercase tracking-wide font-black text-[9px] bg-sky-100">
                         PENERIMAAN ZIS UMUM
                       </td>
                     </tr>
                     {(rekapBulananUmumItems || []).map((it: any, idx: number) => (
-                      <tr key={it.id || idx} className="border-b border-slate-300">
+                      <tr key={it.id || idx} className="border-b border-slate-200">
                         <td className="p-1 text-center font-mono text-[8px]">{idx + 1}</td>
                         <td className="p-1 font-bold text-[8px]">{it.nama_upz}</td>
                         <td className="p-1 text-right font-mono text-[8px]">
@@ -3773,7 +4160,7 @@ export default function PenerimaanZis() {
                         </td>
                       </tr>
                     ))}
-                    <tr className="font-black border border-black bg-slate-50">
+                    <tr className="font-black border border-sky-200 bg-sky-50 text-sky-900">
                       <td colSpan={2} className="p-1 text-right font-black">JUMLAH</td>
                       <td className="p-1 text-right font-mono font-black">
                         {umumZakat > 0 ? `Rp ${umumZakat.toLocaleString('id-ID')}` : 'Rp -'}
@@ -3788,8 +4175,8 @@ export default function PenerimaanZis() {
                   </React.Fragment>
 
                   {/* TOTAL PENERIMAAN ZIS */}
-                  <tr className="font-black border-2 border-black bg-emerald-100 text-[8.5px]">
-                    <td colSpan={2} className="p-1 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS</td>
+                  <tr className="font-black border-2 border-emerald-900 bg-emerald-700 text-white text-[9px]">
+                    <td colSpan={2} className="p-1.5 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS</td>
                     <td className="p-1 text-right font-mono font-black">
                       {grandZakat > 0 ? `Rp ${grandZakat.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>

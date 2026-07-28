@@ -67,6 +67,8 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    let totalBatchNominal = 0;
+
     // Process all in a transaction
     const results = await prisma.$transaction(async (tx) => {
       const paramRkatZakatNo = await tx.systemParameter.findUnique({ where: { key: 'rkat_pengumpulan_no_zakat' } });
@@ -138,6 +140,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         const item = transactions[i];
         const nominalVal = Number(item.nominal);
         totalNominal += nominalVal;
+        totalBatchNominal += nominalVal;
 
         // Generate batch structured kuitansi number
         const no_kuitansi = `${batchName} / ${i + 1}`;
@@ -315,9 +318,14 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
           const newMuts = muts.map((m: any) => {
             if (m.id === selected_transit_id) {
               updated = true;
+              const currentAllocated = Number(m.allocatedNominal || 0) + Number(totalBatchNominal || 0);
+              const totalMutNominal = Number(m.nominal || 0);
+              const isFullyReconciled = currentAllocated >= totalMutNominal - 0.01;
+
               return {
                 ...m,
-                status: 'RECONCILED',
+                allocatedNominal: currentAllocated,
+                status: isFullyReconciled ? 'RECONCILED' : 'PARTIAL',
                 reconciledAt: new Date().toISOString(),
                 reconciledBy: 'System / Bank Jateng Import'
               };

@@ -1902,11 +1902,21 @@ export default function PenerimaanBankJateng() {
                       {selectedTransitObj && (
                         <div className="bg-white p-3 rounded-xl border border-amber-200 text-xs space-y-1.5 shadow-sm">
                           <div className="flex justify-between text-slate-600">
-                            <span>Nominal Mutasi Transit (Awal):</span>
-                            <span className="font-bold text-slate-800">Rp {Number(selectedTransitObj.nominal_awal || 0).toLocaleString('id-ID')}</span>
+                            <span>Sisa Nominal Mutasi (Siap Dipakai):</span>
+                            <span className="font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              Rp {Number(selectedTransitObj.nominal_awal || 0).toLocaleString('id-ID')}
+                            </span>
                           </div>
+                          {selectedTransitObj.allocated_nominal > 0 && (
+                            <div className="flex justify-between text-slate-500 text-[11px]">
+                              <span>Sudah Dialokasikan Sebelumnya:</span>
+                              <span className="font-semibold text-slate-700">
+                                Rp {Number(selectedTransitObj.allocated_nominal).toLocaleString('id-ID')} (Total Awal: Rp {Number(selectedTransitObj.total_nominal_awal || 0).toLocaleString('id-ID')})
+                              </span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-slate-600">
-                            <span>Total Rincian Import:</span>
+                            <span>Total Import Saat Ini:</span>
                             <span className="font-bold text-emerald-600">Rp {totalSelectedByNameNominal.toLocaleString('id-ID')}</span>
                           </div>
                           <div className="flex justify-between border-t border-dashed border-slate-200 pt-1 text-slate-700">

@@ -820,8 +820,8 @@ export const deletePenerimaanZis = async (req: Request, res: Response) => {
     }
 
     await prisma.$transaction(async (tx) => {
-      // 1. Decrement BankAccount balance ONLY if synced
-      if (existing.transaksi_id) {
+      // 1. Decrement BankAccount balance if bank_account_id is present
+      if (existing.bank_account_id && existing.nominal && existing.status_simba !== 'FAILED') {
         await tx.bankAccount.update({
           where: { account_id: existing.bank_account_id },
           data: {
