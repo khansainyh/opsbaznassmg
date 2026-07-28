@@ -10,6 +10,8 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
     const search = ((req.query.search as string) || '').trim();
     const startDate = req.query.startDate as string;
     const endDate = req.query.endDate as string;
+    const kodeProgramFilter = (req.query.kodeProgram as string || '').trim();
+    const rkatIdFilter = (req.query.rkatId as string || '').trim();
 
     const baseWhere: any = {
       status_simba: { not: 'FAILED' },
@@ -27,6 +29,40 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       };
     }
 
+    if (kodeProgramFilter && kodeProgramFilter !== 'all' && kodeProgramFilter !== 'Semua') {
+      baseWhere.kode_program = kodeProgramFilter;
+    }
+
+    if (rkatIdFilter && rkatIdFilter !== 'all' && rkatIdFilter !== 'Semua') {
+      const matchedRkat = await prisma.rkatPengumpulan.findFirst({
+        where: { OR: [{ id: rkatIdFilter }, { no: rkatIdFilter }] }
+      });
+      if (matchedRkat) {
+        const mappedKodes = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).filter(
+          k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === matchedRkat.no
+        );
+        const rkatConditions = [
+          { rkat_id: matchedRkat.id },
+          { rkat_id: matchedRkat.no },
+          ...(mappedKodes.length > 0 ? [{ kode_program: { in: mappedKodes } }] : [])
+        ];
+
+        if (baseWhere.OR) {
+          const existingOr = baseWhere.OR;
+          delete baseWhere.OR;
+          baseWhere.AND = [
+            ...(baseWhere.AND || []),
+            { OR: existingOr },
+            { OR: rkatConditions }
+          ];
+        } else {
+          baseWhere.OR = rkatConditions;
+        }
+      } else {
+        baseWhere.rkat_id = rkatIdFilter;
+      }
+    }
+
     if (search) {
       // Find if search keyword matches any UPZ in the database (by name or code)
       const matchedUpzs = await prisma.upz.findMany({
@@ -40,7 +76,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       });
       const matchedUpzIds = matchedUpzs.map(u => u.id).filter(Boolean);
 
-      baseWhere.OR = [
+      const searchOrConditions = [
         { no_kuitansi: { contains: search } },
         { keterangan: { contains: search } },
         { kode_program: { contains: search } },
@@ -53,6 +89,18 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
           { muzakki: { is: { upz: { in: matchedUpzIds } } } }
         ] : [])
       ];
+
+      if (baseWhere.OR) {
+        const existingOr = baseWhere.OR;
+        delete baseWhere.OR;
+        baseWhere.AND = [
+          ...(baseWhere.AND || []),
+          { OR: existingOr },
+          { OR: searchOrConditions }
+        ];
+      } else {
+        baseWhere.OR = searchOrConditions;
+      }
     }
 
     const [totalRecords, aggregateSum, list] = await prisma.$transaction([
@@ -744,7 +792,7 @@ export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; 
   '101.9': { rkat_no: '10', jenis: 'Penerimaan Infak Sedekah Terikat Kas', isUpz: false },
   '101.10': { rkat_no: '11', jenis: 'Penerimaan Infak Sedekah Terikat Natura', isUpz: false },
   '101.11': { rkat_no: '13', jenis: 'Infak/Sedekah Terikat Operasional Amil', isUpz: false },
-  '101.12': { rkat_no: '10', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
+  '101.12': { rkat_no: '12', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
   '101.13': { rkat_no: '1', jenis: 'Zakat Maal Entitas', isUpz: false },
   '101.14': { rkat_no: null, jenis: 'Belum Diketahui', isUpz: false },
 

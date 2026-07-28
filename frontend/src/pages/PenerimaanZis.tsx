@@ -43,7 +43,7 @@ export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; 
   '101.9': { rkat_no: '10', jenis: 'Penerimaan Infak Sedekah Terikat Kas', isUpz: false },
   '101.10': { rkat_no: '11', jenis: 'Penerimaan Infak Sedekah Terikat Natura', isUpz: false },
   '101.11': { rkat_no: '13', jenis: 'Infak/Sedekah Terikat Operasional Amil', isUpz: false },
-  '101.12': { rkat_no: '10', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
+  '101.12': { rkat_no: '12', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
   '101.13': { rkat_no: '1', jenis: 'Zakat Maal Entitas', isUpz: false },
   '101.14': { rkat_no: null, jenis: 'Belum Diketahui', isUpz: false },
 
@@ -677,6 +677,8 @@ export default function PenerimaanZis() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [kodeProgramFilter, setKodeProgramFilter] = useState('Semua');
+  const [rkatFilter, setRkatFilter] = useState('Semua');
   const [paginationInfo, setPaginationInfo] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
   const [summaryTotals, setSummaryTotals] = useState<{ 
     totalTransactions: number; 
@@ -893,7 +895,9 @@ export default function PenerimaanZis() {
           limit: itemsPerPage,
           search: debouncedSearch,
           startDate: mainFilterStartDate || undefined,
-          endDate: mainFilterEndDate || undefined
+          endDate: mainFilterEndDate || undefined,
+          kodeProgram: kodeProgramFilter !== 'Semua' ? kodeProgramFilter : undefined,
+          rkatId: rkatFilter !== 'Semua' ? rkatFilter : undefined
         }
       });
       if (res.data?.status === 'success') {
@@ -911,7 +915,7 @@ export default function PenerimaanZis() {
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, itemsPerPage, debouncedSearch, mainFilterStartDate, mainFilterEndDate]);
+  }, [currentPage, itemsPerPage, debouncedSearch, mainFilterStartDate, mainFilterEndDate, kodeProgramFilter, rkatFilter]);
 
   const fetchMetadata = async () => {
     try {
@@ -1014,9 +1018,17 @@ export default function PenerimaanZis() {
         ? item.status_simba === 'PENDING'
         : (simbaFilter === 'Semua' || item.status_simba === simbaFilter);
 
-      return matchesSearch && matchesCategory && matchesSimba;
+      const matchesKodeProgram = kodeProgramFilter === 'Semua' || item.kode_program === kodeProgramFilter;
+
+      const matchesRkat = rkatFilter === 'Semua' || 
+        item.rkat_id === rkatFilter || 
+        item.rkat?.id === rkatFilter || 
+        item.rkat?.no === rkatFilter || 
+        (item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program]?.rkat_no === rkatFilter);
+
+      return matchesSearch && matchesCategory && matchesSimba && matchesKodeProgram && matchesRkat;
     });
-  }, [penerimaanData, searchTerm, categoryFilter, simbaFilter, activeTab]);
+  }, [penerimaanData, searchTerm, categoryFilter, simbaFilter, activeTab, kodeProgramFilter, rkatFilter]);
 
   // Calculations for stats: Prioritize server-wide summaryTotals from backend when search/filtering
   const stats = useMemo(() => {
@@ -1792,7 +1804,7 @@ export default function PenerimaanZis() {
             <select 
               className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer"
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="Semua">Kategori: Semua</option>
               <option value="Zakat">Zakat</option>
@@ -1801,16 +1813,65 @@ export default function PenerimaanZis() {
               <option value="CSR">CSR</option>
             </select>
 
+            {/* Kode Program Filter */}
+            <select 
+              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer max-w-[210px] font-medium text-slate-700"
+              value={kodeProgramFilter}
+              onChange={(e) => { setKodeProgramFilter(e.target.value); setCurrentPage(1); }}
+            >
+              <option value="Semua">Kode Program: Semua</option>
+              {kodeProgramOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.value} - {opt.label.split('||')[1]?.trim() || opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Program RKAT Filter */}
+            <select 
+              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer max-w-[230px] font-medium text-slate-700"
+              value={rkatFilter}
+              onChange={(e) => { setRkatFilter(e.target.value); setCurrentPage(1); }}
+            >
+              <option value="Semua">Program RKAT: Semua</option>
+              {rkatList.map((rkat) => (
+                <option key={rkat.id} value={rkat.id}>
+                  #{rkat.no} - {rkat.nama_program}
+                </option>
+              ))}
+            </select>
+
             {/* Simba Sync Filter */}
             <select 
               className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer"
               value={simbaFilter}
-              onChange={(e) => setSimbaFilter(e.target.value)}
+              onChange={(e) => { setSimbaFilter(e.target.value); setCurrentPage(1); }}
             >
               <option value="Semua">Status Simba: Semua</option>
               <option value="PENDING">PENDING (Belum Sync)</option>
               <option value="SYNCED">SYNCED (Sudah Sync)</option>
             </select>
+
+            {/* Reset Filter Button */}
+            {(kodeProgramFilter !== 'Semua' || rkatFilter !== 'Semua' || categoryFilter !== 'Semua' || simbaFilter !== 'Semua' || selectedFilterMonth !== 'all') && (
+              <button
+                onClick={() => {
+                  setKodeProgramFilter('Semua');
+                  setRkatFilter('Semua');
+                  setCategoryFilter('Semua');
+                  setSimbaFilter('Semua');
+                  setSelectedFilterMonth('all');
+                  setMainFilterStartDate('');
+                  setMainFilterEndDate('');
+                  setCurrentPage(1);
+                }}
+                className="text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-2 rounded-lg flex items-center gap-1 transition-all active:scale-95"
+                title="Reset semua filter"
+              >
+                <X className="size-3.5" />
+                Reset Filter
+              </button>
+            )}
           </div>
 
           <div className="hidden md:flex gap-2">
