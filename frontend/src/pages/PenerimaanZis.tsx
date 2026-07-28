@@ -2463,21 +2463,21 @@ export default function PenerimaanZis() {
                         <div className="flex justify-end gap-1.5">
                           <button 
                             onClick={() => handleEditClick(item)}
-                            className="p-1.5 bg-amber-50/80 hover:bg-amber-100 text-amber-700 rounded-lg border border-amber-200/60 transition-all active:scale-95 shadow-sm" 
+                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" 
                             title="Edit Transaksi"
                           >
                             <Edit3 className="size-3.5" />
                           </button>
                           <button 
                             onClick={() => { setSelectedData(item); setIsDetailModalOpen(true); }}
-                            className="p-1.5 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200/60 transition-all active:scale-95 shadow-sm" 
+                            className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" 
                             title="Detail Transaksi"
                           >
                             <Eye className="size-3.5" />
                           </button>
                           <button 
                             onClick={() => handleDeletePenerimaan(item)}
-                            className="p-1.5 bg-rose-50/80 hover:bg-rose-100 text-rose-600 hover:text-rose-700 rounded-lg border border-rose-200/70 transition-all active:scale-95 shadow-sm" 
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" 
                             title="Hapus Transaksi"
                           >
                             <Trash2 className="size-3.5" />

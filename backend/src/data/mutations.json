@@ -193,13 +193,16 @@
     "status": "PENDING"
   },
   {
-    "id": "mut-1785139164016",
-    "tanggal": "2026-07-27",
+    "id": "mut-1785224137512",
+    "tanggal": "2026-07-28",
     "bankAccountId": "070f7061-c198-4e71-baa7-c34c0f701180",
     "bankName": "Bank Jateng",
-    "keteranganBank": "Bank Jateng UPZ Dinas Pendidikan",
+    "keteranganBank": "TF FOR US",
     "nominal": 20000000,
     "type": "DEBIT",
-    "status": "PENDING"
+    "status": "RECONCILED",
+    "allocatedNominal": 20000000,
+    "reconciledAt": "2026-07-28T07:52:46.272Z",
+    "reconciledBy": "System / Bank Jateng Import"
   }
 ]

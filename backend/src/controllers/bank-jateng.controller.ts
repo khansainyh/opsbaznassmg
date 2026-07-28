@@ -202,7 +202,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
         const formattedKeterangan = `Terima ${isZakat ? 'Zakat Maal' : 'Infak'} a.n ${muzakki.nama} (${cleanOpd})`;
 
-        // 1. Create PenerimaanZis record (status PENDING to enter SIMBA queue)
+        // 1. Create PenerimaanZis record (status SYNCED for automatic Bank Jateng import)
         const penerimaan = await tx.penerimaanZis.create({
           data: {
             no_kuitansi,
@@ -216,17 +216,19 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
             metode_pembayaran: 'TRANSFER',
             tanggal_pembayaran: paymentDate,
             keterangan: formattedKeterangan,
-            status_simba: 'PENDING',
+            status_simba: 'SYNCED',
+            no_transaksi_simba: `SMB-${no_kuitansi}`,
             transaksi_id: null
           } as any
         });
 
-        // 2. Create Realisasi record
+        // 2. Create Realisasi record linked to transit mutation ID if applicable
         const realisasiTrx = await tx.realisasi.create({
           data: {
             rkat_id,
             tanggal: paymentDate,
-            keterangan: formattedKeterangan
+            keterangan: formattedKeterangan,
+            nrm: selected_transit_id || null
           }
         });
 
@@ -426,10 +428,20 @@ export const deleteBatch = async (req: Request, res: Response): Promise<void> =>
         });
       }
 
-      // Collect all transaction IDs
+      // Collect all transaction IDs and linked mutation IDs (nrm)
       const txIds = records.map(r => r.transaksi_id).filter(id => id !== null) as string[];
+      let affectedNrms: string[] = [];
 
       if (txIds.length > 0) {
+        const linkedRealisasi = await tx.realisasi.findMany({
+          where: {
+            transaksi_id: { in: txIds },
+            nrm: { not: null }
+          },
+          select: { nrm: true }
+        });
+        affectedNrms = Array.from(new Set(linkedRealisasi.map(r => r.nrm).filter(Boolean))) as string[];
+
         // Delete Journal Entries
         await tx.journalEntry.deleteMany({
           where: {
@@ -457,6 +469,54 @@ export const deleteBatch = async (req: Request, res: Response): Promise<void> =>
             id: { in: records.map(r => r.id) }
           }
         });
+      }
+
+      // Revert mutations.json status for affected transit mutations
+      if (affectedNrms.length > 0) {
+        try {
+          const fs = require('fs');
+          const path = require('path');
+          const jsonPath = path.join(__dirname, '../data/mutations.json');
+          if (fs.existsSync(jsonPath)) {
+            const muts = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '[]');
+            let updated = false;
+
+            for (const nrm of affectedNrms) {
+              const remainingRealisasi = await tx.realisasi.findMany({
+                where: { nrm },
+                select: { transaksi_id: true }
+              });
+              const remainingTxIds = remainingRealisasi.map(r => r.transaksi_id);
+
+              const remainingReceipts = remainingTxIds.length > 0
+                ? await tx.penerimaanZis.aggregate({
+                    where: {
+                      transaksi_id: { in: remainingTxIds },
+                      status_simba: { not: 'FAILED' }
+                    },
+                    _sum: { nominal: true }
+                  })
+                : { _sum: { nominal: null } };
+
+              const remainingAllocated = Number(remainingReceipts._sum?.nominal || 0);
+
+              muts.forEach((m: any) => {
+                if (m.id === nrm) {
+                  updated = true;
+                  const sisa = Math.max(0, Number(m.nominal || 0) - remainingAllocated);
+                  m.allocatedNominal = remainingAllocated;
+                  m.status = remainingAllocated <= 0.01 ? 'PENDING' : (sisa <= 0.01 ? 'RECONCILED' : 'PARTIAL');
+                }
+              });
+            }
+
+            if (updated) {
+              fs.writeFileSync(jsonPath, JSON.stringify(muts, null, 2), 'utf-8');
+            }
+          }
+        } catch (mErr) {
+          console.error('Error updating mutations.json in deleteBatch:', mErr);
+        }
       }
     });
 

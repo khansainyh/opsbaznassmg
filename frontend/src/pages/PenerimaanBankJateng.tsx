@@ -130,20 +130,27 @@ export default function PenerimaanBankJateng() {
     fetchUpzList();
   }, []);
 
-  useEffect(() => {
-    const fetchTransitEntries = async () => {
-      try {
-        const res = await axios.get('/api/finance/transit-entries');
-        if (res.data.status === 'success') {
-          setTransitEntries(res.data.data);
-          if (res.data.data.length > 0) {
+  const fetchTransitEntries = async () => {
+    try {
+      const res = await axios.get('/api/finance/transit-entries');
+      if (res.data.status === 'success') {
+        setTransitEntries(res.data.data);
+        if (res.data.data.length > 0) {
+          // Keep current selectedTransitId if still valid, otherwise set to first available
+          const exists = res.data.data.some((t: any) => t.transaksi_id === selectedTransitId);
+          if (!exists) {
             setSelectedTransitId(res.data.data[0].transaksi_id);
           }
+        } else {
+          setSelectedTransitId('');
         }
-      } catch (err) {
-        console.error('Error fetching transit entries:', err);
       }
-    };
+    } catch (err) {
+      console.error('Error fetching transit entries:', err);
+    }
+  };
+
+  useEffect(() => {
     if (isTransitSource) {
       fetchTransitEntries();
     }
@@ -1072,8 +1079,11 @@ export default function PenerimaanBankJateng() {
         }]);
         // Remove imported transactions from local state
         setFileData(prev => prev.filter(item => !item.selected || !item.matched));
-        // Refresh history
+        // Refresh history & transit entries
         fetchHistory();
+        if (isTransitSource) {
+          fetchTransitEntries();
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -1900,31 +1910,87 @@ export default function PenerimaanBankJateng() {
                       </div>
 
                       {selectedTransitObj && (
-                        <div className="bg-white p-3 rounded-xl border border-amber-200 text-xs space-y-1.5 shadow-sm">
-                          <div className="flex justify-between text-slate-600">
-                            <span>Sisa Nominal Mutasi (Siap Dipakai):</span>
-                            <span className="font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                              Rp {Number(selectedTransitObj.nominal_awal || 0).toLocaleString('id-ID')}
+                        <div className="bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-emerald-50/70 p-3.5 rounded-2xl border border-amber-200/80 shadow-sm space-y-3">
+                          {/* Header Title & Status Badge */}
+                          <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold text-[10px]">
+                                M
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-black text-slate-900 leading-none">Sumber Mutasi Transit</h4>
+                                <p className="text-[10px] text-slate-500 mt-0.5">Saldo real-time yang siap dibukukan</p>
+                              </div>
+                            </div>
+                            <span className={cn(
+                              "text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider",
+                              selectedTransitObj.allocated_nominal > 0 
+                                ? "bg-amber-100/90 text-amber-900 border border-amber-300/60" 
+                                : "bg-emerald-100/90 text-emerald-900 border border-emerald-300/60"
+                            )}>
+                              {selectedTransitObj.allocated_nominal > 0 ? "Potongan Parsial" : "Belum Teridentifikasi"}
                             </span>
                           </div>
-                          {selectedTransitObj.allocated_nominal > 0 && (
-                            <div className="flex justify-between text-slate-500 text-[11px]">
-                              <span>Sudah Dialokasikan Sebelumnya:</span>
-                              <span className="font-semibold text-slate-700">
-                                Rp {Number(selectedTransitObj.allocated_nominal).toLocaleString('id-ID')} (Total Awal: Rp {Number(selectedTransitObj.total_nominal_awal || 0).toLocaleString('id-ID')})
+
+                          {/* 2-Column Metric Tiles */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-white/90 backdrop-blur p-2.5 rounded-xl border border-amber-200/60 flex flex-col justify-between">
+                              <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Sisa Saldo Mutasi</span>
+                              <span className="text-sm font-black text-amber-800 mt-0.5">
+                                Rp {Number(selectedTransitObj.nominal_awal || 0).toLocaleString('id-ID')}
+                              </span>
+                              {selectedTransitObj.allocated_nominal > 0 && (
+                                <span className="text-[9px] font-semibold text-slate-400 mt-0.5">
+                                  Total Awal: Rp {Number(selectedTransitObj.total_nominal_awal || 0).toLocaleString('id-ID')}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="bg-white/90 backdrop-blur p-2.5 rounded-xl border border-emerald-200/60 flex flex-col justify-between">
+                              <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Impor Saat Ini</span>
+                              <span className="text-sm font-black text-emerald-700 mt-0.5">
+                                Rp {totalSelectedByNameNominal.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[9px] font-semibold text-slate-400 mt-0.5">
+                                {fileData.filter(i => i.selected && i.matched).length} Transaksi Terpilih
                               </span>
                             </div>
-                          )}
-                          <div className="flex justify-between text-slate-600">
-                            <span>Total Import Saat Ini:</span>
-                            <span className="font-bold text-emerald-600">Rp {totalSelectedByNameNominal.toLocaleString('id-ID')}</span>
                           </div>
-                          <div className="flex justify-between border-t border-dashed border-slate-200 pt-1 text-slate-700">
-                            <span>Sisa Mengendap di Transit:</span>
-                            <span className={cn("font-extrabold", (Number(selectedTransitObj.nominal_awal || 0) - totalSelectedByNameNominal) < 0 ? "text-red-600" : "text-amber-600")}>
-                              Rp {(Number(selectedTransitObj.nominal_awal || 0) - totalSelectedByNameNominal).toLocaleString('id-ID')}
-                            </span>
-                          </div>
+
+                          {/* Remaining Indicator & Progress Bar */}
+                          {(() => {
+                            const sisaNominal = Number(selectedTransitObj.nominal_awal || 0);
+                            const sisaAkhir = sisaNominal - totalSelectedByNameNominal;
+                            const isOver = sisaAkhir < 0;
+                            const pct = Math.min(100, Math.max(0, (totalSelectedByNameNominal / (sisaNominal || 1)) * 100));
+
+                            return (
+                              <div className="bg-white/80 p-2.5 rounded-xl border border-slate-200/70 space-y-1.5">
+                                <div className="flex justify-between items-center text-xs font-bold">
+                                  <span className="text-slate-600">Sisa Mengendap di Transit:</span>
+                                  <span className={cn("font-black", isOver ? "text-red-600" : sisaAkhir === 0 ? "text-emerald-600" : "text-amber-700")}>
+                                    Rp {sisaAkhir.toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+
+                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                                  <div 
+                                    className={cn(
+                                      "h-full transition-all duration-300 rounded-full",
+                                      isOver ? "bg-red-500" : sisaAkhir === 0 ? "bg-emerald-500" : "bg-amber-500"
+                                    )} 
+                                    style={{ width: `${pct}%` }} 
+                                  />
+                                </div>
+
+                                {isOver && (
+                                  <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 pt-0.5">
+                                    Peringatan: Nominal rincian impor melebihi sisa mutasi transit (Selisih Rp {Math.abs(sisaAkhir).toLocaleString('id-ID')})
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

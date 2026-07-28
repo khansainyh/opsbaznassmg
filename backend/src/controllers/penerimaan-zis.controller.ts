@@ -166,9 +166,9 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         }
       }
 
-      const statusSimba = (item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0)
-        ? 'SYNCED'
-        : (item.status_simba === 'FAILED' ? 'FAILED' : 'PENDING');
+      const statusSimba = item.status_simba === 'FAILED'
+        ? 'FAILED'
+        : ((item.status_simba === 'SYNCED' || (item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0)) ? 'SYNCED' : 'PENDING');
 
       return {
         ...item,
@@ -819,6 +819,15 @@ export const deletePenerimaanZis = async (req: Request, res: Response) => {
       return;
     }
 
+    let linkedNrm: string | null = null;
+    if (existing.transaksi_id) {
+      const realisasiRec = await prisma.realisasi.findUnique({
+        where: { transaksi_id: existing.transaksi_id },
+        select: { nrm: true }
+      });
+      linkedNrm = realisasiRec?.nrm || null;
+    }
+
     await prisma.$transaction(async (tx) => {
       // 1. Decrement BankAccount balance if bank_account_id is present
       if (existing.bank_account_id && existing.nominal && existing.status_simba !== 'FAILED') {
@@ -842,6 +851,57 @@ export const deletePenerimaanZis = async (req: Request, res: Response) => {
         });
       }
     });
+
+    // 4. If transaction was linked to a transit mutation (nrm), update mutations.json state
+    if (linkedNrm) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const jsonPath = path.join(__dirname, '../data/mutations.json');
+        if (fs.existsSync(jsonPath)) {
+          const muts = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '[]');
+          
+          // Scan DB for any remaining receipts linked to this mutation ID
+          const remainingRealisasi = await prisma.realisasi.findMany({
+            where: { nrm: linkedNrm },
+            select: { transaksi_id: true }
+          });
+          const remainingTxIds = remainingRealisasi.map(r => r.transaksi_id);
+
+          const remainingReceipts = remainingTxIds.length > 0
+            ? await prisma.penerimaanZis.aggregate({
+                where: {
+                  transaksi_id: { in: remainingTxIds },
+                  status_simba: { not: 'FAILED' }
+                },
+                _sum: { nominal: true }
+              })
+            : { _sum: { nominal: null } };
+
+          const remainingAllocated = Number(remainingReceipts._sum?.nominal || 0);
+
+          let updated = false;
+          const newMuts = muts.map((m: any) => {
+            if (m.id === linkedNrm) {
+              updated = true;
+              const sisa = Math.max(0, Number(m.nominal || 0) - remainingAllocated);
+              return {
+                ...m,
+                allocatedNominal: remainingAllocated,
+                status: remainingAllocated <= 0.01 ? 'PENDING' : (sisa <= 0.01 ? 'RECONCILED' : 'PARTIAL')
+              };
+            }
+            return m;
+          });
+
+          if (updated) {
+            fs.writeFileSync(jsonPath, JSON.stringify(newMuts, null, 2), 'utf-8');
+          }
+        }
+      } catch (mErr) {
+        console.error('Error updating mutations.json on deletePenerimaanZis:', mErr);
+      }
+    }
 
     res.status(200).json({ status: 'success', message: 'Penerimaan ZIS berhasil dihapus' });
   } catch (error) {

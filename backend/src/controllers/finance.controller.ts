@@ -1819,34 +1819,71 @@ export const getTransitEntries = async (req: Request, res: Response): Promise<vo
     const jsonPath = path.join(__dirname, '../data/mutations.json');
     if (fs.existsSync(jsonPath)) {
       const muts = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '[]');
-      const availableMuts = muts.filter((m: any) => {
-        const isNotFullyReconciled = m.status === 'PENDING' || m.status === 'PARTIAL';
-        const isDebit = m.type === 'DEBIT' || !m.type;
-        const totalNom = Number(m.nominal || 0);
-        const allocatedNom = Number(m.allocatedNominal || 0);
-        const sisaNom = totalNom - allocatedNom;
-        return isNotFullyReconciled && isDebit && sisaNom > 0.01;
-      });
+      let fileUpdated = false;
       
-      for (const m of availableMuts) {
-        if (!results.some(r => r.transaksi_id === m.id)) {
-          const totalNominal = Number(m.nominal || 0);
-          const allocated = Number(m.allocatedNominal || 0);
-          const sisa = Math.max(0, totalNominal - allocated);
+      for (const m of muts) {
+        // STRICT RULE 1: Only DEBIT mutations (money in), NEVER KREDIT (money out)
+        if (m.type === 'KREDIT') continue;
 
+        // Dynamic DB Scan: Find all Realisasi linked to this mutation (nrm === m.id)
+        const linkedRealisasi = await prisma.realisasi.findMany({
+          where: { nrm: m.id },
+          select: { transaksi_id: true }
+        });
+        const linkedTxIds = linkedRealisasi.map(r => r.transaksi_id);
+
+        const linkedReceipts = linkedTxIds.length > 0
+          ? await prisma.penerimaanZis.aggregate({
+              where: {
+                transaksi_id: { in: linkedTxIds },
+                status_simba: { not: 'FAILED' }
+              },
+              _sum: { nominal: true }
+            })
+          : { _sum: { nominal: null } };
+
+        const dbAllocated = Number(linkedReceipts._sum?.nominal || 0);
+        const jsonAllocated = Number(m.allocatedNominal || 0);
+        const actualAllocated = Math.max(dbAllocated, jsonAllocated);
+        const totalNominal = Number(m.nominal || 0);
+        const sisa = Math.max(0, totalNominal - actualAllocated);
+
+        // Sync mutations.json state if needed
+        if (actualAllocated !== jsonAllocated || (sisa <= 0.01 && m.status !== 'RECONCILED') || (sisa > 0.01 && actualAllocated > 0 && m.status !== 'PARTIAL')) {
+          m.allocatedNominal = actualAllocated;
+          if (sisa <= 0.01) {
+            m.status = 'RECONCILED';
+          } else if (actualAllocated > 0) {
+            m.status = 'PARTIAL';
+          }
+          fileUpdated = true;
+        }
+
+        // STRICT RULE 2: Only show UNIDENTIFIED or PARTIAL mutations with remaining balance > 0
+        if (m.status === 'RECONCILED' || sisa <= 0.01) continue;
+
+        if (!results.some(r => r.transaksi_id === m.id)) {
           results.push({
             transaksi_id: m.id,
             tanggal: m.tanggal || m.tanggalCatatan,
-            keterangan: allocated > 0
+            keterangan: actualAllocated > 0
               ? `${m.keteranganBank || 'Mutasi'} (Sisa Potongan: Rp ${sisa.toLocaleString('id-ID')} / Total: Rp ${totalNominal.toLocaleString('id-ID')})`
               : (m.keteranganBank || 'Mutasi Belum Teridentifikasi'),
             nominal_awal: sisa,
             total_nominal_awal: totalNominal,
-            allocated_nominal: allocated,
+            allocated_nominal: actualAllocated,
             account_id: m.bankAccountId,
             bank_account_name: m.bankName || 'Bank Jateng',
             source: 'MUTATION_JSON'
           });
+        }
+      }
+
+      if (fileUpdated) {
+        try {
+          fs.writeFileSync(jsonPath, JSON.stringify(muts, null, 2), 'utf-8');
+        } catch (fErr) {
+          console.error('Error auto-syncing mutations.json:', fErr);
         }
       }
     }
