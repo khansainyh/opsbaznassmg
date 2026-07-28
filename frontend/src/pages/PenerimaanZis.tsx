@@ -7,6 +7,7 @@ import {
   ChevronLeft, 
   ChevronRight as ChevronRightIcon,
   X, 
+  Check,
   AlertCircle, 
   CheckCircle2, 
   Trash2, 
@@ -186,6 +187,183 @@ function UpzSearchDropdown({
               <p className="text-[11px] text-slate-400 italic p-2 text-center font-sans">Tidak ada UPZ yang cocok</p>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface CustomSelectOption {
+  value: string;
+  label: string;
+  sublabel?: string;
+  group?: string;
+}
+
+interface CustomSelectProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: CustomSelectOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder = 'Pilih Opsi...',
+  disabled = false,
+  className
+}: CustomSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const selectedOpt = useMemo(() => {
+    return options.find(o => o.value === value);
+  }, [options, value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const groupedOptions = useMemo(() => {
+    const groups: { [key: string]: CustomSelectOption[] } = {};
+    const unGrouped: CustomSelectOption[] = [];
+
+    options.forEach(opt => {
+      if (opt.group) {
+        if (!groups[opt.group]) groups[opt.group] = [];
+        groups[opt.group].push(opt);
+      } else {
+        unGrouped.push(opt);
+      }
+    });
+
+    return { groups, unGrouped };
+  }, [options]);
+
+  const hasGroups = Object.keys(groupedOptions.groups).length > 0;
+
+  return (
+    <div className={cn("relative font-sans text-left", disabled && "opacity-50 pointer-events-none", isOpen ? "z-[100]" : "z-10")} ref={containerRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "w-full text-left text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold flex items-center justify-between gap-2 outline-none transition-all cursor-pointer shadow-sm hover:border-slate-300",
+          selectedOpt ? "text-slate-800 font-bold" : "text-slate-400 font-semibold",
+          isOpen && "ring-2 ring-primary/20 border-primary/40 bg-white",
+          className
+        )}
+      >
+        <span className="truncate flex-1">
+          {selectedOpt ? (
+            <span className="flex items-center justify-between w-full">
+              <span className="truncate font-bold text-slate-800">{selectedOpt.label}</span>
+              {selectedOpt.sublabel && (
+                <span className="text-[10px] text-slate-400 font-normal ml-2 shrink-0">{selectedOpt.sublabel}</span>
+              )}
+            </span>
+          ) : (
+            placeholder
+          )}
+        </span>
+        <ChevronRight className={cn("size-4 text-slate-400 shrink-0 transition-transform duration-200", isOpen ? "-rotate-90" : "rotate-90")} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-[100] left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 space-y-1 max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
+          {!hasGroups ? (
+            groupedOptions.unGrouped.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                  value === opt.value
+                    ? "bg-primary/10 text-primary font-black"
+                    : "hover:bg-slate-50 text-slate-700 font-semibold"
+                )}
+              >
+                <span className="truncate">{opt.label}</span>
+                {opt.sublabel && (
+                  <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                )}
+                {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+              </button>
+            ))
+          ) : (
+            <>
+              {groupedOptions.unGrouped.length > 0 && (
+                <div className="space-y-0.5 mb-1">
+                  {groupedOptions.unGrouped.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        onChange(opt.value);
+                        setIsOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                        value === opt.value
+                          ? "bg-primary/10 text-primary font-black"
+                          : "hover:bg-slate-50 text-slate-700 font-semibold"
+                      )}
+                    >
+                      <span className="truncate">{opt.label}</span>
+                      {opt.sublabel && (
+                        <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                      )}
+                      {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {Object.keys(groupedOptions.groups).map((groupName) => (
+                <div key={groupName} className="space-y-0.5 my-1">
+                  <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 rounded-lg">
+                    {groupName}
+                  </div>
+                  {groupedOptions.groups[groupName].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        onChange(opt.value);
+                        setIsOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                        value === opt.value
+                          ? "bg-primary/10 text-primary font-black"
+                          : "hover:bg-slate-50 text-slate-700 font-semibold"
+                      )}
+                    >
+                      <span className="truncate">{opt.label}</span>
+                      {opt.sublabel && (
+                        <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                      )}
+                      {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -551,6 +729,72 @@ export default function PenerimaanZis() {
   const [quickJenisKelamin, setQuickJenisKelamin] = useState<'Laki-laki' | 'Perempuan'>('Laki-laki');
   const [isFabOpen, setIsFabOpen] = useState(false);
 
+  const kodeProgramOptions: CustomSelectOption[] = useMemo(() => [
+    { value: '101.1', label: '101.1 || Zakat Maal Perorangan', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.2', label: '101.2 || Penerimaan Zakat Fitrah Perorangan', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.3', label: '101.3 || CSR/PKBL', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.4', label: '101.4 || Qurban', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.5', label: '101.5 || Fidyah Perorangan', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.8', label: '101.8 || Penerimaan Infak/Sedekah Tidak Terikat', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.9', label: '101.9 || Penerimaan Infak Sedekah Terikat Kas', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.10', label: '101.10 || Penerimaan Infak Sedekah Terikat Natura', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.11', label: '101.11 || Infak/Sedekah Terikat Operasional Amil', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.12', label: '101.12 || Infak dan Sedekah Terikat DSK Lainnya', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.13', label: '101.13 || Zakat Maal Entitas', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '101.14', label: '101.14 || Belum Diketahui', group: '101.x - Penghimpunan Dana Langsung' },
+    { value: '102.1', label: '102.1 || Zakat Maal UPZ Kota (UPZ Pengumpulan)', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.2', label: '102.2 || Zakat Maal UPZ Kecamatan (UPZ Pengumpulan)', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.3', label: '102.3 || Zakat Maal UPZ Penyaluran', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.4', label: '102.4 || Penerimaan Zakat Fitrah via UPZ', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.5', label: '102.5 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kota', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.6', label: '102.6 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kecamatan', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.7', label: '102.7 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Pengumpulan', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.7.1', label: '102.7.1 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Penyaluran', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.8', label: '102.8 || Qurban Via UPZ', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.9', label: '102.9 || Fidyah Via UPZ', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.10', label: '102.10 || DSKL Lainnya Via UPZ', group: '102.x - Penghimpunan Dana via UPZ' },
+    { value: '102.11', label: '102.11 || Zakat Maal UPZ Pengumpulan', group: '102.x - Penghimpunan Dana via UPZ' }
+  ], []);
+
+  const rkatSelectOptions: CustomSelectOption[] = useMemo(() => {
+    return rkatList.map(rkat => ({
+      value: rkat.id,
+      label: `[${rkat.kategori}] ${rkat.nama_program}`
+    }));
+  }, [rkatList]);
+
+  const rkatCoaOptions: CustomSelectOption[] = useMemo(() => {
+    const rkat = rkatList.find(r => r.id === selectedRkatId);
+    const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
+    return codes.map((code: string) => {
+      const coa = coaList.find(c => c.coa_code === code);
+      const label = coa ? `${code} - ${coa.nama_akun}` : `${code} - Penerimaan ${rkat?.nama_program || ''}`;
+      return { value: code, label };
+    });
+  }, [rkatList, selectedRkatId, coaList]);
+
+  const bankAccountOptions: CustomSelectOption[] = useMemo(() => {
+    const opts: CustomSelectOption[] = [];
+    if (!accountsList.some(acc => acc.account_id === 'non_kas')) {
+      opts.push({ value: 'non_kas', label: 'Non Kas' });
+    }
+    accountsList.forEach(acc => {
+      const isNonKas = acc.account_id === 'non_kas';
+      opts.push({
+        value: acc.account_id,
+        label: acc.nama_akun,
+        sublabel: !isNonKas ? `Saldo: Rp ${Number(acc.saldo).toLocaleString('id-ID')}` : undefined
+      });
+    });
+    return opts;
+  }, [accountsList]);
+
+  const metodePembayaranOptions: CustomSelectOption[] = useMemo(() => [
+    { value: 'TRANSFER', label: 'Transfer Bank' },
+    { value: 'TUNAI', label: 'Kas Tunai' },
+    { value: 'QRIS', label: 'QRIS' }
+  ], []);
+
   useEffect(() => {
     fetchData();
     fetchMetadata();
@@ -868,7 +1112,8 @@ export default function PenerimaanZis() {
       alert('Mohon pilih Rekening Penerima.');
       return;
     }
-    if (!nominal || Number(nominal) <= 0) {
+    const parsedNominal = Number(String(nominal || '').replace(/[^0-9]/g, ''));
+    if (!nominal || parsedNominal <= 0) {
       alert('Mohon isi nominal setoran dengan benar.');
       return;
     }
@@ -884,7 +1129,7 @@ export default function PenerimaanZis() {
         jenis_program: selectedKodeProgram && PROGRAM_KODE_TO_RKAT_MAP[selectedKodeProgram] ? PROGRAM_KODE_TO_RKAT_MAP[selectedKodeProgram].jenis : null,
         bank_account_id: selectedAccountId,
         coa_code: selectedCoaCode,
-        nominal: Number(nominal),
+        nominal: parsedNominal,
         metode_pembayaran: metodePembayaran,
         tanggal_pembayaran: tanggalPembayaran,
         no_transaksi_simba: noTransaksiSimba || null,
@@ -1190,7 +1435,10 @@ export default function PenerimaanZis() {
       const sameDay = itemDate.getFullYear() === targetDate.getFullYear() &&
                       itemDate.getMonth() === targetDate.getMonth() &&
                       itemDate.getDate() === targetDate.getDate();
-      const isTunai = item.metode_pembayaran === 'TUNAI';
+      const isTunai = item.metode_pembayaran === 'TUNAI' ||
+                      item.bankAccount?.tipe_kas === 'TUNAI' ||
+                      item.bankAccount?.tipe_kas === 'KAS' ||
+                      (item.bankAccount?.nama_akun || '').toLowerCase().includes('kas');
       const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
       return sameDay && isTunai && !isFailed;
     });
@@ -1972,6 +2220,17 @@ export default function PenerimaanZis() {
                                   setSelectedMuzakkiId(muzakki.id);
                                   setMuzakkiSearch(muzakki.nama);
                                   setShowMuzakkiDropdown(false);
+                                  
+                                  if (muzakki.upz) {
+                                    const cleanMuzUpz = String(muzakki.upz).toLowerCase().trim();
+                                    const matchedUpz = upzList.find((u: any) => {
+                                      const uName = String(u.nama_upz || u.name || '').toLowerCase().trim();
+                                      return uName === cleanMuzUpz || (cleanMuzUpz.length >= 3 && uName.includes(cleanMuzUpz)) || (uName.length >= 3 && cleanMuzUpz.includes(uName));
+                                    });
+                                    if (matchedUpz) {
+                                      handleUpzChange(matchedUpz.id);
+                                    }
+                                  }
                                 }}
                               >
                                 <div>
@@ -2001,47 +2260,32 @@ export default function PenerimaanZis() {
                           setSelectedCoaCode('');
                         }
                       }}
-                      className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                      className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
                     />
                     <label htmlFor="isOutsideRkat" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
                       Tidak ada di RKAT (Penerimaan di luar RKAT)
                     </label>
                   </div>
 
-                  {/* Select UPZ (Pilihan UPZ jika via UPZ) */}
-                  <div className={`space-y-1 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Pilih UPZ (Khusus Penerimaan via UPZ)
+                  {/* Kode Program Pengumpulan (101.1 - 102.11) - Selalu Bisa Diisi */}
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                      Kode Program Pengumpulan (Materi SIMBA / Laporan) *
                     </label>
-                    <select
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-800"
-                      value={selectedUpzId}
-                      onChange={(e) => handleUpzChange(e.target.value)}
-                      disabled={isOutsideRkat}
-                    >
-                      <option value="">Pilih UPZ (Auto-Select Program &amp; RKAT)...</option>
-                      {upzList.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.nama_upz} {u.kategori ? `(${u.kategori})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Kode Program Pengumpulan (101.1 - 102.11) */}
-                  <div className={`space-y-1 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Kode Program Pengumpulan (Materi SIMBA / Laporan)
-                    </label>
-                    <select
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-800"
+                    <CustomSelect 
                       value={selectedKodeProgram}
-                      onChange={(e) => {
-                        const code = e.target.value;
+                      options={kodeProgramOptions}
+                      placeholder="Pilih Kode Program..."
+                      onChange={(code) => {
                         setSelectedKodeProgram(code);
+
+                        if (!code.startsWith('102')) {
+                          setSelectedUpzId('');
+                        }
+
                         if (code && PROGRAM_KODE_TO_RKAT_MAP[code]) {
                           const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[code];
-                          if (mapInfo.rkat_no) {
+                          if (mapInfo.rkat_no && !isOutsideRkat) {
                             const matchedRkat = rkatList.find(r => 
                               r.no === mapInfo.rkat_no || 
                               r.id === mapInfo.rkat_no ||
@@ -2053,83 +2297,47 @@ export default function PenerimaanZis() {
                           }
                         }
                       }}
-                      disabled={isOutsideRkat}
-                    >
-                      <option value="">Pilih Kode Program (Auto-select RKAT)...</option>
-                      <optgroup label="101.x - Penghimpunan Dana Langsung">
-                        <option value="101.1">101.1 || Zakat Maal Perorangan</option>
-                        <option value="101.2">101.2 || Penerimaan Zakat Fitrah Perorangan</option>
-                        <option value="101.3">101.3 || CSR/PKBL</option>
-                        <option value="101.4">101.4 || Qurban</option>
-                        <option value="101.5">101.5 || Fidyah Perorangan</option>
-                        <option value="101.8">101.8 || Penerimaan Infak/Sedekah Tidak Terikat</option>
-                        <option value="101.9">101.9 || Penerimaan Infak Sedekah Terikat Kas</option>
-                        <option value="101.10">101.10 || Penerimaan Infak Sedekah Terikat Natura</option>
-                        <option value="101.11">101.11 || Infak/Sedekah Terikat Operasional Amil</option>
-                        <option value="101.12">101.12 || Infak dan Sedekah Terikat DSK Lainnya</option>
-                        <option value="101.13">101.13 || Zakat Maal Entitas</option>
-                        <option value="101.14">101.14 || Belum Diketahui</option>
-                      </optgroup>
-                      <optgroup label="102.x - Penghimpunan Dana via UPZ">
-                        <option value="102.1">102.1 || Zakat Maal UPZ Kota (UPZ Pengumpulan)</option>
-                        <option value="102.2">102.2 || Zakat Maal UPZ Kecamatan (UPZ Pengumpulan)</option>
-                        <option value="102.3">102.3 || Zakat Maal UPZ Penyaluran</option>
-                        <option value="102.4">102.4 || Penerimaan Zakat Fitrah via UPZ</option>
-                        <option value="102.5">102.5 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kota</option>
-                        <option value="102.6">102.6 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Kecamatan</option>
-                        <option value="102.7">102.7 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Pengumpulan</option>
-                        <option value="102.7.1">102.7.1 || Penerimaan Infak/Sedekah Tidak Terikat via UPZ Penyaluran</option>
-                        <option value="102.8">102.8 || Qurban Via UPZ</option>
-                        <option value="102.9">102.9 || Fidyah Via UPZ</option>
-                        <option value="102.10">102.10 || DSKL Lainnya Via UPZ</option>
-                        <option value="102.11">102.11 || Zakat Maal UPZ Pengumpulan</option>
-                      </optgroup>
-                    </select>
+                    />
                   </div>
 
-                  {/* RKAT Program selection */}
+                  {/* Dropdown Search UPZ - HANYA MUNCUL JIKA KODE PROGRAM BERAWALAN 102.x */}
+                  {selectedKodeProgram && selectedKodeProgram.startsWith('102') && (
+                    <div className="space-y-1.5 text-left animate-fade-in">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                        Pilih UPZ (Penghimpunan via UPZ) *
+                      </label>
+                      <UpzSearchDropdown 
+                        value={selectedUpzId}
+                        onSelect={(upzId) => handleUpzChange(upzId)}
+                        placeholder="Cari &amp; Pilih UPZ..."
+                        upzList={upzList}
+                        className="py-2.5 text-sm bg-slate-50 border-slate-200 rounded-xl"
+                      />
+                    </div>
+                  )}
+
+                  {/* RKAT Program selection (Disabled HANYA jika Penerimaan di Luar RKAT dicentang) */}
                   <div className={`space-y-1 transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kegiatan (RKAT) *</label>
-                    <select 
-                      required={!isOutsideRkat} 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 font-bold text-slate-800"
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Kegiatan (RKAT) *</label>
+                    <CustomSelect 
                       value={selectedRkatId}
-                      onChange={(e) => handleRkatChange(e.target.value)}
+                      options={rkatSelectOptions}
+                      placeholder="Pilih Kegiatan RKAT Pengumpulan..."
                       disabled={isOutsideRkat}
-                    >
-                      <option value="">Pilih Kegiatan RKAT Pengumpulan...</option>
-                      {rkatList.map(rkat => (
-                        <option key={rkat.id} value={rkat.id}>
-                          [{rkat.kategori}] {rkat.nama_program}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(rkatId) => handleRkatChange(rkatId)}
+                    />
                   </div>
 
                   {/* Program Kegiatan (COA) matching the selected Kegiatan (RKAT) */}
                   {!isOutsideRkat && selectedRkatId && (
-                    <div className="space-y-1 animate-fade-in">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program Kegiatan (COA) *</label>
-                      <select
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-700"
+                    <div className="space-y-1 animate-fade-in text-left">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Program Kegiatan (COA) *</label>
+                      <CustomSelect 
                         value={selectedCoaCode}
-                        onChange={(e) => setSelectedCoaCode(e.target.value)}
-                      >
-                        {(() => {
-                          const rkat = rkatList.find(r => r.id === selectedRkatId);
-                          const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
-                          return codes.map((code: string) => {
-                            const coa = coaList.find(c => c.coa_code === code);
-                            const label = coa ? `${code} - ${coa.nama_akun}` : `${code} - Penerimaan ${rkat?.nama_program || ''}`;
-                            return (
-                              <option key={code} value={code}>
-                                {label}
-                              </option>
-                            );
-                          });
-                        })()}
-                      </select>
+                        options={rkatCoaOptions}
+                        placeholder="Pilih COA Program..."
+                        onChange={(code) => setSelectedCoaCode(code)}
+                      />
                     </div>
                   )}
 
@@ -2206,62 +2414,61 @@ export default function PenerimaanZis() {
                   )}
 
                  {/* Bank Account / Kas selection */}
-                 <div className="space-y-1">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">via Kas & Bank *</label>
-                   <select 
-                     required 
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                 <div className="space-y-1 text-left">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">via Kas &amp; Bank *</label>
+                   <CustomSelect 
                      value={selectedAccountId}
-                     onChange={(e) => setSelectedAccountId(e.target.value)}
-                   >
-                      <option value="">Pilih Rekening Tujuan...</option>
-                      {!accountsList.some(acc => acc.account_id === 'non_kas') && (
-                        <option value="non_kas">Non Kas</option>
-                      )}
-                      {accountsList.map(acc => {
-                        const isNonKas = acc.account_id === 'non_kas';
-                        return (
-                          <option key={acc.account_id} value={acc.account_id}>
-                            {acc.nama_akun} {!isNonKas ? `(Saldo: Rp ${Number(acc.saldo).toLocaleString('id-ID')})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
+                     options={bankAccountOptions}
+                     placeholder="Pilih Rekening Tujuan..."
+                     onChange={(accId) => {
+                       setSelectedAccountId(accId);
+                       const targetAcc = accountsList.find(a => a.account_id === accId);
+                       if (targetAcc) {
+                         const isKasAcc = targetAcc.tipe_kas === 'TUNAI' || targetAcc.tipe_kas === 'KAS' || (targetAcc.nama_akun || '').toLowerCase().includes('kas');
+                         setMetodePembayaran(isKasAcc ? 'TUNAI' : 'TRANSFER');
+                       }
+                     }}
+                   />
                  </div>
 
                  {/* Nominal */}
-                 <div className="space-y-1">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nominal (Rp) *</label>
-                   <input 
-                     required 
-                     type="number" 
-                     placeholder="Nominal setoran..." 
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                     value={nominal}
-                     onChange={(e) => setNominal(e.target.value)}
-                   />
+                 <div className="space-y-1 text-left">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Nominal Setoran (Rp) *</label>
+                   <div className="relative flex items-center">
+                     <div className="absolute left-0 top-0 bottom-0 px-3.5 bg-slate-100 border-r border-slate-200 rounded-l-xl flex items-center justify-center text-xs font-black text-slate-600 shrink-0 select-none">
+                       Rp
+                     </div>
+                     <input 
+                       required 
+                       type="text" 
+                       placeholder="0" 
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-14 pr-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-slate-300 font-mono"
+                       value={nominal ? Number(String(nominal).replace(/[^0-9]/g, '')).toLocaleString('id-ID') : ''}
+                       onChange={(e) => {
+                         const rawDigits = e.target.value.replace(/[^0-9]/g, '');
+                         setNominal(rawDigits);
+                       }}
+                     />
+                   </div>
                  </div>
 
                 {/* Metode & Tanggal */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode Pembayaran *</label>
-                    <select 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Metode Pembayaran *</label>
+                    <CustomSelect 
                       value={metodePembayaran}
-                      onChange={(e) => setMetodePembayaran(e.target.value)}
-                    >
-                      <option value="TRANSFER">Transfer Bank</option>
-                      <option value="TUNAI">Kas Tunai</option>
-                      <option value="QRIS">QRIS</option>
-                    </select>
+                      options={metodePembayaranOptions}
+                      placeholder="Pilih Metode..."
+                      onChange={(metode) => setMetodePembayaran(metode)}
+                    />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Setor *</label>
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tanggal Setor *</label>
                     <input 
                       required 
                       type="date" 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 outline-none"
                       value={tanggalPembayaran}
                       onChange={(e) => setTanggalPembayaran(e.target.value)}
                     />
@@ -2269,8 +2476,8 @@ export default function PenerimaanZis() {
                 </div>
 
                 {/* Keterangan */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan / Memo</label>
+                <div className="space-y-1 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Keterangan / Memo</label>
                   <textarea 
                     rows={2} 
                     placeholder="Catatan transfer atau nomor referensi..." 
@@ -2281,14 +2488,14 @@ export default function PenerimaanZis() {
                 </div>
 
                 {/* Preview Accounting Entries helper */}
-                {nominal && Number(nominal) > 0 && selectedAccountId && (selectedRkatId || (isOutsideRkat && selectedCoaCode)) && (
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-[11px]">
+                {nominal && Number(String(nominal).replace(/[^0-9]/g, '')) > 0 && selectedAccountId && (selectedRkatId || (isOutsideRkat && selectedCoaCode)) && (
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-[11px] text-left">
                     <span className="font-bold text-slate-500 uppercase tracking-wider block">Preview Entri Jurnal Akuntansi</span>
                     <div className="grid grid-cols-2 gap-2 text-slate-600">
                       <div>
                         <span className="font-bold text-emerald-600">DEBIT</span>
                         <p className="font-medium truncate">{accountsList.find(a => a.account_id === selectedAccountId)?.nama_akun || 'Rekening'}</p>
-                        <p className="font-mono text-slate-400">Rp {Number(nominal).toLocaleString('id-ID')}</p>
+                        <p className="font-mono text-slate-400 font-bold">Rp {Number(String(nominal).replace(/[^0-9]/g, '')).toLocaleString('id-ID')}</p>
                       </div>
                       <div>
                         <span className="font-bold text-blue-600">KREDIT</span>
@@ -2298,7 +2505,7 @@ export default function PenerimaanZis() {
                             : `Pendapatan ${rkatList.find(r => r.id === selectedRkatId)?.nama_program || 'Program'}`
                           }
                         </p>
-                        <p className="font-mono text-slate-400">Rp {Number(nominal).toLocaleString('id-ID')}</p>
+                        <p className="font-mono text-slate-400 font-bold">Rp {Number(String(nominal).replace(/[^0-9]/g, '')).toLocaleString('id-ID')}</p>
                       </div>
                     </div>
                   </div>

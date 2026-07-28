@@ -452,6 +452,12 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       }
 
 
+      let finalMetodePembayaran = metode_pembayaran;
+      if (!finalMetodePembayaran) {
+        const isKas = bankAccount.tipe_kas === 'TUNAI' || bankAccount.tipe_kas === 'KAS' || bankAccount.nama_akun.toLowerCase().includes('kas');
+        finalMetodePembayaran = isKas ? 'TUNAI' : 'TRANSFER';
+      }
+
       // 3. Create PenerimaanZis record in PENDING state (but with transaksi_id set)
       const penerimaan = await tx.penerimaanZis.create({
         data: {
@@ -460,7 +466,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
           rkat_id: rkat_id || null,
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
-          metode_pembayaran: metode_pembayaran || 'TRANSFER',
+          metode_pembayaran: finalMetodePembayaran,
           no_transaksi_simba: no_transaksi_simba || null,
           tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
           keterangan: formattedKeterangan,
@@ -648,6 +654,12 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
         });
       }
 
+      let finalUpdateMetode = metode_pembayaran;
+      if (!finalUpdateMetode) {
+        const isKas = bankAccount.tipe_kas === 'TUNAI' || bankAccount.tipe_kas === 'KAS' || bankAccount.nama_akun.toLowerCase().includes('kas');
+        finalUpdateMetode = isKas ? 'TUNAI' : 'TRANSFER';
+      }
+
       // 5. Update PenerimaanZis record
       const updatedPenerimaan = await tx.penerimaanZis.update({
         where: { id },
@@ -656,7 +668,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
           rkat_id: rkat_id || null,
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
-          metode_pembayaran: metode_pembayaran || 'TRANSFER',
+          metode_pembayaran: finalUpdateMetode,
           no_transaksi_simba: no_transaksi_simba || null,
           tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
           keterangan: formattedKeterangan
@@ -993,6 +1005,31 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         if (!bankAccountId) bankAccountId = bankAccounts[0]?.account_id;
         if (!bankAccountId) throw new Error('Rekening bank/kas tidak valid');
 
+        const rawMetodeVal = getVal(txData, ['metode_pembayaran', 'Metode Pembayaran', 'Metode', 'Metode Trx', 'Via', 'Jenis Pembayaran', 'Cara Pembayaran', 'Metode Bayar']);
+        let determinedMetodePembayaran = txData.metode_pembayaran;
+        if (rawMetodeVal) {
+          const strMetode = String(rawMetodeVal).trim().toUpperCase();
+          if (strMetode.includes('TUNAI') || strMetode.includes('KAS')) {
+            determinedMetodePembayaran = 'TUNAI';
+          } else if (strMetode.includes('QRIS')) {
+            determinedMetodePembayaran = 'QRIS';
+          } else {
+            determinedMetodePembayaran = 'TRANSFER';
+          }
+        }
+        
+        if (!determinedMetodePembayaran) {
+          const targetBankAcc = bankAccounts.find(b => b.account_id === bankAccountId);
+          if (targetBankAcc) {
+            const isKas = targetBankAcc.tipe_kas === 'TUNAI' || targetBankAcc.tipe_kas === 'KAS' || targetBankAcc.nama_akun.toLowerCase().includes('kas');
+            determinedMetodePembayaran = isKas ? 'TUNAI' : 'TRANSFER';
+          } else if (sourceQuery.includes('kas') || sourceQuery.includes('tunai')) {
+            determinedMetodePembayaran = 'TUNAI';
+          } else {
+            determinedMetodePembayaran = 'TRANSFER';
+          }
+        }
+
         let muzakkiId = txData.muzakki_id || null;
         const rawMuzakki = getVal(txData, ['Nama Muzakki', 'nama_muzakki', 'Nama', 'Muzakki', 'Penyetor', 'Nama Penyetor', 'Donatur', 'Nama Donatur', 'Nama Munfiq', 'Nama Muzakki/Penyetor']);
         const inputNamaMuzakki = String(rawMuzakki || '').trim();
@@ -1122,7 +1159,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
               jenis_program: jenisProgram,
               bank_account_id: bankAccountId,
               nominal: new Prisma.Decimal(nominal),
-              metode_pembayaran: txData.metode_pembayaran || 'TRANSFER',
+              metode_pembayaran: determinedMetodePembayaran,
               tanggal_pembayaran: tanggalTrx,
               keterangan: rowKeterangan || txData.keterangan || 'Migrasi Historis Pengumpulan ZIS'
             } as any
