@@ -978,12 +978,21 @@ export default function PenerimaanZis() {
 
   const handleRkatChange = (rkatId: string) => {
     setSelectedRkatId(rkatId);
-    const rkat = rkatList.find(r => r.id === rkatId);
+    const rkat = rkatList.find(r => r.id === rkatId || r.no === String(rkatId));
     const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
     if (codes.length > 0) {
       setSelectedCoaCode(codes[0]);
     } else {
       setSelectedCoaCode('');
+    }
+
+    if (rkat) {
+      const foundKode = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).find(
+        k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkat.no
+      );
+      if (foundKode) {
+        setSelectedKodeProgram(foundKode);
+      }
     }
   };
 
@@ -1132,13 +1141,26 @@ export default function PenerimaanZis() {
 
     setIsLoading(true);
     try {
+      let finalKodeProgram = selectedKodeProgram || null;
+      if (!finalKodeProgram && selectedRkatId) {
+        const rkatObj = rkatList.find(r => r.id === selectedRkatId || r.no === String(selectedRkatId));
+        if (rkatObj) {
+          const found = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).find(k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkatObj.no);
+          if (found) finalKodeProgram = found;
+        }
+      }
+
+      const finalJenisProgram = finalKodeProgram && PROGRAM_KODE_TO_RKAT_MAP[finalKodeProgram]
+        ? PROGRAM_KODE_TO_RKAT_MAP[finalKodeProgram].jenis
+        : null;
+
       const payload = {
         no_kuitansi: noKuitansi,
         muzakki_id: selectedMuzakkiId,
         upz_id: selectedUpzId || null,
         rkat_id: needsRkat ? selectedRkatId : null,
-        kode_program: selectedKodeProgram || null,
-        jenis_program: selectedKodeProgram && PROGRAM_KODE_TO_RKAT_MAP[selectedKodeProgram] ? PROGRAM_KODE_TO_RKAT_MAP[selectedKodeProgram].jenis : null,
+        kode_program: finalKodeProgram,
+        jenis_program: finalJenisProgram,
         bank_account_id: selectedAccountId,
         coa_code: selectedCoaCode,
         nominal: parsedNominal,
@@ -1176,7 +1198,22 @@ export default function PenerimaanZis() {
     setEditingId(item.id);
     setSelectedMuzakkiId(item.muzakki_id);
     setMuzakkiSearch(item.muzakki?.nama || '');
-    setSelectedRkatId(item.rkat_id || '');
+
+    const rkatId = item.rkat_id || '';
+    setSelectedRkatId(rkatId);
+
+    // Auto-populate Kode Program and UPZ ID
+    let initialKode = item.kode_program || '';
+    if (!initialKode && rkatId) {
+      const rkatObj = rkatList.find(r => r.id === rkatId || r.no === String(rkatId));
+      if (rkatObj) {
+        const found = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).find(k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkatObj.no);
+        if (found) initialKode = found;
+      }
+    }
+    setSelectedKodeProgram(initialKode);
+    setSelectedUpzId(item.upz_id || '');
+
     setSelectedCoaCode(item.coa_code || '');
     setSelectedAccountId(item.bank_account_id);
     setNominal(String(item.nominal || ''));
@@ -1187,7 +1224,7 @@ export default function PenerimaanZis() {
     setKeterangan(item.keterangan || '');
     setNoKuitansi(item.no_kuitansi || '');
     setNoTransaksiSimba(item.no_transaksi_simba || '');
-    setIsOutsideRkat(!item.rkat_id);
+    setIsOutsideRkat(!rkatId);
     setCoaSearch('');
     setIsCoaDropdownOpen(false);
     setIsModalOpen(true);
@@ -1270,6 +1307,7 @@ export default function PenerimaanZis() {
   };
 
   const handleDeletePenerimaan = async (item: any) => {
+    if (!item) return;
     if (!window.confirm(`Apakah Anda yakin ingin menghapus transaksi ${item.no_kuitansi}? Tindakan ini akan mengembalikan saldo kas & menghapus jurnal realisasi.`)) {
       return;
     }
@@ -1278,6 +1316,7 @@ export default function PenerimaanZis() {
       const res = await axios.delete(`/api/penerimaan-zis/${item.id}`);
       if (res.data.status === 'success') {
         fetchData();
+        setIsDetailModalOpen(false);
         setMessages([{ type: 'success', text: 'Transaksi berhasil dihapus & saldo dikoreksi.' }]);
       }
     } catch (err: any) {
@@ -2054,24 +2093,28 @@ export default function PenerimaanZis() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-end gap-1.5">
                           <button 
                             onClick={() => handleEditClick(item)}
-                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-amber-600 rounded-xl transition-colors" title="Edit">
-                            <Edit3 className="size-4" />
+                            className="p-1.5 bg-amber-50/80 hover:bg-amber-100 text-amber-700 rounded-lg border border-amber-200/60 transition-all active:scale-95 shadow-sm" 
+                            title="Edit Transaksi"
+                          >
+                            <Edit3 className="size-3.5" />
                           </button>
                           <button 
                             onClick={() => { setSelectedData(item); setIsDetailModalOpen(true); }}
-                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-primary rounded-xl transition-colors" title="Detail">
-                            <Eye className="size-4" />
+                            className="p-1.5 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200/60 transition-all active:scale-95 shadow-sm" 
+                            title="Detail Transaksi"
+                          >
+                            <Eye className="size-3.5" />
                           </button>
-                          {isSuperAdmin && (
-                            <button 
-                              onClick={() => handleDeletePenerimaan(item)}
-                              className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl transition-colors" title="Hapus">
-                              <Trash2 className="size-4" />
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => handleDeletePenerimaan(item)}
+                            className="p-1.5 bg-rose-50/80 hover:bg-rose-100 text-rose-600 hover:text-rose-700 rounded-lg border border-rose-200/70 transition-all active:scale-95 shadow-sm" 
+                            title="Hapus Transaksi"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -2760,8 +2803,15 @@ export default function PenerimaanZis() {
 
               <div className="p-4 md:p-6 border-t border-slate-100 flex gap-3 shrink-0">
                 <button 
+                  onClick={() => handleDeletePenerimaan(selectedData)}
+                  className="py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 border border-rose-200 active:scale-95 shadow-sm"
+                >
+                  <Trash2 className="size-4" />
+                  Hapus Transaksi
+                </button>
+                <button 
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all active:scale-95"
                 >
                   Tutup
                 </button>

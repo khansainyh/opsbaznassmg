@@ -199,7 +199,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
         const formattedKeterangan = `Terima ${isZakat ? 'Zakat Maal' : 'Infak'} a.n ${muzakki.nama} (${cleanOpd})`;
 
-        // 1. Create PenerimaanZis record (status SYNCED immediately)
+        // 1. Create PenerimaanZis record (status PENDING to enter SIMBA queue)
         const penerimaan = await tx.penerimaanZis.create({
           data: {
             no_kuitansi,
@@ -213,7 +213,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
             metode_pembayaran: 'TRANSFER',
             tanggal_pembayaran: paymentDate,
             keterangan: formattedKeterangan,
-            status_simba: 'SYNCED',
+            status_simba: 'PENDING',
             transaksi_id: null
           } as any
         });

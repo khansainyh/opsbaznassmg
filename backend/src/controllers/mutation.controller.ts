@@ -3,8 +3,32 @@ import fs from 'fs';
 import path from 'path';
 import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { PROGRAM_KODE_TO_RKAT_MAP } from './penerimaan-zis.controller';
 
 const filePath = path.join(__dirname, '../data/mutations.json');
+
+const resolveKodeAndJenisProgram = async (rkatId: string | null, rawKode?: string, rawJenis?: string) => {
+  let kp = rawKode || null;
+  let jp = rawJenis || null;
+
+  if (kp && PROGRAM_KODE_TO_RKAT_MAP[kp]) {
+    jp = jp || PROGRAM_KODE_TO_RKAT_MAP[kp].jenis;
+  } else if (rkatId) {
+    const rkat = await prisma.rkatPengumpulan.findUnique({ where: { id: rkatId } });
+    if (rkat) {
+      const foundKode = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).find(
+        k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkat.no
+      );
+      if (foundKode) {
+        kp = foundKode;
+        jp = PROGRAM_KODE_TO_RKAT_MAP[foundKode].jenis;
+      } else {
+        jp = rkat.nama_program;
+      }
+    }
+  }
+  return { kode_program: kp, jenis_program: jp };
+};
 
 // Helper to read mutations from JSON file
 const readMutations = (): any[] => {
@@ -404,6 +428,7 @@ export const reconcileMutation = async (req: Request, res: Response) => {
         });
 
         // Create or update synced PenerimaanZis entry
+        const { kode_program: resolvedKode, jenis_program: resolvedJenis } = await resolveKodeAndJenisProgram(rkatId, (req.body as any).kodeProgram, (req.body as any).jenisProgram);
         const noKuitansi = `BSZ-MUT-${mutation.id}`;
         if (isEdit) {
           await tx.penerimaanZis.update({
@@ -411,9 +436,12 @@ export const reconcileMutation = async (req: Request, res: Response) => {
             data: {
               muzakki_id: muzakkiId || null,
               rkat_id: rkatId || null,
+              kode_program: resolvedKode,
+              jenis_program: resolvedJenis,
               bank_account_id: mutation.bankAccountId,
               nominal: new Prisma.Decimal(nominal),
-              keterangan: keteranganRealisasi
+              keterangan: keteranganRealisasi,
+              status_simba: 'PENDING'
             }
           });
         } else {
@@ -427,12 +455,14 @@ export const reconcileMutation = async (req: Request, res: Response) => {
                 no_kuitansi: noKuitansi,
                 muzakki_id: muzakkiId || null,
                 rkat_id: rkatId || null,
+                kode_program: resolvedKode,
+                jenis_program: resolvedJenis,
                 bank_account_id: mutation.bankAccountId,
                 nominal: new Prisma.Decimal(nominal),
                 metode_pembayaran: 'TRANSFER',
                 tanggal_pembayaran: new Date(mutation.tanggal),
                 keterangan: keteranganRealisasi,
-                status_simba: 'SYNCED',
+                status_simba: 'PENDING',
                 transaksi_id: realisasi.transaksi_id
               }
             });
@@ -669,15 +699,19 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
       });
 
       // Create or update PenerimaanZis record in PENDING state (but with transaksi_id set)
+      const { kode_program: resolvedKode, jenis_program: resolvedJenis } = await resolveKodeAndJenisProgram(rkatId, req.body.kodeProgram, req.body.jenisProgram);
       if (isEdit) {
         await tx.penerimaanZis.update({
           where: { no_kuitansi: noKuitansi },
           data: {
             muzakki_id: muzakkiId,
             rkat_id: rkatId || null,
+            kode_program: resolvedKode,
+            jenis_program: resolvedJenis,
             bank_account_id: mutation.bankAccountId,
             nominal: new Prisma.Decimal(nominal),
-            keterangan: formattedKeterangan
+            keterangan: formattedKeterangan,
+            status_simba: 'PENDING'
           }
         });
       } else {
@@ -686,6 +720,8 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
             no_kuitansi: noKuitansi,
             muzakki_id: muzakkiId,
             rkat_id: rkatId || null,
+            kode_program: resolvedKode,
+            jenis_program: resolvedJenis,
             bank_account_id: mutation.bankAccountId,
             nominal: new Prisma.Decimal(nominal),
             metode_pembayaran: 'TRANSFER',

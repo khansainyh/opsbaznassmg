@@ -168,7 +168,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
 
       const statusSimba = (item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0)
         ? 'SYNCED'
-        : item.status_simba;
+        : (item.status_simba === 'FAILED' ? 'FAILED' : 'PENDING');
 
       return {
         ...item,
@@ -195,25 +195,39 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
 
     summaryItems.forEach((item: any) => {
       const nom = Number(item.nominal || 0);
-      let cat = item.rkat?.kategori;
-      if (!cat && item.rkat_id) {
-        const r = rkatMap.get(item.rkat_id);
-        if (r) cat = r.kategori;
-      }
-      if (!cat && item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program]) {
-        const rNo = PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no;
-        if (rNo && rkatMap.get(rNo)) {
-          cat = rkatMap.get(rNo).kategori;
+      let strKode = item.kode_program ? String(item.kode_program).trim() : '';
+
+      // Check if strKode explicitly maps to Infak or Zakat
+      const isInfakCode = ['101.8', '101.9', '101.10', '101.11', '101.12', '102.5', '102.6', '102.7', '102.7.1', '102.8', '102.9'].includes(strKode);
+      const isZakatCode = ['101.1', '101.2', '101.13', '102.1', '102.2', '102.3', '102.4', '102.11'].includes(strKode);
+
+      let isZakat = false;
+      let isInfak = false;
+
+      if (isInfakCode) {
+        isInfak = true;
+      } else if (isZakatCode) {
+        isZakat = true;
+      } else {
+        // Fallback to RKAT category or jenis_program string
+        let cat = item.rkat?.kategori;
+        if (!cat && item.rkat_id) {
+          const r = rkatMap.get(item.rkat_id);
+          if (r) cat = r.kategori;
+        }
+        const strKat = cat ? String(cat).toLowerCase() : '';
+        const strJenis = item.jenis_program ? String(item.jenis_program).toLowerCase() : '';
+
+        if (strKat.includes('infak') || strKat.includes('infaq') || strKat.includes('sedekah') || strJenis.includes('infak') || strJenis.includes('sedekah')) {
+          isInfak = true;
+        } else if (strKat.includes('zakat') || strJenis.includes('zakat')) {
+          isZakat = true;
         }
       }
 
-      const strKat = cat ? String(cat).toLowerCase() : '';
-      const strKode = item.kode_program ? String(item.kode_program).trim() : '';
-      const strJenis = item.jenis_program ? String(item.jenis_program).toLowerCase() : '';
-
-      if (strKat.includes('zakat') || ['101.1', '101.2', '101.13', '102.1', '102.2', '102.3', '102.4', '102.11'].includes(strKode) || strJenis.includes('zakat')) {
+      if (isZakat) {
         totalZakat += nom;
-      } else if (strKat.includes('infak') || strKat.includes('infaq') || strKat.includes('sedekah') || ['101.8', '101.9', '101.10', '101.11', '101.12', '102.5', '102.6', '102.7', '102.7.1', '102.8', '102.9'].includes(strKode) || strJenis.includes('infak') || strJenis.includes('sedekah')) {
+      } else if (isInfak) {
         totalInfak += nom;
       } else {
         totalDskl += nom;
@@ -273,7 +287,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
 
       let rkat = null;
       let effectiveRkatId = rkat_id || null;
-      if (!effectiveRkatId && kode_program && PROGRAM_KODE_TO_RKAT_MAP[kode_program]) {
+      if (kode_program && PROGRAM_KODE_TO_RKAT_MAP[kode_program]) {
         const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[kode_program];
         if (mapInfo.rkat_no) {
           const matchedRkat = await tx.rkatPengumpulan.findFirst({
@@ -510,6 +524,21 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       }
 
 
+      let targetKodeProgram = kode_program || req.body.kodeProgram || null;
+      let targetJenisProgram = jenis_program || req.body.jenisProgram || null;
+
+      if (rkat) {
+        const foundKode = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).find(
+          k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkat.no
+        );
+        if (foundKode) {
+          targetKodeProgram = targetKodeProgram || foundKode;
+          targetJenisProgram = targetJenisProgram || PROGRAM_KODE_TO_RKAT_MAP[foundKode].jenis;
+        } else {
+          targetJenisProgram = targetJenisProgram || rkat.nama_program;
+        }
+      }
+
       let finalMetodePembayaran = metode_pembayaran;
       if (!finalMetodePembayaran) {
         const isKas = bankAccount.tipe_kas === 'TUNAI' || bankAccount.tipe_kas === 'KAS' || bankAccount.nama_akun.toLowerCase().includes('kas');
@@ -521,7 +550,9 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
         data: {
           no_kuitansi: generatedKuitansi,
           muzakki_id,
-          rkat_id: rkat_id || null,
+          rkat_id: effectiveRkatId || null,
+          kode_program: targetKodeProgram,
+          jenis_program: targetJenisProgram,
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
           metode_pembayaran: finalMetodePembayaran,
@@ -718,12 +749,39 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
         finalUpdateMetode = isKas ? 'TUNAI' : 'TRANSFER';
       }
 
+      let targetKodeProgram = req.body.kode_program || req.body.kodeProgram || null;
+      let targetJenisProgram = req.body.jenis_program || req.body.jenisProgram || null;
+      let targetRkatId = rkat_id || null;
+
+      if (targetKodeProgram && PROGRAM_KODE_TO_RKAT_MAP[targetKodeProgram]) {
+        const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[targetKodeProgram];
+        targetJenisProgram = targetJenisProgram || mapInfo.jenis;
+        if (mapInfo.rkat_no) {
+          const matchedRkat = await tx.rkatPengumpulan.findFirst({
+            where: { OR: [{ no: mapInfo.rkat_no }, { id: mapInfo.rkat_no }] }
+          });
+          if (matchedRkat) targetRkatId = matchedRkat.id;
+        }
+      } else if (rkat) {
+        const foundKode = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).find(
+          k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkat.no
+        );
+        if (foundKode) {
+          targetKodeProgram = foundKode;
+          targetJenisProgram = PROGRAM_KODE_TO_RKAT_MAP[foundKode].jenis;
+        } else {
+          targetJenisProgram = rkat.nama_program;
+        }
+      }
+
       // 5. Update PenerimaanZis record
       const updatedPenerimaan = await tx.penerimaanZis.update({
         where: { id },
         data: {
           muzakki_id,
-          rkat_id: rkat_id || null,
+          rkat_id: targetRkatId,
+          kode_program: targetKodeProgram,
+          jenis_program: targetJenisProgram,
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
           metode_pembayaran: finalUpdateMetode,
@@ -872,6 +930,16 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
     };
 
     list.forEach((tx: any) => {
+      // Check if attached UPZ is Off-Balance
+      let isOffBalance = false;
+      if (tx.upz?.metadata) {
+        const meta = typeof tx.upz.metadata === 'string' ? JSON.parse(tx.upz.metadata) : tx.upz.metadata;
+        if (meta && meta.type === 'Off-Balance') {
+          isOffBalance = true;
+        }
+      }
+      if (isOffBalance) return; // Skip Off-Balance transactions from Laporan Bulanan Rekap ZIS
+
       const nom = Number(tx.nominal || 0);
       const kp = String(tx.kode_program || '');
       const programName = String(tx.jenis_program || tx.rkat?.nama_program || '').toLowerCase();
@@ -924,8 +992,14 @@ export const getRekapitulasiBulananZis = async (req: Request, res: Response) => 
       }
     });
 
-    // Populate all UPZs into their respective categories
+    // Populate all On-Balance UPZs into their respective categories
     allUpzs.forEach((u: any) => {
+      const meta = typeof u.metadata === 'string' ? JSON.parse(u.metadata || '{}') : (u.metadata || {});
+      const upzType = meta.type || 'On-Balance';
+      if (upzType === 'Off-Balance') {
+        return; // Exclude Off-Balance UPZ from Laporan Bulanan Rekap ZIS
+      }
+
       let catName = 'UNIT PENGUMPUL ZAKAT (PENGUMPULAN)';
       const nama = u.nama_upz.toUpperCase();
 
