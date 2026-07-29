@@ -383,83 +383,69 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
 
     // Ensure mapping exists
     await ensureDefaultMappingsExist();
-    const dbMappings = await prisma.laporanKinerjaMapping.findMany({
-      where: { tab: 'penyaluran' },
-      select: { row_key: true, row_label: true, coa_codes: true }
-    });
 
-    // Fetch all programs in the DB using select projection
-    const dbPrograms = await prisma.program.findMany({
-      select: {
-        code: true,
-        budget_rkat: true,
-        pilar_code: true
-      }
-    });
-
-    // Fetch realized proposals using select projection
-    const realizedProposals = await prisma.proposal.findMany({
-      where: {
-        status: {
-          in: ['Selesai & Arsip', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana']
+    // Parallelize all DB queries using Promise.all for maximum speed
+    const [
+      dbMappings,
+      dbPrograms,
+      realizedProposals,
+      coaMappingRules,
+      realisasiList,
+      dbMuzakkis,
+      receipts,
+      dbMustahikMaster
+    ] = await Promise.all([
+      prisma.laporanKinerjaMapping.findMany({
+        where: { tab: 'penyaluran' },
+        select: { row_key: true, row_label: true, coa_codes: true }
+      }),
+      prisma.program.findMany({
+        select: { code: true, budget_rkat: true, pilar_code: true }
+      }),
+      prisma.proposal.findMany({
+        where: {
+          status: {
+            in: ['Selesai & Arsip', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana']
+          },
+          tanggal_masuk: { gte: startDate, lte: endDate }
         },
-        tanggal_masuk: {
-          gte: startDate,
-          lte: endDate
+        select: {
+          id: true,
+          mustahik_id: true,
+          tanggal_masuk: true,
+          nominal: true,
+          asnaf: true,
+          nama_pemohon: true,
+          nik: true,
+          alamat: true,
+          program: { select: { code: true, name: true, tipe: true, pilar_code: true } },
+          mustahik: { select: { nama: true, alamat: true, nrm: true, status_graduasi: true, nik: true } }
         }
-      },
-      select: {
-        id: true,
-        mustahik_id: true,
-        tanggal_masuk: true,
-        nominal: true,
-        asnaf: true,
-        nama_pemohon: true,
-        nik: true,
-        alamat: true,
-        program: {
-          select: {
-            code: true,
-            name: true,
-            tipe: true,
-            pilar_code: true
-          }
-        },
-        mustahik: {
-          select: {
-            nama: true,
-            alamat: true,
-            nrm: true,
-            status_graduasi: true,
-            nik: true
-          }
+      }),
+      prisma.coaMappingRule.findMany({
+        select: { program_code: true, asnaf_id: true, debit_coa_code: true }
+      }),
+      prisma.realisasi.findMany({
+        where: { proposal_id: { not: null } },
+        select: {
+          proposal_id: true,
+          journalEntries: { select: { debit: true, coa_code: true } }
         }
-      }
-    });
+      }),
+      prisma.muzakki.findMany({
+        select: { id: true, nama: true, nik: true, alamat: true, kategori: true }
+      }),
+      prisma.penerimaanZis.findMany({
+        where: { muzakki_id: { not: null } },
+        select: { muzakki_id: true, rkat: { select: { kategori: true } } }
+      }),
+      prisma.mustahik.findMany({
+        where: { created_at: { gte: startDate, lte: endDate } },
+        select: { id: true, nama: true, nik: true, nrm: true, alamat: true, status_graduasi: true, created_at: true }
+      })
+    ]);
 
-    // Fetch COA mappings and realized entries for proposals using select projection
-    const coaMappingRules = await prisma.coaMappingRule.findMany({
-      select: {
-        program_code: true,
-        asnaf_id: true,
-        debit_coa_code: true
-      }
-    });
-
-    const realisasiList = await prisma.realisasi.findMany({
-      where: { proposal_id: { not: null } },
-      select: {
-        proposal_id: true,
-        journalEntries: {
-          select: {
-            debit: true,
-            coa_code: true
-          }
-        }
-      }
-    });
-
-    // Pre-build Map lookups for O(1) matching
+    // Pre-build Map lookups for O(1) realisasi & COA rules matching
     const realisasiMap = new Map<string, any>();
     realisasiList.forEach(r => {
       if (r.proposal_id) realisasiMap.set(r.proposal_id, r);
@@ -752,25 +738,7 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       { code: '5.12', label: 'Mustahik penerima penyaluran yang menjadi munfiq', section: 'ikk_penyaluran', type: 'mustahik_to_munfiq' }
     ];
 
-    // Fetch all registered Muzakkis & payment receipts to check Mustahik transition
-    const dbMuzakkis = await prisma.muzakki.findMany({
-      select: {
-        id: true,
-        nama: true,
-        nik: true,
-        alamat: true,
-        kategori: true
-      }
-    });
-
-    const receipts = await prisma.penerimaanZis.findMany({
-      where: { muzakki_id: { not: null } },
-      select: {
-        muzakki_id: true,
-        rkat: { select: { kategori: true } }
-      }
-    });
-
+    // Build O(1) Hash Map Index for Muzakki & Munfiq matching
     const muzakkiZakatSet = new Set<string>();
     const muzakkiInfakSet = new Set<string>();
 
@@ -785,74 +753,64 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       }
     });
 
-    const processedMuzakkis = dbMuzakkis.map(m => {
+    const muzakkiNikMap = new Map<string, { isMuzakki: boolean; isMunfiq: boolean }>();
+    const muzakkiNameMap = new Map<string, Array<{ addrClean: string; isMuzakki: boolean; isMunfiq: boolean }>>();
+
+    dbMuzakkis.forEach(m => {
       const nikClean = cleanNik(m.nik);
       const nameClean = cleanName(m.nama);
       const addrClean = cleanAddress(m.alamat);
       const isZakat = muzakkiZakatSet.has(m.id);
       const isInfak = muzakkiInfakSet.has(m.id);
 
-      return {
-        id: m.id,
-        nikClean,
-        nameClean,
-        addrClean,
+      const entry = {
         isMuzakki: isZakat || !isInfak,
-        isMunfiq: isInfak || !isZakat
+        isMunfiq: isInfak || !isZakat,
+        addrClean
       };
-    });
 
-    const isMatchMuzakkiOrMunfiq = (p: any, targetType: 'mustahik_to_muzakki' | 'mustahik_to_munfiq'): boolean => {
-      const pNik = cleanNik(p.mustahikNik);
-      const pName = cleanName(p.mustahikNama);
-      const pAddr = cleanAddress(p.mustahikAlamatRaw);
-      if (!pNik && !pName) return false;
-
-      return processedMuzakkis.some(m => {
-        if (targetType === 'mustahik_to_muzakki' && !m.isMuzakki) return false;
-        if (targetType === 'mustahik_to_munfiq' && !m.isMunfiq) return false;
-
-        // 1. Match by NIK
-        if (pNik && m.nikClean && pNik === m.nikClean) {
-          return true;
+      if (nikClean) {
+        muzakkiNikMap.set(nikClean, entry);
+      }
+      if (nameClean) {
+        if (!muzakkiNameMap.has(nameClean)) {
+          muzakkiNameMap.set(nameClean, []);
         }
-
-        // 2. Match by Name + Address
-        if (pName && m.nameClean) {
-          const nameExact = pName === m.nameClean;
-          const nameContains = pName.length >= 4 && m.nameClean.length >= 4 && (pName.includes(m.nameClean) || m.nameClean.includes(pName));
-
-          if (nameExact || nameContains) {
-            if (!pAddr || !m.addrClean) return true;
-            if (pAddr.includes(m.addrClean) || m.addrClean.includes(pAddr)) return true;
-            const pWords = pAddr.split(' ').filter(w => w.length > 2);
-            const mWords = m.addrClean.split(' ').filter(w => w.length > 2);
-            if (pWords.some(w => mWords.includes(w))) return true;
-          }
-        }
-
-        return false;
-      });
-    };
-
-    // Fetch Mustahik master records directly from Mustahik table
-    const dbMustahikMaster = await prisma.mustahik.findMany({
-      where: {
-        created_at: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
-      select: {
-        id: true,
-        nama: true,
-        nik: true,
-        nrm: true,
-        alamat: true,
-        status_graduasi: true,
-        created_at: true
+        muzakkiNameMap.get(nameClean)!.push(entry);
       }
     });
+
+    const checkMatchFast = (pNikRaw: string | null | undefined, pNameRaw: string | null | undefined, pAddrRaw: string | null | undefined, targetType: 'mustahik_to_muzakki' | 'mustahik_to_munfiq'): boolean => {
+      const pNik = cleanNik(pNikRaw);
+      const pName = cleanName(pNameRaw);
+      const pAddr = cleanAddress(pAddrRaw);
+
+      if (!pNik && !pName) return false;
+
+      // 1. O(1) NIK Lookup
+      if (pNik && muzakkiNikMap.has(pNik)) {
+        const entry = muzakkiNikMap.get(pNik)!;
+        if (targetType === 'mustahik_to_muzakki' && entry.isMuzakki) return true;
+        if (targetType === 'mustahik_to_munfiq' && entry.isMunfiq) return true;
+      }
+
+      // 2. O(1) Name Lookup + Address verification
+      if (pName && muzakkiNameMap.has(pName)) {
+        const matches = muzakkiNameMap.get(pName)!;
+        for (const m of matches) {
+          if (targetType === 'mustahik_to_muzakki' && !m.isMuzakki) continue;
+          if (targetType === 'mustahik_to_munfiq' && !m.isMunfiq) continue;
+
+          if (!pAddr || !m.addrClean) return true;
+          if (pAddr.includes(m.addrClean) || m.addrClean.includes(pAddr)) return true;
+          const pWords = pAddr.split(' ').filter(w => w.length > 2);
+          const mWords = m.addrClean.split(' ').filter(w => w.length > 2);
+          if (pWords.some(w => mWords.includes(w))) return true;
+        }
+      }
+
+      return false;
+    };
 
     const processedMustahikMaster = dbMustahikMaster.map(m => {
       const date = new Date(m.created_at);
@@ -878,7 +836,12 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       };
     });
 
-    const combinedMustahikItems = [...processedProposals, ...processedMustahikMaster];
+    // Combine and Pre-evaluate matches ONCE in O(N) instead of O(N * M)
+    const combinedMustahikItems = [...processedProposals, ...processedMustahikMaster].map(item => ({
+      ...item,
+      isMuzakkiMatch: checkMatchFast(item.mustahikNik, item.mustahikNama, item.mustahikAlamatRaw, 'mustahik_to_muzakki'),
+      isMunfiqMatch: checkMatchFast(item.mustahikNik, item.mustahikNama, item.mustahikAlamatRaw, 'mustahik_to_munfiq')
+    }));
 
     // Compute unique mustahiks from pre-processed proposals and master Mustahik data
     const finalMustahikList = mustahikConfig.map(row => {
@@ -908,9 +871,9 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
         } else if (row.type === 'desa_pemberdayaan') {
           isMatch = p.programTipe === 'Produktif' && (p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan'));
         } else if (row.type === 'mustahik_to_muzakki') {
-          isMatch = isMatchMuzakkiOrMunfiq(p, 'mustahik_to_muzakki');
+          isMatch = p.isMuzakkiMatch;
         } else if (row.type === 'mustahik_to_munfiq') {
-          isMatch = isMatchMuzakkiOrMunfiq(p, 'mustahik_to_munfiq');
+          isMatch = p.isMunfiqMatch;
         }
 
         if (isMatch) {
