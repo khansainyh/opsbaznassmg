@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   createPengajuan,
   getPengajuans,
@@ -7,9 +8,12 @@ import {
   disbursePengajuan,
   deletePengajuan
 } from '../controllers/pengajuan-pencairan.controller';
+import { migrateProposalExcel } from '../controllers/migrate-proposal.controller';
 
+const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
 
+router.post('/migrate-excel', upload.single('file'), migrateProposalExcel);
 router.post('/', createPengajuan);
 router.get('/', getPengajuans);
 router.post('/:id/approve', approvePengajuan);

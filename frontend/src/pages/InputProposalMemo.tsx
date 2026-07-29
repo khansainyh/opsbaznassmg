@@ -83,26 +83,42 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   const [migrating, setMigrating] = useState(false);
 
   const downloadProposalTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
+    const simpleData = [
       {
-        tanggal_masuk: '2026-01-15',
-        jenis_pengajuan: 'Perorangan',
-        nama_pemohon: 'Ahmad Fauzi',
-        nik: '3374012345678901',
-        no_kk: '3374012345678902',
-        alamat: 'Jl. Pemuda No. 12',
-        kelurahan: 'Sekayu',
-        kecamatan: 'Semarang Tengah',
-        no_telpon: '081234567890',
-        jenis_permohonan: '1.1.1',
-        nominal: 1500000,
-        asnaf: 'Miskin',
-        keperluan: 'Bantuan Biaya Pengobatan',
-        status: 'Selesai'
+        Tanggal_Proposal: '2025-11-20',
+        Tanggal_Pencairan: '2026-01-15',
+        No_Agenda_Proposal: 'PROP-2025-001',
+        Nama_Pemohon_Lembaga: "Masjid Baitun Ni'mah",
+        NIK: '3374010101800001',
+        No_KK: '3374010101800000',
+        Alamat: 'Jl. Majapahit No. 12',
+        Kecamatan: 'Pedurungan',
+        Kelurahan: 'Tlogosari',
+        Kode_Kegiatan: '250112',
+        Asnaf: 'Fakir',
+        Nominal: 25000000,
+        Keterangan: 'Bantuan Operasional Masjid & Sembako'
+      },
+      {
+        Tanggal_Proposal: '2026-01-05',
+        Tanggal_Pencairan: '2026-01-10',
+        No_Agenda_Proposal: '',
+        Nama_Pemohon_Lembaga: 'Ahmad Fauzi',
+        NIK: '3374012345678901',
+        No_KK: '3374012345678902',
+        Alamat: 'Jl. Pemuda No. 12',
+        Kecamatan: 'Semarang Tengah',
+        Kelurahan: 'Sekayu',
+        Kode_Kegiatan: '1.1.1',
+        Asnaf: 'Miskin',
+        Nominal: 1500000,
+        Keterangan: 'Bantuan Biaya Pengobatan'
       }
-    ]);
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(simpleData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template_Proposal");
+    XLSX.utils.book_append_sheet(wb, ws, "MIGRASI_PROPOSAL");
     XLSX.writeFile(wb, "Template_Migrasi_Proposal.xlsx");
   };
 
@@ -111,87 +127,25 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     if (!file) return;
 
     setMigrating(true);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const rawRows = XLSX.utils.sheet_to_json(ws);
-        
-        let successCount = 0;
-        let failCount = 0;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-        for (const row of rawRows as any[]) {
-          if (!row.tanggal_masuk || !row.nama_pemohon) continue;
+      const res = await axios.post('/api/pengajuan-pencairan/migrate-excel', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
 
-          let mustahikId = null;
-          const cleanNik = row.nik ? String(row.nik).trim() : '';
-
-          if (cleanNik.length === 16) {
-            try {
-              const cekRes = await axios.get(`/api/mustahik/cek-nik/${cleanNik}`);
-              if (cekRes.data.mustahik_id) {
-                mustahikId = cekRes.data.mustahik_id;
-              } else {
-                const isLembaga = String(row.jenis_pengajuan).toLowerCase() === 'lembaga';
-                const regRes = await axios.post('/api/mustahik/auto-register', {
-                  nik: cleanNik,
-                  nama: row.nama_pemohon,
-                  alamat: row.alamat || null,
-                  telepon: row.no_telpon || null,
-                  handphone: isLembaga ? null : (row.no_telpon || null),
-                  kategori: isLembaga ? 'Lembaga' : 'Perorangan',
-                  provinsi: 'Jawa Tengah',
-                  kabupaten: 'Kota Semarang',
-                  kecamatan: row.kecamatan || null,
-                  kelurahan: row.kelurahan || null
-                });
-                mustahikId = regRes.data.mustahik_id;
-              }
-            } catch (err) {
-              console.error('Error auto-registering mustahik:', err);
-            }
-          }
-
-          try {
-            await axios.post('/api/proposals', {
-              tanggal_masuk: String(row.tanggal_masuk).trim(),
-              jenis_pengajuan: row.jenis_pengajuan || 'Perorangan',
-              nama_pemohon: row.nama_pemohon,
-              nama_instansi: row.jenis_pengajuan === 'Lembaga' ? row.nama_pemohon : null,
-              nik: cleanNik || null,
-              no_kk: row.no_kk ? String(row.no_kk).trim() : null,
-              alamat: row.alamat || null,
-              kelurahan: row.kelurahan || null,
-              kecamatan: row.kecamatan || null,
-              no_telpon: row.no_telpon || null,
-              jenis_permohonan: String(row.jenis_permohonan || '').trim() || null,
-              nominal: Number(row.nominal || 0),
-              asnaf: row.asnaf || 'Miskin',
-              keperluan: row.keperluan || 'Bantuan Kemanusiaan',
-              status: row.status || 'Selesai',
-              mustahik_id: mustahikId
-            });
-            successCount++;
-          } catch (err) {
-            console.error('Error importing row:', err);
-            failCount++;
-          }
-        }
-
-        alert(`Berhasil mengimpor ${successCount} data proposal. Gagal: ${failCount}`);
-        setIsMigrationModalOpen(false);
-        window.location.reload();
-      } catch (err) {
-        alert('Gagal memproses file Excel.');
-      } finally {
-        setMigrating(false);
-        e.target.value = '';
-      }
-    };
-    reader.readAsBinaryString(file);
+      const { summary } = res.data;
+      alert(`Migrasi Berhasil!\n\nTotal Proposal: ${summary.total_proposal}\nTotal Nominal: Rp ${Number(summary.total_nominal).toLocaleString('id-ID')}\nMustahik By Name: ${summary.total_mustahik_by_name} orang`);
+      setIsMigrationModalOpen(false);
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Error importing proposal excel:', err);
+      alert('Gagal memproses file Excel: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setMigrating(false);
+      e.target.value = '';
+    }
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3065,8 +3019,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
                     <FileSpreadsheet className="size-8" />
                   </div>
-                  <h4 className="font-bold text-slate-900 font-sans">Impor Data via Excel</h4>
-                  <p className="text-xs text-slate-500 font-sans leading-relaxed">Gunakan file Excel (.xlsx) dengan kolom: tanggal_masuk, jenis_pengajuan, nama_pemohon, nik, no_kk, alamat, kelurahan, kecamatan, no_telpon, jenis_permohonan, nominal, asnaf, keperluan, status.</p>
+                  <h4 className="font-bold text-slate-900 font-sans">Impor Data Proposal & Mustahik (Excel 2-Sheet)</h4>
+                  <p className="text-xs text-slate-500 font-sans leading-relaxed">Gunakan file Excel (.xlsx) dengan 2 Sheet: Sheet 1 (HEADER_PROPOSAL untuk data lembaga, tanggal, nominal global, RKAT & COA) dan Sheet 2 (DETAIL_MUSTAHIK untuk rincian penerima By Name By Address).</p>
                 </div>
 
                 <div className="space-y-3">

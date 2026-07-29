@@ -164,12 +164,21 @@
   {
     "id": "mut-1781759219876",
     "tanggal": "2026-06-18",
-    "bankAccountId": "1700beb2-c7c9-485a-86fa-a447a4bbb946",
-    "bankName": "Bank Syariah Indonesia",
+    "bankAccountId": "070f7061-c198-4e71-baa7-c34c0f701180",
+    "bankName": "Bank Jateng",
     "keteranganBank": "Transfer an Khansa Inayah",
     "nominal": 150000,
     "type": "DEBIT",
-    "status": "PENDING"
+    "status": "RECONCILED",
+    "allocatedNominal": 150000,
+    "reconciledAt": "2026-07-28T07:59:46.018Z",
+    "reconciledBy": "Super Admin BAZNAS",
+    "muzakkiId": "88fe7094-e584-4dad-ae93-a107d424c28a",
+    "muzakkiName": "Khansa Inayah Arrazaqu, S.Kom",
+    "coaCode": "41020201",
+    "rkatId": "0c3961b9-dba4-4f65-a80c-aa2cbe84e645",
+    "sumberDana": "Zakat",
+    "keteranganRealisasi": "Zakat Maal a.n Khansa Inayah Arrazaqu, S.Kom."
   },
   {
     "id": "mut-1782283700526",

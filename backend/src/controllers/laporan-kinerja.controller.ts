@@ -345,6 +345,28 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
   }
 };
 
+const cleanNik = (nik: string | null | undefined): string => {
+  if (!nik) return '';
+  const cleaned = nik.replace(/\D/g, '');
+  return cleaned.length >= 8 ? cleaned : '';
+};
+
+const cleanName = (name: string | null | undefined): string => {
+  if (!name) return '';
+  let str = name.toLowerCase();
+  str = str.replace(/,\s*(s\.?\w+|m\.?\w+|ph\.?d|h\.?j?|drs?\.?)/gi, ' ');
+  str = str.replace(/\b(h\.?|hj\.?|drs\.?|dra\.?|ir\.?|st\.?|mm\.?|m\.si\.?|s\.kom\.?|s\.pd\.?|s\.t\.?)\b/gi, ' ');
+  str = str.replace(/[^a-z0-9\s]/g, ' ');
+  return str.replace(/\s+/g, ' ').trim();
+};
+
+const cleanAddress = (addr: string | null | undefined): string => {
+  if (!addr) return '';
+  let str = addr.toLowerCase();
+  str = str.replace(/[^a-z0-9\s]/g, ' ');
+  return str.replace(/\s+/g, ' ').trim();
+};
+
 export const getPenyaluranLaporan = async (req: Request, res: Response) => {
   try {
     const yearStr = req.query.year as string;
@@ -392,6 +414,9 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
         tanggal_masuk: true,
         nominal: true,
         asnaf: true,
+        nama_pemohon: true,
+        nik: true,
+        alamat: true,
         program: {
           select: {
             code: true,
@@ -402,6 +427,7 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
         },
         mustahik: {
           select: {
+            nama: true,
             alamat: true,
             nrm: true,
             status_graduasi: true,
@@ -481,6 +507,10 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
         }
       }
 
+      const mustahikNama = p.mustahik?.nama || p.nama_pemohon || '';
+      const mustahikNik = p.mustahik?.nik || p.nik || '';
+      const mustahikAlamatRaw = p.mustahik?.alamat || p.alamat || '';
+
       return {
         id: p.id,
         mustahikId,
@@ -493,10 +523,12 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
         programTipe: p.program?.tipe || 'Konsumtif',
         pilarCode: p.program?.pilar_code,
         asnaf: normAsnaf,
-        mustahikAlamat: (p.mustahik?.alamat || '').toLowerCase(),
+        mustahikNama,
+        mustahikAlamat: mustahikAlamatRaw.toLowerCase(),
+        mustahikAlamatRaw,
         mustahikNrm: p.mustahik?.nrm,
         mustahikStatusGraduasi: p.mustahik?.status_graduasi,
-        mustahikNik: p.mustahik?.nik,
+        mustahikNik,
       };
     });
 
@@ -716,15 +748,92 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       { code: '5.8', label: 'Mustahik yang dikeluarkan dari garis kemiskinan', section: 'ikk_penyaluran', type: 'kemiskinan' },
       { code: '5.9', label: 'Jumlah Desa Penerima Penyaluran Zakat', section: 'ikk_penyaluran', type: 'desa_zakat' },
       { code: '5.10', label: 'Jumlah Desa Program Pemberdayaan Berbasis Zakat', section: 'ikk_penyaluran', type: 'desa_pemberdayaan' },
-      { code: '5.11', label: 'Mustahik penerima penyaluran yang menjadi muzakki', section: 'ikk_penyaluran', type: 'mustahik_to_muzakki' }
+      { code: '5.11', label: 'Mustahik penerima penyaluran yang menjadi muzakki', section: 'ikk_penyaluran', type: 'mustahik_to_muzakki' },
+      { code: '5.12', label: 'Mustahik penerima penyaluran yang menjadi munfiq', section: 'ikk_penyaluran', type: 'mustahik_to_munfiq' }
     ];
 
-    // Fetch all active Muzakkis with NIK to check the Mustahik transition
-    const muzakkis = await prisma.muzakki.findMany({
-      where: { nik: { not: null } },
-      select: { nik: true }
+    // Fetch all registered Muzakkis & payment receipts to check Mustahik transition
+    const dbMuzakkis = await prisma.muzakki.findMany({
+      select: {
+        id: true,
+        nama: true,
+        nik: true,
+        alamat: true,
+        kategori: true
+      }
     });
-    const muzakkiNiks = new Set(muzakkis.map(m => m.nik));
+
+    const receipts = await prisma.penerimaanZis.findMany({
+      where: { muzakki_id: { not: null } },
+      select: {
+        muzakki_id: true,
+        rkat: { select: { kategori: true } }
+      }
+    });
+
+    const muzakkiZakatSet = new Set<string>();
+    const muzakkiInfakSet = new Set<string>();
+
+    receipts.forEach(r => {
+      if (r.muzakki_id) {
+        const kat = r.rkat?.kategori || '';
+        if (kat === 'Zakat') {
+          muzakkiZakatSet.add(r.muzakki_id);
+        } else if (kat === 'Infak' || kat === 'DSKL' || kat === 'CSR') {
+          muzakkiInfakSet.add(r.muzakki_id);
+        }
+      }
+    });
+
+    const processedMuzakkis = dbMuzakkis.map(m => {
+      const nikClean = cleanNik(m.nik);
+      const nameClean = cleanName(m.nama);
+      const addrClean = cleanAddress(m.alamat);
+      const isZakat = muzakkiZakatSet.has(m.id);
+      const isInfak = muzakkiInfakSet.has(m.id);
+
+      return {
+        id: m.id,
+        nikClean,
+        nameClean,
+        addrClean,
+        isMuzakki: isZakat || !isInfak,
+        isMunfiq: isInfak || !isZakat
+      };
+    });
+
+    const isMatchMuzakkiOrMunfiq = (p: any, targetType: 'mustahik_to_muzakki' | 'mustahik_to_munfiq'): boolean => {
+      const pNik = cleanNik(p.mustahikNik);
+      const pName = cleanName(p.mustahikNama);
+      const pAddr = cleanAddress(p.mustahikAlamatRaw);
+      if (!pNik && !pName) return false;
+
+      return processedMuzakkis.some(m => {
+        if (targetType === 'mustahik_to_muzakki' && !m.isMuzakki) return false;
+        if (targetType === 'mustahik_to_munfiq' && !m.isMunfiq) return false;
+
+        // 1. Match by NIK
+        if (pNik && m.nikClean && pNik === m.nikClean) {
+          return true;
+        }
+
+        // 2. Match by Name + Address
+        if (pName && m.nameClean) {
+          const nameExact = pName === m.nameClean;
+          const nameContains = pName.length >= 4 && m.nameClean.length >= 4 && (pName.includes(m.nameClean) || m.nameClean.includes(pName));
+
+          if (nameExact || nameContains) {
+            if (!pAddr || !m.addrClean) return true;
+            if (pAddr.includes(m.addrClean) || m.addrClean.includes(pAddr)) return true;
+            const pWords = pAddr.split(' ').filter(w => w.length > 2);
+            const mWords = m.addrClean.split(' ').filter(w => w.length > 2);
+            if (pWords.some(w => mWords.includes(w))) return true;
+          }
+        }
+
+        return false;
+      });
+    };
 
     // Compute unique mustahiks from pre-processed proposals
     const finalMustahikList = mustahikConfig.map(row => {
@@ -754,7 +863,9 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
         } else if (row.type === 'desa_pemberdayaan') {
           isMatch = p.programTipe === 'Produktif' && (p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan'));
         } else if (row.type === 'mustahik_to_muzakki') {
-          isMatch = !!p.mustahikNik && muzakkiNiks.has(p.mustahikNik);
+          isMatch = isMatchMuzakkiOrMunfiq(p, 'mustahik_to_muzakki');
+        } else if (row.type === 'mustahik_to_munfiq') {
+          isMatch = isMatchMuzakkiOrMunfiq(p, 'mustahik_to_munfiq');
         }
 
         if (isMatch) {
