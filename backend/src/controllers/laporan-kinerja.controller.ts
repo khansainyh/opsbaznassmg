@@ -345,24 +345,25 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
   }
 };
 
-const cleanNik = (nik: string | null | undefined): string => {
-  if (!nik) return '';
-  const cleaned = nik.replace(/\D/g, '');
+const cleanNik = (nik: any): string => {
+  if (nik === null || nik === undefined) return '';
+  const str = String(nik);
+  const cleaned = str.replace(/\D/g, '');
   return cleaned.length >= 8 ? cleaned : '';
 };
 
-const cleanName = (name: string | null | undefined): string => {
-  if (!name) return '';
-  let str = name.toLowerCase();
+const cleanName = (name: any): string => {
+  if (name === null || name === undefined) return '';
+  let str = String(name).toLowerCase();
   str = str.replace(/,\s*(s\.?\w+|m\.?\w+|ph\.?d|h\.?j?|drs?\.?)/gi, ' ');
   str = str.replace(/\b(h\.?|hj\.?|drs\.?|dra\.?|ir\.?|st\.?|mm\.?|m\.si\.?|s\.kom\.?|s\.pd\.?|s\.t\.?)\b/gi, ' ');
   str = str.replace(/[^a-z0-9\s]/g, ' ');
   return str.replace(/\s+/g, ' ').trim();
 };
 
-const cleanAddress = (addr: string | null | undefined): string => {
-  if (!addr) return '';
-  let str = addr.toLowerCase();
+const cleanAddress = (addr: any): string => {
+  if (addr === null || addr === undefined) return '';
+  let str = String(addr).toLowerCase();
   str = str.replace(/[^a-z0-9\s]/g, ' ');
   return str.replace(/\s+/g, ' ').trim();
 };
@@ -738,156 +739,162 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       { code: '5.12', label: 'Mustahik penerima penyaluran yang menjadi munfiq', section: 'ikk_penyaluran', type: 'mustahik_to_munfiq' }
     ];
 
-    // Build O(1) Hash Map Index for Muzakki & Munfiq matching
-    const muzakkiZakatSet = new Set<string>();
-    const muzakkiInfakSet = new Set<string>();
-
-    receipts.forEach(r => {
-      if (r.muzakki_id) {
-        const kat = r.rkat?.kategori || '';
-        if (kat === 'Zakat') {
-          muzakkiZakatSet.add(r.muzakki_id);
-        } else if (kat === 'Infak' || kat === 'DSKL' || kat === 'CSR') {
-          muzakkiInfakSet.add(r.muzakki_id);
+    // Fetch Penerimaan ZIS receipts in the selected year to evaluate 5.11 and 5.12
+    const receiptsInYear = await prisma.penerimaanZis.findMany({
+      where: {
+        tanggal_pembayaran: {
+          gte: startDate,
+          lte: endDate
+        },
+        muzakki_id: { not: null }
+      },
+      select: {
+        tanggal_pembayaran: true,
+        muzakki_id: true,
+        muzakki: {
+          select: {
+            id: true,
+            nama: true,
+            nik: true,
+            alamat: true
+          }
+        },
+        rkat: {
+          select: {
+            kategori: true
+          }
         }
       }
     });
 
-    const muzakkiNikMap = new Map<string, { isMuzakki: boolean; isMunfiq: boolean }>();
-    const muzakkiNameMap = new Map<string, Array<{ addrClean: string; isMuzakki: boolean; isMunfiq: boolean }>>();
-
-    dbMuzakkis.forEach(m => {
-      const nikClean = cleanNik(m.nik);
-      const nameClean = cleanName(m.nama);
-      const addrClean = cleanAddress(m.alamat);
-      const isZakat = muzakkiZakatSet.has(m.id);
-      const isInfak = muzakkiInfakSet.has(m.id);
-
-      const entry = {
-        isMuzakki: isZakat || !isInfak,
-        isMunfiq: isInfak || !isZakat,
-        addrClean
-      };
-
-      if (nikClean) {
-        muzakkiNikMap.set(nikClean, entry);
-      }
-      if (nameClean) {
-        if (!muzakkiNameMap.has(nameClean)) {
-          muzakkiNameMap.set(nameClean, []);
-        }
-        muzakkiNameMap.get(nameClean)!.push(entry);
+    // Fetch all Mustahiks from master table
+    const allDbMustahiks = await prisma.mustahik.findMany({
+      select: {
+        id: true,
+        nama: true,
+        nik: true,
+        alamat: true
       }
     });
 
-    const checkMatchFast = (pNikRaw: string | null | undefined, pNameRaw: string | null | undefined, pAddrRaw: string | null | undefined, targetType: 'mustahik_to_muzakki' | 'mustahik_to_munfiq'): boolean => {
-      const pNik = cleanNik(pNikRaw);
-      const pName = cleanName(pNameRaw);
-      const pAddr = cleanAddress(pAddrRaw);
+    // Build Mustahik Fast Index for matching
+    const mustahikNikSet = new Set<string>();
+    const mustahikNameMap = new Map<string, string[]>();
 
-      if (!pNik && !pName) return false;
+    const addMustahikToIndex = (nikRaw: string | null | undefined, nameRaw: string | null | undefined, addrRaw: string | null | undefined) => {
+      const nClean = cleanNik(nikRaw);
+      if (nClean) mustahikNikSet.add(nClean);
 
-      // 1. O(1) NIK Lookup
-      if (pNik && muzakkiNikMap.has(pNik)) {
-        const entry = muzakkiNikMap.get(pNik)!;
-        if (targetType === 'mustahik_to_muzakki' && entry.isMuzakki) return true;
-        if (targetType === 'mustahik_to_munfiq' && entry.isMunfiq) return true;
+      const nmClean = cleanName(nameRaw);
+      if (nmClean) {
+        if (!mustahikNameMap.has(nmClean)) mustahikNameMap.set(nmClean, []);
+        mustahikNameMap.get(nmClean)!.push(cleanAddress(addrRaw));
       }
+    };
 
-      // 2. O(1) Name Lookup + Address verification
-      if (pName && muzakkiNameMap.has(pName)) {
-        const matches = muzakkiNameMap.get(pName)!;
-        for (const m of matches) {
-          if (targetType === 'mustahik_to_muzakki' && !m.isMuzakki) continue;
-          if (targetType === 'mustahik_to_munfiq' && !m.isMunfiq) continue;
+    allDbMustahiks.forEach(m => addMustahikToIndex(m.nik, m.nama, m.alamat));
+    realizedProposals.forEach(p => {
+      const mNik = p.mustahik?.nik || p.nik;
+      const mNama = p.mustahik?.nama || p.nama_pemohon;
+      const mAddr = p.mustahik?.alamat || p.alamat;
+      addMustahikToIndex(mNik, mNama, mAddr);
+    });
 
-          if (!pAddr || !m.addrClean) return true;
-          if (pAddr.includes(m.addrClean) || m.addrClean.includes(pAddr)) return true;
+    const isDonorInMustahik = (muz: any): boolean => {
+      if (!muz) return false;
+      const mNik = cleanNik(muz.nik);
+      if (mNik && mustahikNikSet.has(mNik)) return true;
+
+      const mName = cleanName(muz.nama);
+      if (mName && mustahikNameMap.has(mName)) {
+        const addresses = mustahikNameMap.get(mName)!;
+        const pAddr = cleanAddress(muz.alamat);
+        if (!pAddr || addresses.length === 0) return true;
+
+        return addresses.some(mAddr => {
+          if (!mAddr) return true;
+          if (pAddr.includes(mAddr) || mAddr.includes(pAddr)) return true;
           const pWords = pAddr.split(' ').filter(w => w.length > 2);
-          const mWords = m.addrClean.split(' ').filter(w => w.length > 2);
-          if (pWords.some(w => mWords.includes(w))) return true;
-        }
+          const mWords = mAddr.split(' ').filter(w => w.length > 2);
+          return pWords.some(w => mWords.includes(w));
+        });
       }
-
       return false;
     };
 
-    const processedMustahikMaster = dbMustahikMaster.map(m => {
-      const date = new Date(m.created_at);
+    // Pre-calculate monthly sets for 5.11 and 5.12 based on ZIS receipts in year
+    const monthlyMuzakki511Sets: Set<string>[] = Array.from({ length: 12 }, () => new Set<string>());
+    const monthlyMunfiq512Sets: Set<string>[] = Array.from({ length: 12 }, () => new Set<string>());
+
+    receiptsInYear.forEach(r => {
+      if (!r.tanggal_pembayaran || !r.muzakki) return;
+      const date = new Date(r.tanggal_pembayaran);
       const mIdx = date.getMonth();
-      return {
-        id: m.id,
-        mustahikId: m.id,
-        mIdx,
-        amt: 0,
-        coaCode: '',
-        matchedRowKey: '',
-        programCode: '',
-        programName: '',
-        programTipe: 'Konsumtif',
-        pilarCode: '',
-        asnaf: '',
-        mustahikNama: m.nama || '',
-        mustahikAlamat: (m.alamat || '').toLowerCase(),
-        mustahikAlamatRaw: m.alamat || '',
-        mustahikNrm: m.nrm,
-        mustahikStatusGraduasi: m.status_graduasi,
-        mustahikNik: m.nik
-      };
+      if (mIdx < 0 || mIdx > 11) return;
+
+      if (isDonorInMustahik(r.muzakki)) {
+        const dedupeKey = r.muzakki.id || cleanNik(r.muzakki.nik) || cleanName(r.muzakki.nama);
+        const kat = r.rkat?.kategori || 'Zakat';
+
+        if (kat === 'Zakat') {
+          monthlyMuzakki511Sets[mIdx].add(dedupeKey);
+        } else if (kat === 'Infak' || kat === 'DSKL' || kat === 'CSR') {
+          monthlyMunfiq512Sets[mIdx].add(dedupeKey);
+        }
+      }
     });
 
-    // Combine and Pre-evaluate matches ONCE in O(N) instead of O(N * M)
-    const combinedMustahikItems = [...processedProposals, ...processedMustahikMaster].map(item => ({
-      ...item,
-      isMuzakkiMatch: checkMatchFast(item.mustahikNik, item.mustahikNama, item.mustahikAlamatRaw, 'mustahik_to_muzakki'),
-      isMunfiqMatch: checkMatchFast(item.mustahikNik, item.mustahikNama, item.mustahikAlamatRaw, 'mustahik_to_munfiq')
-    }));
-
-    // Compute unique mustahiks from pre-processed proposals and master Mustahik data
+    // Compute unique mustahiks
     const finalMustahikList = mustahikConfig.map(row => {
       const monthly = Array(12).fill(0);
-      const uniqueDonorsMap = new Map<number, Set<string>>();
 
-      combinedMustahikItems.forEach(p => {
-        if (p.mIdx < 0 || p.mIdx > 11) return;
+      if (row.type === 'mustahik_to_muzakki') {
+        monthlyMuzakki511Sets.forEach((set, idx) => {
+          monthly[idx] = set.size;
+        });
+      } else if (row.type === 'mustahik_to_munfiq') {
+        monthlyMunfiq512Sets.forEach((set, idx) => {
+          monthly[idx] = set.size;
+        });
+      } else {
+        // 5.1 - 5.10: Exclusively calculated from realized proposals
+        const uniqueProposalsMap = new Map<number, Set<string>>();
 
-        const isPilarMatch = p.pilarCode === row.pilarCode;
-        let isMatch = false;
+        processedProposals.forEach(p => {
+          if (p.mIdx < 0 || p.mIdx > 11) return;
 
-        if (row.type === 'pilar') {
-          isMatch = isPilarMatch;
-        } else if (row.type === 'total_mustahik') {
-          isMatch = true;
-        } else if (row.type === 'pendistribusian') {
-          isMatch = p.programTipe === 'Konsumtif';
-        } else if (row.type === 'pendayagunaan') {
-          isMatch = p.programTipe === 'Produktif';
-        } else if (row.type === 'nim_nrm') {
-          isMatch = !!p.mustahikNrm;
-        } else if (row.type === 'kemiskinan') {
-          isMatch = p.mustahikStatusGraduasi === 'Sudah';
-        } else if (row.type === 'desa_zakat') {
-          isMatch = p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan');
-        } else if (row.type === 'desa_pemberdayaan') {
-          isMatch = p.programTipe === 'Produktif' && (p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan'));
-        } else if (row.type === 'mustahik_to_muzakki') {
-          isMatch = p.isMuzakkiMatch;
-        } else if (row.type === 'mustahik_to_munfiq') {
-          isMatch = p.isMunfiqMatch;
-        }
-
-        if (isMatch) {
-          if (!uniqueDonorsMap.has(p.mIdx)) {
-            uniqueDonorsMap.set(p.mIdx, new Set<string>());
+          let isMatch = false;
+          if (row.type === 'pilar') {
+            isMatch = p.pilarCode === row.pilarCode;
+          } else if (row.type === 'total_mustahik') {
+            isMatch = true;
+          } else if (row.type === 'pendistribusian') {
+            isMatch = p.programTipe === 'Konsumtif';
+          } else if (row.type === 'pendayagunaan') {
+            isMatch = p.programTipe === 'Produktif';
+          } else if (row.type === 'nim_nrm') {
+            isMatch = !!p.mustahikNrm;
+          } else if (row.type === 'kemiskinan') {
+            isMatch = p.mustahikStatusGraduasi === 'Sudah';
+          } else if (row.type === 'desa_zakat') {
+            isMatch = p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan');
+          } else if (row.type === 'desa_pemberdayaan') {
+            isMatch = p.programTipe === 'Produktif' && (p.mustahikAlamat.includes('desa') || p.mustahikAlamat.includes('kelurahan'));
           }
-          const set = uniqueDonorsMap.get(p.mIdx)!;
-          const keyToDedupe = p.mustahikId || cleanNik(p.mustahikNik) || cleanName(p.mustahikNama);
-          if (keyToDedupe && !set.has(keyToDedupe)) {
-            set.add(keyToDedupe);
-            monthly[p.mIdx]++;
+
+          if (isMatch) {
+            if (!uniqueProposalsMap.has(p.mIdx)) {
+              uniqueProposalsMap.set(p.mIdx, new Set<string>());
+            }
+            const set = uniqueProposalsMap.get(p.mIdx)!;
+            const keyToDedupe = p.mustahikId || cleanNik(p.mustahikNik) || cleanName(p.mustahikNama);
+            if (keyToDedupe && !set.has(keyToDedupe)) {
+              set.add(keyToDedupe);
+              monthly[p.mIdx]++;
+            }
           }
-        }
-      });
+        });
+      }
 
       const total = monthly.reduce((sum, v) => sum + v, 0);
 
