@@ -835,12 +835,57 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       });
     };
 
-    // Compute unique mustahiks from pre-processed proposals
+    // Fetch Mustahik master records directly from Mustahik table
+    const dbMustahikMaster = await prisma.mustahik.findMany({
+      where: {
+        created_at: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      select: {
+        id: true,
+        nama: true,
+        nik: true,
+        nrm: true,
+        alamat: true,
+        status_graduasi: true,
+        created_at: true
+      }
+    });
+
+    const processedMustahikMaster = dbMustahikMaster.map(m => {
+      const date = new Date(m.created_at);
+      const mIdx = date.getMonth();
+      return {
+        id: m.id,
+        mustahikId: m.id,
+        mIdx,
+        amt: 0,
+        coaCode: '',
+        matchedRowKey: '',
+        programCode: '',
+        programName: '',
+        programTipe: 'Konsumtif',
+        pilarCode: '',
+        asnaf: '',
+        mustahikNama: m.nama || '',
+        mustahikAlamat: (m.alamat || '').toLowerCase(),
+        mustahikAlamatRaw: m.alamat || '',
+        mustahikNrm: m.nrm,
+        mustahikStatusGraduasi: m.status_graduasi,
+        mustahikNik: m.nik
+      };
+    });
+
+    const combinedMustahikItems = [...processedProposals, ...processedMustahikMaster];
+
+    // Compute unique mustahiks from pre-processed proposals and master Mustahik data
     const finalMustahikList = mustahikConfig.map(row => {
       const monthly = Array(12).fill(0);
       const uniqueDonorsMap = new Map<number, Set<string>>();
 
-      processedProposals.forEach(p => {
+      combinedMustahikItems.forEach(p => {
         if (p.mIdx < 0 || p.mIdx > 11) return;
 
         const isPilarMatch = p.pilarCode === row.pilarCode;
@@ -873,8 +918,9 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
             uniqueDonorsMap.set(p.mIdx, new Set<string>());
           }
           const set = uniqueDonorsMap.get(p.mIdx)!;
-          if (!set.has(p.mustahikId)) {
-            set.add(p.mustahikId);
+          const keyToDedupe = p.mustahikId || cleanNik(p.mustahikNik) || cleanName(p.mustahikNama);
+          if (keyToDedupe && !set.has(keyToDedupe)) {
+            set.add(keyToDedupe);
             monthly[p.mIdx]++;
           }
         }
