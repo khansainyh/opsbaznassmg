@@ -93,6 +93,16 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
       data.mustahik_id = null;
     }
 
+    // Hitung agenda_no otomatis mulai dari 922 per Agustus (922, 923, 924...)
+    if (!data.agenda_no) {
+      const maxProposal = await prisma.proposal.findFirst({
+        orderBy: { agenda_no: 'desc' },
+        select: { agenda_no: true }
+      });
+      const maxAgenda = maxProposal?.agenda_no || 0;
+      data.agenda_no = maxAgenda >= 922 ? maxAgenda + 1 : 922;
+    }
+
     let gdriveLink = null;
     let gdriveId = null;
 
