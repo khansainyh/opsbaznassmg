@@ -34,6 +34,8 @@ import * as XLSX from 'xlsx';
 import { ProposalMemo } from '../data/proposalMemoData';
 import { pilarData, Pilar } from '../data/pilarData';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
+import { LOGO_BAZNAS_BASE64 } from '../utils/logoBase64';
+import { formatTanggalIndo } from '../utils/dateUtils';
 
 /**
  * Konversi link Google Drive apa pun ke URL embed (iframe preview)
@@ -878,58 +880,70 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // Helper to get step index
-    const getStepIndex = (status: string): number => {
-      const s = status.replace(/ /g, '_');
-      if (s === 'Registrasi') return 0;
-      if (s === 'Scan_Proposal' || s === 'Scan Proposal') return 1;
-      if (s === 'Review_Kabag_Administrasi') return 2;
-      if (s === 'Survey') return 3;
-      if (s === 'Review_Kepala_Pelaksana') return 4;
-      if (s === 'Persetujuan_Pimpinan') return 5;
-      if (s === 'Penentuan_Nominal') return 6;
-      if (s === 'Penyaluran') return 7;
-      if (s === 'Arsip') return 8;
-      if (s === 'Selesai') return 9;
-      return 0;
-    };
+    // Detect Kode Program / RKAT Activity Code
+    const code = (proposal.programCode || proposal.rkatActivityId || proposal.jenisPermohonan || '').trim();
+    const isDikdasmen = code.includes('230101') || code.toLowerCase().includes('dikdasmen') || code.includes('1301') || proposal.jenisPermohonan?.toLowerCase().includes('pendidikan dasar');
+    const isDikti = code.includes('230102') || code.toLowerCase().includes('dikti') || code.includes('1302') || proposal.jenisPermohonan?.toLowerCase().includes('pendidikan tinggi');
+    const isPendidikan = isDikdasmen || isDikti;
 
-    const currentIdx = getStepIndex(proposal.status);
+    const instansiRaw = (proposal.namaInstansi || '').trim();
+    const isInstansiKosong = !instansiRaw || instansiRaw === '-' || instansiRaw === '0';
 
-    const renderNodeHtml = (step: { id: string; label: string; idx: number; short: string }) => {
-      let nodeClass = '';
-      let circleContent = step.short;
+    // 1. Logika "Surat Dari"
+    let suratDari = '';
+    if (isPendidikan) {
+      suratDari = proposal.namaPemohon || '-';
+    } else if (isInstansiKosong) {
+      suratDari = proposal.namaPemohon || '-';
+    } else {
+      suratDari = proposal.namaInstansi || proposal.pimpinanOrganisasi || proposal.namaPemohon || '-';
+    }
 
-      if (step.idx < currentIdx) {
-        nodeClass = 'done';
-        circleContent = '✓';
-      } else if (step.idx === currentIdx) {
-        nodeClass = 'active';
+    // 2. Logika Baris "a.n." (Atas Nama)
+    let anText = '';
+    const perihalLower = (proposal.jenisPermohonan || '').toLowerCase();
+    const isMasjidYayasan = perihalLower.includes('masjid') || perihalLower.includes('mushol') || perihalLower.includes('yayasan') ||
+      instansiRaw.toLowerCase().includes('masjid') || instansiRaw.toLowerCase().includes('mushol') || instansiRaw.toLowerCase().includes('yayasan');
+
+    if (isDikdasmen) {
+      if (proposal.namaAnak && proposal.namaAnak.trim()) {
+        anText = `a.n. ${proposal.namaAnak.trim()}`;
       }
+    } else if (isDikti) {
+      anText = ''; // Dikti / Mahasiswa maju untuk dirinya sendiri
+    } else if (isInstansiKosong) {
+      anText = ''; // Perorangan tidak perlu a.n.
+    } else if (isMasjidYayasan) {
+      anText = ''; // Masjid / Yayasan cukup nama instansi di Surat Dari
+    } else if (!isInstansiKosong && proposal.namaPemohon && proposal.namaPemohon.trim()) {
+      anText = `a.n. ${proposal.namaPemohon.trim()}`;
+    } else {
+      anText = '';
+    }
 
-      return `
-        <div class="node ${nodeClass}">
-          <div class="circle">${circleContent}</div>
-          <div class="label">${step.label}</div>
-        </div>
-      `;
-    };
+    // 3. Logika "Alamat"
+    let alamatTampil = '';
+    if (isPendidikan) {
+      alamatTampil = proposal.namaInstansi || proposal.alamat || '';
+    } else {
+      alamatTampil = proposal.alamat || '';
+    }
 
-    const row1NodesHtml = [
-      { id: 'ADM', label: 'ADM', idx: 0, short: 'ADM' },
-      { id: 'HUMAS', label: 'HUMAS', idx: 1, short: 'HUM' },
-      { id: 'KDM', label: 'KDM', idx: 2, short: 'KD' },
-      { id: 'SURV', label: 'SURV', idx: 3, short: 'SU' },
-      { id: 'KAPEL', label: 'KAPEL', idx: 4, short: 'KA' }
-    ].map(renderNodeHtml).join('');
+    // 4. Logika "Kelurahan" & "Kecamatan"
+    let kelurahanTampil = '';
+    let kecamatanTampil = '';
+    if (isPendidikan) {
+      kelurahanTampil = '';
+      kecamatanTampil = '';
+    } else {
+      kelurahanTampil = proposal.kelurahan || '';
+      kecamatanTampil = proposal.kecamatan || '';
+    }
 
-    const row2NodesHtml = [
-      { id: 'PIMP', label: 'PIMP', idx: 5, short: 'PI' },
-      { id: 'KEU', label: 'KEU', idx: 6, short: 'KE' },
-      { id: 'DIST', label: 'DIST', idx: 7, short: 'DI' },
-      { id: 'ARSIP', label: 'ARSIP', idx: 8, short: 'Ar' },
-      { id: 'DONE', label: 'DONE', idx: 9, short: '' }
-    ].map(renderNodeHtml).join('');
+    const noAgenda = proposal.agendaNo || '';
+    const noSurat = proposal.yangMengajukan || '';
+    const tglMasuk = formatTanggalIndo(proposal.tanggalMasuk);
+    const perihalJudul = proposal.jenisPermohonan || proposal.programCode || '';
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -937,278 +951,224 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Baju Surat - ${proposal.agendaNo}</title>
+          <title>Disposisi Proposal - ${noAgenda}</title>
           <style>
-              /* Setup Print Ukuran A5 */
               @page {
                   size: A5 landscape;
-                  margin: 0;
+                  margin: 6mm 8mm;
               }
               
-              body {
-                  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                  background-color: #f9fafb;
-                  margin: 0;
-                  display: flex;
-                  justify-content: center;
-                  align-items: center;
-                  height: 100vh;
-              }
-
-              .a5-container {
-                  width: 210mm;
-                  height: 148mm;
-                  background: white;
-                  padding: 10mm 12mm;
+              * {
                   box-sizing: border-box;
-                  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                  display: flex;
-                  flex-direction: column;
-                  justify-content: space-between;
               }
 
-              /* Mode Print - Hilangkan shadow & background */
-              @media print {
-                  body { background: white; height: auto; display: block; }
-                  .a5-container { box-shadow: none; width: 100%; height: 100%; padding: 10mm; }
-              }
-
-              /* Header / Kop Surat */
-              .header {
+              body {
+                  font-family: 'Times New Roman', Times, serif;
+                  background-color: #ffffff;
+                  color: #000000;
+                  margin: 0;
+                  padding: 5px;
                   display: flex;
                   justify-content: center;
-                  align-items: center;
-                  padding-bottom: 8px;
+                  align-items: flex-start;
+              }
+
+              .container {
+                  width: 100%;
+                  max-width: 210mm;
+                  background: white;
+                  margin: 0 auto;
+              }
+
+              @media print {
+                  body {
+                      background: white;
+                      padding: 0;
+                  }
+                  .container {
+                      width: 100%;
+                      box-shadow: none;
+                  }
+              }
+
+              .header {
+                  text-align: center;
                   margin-bottom: 10px;
               }
               
               .logo-img {
-                  height: 100px;
+                  height: 105px;
                   max-width: 100%;
                   object-fit: contain;
               }
 
-              /* Judul Dokumen */
-              .title {
-                  text-align: center;
-                  font-weight: 900;
-                  font-size: 11px;
-                  margin-bottom: 12px;
-                  text-decoration: underline;
-                  text-transform: uppercase;
+              table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  border: 2px solid #000000;
+                  font-family: 'Times New Roman', Times, serif;
+                  color: #000000;
               }
 
-              /* Box Informasi Proposal */
-              .info-box {
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
-                  padding: 10px 12px;
-                  display: grid;
-                  grid-template-columns: 1fr 1fr;
-                  gap: 8px 15px;
-                  margin-bottom: 20px;
-                  background-color: #fafafa;
+              th, td {
+                  border: 2px solid #000000;
+                  padding: 5px 8px;
+                  font-size: 13.5px;
+                  line-height: 1.35;
+                  vertical-align: middle;
               }
 
-              .info-row {
-                  display: flex;
-                  font-size: 9px;
-              }
-
-              .info-label {
-                  width: 110px;
+              .label-text {
                   font-weight: bold;
-                  color: #4b5563;
               }
 
-              .info-value {
+              .colon-sep {
                   font-weight: bold;
-                  color: #111827;
-              }
-
-              /* Alur Dokumen */
-              .progress-section {
-                  position: relative;
-                  margin-top: 5px;
-              }
-
-              .progress-title {
                   text-align: center;
-                  font-weight: 800;
-                  font-size: 10px;
-                  color: #374151;
-                  margin-bottom: 20px;
-                  text-transform: uppercase;
+                  width: 12px;
+                  padding-left: 0;
+                  padding-right: 0;
               }
 
-              /* Garis Alur (U-Shape) */
-              .flow-track {
-                  position: absolute;
-                  top: 14px; 
-                  left: 10%; 
-                  right: 10%; 
-                  height: 52px;
-                  border: 2px solid #e5e7eb;
-                  border-left: none; /* Terbuka di kiri */
-                  border-radius: 0 20px 20px 0; /* Sudut melengkung di kanan */
-                  z-index: 1;
+              .value-text {
+                  font-weight: bold;
               }
 
-              /* Container Row */
-              .flow-container {
-                  padding: 0 10%; /* Agar Node awal dan akhir pas di garis */
-                  position: relative;
+              .perihal-cell {
+                  padding: 6px 8px;
+                  vertical-align: top;
               }
 
-              .flow-row {
+              .perihal-header {
+                  font-weight: bold;
+                  font-size: 13.5px;
+                  margin-bottom: 14px;
                   display: flex;
                   justify-content: space-between;
-                  position: relative;
-                  z-index: 2;
+                  align-items: flex-start;
               }
 
-              .flow-row.top-row {
-                  margin-bottom: 22px;
-              }
-
-              /* Membalik urutan baris bawah agar nyambung (Kanan ke Kiri) */
-              .flow-row.bottom-row {
-                  flex-direction: row-reverse; 
-              }
-
-              /* Desain Bulatan (Nodes) */
-              .node {
+              .perihal-locations {
                   display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  background-color: white; /* Menutupi garis di belakangnya */
-                  padding: 0 5px;
-              }
-
-              .circle {
-                  width: 26px;
-                  height: 26px;
-                  border-radius: 50%;
-                  border: 2px solid #d1d5db;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
+                  justify-content: space-between;
                   font-weight: bold;
-                  font-size: 9px;
-                  color: #6b7280;
-                  margin-bottom: 6px;
-                  background-color: white;
-                  transition: all 0.3s ease;
+                  font-size: 13.5px;
               }
 
-              .label {
-                  font-size: 8px;
-                  font-weight: 800;
+              .disposisi-table-container {
+                  margin-top: 8px;
+              }
+
+              .disposisi-header {
                   text-align: center;
-                  color: #4b5563;
+                  font-weight: bold;
+                  font-size: 14px;
+                  letter-spacing: 0.5px;
+                  padding: 4px 0;
+                  background-color: #ffffff;
               }
 
-              /* Status Checklist (Done) */
-              .node.done .circle {
-                  border-color: #10b981;
-                  background-color: #10b981;
-                  color: white;
-              }
-              .node.done .label {
-                  color: #10b981;
+              .disposisi-title {
+                  text-align: center;
+                  font-weight: bold;
+                  font-size: 13.5px;
+                  margin-bottom: 4px;
               }
 
-              /* Status Sekarang (Active) */
-              .node.active .circle {
-                  border-color: #10b981;
-                  color: #10b981;
-                  border-width: 3px;
-              }
-              .node.active .label {
-                  color: #10b981;
+              .disposisi-box {
+                  height: 125px;
+                  min-height: 125px;
+                  vertical-align: top;
+                  padding-top: 6px;
               }
           </style>
       </head>
       <body>
 
-          <div class="a5-container">
+          <div class="container">
               
-              <!-- Header -->
+              <!-- Header Logo -->
               <div class="header">
-                  <img class="logo-img" src="/LogoBAZNASSMG.PNG" alt="Logo BAZNAS" />
+                  <img class="logo-img" src="${LOGO_BAZNAS_BASE64}" alt="Logo BAZNAS" />
               </div>
 
-              <!-- Judul -->
-              <div class="title">LEMBAR KONTROL PROPOSAL</div>
+              <!-- Info Proposal Table -->
+              <table>
+                  <tbody>
+                      <tr>
+                          <td style="width: 18%;" class="label-text">Surat dari</td>
+                          <td class="colon-sep">:</td>
+                          <td style="width: 32%;" class="value-text">${suratDari}</td>
+                          <td style="width: 22%;" class="label-text">Diterima tanggal</td>
+                          <td class="colon-sep">:</td>
+                          <td style="width: 23%;" class="value-text">${tglMasuk}</td>
+                      </tr>
+                      <tr>
+                          <td class="label-text">Nomor Surat</td>
+                          <td class="colon-sep">:</td>
+                          <td class="value-text">${noSurat}</td>
+                          <td class="label-text">No. Agenda</td>
+                          <td class="colon-sep">:</td>
+                          <td class="value-text">${noAgenda}</td>
+                      </tr>
+                      <tr>
+                          <td class="label-text" style="vertical-align: top;">Perihal</td>
+                          <td class="colon-sep" style="vertical-align: top;">:</td>
+                          <td colspan="4" class="perihal-cell">
+                              <div class="perihal-header">
+                                  <span>${noAgenda ? noAgenda + ' || ' : ''}${perihalJudul}</span>
+                                  ${anText ? `<span style="margin-left: auto; padding-left: 10px;">${anText}</span>` : ''}
+                              </div>
+                              <div class="perihal-locations">
+                                  <span>${alamatTampil}</span>
+                                  ${kelurahanTampil ? `<span>${kelurahanTampil}</span>` : ''}
+                                  ${kecamatanTampil ? `<span>${kecamatanTampil}</span>` : ''}
+                              </div>
+                          </td>
+                      </tr>
+                  </tbody>
+              </table>
 
-              <!-- Info Proposal -->
-              <div class="info-box">
-                  <!-- Row 1 -->
-                  <div class="info-row">
-                      <div class="info-label">NO. AGENDA</div>
-                      <div class="info-value">: ${proposal.agendaNo}</div>
-                  </div>
-                  <div class="info-row">
-                      <div class="info-label">TANGGAL MASUK</div>
-                      <div class="info-value">: ${proposal.tanggalMasuk} (${proposal.jamPengajuan})</div>
-                  </div>
-
-                  <!-- Row 2 -->
-                  <div class="info-row">
-                      <div class="info-label">NAMA PEMOHON</div>
-                      <div class="info-value">: ${proposal.namaPemohon}</div>
-                  </div>
-                  <div class="info-row">
-                      <div class="info-label">JENIS PERMOHONAN</div>
-                      <div class="info-value">: ${proposal.jenisPermohonan}</div>
-                  </div>
-
-                  ${proposal.namaAnak ? `
-                  <div class="info-row">
-                      <div class="info-label">NAMA ANAK</div>
-                      <div class="info-value">: ${proposal.namaAnak}</div>
-                  </div>
-                  ` : `
-                  <div></div>
-                  `}
-                  <div class="info-row">
-                      <div class="info-label">SUMBER MEMO</div>
-                      <div class="info-value">: ${proposal.hasMemo ? (proposal.memoSource || '-') : '-'}</div>
-                  </div>
-
-                  <!-- Row 4 (Full Width) -->
-                  <div class="info-row" style="grid-column: 1 / -1;">
-                      <div class="info-label">ALAMAT</div>
-                      <div class="info-value">: ${proposal.alamat}</div>
-                  </div>
-              </div>
-
-              <!-- Progress Alur Dokumen -->
-              <div class="progress-section">
-                  <div class="progress-title">PROGRESS ALUR DOKUMEN</div>
-                  
-                  <div class="flow-container">
-                      <!-- Garis U shape untuk menyambungkan baris 1 dan baris 2 -->
-                      <div class="flow-track"></div>
-
-                      <!-- Baris Atas (Alur: Kiri ke Kanan) -->
-                      <div class="flow-row top-row">
-                          ${row1NodesHtml}
-                      </div>
-
-                      <!-- Baris Bawah (Alur berlanjut: Kanan ke Kiri) -->
-                      <div class="flow-row bottom-row">
-                          ${row2NodesHtml}
-                      </div>
-                  </div>
+              <!-- ISI DISPOSISI Table -->
+              <div class="disposisi-table-container">
+                  <table>
+                      <thead>
+                          <tr>
+                              <th colspan="3" class="disposisi-header">ISI DISPOSISI</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          <tr>
+                              <td style="width: 33.33%;" class="disposisi-box">
+                                  <div class="disposisi-title"><u>Ketua</u></div>
+                              </td>
+                              <td style="width: 33.33%;" class="disposisi-box">
+                                  <div class="disposisi-title"><u>Kepala Pelaksana</u></div>
+                              </td>
+                              <td style="width: 33.33%;" class="disposisi-box">
+                                  <div class="disposisi-title"><u>Kabag. Administrasi</u></div>
+                              </td>
+                          </tr>
+                      </tbody>
+                  </table>
               </div>
 
           </div>
 
           <script>
-              window.onload = function() {
+              function triggerPrint() {
+                  window.focus();
                   window.print();
                   setTimeout(function() { window.close(); }, 500);
+              }
+              window.onload = function() {
+                  const img = document.querySelector('.logo-img');
+                  if (img && !img.complete) {
+                      img.onload = triggerPrint;
+                      img.onerror = triggerPrint;
+                  } else {
+                      triggerPrint();
+                  }
               };
           </script>
 

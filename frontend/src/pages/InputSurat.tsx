@@ -30,6 +30,8 @@ import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
+import { LOGO_BAZNAS_BASE64 } from '../utils/logoBase64';
+import { formatTanggalIndo } from '../utils/dateUtils';
 
 export interface Surat {
   id: string;
@@ -378,47 +380,38 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const getStepIndex = (status: string): number => {
-      const s = status.replace(/ /g, '_');
-      if (s === 'Registrasi') return 0;
-      if (s === 'Scan_Surat' || s === 'Scan Surat') return 0;
-      if (s === 'Review_Kabag_Admin' || s === 'Review Kabag Admin') return 1;
-      if (s === 'Review_Kepala_Pelaksana' || s === 'Review Kepala Pelaksana') return 2;
-      if (s === 'Review_Pimpinan' || s === 'Review Pimpinan') return 3;
-      if (s === 'Penugasan_Kepala_Pelaksana' || s === 'Penugasan Kepala Pelaksana') return 2;
-      if (s === 'Selesai') return 4;
-      if (s === 'Arsip') return 4;
-      return 0;
-    };
+    const kat = (surat.kategori || '').toLowerCase().trim();
+    const perihalText = (surat.keperluan || '').toLowerCase().trim();
 
-    const currentIdx = getStepIndex(surat.status);
+    const isUndangan = kat.includes('undangan') || perihalText.includes('undangan');
+    const isIzinKerja = kat.includes('izin kerja') || kat.includes('izin tidak masuk') || perihalText.includes('izin kerja') || perihalText.includes('izin tidak masuk');
 
-    const renderNodeHtml = (step: { id: string; label: string; idx: number; short: string }) => {
-      let nodeClass = '';
-      let circleContent = step.short;
+    let suratDari = '';
+    let alamatTampil = '';
+    let kelurahanTampil = '';
+    let kecamatanTampil = '';
 
-      if (step.idx < currentIdx) {
-        nodeClass = 'done';
-        circleContent = '✓';
-      } else if (step.idx === currentIdx) {
-        nodeClass = 'active';
-      }
-
-      return `
-        <div class="node ${nodeClass}">
-          <div class="circle">${circleContent}</div>
-          <div class="label">${step.label}</div>
-        </div>
-      `;
-    };
-
-    const nodesHtml = [
-      { id: 'ADM', label: 'ADM', idx: 0, short: 'ADM' },
-      { id: 'KDM', label: 'KDM', idx: 1, short: 'KD' },
-      { id: 'KAPEL', label: 'KAPEL', idx: 2, short: 'KA' },
-      { id: 'PIMP', label: 'PIMP', idx: 3, short: 'PI' },
-      { id: 'DONE', label: 'DONE', idx: 4, short: '' }
-    ].map(renderNodeHtml).join('');
+    if (isUndangan) {
+      // 1. DISPOSISI SURAT 1 (Format Ringkas - Undangan)
+      suratDari = surat.namaInstansi || surat.pimpinanOrganisasi || '-';
+      alamatTampil = '';
+      kelurahanTampil = '';
+      kecamatanTampil = '';
+    } else if (isIzinKerja) {
+      // 2A. DISPOSISI SURAT 2 (Format Khusus - Izin Kerja)
+      // Surat Dari = Nama Pimpinan/Pemohon (e.g. Andini Ari Wardani)
+      // Alamat = Nama Instansi/Jabatan/Divisi (e.g. Staff Bagian Keuangan)
+      suratDari = surat.pimpinanOrganisasi || surat.namaInstansi || '-';
+      alamatTampil = surat.namaInstansi && surat.namaInstansi !== suratDari ? surat.namaInstansi : (surat.alamat || '');
+      kelurahanTampil = '';
+      kecamatanTampil = '';
+    } else {
+      // 2B. DISPOSISI SURAT 2 (Format Lengkap - Permohonan, Penelitian, Laporan, dll)
+      suratDari = surat.namaInstansi || surat.pimpinanOrganisasi || '-';
+      alamatTampil = surat.alamat || '';
+      kelurahanTampil = surat.kelurahan || '';
+      kecamatanTampil = surat.kecamatan || '';
+    }
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -430,259 +423,218 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <style>
               @page {
                   size: A5 landscape;
-                  margin: 0;
+                  margin: 6mm 8mm;
               }
               
-              body {
-                  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                  background-color: #f9fafb;
-                  margin: 0;
-                  display: flex;
-                  justify-content: center;
-                  align-items: center;
-                  height: 100vh;
+              * {
+                  box-sizing: border-box;
               }
 
-              .a5-container {
-                  width: 210mm;
-                  height: 148mm;
-                  background: white;
-                  padding: 10mm 12mm;
-                  box-sizing: border-box;
-                  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+              body {
+                  font-family: 'Times New Roman', Times, serif;
+                  background-color: #ffffff;
+                  color: #000000;
+                  margin: 0;
+                  padding: 5px;
                   display: flex;
-                  flex-direction: column;
-                  justify-content: space-between;
+                  justify-content: center;
+                  align-items: flex-start;
+              }
+
+              .container {
+                  width: 100%;
+                  max-width: 210mm;
+                  background: white;
+                  margin: 0 auto;
               }
 
               @media print {
-                  body { background: white; height: auto; display: block; }
-                  .a5-container { box-shadow: none; width: 100%; height: 100%; padding: 10mm; }
+                  body {
+                      background: white;
+                      padding: 0;
+                  }
+                  .container {
+                      width: 100%;
+                      box-shadow: none;
+                  }
               }
 
               .header {
-                  display: flex;
-                  justify-content: center;
-                  align-items: center;
-                  padding-bottom: 8px;
+                  text-align: center;
                   margin-bottom: 10px;
               }
               
               .logo-img {
-                  height: 100px;
+                  height: 105px;
                   max-width: 100%;
                   object-fit: contain;
               }
 
-              .title {
-                  text-align: center;
-                  font-weight: 900;
-                  font-size: 11px;
-                  margin-bottom: 12px;
-                  text-decoration: underline;
-                  text-transform: uppercase;
+              table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  border: 2px solid #000000;
+                  font-family: 'Times New Roman', Times, serif;
+                  color: #000000;
               }
 
-              .info-box {
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
-                  padding: 10px 12px;
-                  display: grid;
-                  grid-template-columns: 1fr 1fr;
-                  gap: 8px 15px;
-                  margin-bottom: 20px;
-                  background-color: #fafafa;
+              th, td {
+                  border: 2px solid #000000;
+                  padding: 5px 8px;
+                  font-size: 13.5px;
+                  line-height: 1.35;
+                  vertical-align: middle;
               }
 
-              .info-row {
-                  display: flex;
-                  font-size: 9px;
-              }
-
-              .info-label {
-                  width: 110px;
+              .label-text {
                   font-weight: bold;
-                  color: #4b5563;
               }
 
-              .info-value {
+              .colon-sep {
                   font-weight: bold;
-                  color: #111827;
-              }
-
-              .progress-section {
-                  position: relative;
-                  margin-top: 5px;
-              }
-
-              .progress-title {
                   text-align: center;
-                  font-weight: 800;
-                  font-size: 10px;
-                  color: #374151;
-                  margin-bottom: 20px;
-                  text-transform: uppercase;
+                  width: 12px;
+                  padding-left: 0;
+                  padding-right: 0;
               }
 
-              .flow-container {
-                  padding: 0 10%;
-                  position: relative;
+              .value-text {
+                  font-weight: bold;
               }
 
-              .flow-track-single {
-                  position: absolute;
-                  top: 14px; 
-                  left: 10%; 
-                  right: 10%; 
-                  height: 2px;
-                  background-color: #e5e7eb;
-                  z-index: 1;
+              .perihal-cell {
+                  padding: 6px 8px;
+                  vertical-align: top;
               }
 
-              .flow-row-single {
+              .perihal-header {
+                  font-weight: bold;
+                  font-size: 13.5px;
+                  margin-bottom: ${alamatTampil ? '14px' : '4px'};
+              }
+
+              .perihal-locations {
                   display: flex;
                   justify-content: space-between;
-                  position: relative;
-                  z-index: 2;
-              }
-
-              .node {
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  background-color: white;
-                  padding: 0 8px;
-              }
-
-              .circle {
-                  width: 26px;
-                  height: 26px;
-                  border-radius: 50%;
-                  border: 2px solid #d1d5db;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
                   font-weight: bold;
-                  font-size: 9px;
-                  color: #6b7280;
-                  margin-bottom: 6px;
-                  background-color: white;
-                  transition: all 0.3s ease;
+                  font-size: 13.5px;
               }
 
-              .label {
-                  font-size: 8px;
-                  font-weight: 800;
+              .disposisi-table-container {
+                  margin-top: 8px;
+              }
+
+              .disposisi-header {
                   text-align: center;
-                  color: #4b5563;
+                  font-weight: bold;
+                  font-size: 14px;
+                  letter-spacing: 0.5px;
+                  padding: 4px 0;
+                  background-color: #ffffff;
               }
 
-              .node.done .circle {
-                  border-color: #10b981;
-                  background-color: #10b981;
-                  color: white;
-              }
-              .node.done .label {
-                  color: #10b981;
+              .disposisi-title {
+                  text-align: center;
+                  font-weight: bold;
+                  font-size: 13.5px;
+                  margin-bottom: 4px;
               }
 
-              .node.active .circle {
-                  border-color: #10b981;
-                  color: #10b981;
-                  border-width: 3px;
-              }
-              .node.active .label {
-                  color: #10b981;
+              .disposisi-box {
+                  height: 125px;
+                  min-height: 125px;
+                  vertical-align: top;
+                  padding-top: 6px;
               }
           </style>
       </head>
       <body>
 
-          <div class="a5-container">
+          <div class="container">
               
-              <!-- Header -->
+              <!-- Header Logo -->
               <div class="header">
-                  <img class="logo-img" src="/LogoBAZNASSMG.PNG" alt="Logo BAZNAS" />
+                  <img class="logo-img" src="${LOGO_BAZNAS_BASE64}" alt="Logo BAZNAS" />
               </div>
 
-              <!-- Judul -->
-              <div class="title">LEMBAR DISPOSISI / KONTROL SURAT MASUK</div>
+              <!-- Info Surat Table -->
+              <table>
+                  <tbody>
+                      <tr>
+                          <td style="width: 18%;" class="label-text">Surat dari</td>
+                          <td class="colon-sep">:</td>
+                          <td style="width: 32%;" class="value-text">${suratDari}</td>
+                          <td style="width: 22%;" class="label-text">Diterima tanggal</td>
+                          <td class="colon-sep">:</td>
+                          <td style="width: 23%;" class="value-text">${formatTanggalIndo(surat.tanggalMasuk)}</td>
+                      </tr>
+                      <tr>
+                          <td class="label-text">Nomor Surat</td>
+                          <td class="colon-sep">:</td>
+                          <td class="value-text">${surat.yangMengajukan || ''}</td>
+                          <td class="label-text">No. Agenda</td>
+                          <td class="colon-sep">:</td>
+                          <td class="value-text">${surat.agendaNo || ''}</td>
+                      </tr>
+                      <tr>
+                          <td class="label-text" style="vertical-align: top;">Perihal</td>
+                          <td class="colon-sep" style="vertical-align: top;">:</td>
+                          <td colspan="4" class="perihal-cell">
+                              <div class="perihal-header">
+                                  ${surat.keperluan || ''}
+                              </div>
+                              ${(alamatTampil || kelurahanTampil || kecamatanTampil) ? `
+                              <div class="perihal-locations">
+                                  <span>${alamatTampil}</span>
+                                  ${kelurahanTampil ? `<span>${kelurahanTampil}</span>` : ''}
+                                  ${kecamatanTampil ? `<span>${kecamatanTampil}</span>` : ''}
+                              </div>
+                              ` : ''}
+                          </td>
+                      </tr>
+                  </tbody>
+              </table>
 
-              <!-- Info Surat -->
-              <div class="info-box">
-                  <!-- Row 1 -->
-                  <div class="info-row">
-                      <div class="info-label">NO. AGENDA</div>
-                      <div class="info-value">: ${surat.agendaNo}</div>
-                  </div>
-                  <div class="info-row">
-                      <div class="info-label">TANGGAL MASUK</div>
-                      <div class="info-value">: ${surat.tanggalMasuk} ${surat.jamPengajuan ? `(${surat.jamPengajuan})` : ''}</div>
-                  </div>
-
-                  <!-- Row 2 -->
-                  <div class="info-row">
-                      <div class="info-label">NAMA INSTANSI</div>
-                      <div class="info-value">: ${surat.namaInstansi || '-'}</div>
-                  </div>
-                  <div class="info-row">
-                      <div class="info-label">PIMPINAN / PENGIRIM</div>
-                      <div class="info-value">: ${surat.pimpinanOrganisasi || '-'}</div>
-                  </div>
-
-                  <!-- Row 3 -->
-                  <div class="info-row">
-                      <div class="info-label">KATEGORI</div>
-                      <div class="info-value">: ${surat.kategori || '-'}</div>
-                  </div>
-                  <div class="info-row">
-                      <div class="info-label">NO. TELPON</div>
-                      <div class="info-value">: ${surat.noTelpon || '-'}</div>
-                  </div>
-
-                  ${surat.kategori === 'Undangan' ? `
-                  <div class="info-row">
-                      <div class="info-label">TANGGAL ACARA</div>
-                      <div class="info-value">: ${surat.tanggalAcara ? new Date(surat.tanggalAcara).toLocaleDateString('id-ID') : '-'}</div>
-                  </div>
-                  <div class="info-row">
-                      <div class="info-label">JAM ACARA</div>
-                      <div class="info-value">: ${surat.jamAcara || '-'}</div>
-                  </div>
-                  ` : ''}
-
-                  <!-- Row (Full Width) -->
-                  <div class="info-row" style="grid-column: 1 / -1;">
-                      <div class="info-label">PERIHAL / KEPERLUAN</div>
-                      <div class="info-value">: ${surat.keperluan}</div>
-                  </div>
-
-                  <!-- Row (Full Width) -->
-                  <div class="info-row" style="grid-column: 1 / -1;">
-                      <div class="info-label">ALAMAT</div>
-                      <div class="info-value">: ${[surat.alamat, surat.kelurahan, surat.kecamatan].filter(Boolean).join(', ') || '-'}</div>
-                  </div>
-              </div>
-
-              <!-- Progress Alur Dokumen -->
-              <div class="progress-section">
-                  <div class="progress-title">PROGRESS ALUR SURAT</div>
-                  
-                  <div class="flow-container">
-                      <div class="flow-track-single"></div>
-
-                      <div class="flow-row-single">
-                          ${nodesHtml}
-                      </div>
-                  </div>
+              <!-- ISI DISPOSISI Table -->
+              <div class="disposisi-table-container">
+                  <table>
+                      <thead>
+                          <tr>
+                              <th colspan="3" class="disposisi-header">ISI DISPOSISI</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          <tr>
+                              <td style="width: 33.33%;" class="disposisi-box">
+                                  <div class="disposisi-title"><u>Ketua</u></div>
+                              </td>
+                              <td style="width: 33.33%;" class="disposisi-box">
+                                  <div class="disposisi-title"><u>Kepala Pelaksana</u></div>
+                              </td>
+                              <td style="width: 33.33%;" class="disposisi-box">
+                                  <div class="disposisi-title"><u>Kabag. Administrasi</u></div>
+                              </td>
+                          </tr>
+                      </tbody>
+                  </table>
               </div>
 
           </div>
 
           <script>
-              window.onload = function() {
+              function triggerPrint() {
+                  window.focus();
                   window.print();
                   setTimeout(function() { window.close(); }, 500);
+              }
+              window.onload = function() {
+                  const img = document.querySelector('.logo-img');
+                  if (img && !img.complete) {
+                      img.onload = triggerPrint;
+                      img.onerror = triggerPrint;
+                  } else {
+                      triggerPrint();
+                  }
               };
           </script>
 
