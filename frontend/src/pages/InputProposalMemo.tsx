@@ -324,32 +324,32 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
         .filter(r => r.count > 0);
 
       contentHtml = `
-        <h2 style="font-size: 18px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px; line-height: 1.5;">
+        <h2 style="font-size: 20px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px; line-height: 1.5;">
           ${title}
         </h2>
-        <table style="width: 65%; margin: 0 auto; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; margin-bottom: 40px;">
+        <table style="width: 68%; margin: 0 auto; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 17px; margin-bottom: 40px;">
           <thead>
-            <tr style="height: 45px;">
-              <th style="border: 2px solid #000; padding: 8px; width: 15%; text-align: center; height: 45px;">No</th>
-              <th style="border: 2px solid #000; padding: 8px; width: 70%; text-align: center; height: 45px;">Jenis Permohonan</th>
-              <th style="border: 2px solid #000; padding: 8px; width: 15%; text-align: center; height: 45px;">Jumlah</th>
+            <tr style="height: 55px;">
+              <th style="border: 2px solid #000; padding: 10px; width: 15%; text-align: center; height: 55px;">No</th>
+              <th style="border: 2px solid #000; padding: 10px 14px; width: 60%; text-align: center; height: 55px;">Jenis Permohonan</th>
+              <th style="border: 2px solid #000; padding: 10px; width: 25%; text-align: center; height: 55px;">Jumlah</th>
             </tr>
           </thead>
           <tbody>
             ${activeRows.length === 0 ? `
-              <tr style="height: 45px;">
-                <td colspan="3" style="border: 2px solid #000; padding: 8px; text-align: center; color: #555; height: 45px;">Tidak ada data proposal masuk</td>
+              <tr style="height: 55px;">
+                <td colspan="3" style="border: 2px solid #000; padding: 10px; text-align: center; color: #555; height: 55px;">Tidak ada data proposal masuk</td>
               </tr>
             ` : activeRows.map((r, i) => `
-              <tr style="height: 45px;">
-                <td style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">${i + 1}</td>
-                <td style="border: 2px solid #000; padding: 8px 12px; font-weight: bold; height: 45px;">${r.pilar}</td>
-                <td style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">${r.count}</td>
+              <tr style="height: 55px;">
+                <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold; height: 55px;">${i + 1}</td>
+                <td style="border: 2px solid #000; padding: 10px 14px; font-weight: bold; height: 55px;">${r.pilar}</td>
+                <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold; height: 55px;">${r.count}</td>
               </tr>
             `).join('')}
-            <tr style="height: 45px; font-weight: bold;">
-              <td colspan="2" style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">Total</td>
-              <td style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">${totalCount}</td>
+            <tr style="height: 55px; font-weight: bold;">
+              <td colspan="2" style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold; height: 55px;">Total</td>
+              <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold; height: 55px;">${totalCount}</td>
             </tr>
           </tbody>
         </table>
@@ -385,18 +385,18 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
         .filter(g => g.items.length > 0);
 
       contentHtml = `
-        <h2 style="font-size: 18px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px;">
+        <h2 style="font-size: 20px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px;">
           ${title}
         </h2>
         ${activeGroups.length === 0 ? `
-          <p style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 14px; margin-top: 50px;">Tidak ada data detail proposal masuk</p>
+          <p style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 16px; margin-top: 50px;">Tidak ada data detail proposal masuk</p>
         ` : activeGroups.map(g => `
-          <h3 style="font-size: 14px; text-align: left; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-top: 30px; margin-bottom: 10px;">
+          <h3 style="font-size: 16px; text-align: left; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-top: 30px; margin-bottom: 10px;">
             ${g.pilar} : ${g.items.length}
           </h3>
-          <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 10px; margin-bottom: 25px;">
+          <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 12px; margin-bottom: 25px;">
             <thead>
-              <tr style="background-color: #ffffff; height: 35px;">
+              <tr style="background-color: #ffffff; height: 40px;">
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">No</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">No Agenda</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Tanggal Proposal Masuk</th>
@@ -407,10 +407,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 11%;">Alamat</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Kelurahan</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Kecamatan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 9%;">Jenis Permohonan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Jenis Permohonan</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 6%;">NoTelpon</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 4%;">Jam Pengajuan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 4%;">Yang Mengajukan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Yang Mengajukan</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">TTD</th>
               </tr>
             </thead>
@@ -446,31 +446,31 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     let signatureHtml = '';
     if (reportType === 'harian_pilar') {
       signatureHtml = `
-        <table style="width: 80%; border: none; margin: 40px auto 0; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
+        <table style="width: 90%; border: none; margin: 55px auto 0; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
           <tr style="border: none;">
-            <td style="border: none; width: 60%; padding-left: 20px;"></td>
-            <td style="border: none; width: 40%; text-align: left; padding-bottom: 8px;">
+            <td style="border: none; width: 68%; padding-left: 20px;"></td>
+            <td style="border: none; width: 32%; text-align: left; padding-bottom: 8px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 60%; text-align: left; vertical-align: top; padding-left: 20px;">
+            <td style="border: none; width: 68%; text-align: left; vertical-align: top; padding-left: 20px;">
               Kepala Pelaksana
             </td>
-            <td style="border: none; width: 40%; text-align: left; vertical-align: top; padding: 0;">
+            <td style="border: none; width: 32%; text-align: left; vertical-align: top; padding: 0;">
               Kepala Bagian<br>
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 75px;">
+          <tr style="border: none; height: 110px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 60%; text-align: left; vertical-align: bottom; padding-left: 20px;">
+            <td style="border: none; width: 68%; text-align: left; vertical-align: bottom; padding-left: 20px;">
               <strong>${signatories.kepalaPelaksana || '................................'}</strong>
             </td>
-            <td style="border: none; width: 40%; text-align: left; vertical-align: bottom; padding: 0;">
+            <td style="border: none; width: 32%; text-align: left; vertical-align: bottom; padding: 0;">
               <strong>${signatories.kabagAdministrasi || '................................'}</strong>
             </td>
           </tr>
@@ -478,31 +478,31 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'harian_detail') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 40px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
+        <table style="width: 100%; border: none; margin-top: 55px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
           <tr style="border: none;">
-            <td style="border: none; width: 60%; padding-left: 20px;"></td>
-            <td style="border: none; width: 40%; text-align: left; padding-bottom: 8px;">
+            <td style="border: none; width: 72%; padding-left: 18%;"></td>
+            <td style="border: none; width: 28%; text-align: left; padding-bottom: 8px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 60%; text-align: left; vertical-align: top; padding-left: 20px;">
+            <td style="border: none; width: 72%; text-align: left; vertical-align: top; padding-left: 18%;">
               Kepala Bagian<br>
               Administrasi, SDM, dan Umum
             </td>
-            <td style="border: none; width: 40%; text-align: left; vertical-align: top; padding: 0;">
+            <td style="border: none; width: 28%; text-align: left; vertical-align: top; padding: 0;">
               Staff Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 75px;">
+          <tr style="border: none; height: 110px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 60%; text-align: left; vertical-align: bottom; padding-left: 20px;">
+            <td style="border: none; width: 72%; text-align: left; vertical-align: bottom; padding-left: 18%;">
               <strong>${signatories.kabagAdministrasi || '................................'}</strong>
             </td>
-            <td style="border: none; width: 40%; text-align: left; vertical-align: bottom; padding: 0;">
+            <td style="border: none; width: 28%; text-align: left; vertical-align: bottom; padding: 0;">
               <strong>${signatories.stafAdministrasi || '................................'}</strong>
             </td>
           </tr>
@@ -510,7 +510,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'mingguan') {
       signatureHtml = `
-        <table style="width: 85%; margin: 40px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
+        <table style="width: 85%; margin: 45px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
           <tr style="border: none;">
             <td style="border: none; width: 33%;"></td>
             <td style="border: none; width: 33%;"></td>
@@ -531,7 +531,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 75px;">
+          <tr style="border: none; height: 85px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
@@ -551,7 +551,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'bulanan') {
       signatureHtml = `
-        <table style="width: 85%; margin: 40px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
+        <table style="width: 85%; margin: 45px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
           <tr style="border: none;">
             <td style="border: none; width: 33%;"></td>
             <td style="border: none; width: 33%;"></td>
@@ -571,7 +571,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 75px;">
+          <tr style="border: none; height: 85px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
@@ -600,7 +600,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
             </td>
             <td style="border: none;"></td>
           </tr>
-          <tr style="border: none; height: 75px;">
+          <tr style="border: none; height: 85px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
@@ -1163,7 +1163,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               .perihal-cell {
                   padding: 8px 12px;
-                  vertical-align: top;
+                  vertical-align: middle;
                   height: 145px;
                   min-height: 145px;
               }
@@ -1171,26 +1171,25 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               .perihal-wrapper {
                   display: flex;
                   flex-direction: column;
-                  justify-content: space-between;
+                  justify-content: space-around;
                   height: 100%;
                   min-height: 125px;
               }
 
               .perihal-header {
                   display: flex;
-                  align-items: flex-start;
+                  align-items: center;
                   font-weight: bold;
-                  font-size: 19px;
-                  line-height: 1.25;
-                  margin-bottom: 6px;
+                  font-size: 18px;
+                  line-height: 1.3;
                   width: 100%;
               }
 
               .perihal-title-text {
-                  flex: 0 0 69%;
-                  max-width: 69%;
-                  padding-right: 10px;
+                  width: 70%;
+                  padding-right: 12px;
                   word-break: break-word;
+                  box-sizing: border-box;
               }
 
               .perihal-title-text-full {
@@ -1199,19 +1198,43 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .an-text {
-                  flex: 1;
-                  text-align: left;
+                  width: 30%;
                   white-space: nowrap;
                   font-weight: bold;
+                  font-size: 18px;
+                  text-align: left;
+                  box-sizing: border-box;
               }
 
               .perihal-locations {
                   display: flex;
-                  justify-content: space-between;
+                  align-items: center;
                   font-weight: bold;
-                  font-size: 19px;
-                  margin-top: auto;
-                  padding-top: 4px;
+                  font-size: 18px;
+                  width: 100%;
+              }
+
+              .location-col-1 {
+                  width: 41.5%;
+                  text-align: left;
+                  padding-right: 8px;
+                  word-break: break-word;
+                  box-sizing: border-box;
+              }
+
+              .location-col-2 {
+                  width: 28.5%;
+                  text-align: left;
+                  padding-right: 8px;
+                  word-break: break-word;
+                  box-sizing: border-box;
+              }
+
+              .location-col-3 {
+                  width: 30%;
+                  text-align: left;
+                  word-break: break-word;
+                  box-sizing: border-box;
               }
 
               .disposisi-table-container {
@@ -1231,7 +1254,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               .disposisi-title {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 19px;
+                  font-size: 18px;
                   margin-bottom: 4px;
               }
 
@@ -1272,19 +1295,21 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                           <td class="value-text no-surat-cell">${noAgenda}</td>
                       </tr>
                       <tr>
-                          <td class="label-text" style="vertical-align: top; padding-top: 8px;">Perihal</td>
-                          <td class="colon-sep" style="vertical-align: top; padding-top: 8px;">:</td>
+                          <td class="label-text" style="vertical-align: middle;">Perihal</td>
+                          <td class="colon-sep" style="vertical-align: middle;">:</td>
                           <td colspan="4" class="perihal-cell">
                               <div class="perihal-wrapper">
                                   <div class="perihal-header">
                                       <div class="${anText ? 'perihal-title-text' : 'perihal-title-text-full'}">${perihalJudul}</div>
                                       ${anText ? `<div class="an-text">${anText}</div>` : ''}
                                   </div>
+                                  ${(alamatTampil || kelurahanTampil || kecamatanTampil) ? `
                                   <div class="perihal-locations">
-                                      <span>${alamatTampil}</span>
-                                      ${kelurahanTampil ? `<span>${kelurahanTampil}</span>` : ''}
-                                      ${kecamatanTampil ? `<span>${kecamatanTampil}</span>` : ''}
+                                      <div class="location-col-1">${alamatTampil}</div>
+                                      <div class="location-col-2">${kelurahanTampil ? kelurahanTampil : ''}</div>
+                                      <div class="location-col-3">${kecamatanTampil ? kecamatanTampil : ''}</div>
                                   </div>
+                                  ` : ''}
                               </div>
                           </td>
                       </tr>
