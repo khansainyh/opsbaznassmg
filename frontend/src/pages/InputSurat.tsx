@@ -423,10 +423,17 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <style>
               @page {
                   size: A5 landscape;
-                  margin: 6mm 8mm;
+                  margin: 0.151in 0.586in 0.275in 0.419in;
               }
               
               * {
+                  box-sizing: border-box;
+              }
+
+              html, body {
+                  height: 100%;
+                  margin: 0;
+                  padding: 0;
                   box-sizing: border-box;
               }
 
@@ -434,38 +441,42 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   font-family: 'Times New Roman', Times, serif;
                   background-color: #ffffff;
                   color: #000000;
-                  margin: 0;
-                  padding: 5px;
                   display: flex;
                   justify-content: center;
-                  align-items: flex-start;
               }
 
               .container {
                   width: 100%;
-                  max-width: 210mm;
+                  height: 100%;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: space-between;
                   background: white;
                   margin: 0 auto;
+                  box-sizing: border-box;
               }
 
               @media print {
-                  body {
-                      background: white;
+                  html, body {
+                      height: 100%;
+                      margin: 0;
                       padding: 0;
                   }
                   .container {
                       width: 100%;
+                      height: 100%;
                       box-shadow: none;
                   }
               }
 
               .header {
                   text-align: center;
-                  margin-bottom: 10px;
+                  margin-bottom: 2px;
+                  flex-shrink: 0;
               }
               
               .logo-img {
-                  height: 105px;
+                  height: 98px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -480,14 +491,15 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
               th, td {
                   border: 2px solid #000000;
-                  padding: 5px 8px;
-                  font-size: 13.5px;
+                  padding: 6px 8px;
+                  font-size: 15px;
                   line-height: 1.35;
                   vertical-align: middle;
               }
 
               .label-text {
                   font-weight: bold;
+                  font-size: 15px;
               }
 
               .colon-sep {
@@ -496,55 +508,70 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   width: 12px;
                   padding-left: 0;
                   padding-right: 0;
+                  font-size: 15px;
               }
 
               .value-text {
                   font-weight: bold;
+                  font-size: 15px;
+              }
+
+              .surat-dari-cell {
+                  padding: 14px 10px;
+                  height: 60px;
+              }
+
+              .no-surat-cell {
+                  padding: 4px 10px;
+                  height: 30px;
               }
 
               .perihal-cell {
-                  padding: 6px 8px;
-                  vertical-align: top;
+                  padding: 10px 12px;
+                  vertical-align: middle;
+                  height: 95px;
+                  min-height: 95px;
               }
 
               .perihal-header {
                   font-weight: bold;
-                  font-size: 13.5px;
-                  margin-bottom: ${alamatTampil ? '14px' : '4px'};
+                  font-size: 15px;
+                  margin-bottom: ${alamatTampil ? '12px' : '4px'};
               }
 
               .perihal-locations {
                   display: flex;
                   justify-content: space-between;
                   font-weight: bold;
-                  font-size: 13.5px;
+                  font-size: 15px;
               }
 
               .disposisi-table-container {
-                  margin-top: 8px;
+                  margin-top: 0px;
+                  flex-shrink: 0;
               }
 
               .disposisi-header {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 14px;
+                  font-size: 16px;
                   letter-spacing: 0.5px;
-                  padding: 4px 0;
+                  padding: 6px 0;
                   background-color: #ffffff;
               }
 
               .disposisi-title {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 13.5px;
+                  font-size: 15px;
                   margin-bottom: 4px;
               }
 
               .disposisi-box {
-                  height: 125px;
-                  min-height: 125px;
+                  height: 165px;
+                  min-height: 165px;
                   vertical-align: top;
-                  padding-top: 6px;
+                  padding-top: 8px;
               }
           </style>
       </head>
@@ -561,24 +588,24 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               <table>
                   <tbody>
                       <tr>
-                          <td style="width: 18%;" class="label-text">Surat dari</td>
-                          <td class="colon-sep">:</td>
-                          <td style="width: 32%;" class="value-text">${suratDari}</td>
-                          <td style="width: 22%;" class="label-text">Diterima tanggal</td>
-                          <td class="colon-sep">:</td>
-                          <td style="width: 23%;" class="value-text">${formatTanggalIndo(surat.tanggalMasuk)}</td>
+                          <td style="width: 18%;" class="label-text surat-dari-cell">Surat dari</td>
+                          <td class="colon-sep surat-dari-cell">:</td>
+                          <td style="width: 32%;" class="value-text surat-dari-cell">${suratDari}</td>
+                          <td style="width: 22%;" class="label-text surat-dari-cell">Diterima tanggal</td>
+                          <td class="colon-sep surat-dari-cell">:</td>
+                          <td style="width: 23%;" class="value-text surat-dari-cell">${formatTanggalIndo(surat.tanggalMasuk)}</td>
                       </tr>
                       <tr>
-                          <td class="label-text">Nomor Surat</td>
-                          <td class="colon-sep">:</td>
-                          <td class="value-text">${surat.yangMengajukan || ''}</td>
-                          <td class="label-text">No. Agenda</td>
-                          <td class="colon-sep">:</td>
-                          <td class="value-text">${surat.agendaNo || ''}</td>
+                          <td class="label-text no-surat-cell">Nomor Surat</td>
+                          <td class="colon-sep no-surat-cell">:</td>
+                          <td class="value-text no-surat-cell">${(surat as any).noSurat || ''}</td>
+                          <td class="label-text no-surat-cell">No. Agenda</td>
+                          <td class="colon-sep no-surat-cell">:</td>
+                          <td class="value-text no-surat-cell">${surat.agendaNo || ''}</td>
                       </tr>
                       <tr>
-                          <td class="label-text" style="vertical-align: top;">Perihal</td>
-                          <td class="colon-sep" style="vertical-align: top;">:</td>
+                          <td class="label-text" style="vertical-align: middle;">Perihal</td>
+                          <td class="colon-sep" style="vertical-align: middle;">:</td>
                           <td colspan="4" class="perihal-cell">
                               <div class="perihal-header">
                                   ${surat.keperluan || ''}
@@ -1497,12 +1524,12 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
-                      <input name="kecamatan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kecamatan (Opsional)..." defaultValue={editingSurat?.kecamatan || ""} />
-                    </div>
-                    <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelurahan</label>
                       <input name="kelurahan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kelurahan (Opsional)..." defaultValue={editingSurat?.kelurahan || ""} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kecamatan</label>
+                      <input name="kecamatan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Kecamatan (Opsional)..." defaultValue={editingSurat?.kecamatan || ""} />
                     </div>
 
                     <div className="space-y-1">
