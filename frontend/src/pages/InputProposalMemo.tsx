@@ -324,32 +324,32 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
         .filter(r => r.count > 0);
 
       contentHtml = `
-        <h2 style="font-size: 18px; text-align: center; font-family: Arial, sans-serif; font-weight: bold; margin-bottom: 30px; line-height: 1.5;">
+        <h2 style="font-size: 18px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px; line-height: 1.5;">
           ${title}
         </h2>
-        <table style="width: 70%; margin: 0 auto; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 13px; margin-bottom: 40px;">
+        <table style="width: 65%; margin: 0 auto; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; margin-bottom: 40px;">
           <thead>
-            <tr>
-              <th style="border: 2px solid #000; padding: 10px; width: 10%; text-align: center;">No</th>
-              <th style="border: 2px solid #000; padding: 10px; width: 60%; text-align: center;">Jenis Permohonan</th>
-              <th style="border: 2px solid #000; padding: 10px; width: 30%; text-align: center;">Jumlah</th>
+            <tr style="height: 45px;">
+              <th style="border: 2px solid #000; padding: 8px; width: 15%; text-align: center; height: 45px;">No</th>
+              <th style="border: 2px solid #000; padding: 8px; width: 70%; text-align: center; height: 45px;">Jenis Permohonan</th>
+              <th style="border: 2px solid #000; padding: 8px; width: 15%; text-align: center; height: 45px;">Jumlah</th>
             </tr>
           </thead>
           <tbody>
             ${activeRows.length === 0 ? `
-              <tr>
-                <td colspan="3" style="border: 2px solid #000; padding: 12px; text-align: center; color: #555;">Tidak ada data proposal masuk</td>
+              <tr style="height: 45px;">
+                <td colspan="3" style="border: 2px solid #000; padding: 8px; text-align: center; color: #555; height: 45px;">Tidak ada data proposal masuk</td>
               </tr>
             ` : activeRows.map((r, i) => `
-              <tr>
-                <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">${i + 1}</td>
-                <td style="border: 2px solid #000; padding: 10px; font-weight: bold;">${r.pilar}</td>
-                <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">${r.count}</td>
+              <tr style="height: 45px;">
+                <td style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">${i + 1}</td>
+                <td style="border: 2px solid #000; padding: 8px 12px; font-weight: bold; height: 45px;">${r.pilar}</td>
+                <td style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">${r.count}</td>
               </tr>
             `).join('')}
-            <tr style="font-weight: bold;">
-              <td colspan="2" style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">Total</td>
-              <td style="border: 2px solid #000; padding: 10px; text-align: center; font-weight: bold;">${totalCount}</td>
+            <tr style="height: 45px; font-weight: bold;">
+              <td colspan="2" style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">Total</td>
+              <td style="border: 2px solid #000; padding: 8px; text-align: center; font-weight: bold; height: 45px;">${totalCount}</td>
             </tr>
           </tbody>
         </table>
@@ -385,45 +385,47 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
         .filter(g => g.items.length > 0);
 
       contentHtml = `
-        <h2 style="font-size: 18px; text-align: center; font-family: Arial, sans-serif; font-weight: bold; margin-bottom: 30px;">
+        <h2 style="font-size: 18px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px;">
           ${title}
         </h2>
         ${activeGroups.length === 0 ? `
-          <p style="text-align: center; font-family: Arial, sans-serif; font-size: 14px; margin-top: 50px;">Tidak ada data detail proposal masuk</p>
+          <p style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 14px; margin-top: 50px;">Tidak ada data detail proposal masuk</p>
         ` : activeGroups.map(g => `
-          <h3 style="font-size: 14px; text-align: left; font-family: Arial, sans-serif; font-weight: bold; margin-top: 30px; margin-bottom: 10px;">
+          <h3 style="font-size: 14px; text-align: left; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-top: 30px; margin-bottom: 10px;">
             ${g.pilar} : ${g.items.length}
           </h3>
-          <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; margin-bottom: 25px;">
+          <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 10px; margin-bottom: 25px;">
             <thead>
-              <tr style="background-color: #ffffff;">
+              <tr style="background-color: #ffffff; height: 35px;">
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">No</th>
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">No Agenda</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Tanggal Proposal Masuk</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 12%;">Nama Instansi</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Pimpinan Organisasi</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Nama Pemohon</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 14%;">Alamat</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kelurahan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kecamatan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Jenis Permohonan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">NoTelpon</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Jam Pengajuan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Yang Mengajukan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">TTD</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Tanggal Proposal Masuk</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Nama Instansi</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 9%;">Pimpinan Organisasi</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Nama Pemohon</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Nama Anak</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 11%;">Alamat</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Kelurahan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Kecamatan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 9%;">Jenis Permohonan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 6%;">NoTelpon</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 4%;">Jam Pengajuan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 4%;">Yang Mengajukan</th>
+                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">TTD</th>
               </tr>
             </thead>
             <tbody>
               ${g.items.map((item, index) => {
                 const combinedPermohonan = item.programCode ? `${item.programCode} || ${item.jenisPermohonan}` : item.jenisPermohonan;
                 return `
-                  <tr>
+                  <tr style="height: 45px;">
                     <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${index + 1}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.agendaNo}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${formatIndonesianDateStr(item.tanggalMasuk)}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaInstansi || '-'}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px;">${item.pimpinanOrganisasi || '-'}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaPemohon || '-'}</td>
+                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaAnak || '-'}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px;">${item.alamat || '-'}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px;">${item.kelurahan || '-'}</td>
                     <td style="border: 1px solid #000; padding: 6px 4px;">${item.kecamatan || '-'}</td>
@@ -444,21 +446,31 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     let signatureHtml = '';
     if (reportType === 'harian_pilar') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+        <table style="width: 80%; border: none; margin: 40px auto 0; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
-            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Semarang, ${semarangDate}<br><br>
+            <td style="border: none; width: 60%; padding-left: 20px;"></td>
+            <td style="border: none; width: 40%; text-align: left; padding-bottom: 8px;">
+              Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Kepala Pelaksana<br><br><br><br><br>
+            <td style="border: none; width: 60%; text-align: left; vertical-align: top; padding-left: 20px;">
+              Kepala Pelaksana
+            </td>
+            <td style="border: none; width: 40%; text-align: left; vertical-align: top; padding: 0;">
+              Kepala Bagian<br>
+              Administrasi, SDM, dan Umum
+            </td>
+          </tr>
+          <tr style="border: none; height: 75px;">
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 60%; text-align: left; vertical-align: bottom; padding-left: 20px;">
               <strong>${signatories.kepalaPelaksana || '................................'}</strong>
             </td>
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Kepala Bagian<br>
-              Administrasi, SDM, dan Umum<br><br><br><br>
+            <td style="border: none; width: 40%; text-align: left; vertical-align: bottom; padding: 0;">
               <strong>${signatories.kabagAdministrasi || '................................'}</strong>
             </td>
           </tr>
@@ -466,21 +478,31 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'harian_detail') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+        <table style="width: 100%; border: none; margin-top: 40px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
-            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Semarang, ${semarangDate}<br><br>
+            <td style="border: none; width: 60%; padding-left: 20px;"></td>
+            <td style="border: none; width: 40%; text-align: left; padding-bottom: 8px;">
+              Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+            <td style="border: none; width: 60%; text-align: left; vertical-align: top; padding-left: 20px;">
               Kepala Bagian<br>
-              Administrasi, SDM, dan Umum<br><br><br><br><br>
+              Administrasi, SDM, dan Umum
+            </td>
+            <td style="border: none; width: 40%; text-align: left; vertical-align: top; padding: 0;">
+              Staff Administrasi, SDM, dan Umum
+            </td>
+          </tr>
+          <tr style="border: none; height: 75px;">
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 60%; text-align: left; vertical-align: bottom; padding-left: 20px;">
               <strong>${signatories.kabagAdministrasi || '................................'}</strong>
             </td>
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Staff Administrasi, SDM, dan Umum<br><br><br><br><br><br>
+            <td style="border: none; width: 40%; text-align: left; vertical-align: bottom; padding: 0;">
               <strong>${signatories.stafAdministrasi || '................................'}</strong>
             </td>
           </tr>
@@ -488,22 +510,40 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'mingguan') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+        <table style="width: 85%; margin: 40px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
-            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Semarang, ${semarangDate}<br><br>
+            <td style="border: none; width: 33%;"></td>
+            <td style="border: none; width: 33%;"></td>
+            <td style="border: none; width: 34%; text-align: left; padding-bottom: 8px;">
+              Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
               Mengetahui<br>
-              Wakil Ketua IV<br><br><br><br><br>
+              Wakil Ketua IV
+            </td>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
+              Kepala Pelaksana
+            </td>
+            <td style="border: none; width: 34%; text-align: left; vertical-align: top;">
+              Kepala Bagian<br>
+              Administrasi, SDM, dan Umum
+            </td>
+          </tr>
+          <tr style="border: none; height: 75px;">
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
               <strong>${signatories.wakilKetuaIv || '................................'}</strong>
             </td>
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Plh. Kepala Pelaksana<br>
-              Kabag. Administrasi, SDM, dan Umum<br><br><br><br>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
+              <strong>${signatories.kepalaPelaksana || '................................'}</strong>
+            </td>
+            <td style="border: none; width: 34%; text-align: left; vertical-align: bottom;">
               <strong>${signatories.kabagAdministrasi || '................................'}</strong>
             </td>
           </tr>
@@ -511,30 +551,66 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'bulanan') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 50px; border-collapse: collapse;">
+        <table style="width: 85%; margin: 40px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: left; padding: 0;"></td>
-            <td style="border: none; width: 50%; text-align: right; padding: 0 10px 0 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Semarang, ${semarangDate}<br><br>
+            <td style="border: none; width: 33%;"></td>
+            <td style="border: none; width: 33%;"></td>
+            <td style="border: none; width: 34%; text-align: left; padding-bottom: 8px;">
+              Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Wakil Ketua IV<br><br><br><br><br>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
+              Wakil Ketua IV
+            </td>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
+              Kepala Pelaksana
+            </td>
+            <td style="border: none; width: 34%; text-align: left; vertical-align: top;">
+              Kepala Bagian<br>
+              Administrasi, SDM, dan Umum
+            </td>
+          </tr>
+          <tr style="border: none; height: 75px;">
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
               <strong>${signatories.wakilKetuaIv || '................................'}</strong>
             </td>
-            <td style="border: none; width: 50%; text-align: center; vertical-align: top; padding: 0; font-family: Arial, sans-serif; font-size: 13px;">
-              Plh. Kepala Pelaksana<br>
-              Kabag. Administrasi, SDM, dan Umum<br><br><br><br>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
+              <strong>${signatories.kepalaPelaksana || '................................'}</strong>
+            </td>
+            <td style="border: none; width: 34%; text-align: left; vertical-align: bottom;">
               <strong>${signatories.kabagAdministrasi || '................................'}</strong>
             </td>
           </tr>
+          <tr style="border: none; height: 35px;">
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+          </tr>
           <tr style="border: none;">
-            <td colspan="2" style="border: none; text-align: center; vertical-align: top; padding: 40px 0 0 0; font-family: Arial, sans-serif; font-size: 13px;">
+            <td style="border: none;"></td>
+            <td style="border: none; text-align: left; vertical-align: top;">
               Mengetahui,<br>
-              Ketua BAZNAS Kota Semarang<br><br><br><br><br>
+              Ketua BAZNAS Kota Semarang
+            </td>
+            <td style="border: none;"></td>
+          </tr>
+          <tr style="border: none; height: 75px;">
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+            <td style="border: none;"></td>
+          </tr>
+          <tr style="border: none;">
+            <td style="border: none;"></td>
+            <td style="border: none; text-align: left; vertical-align: bottom;">
               <strong>${signatories.ketua || '................................'}</strong>
             </td>
+            <td style="border: none;"></td>
           </tr>
         </table>
       `;
@@ -556,7 +632,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               margin: 15mm;
             }
             body {
-              font-family: Arial, sans-serif;
+              font-family: 'Times New Roman', Times, serif;
               color: #000;
               margin: 0;
               padding: 10px;
@@ -2687,7 +2763,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penandatangan Laporan</h4>
 
                   {/* Kepala Pelaksana */}
-                  {reportType === 'harian_pilar' && (
+                  {(reportType === 'harian_pilar' || reportType === 'mingguan' || reportType === 'bulanan') && (
                     <div className="space-y-2">
                       <label className="text-[11px] font-semibold text-slate-600">Nama Kepala Pelaksana</label>
                       <div className="flex gap-2">
@@ -2747,91 +2823,61 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   )}
 
                   {/* Kabag Administrasi */}
-                  {reportType !== 'bulanan' && (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi</label>
+                    <div className="flex gap-2">
+                      <select
+                        className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
+                          }
+                        }}
+                        value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
+                      >
+                        <option value="">-- Pilih User --</option>
+                        {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
+                          <option key={u.id} value={u.name}>{u.name}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={signatories.kabagAdministrasi}
+                        onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
+                        placeholder="Nama Kabag Administrasi..."
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Ketua (Untuk Bulanan) */}
+                  {reportType === 'bulanan' && (
                     <div className="space-y-2">
-                      <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi</label>
+                      <label className="text-[11px] font-semibold text-slate-600">Nama Ketua BAZNAS</label>
                       <div className="flex gap-2">
                         <select
                           className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
                           onChange={(e) => {
                             if (e.target.value) {
-                              setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
+                              setSignatories(prev => ({ ...prev, ketua: e.target.value }));
                             }
                           }}
-                          value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
+                          value={users.some(u => u.name === signatories.ketua) ? signatories.ketua : ''}
                         >
                           <option value="">-- Pilih User --</option>
-                          {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
+                          {users.filter(u => u.role === 'Ketua').map(u => (
                             <option key={u.id} value={u.name}>{u.name}</option>
                           ))}
                         </select>
                         <input
                           type="text"
-                          value={signatories.kabagAdministrasi}
-                          onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
-                          placeholder="Nama Kabag Administrasi..."
+                          value={signatories.ketua}
+                          onChange={(e) => setSignatories(prev => ({ ...prev, ketua: e.target.value }))}
+                          placeholder="Nama Ketua BAZNAS..."
                           className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
                         />
                       </div>
                     </div>
-                  )}
-
-                  {/* Ketua (Untuk Bulanan) */}
-                  {reportType === 'bulanan' && (
-                    <>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi (Plh. Kepala Pelaksana)</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
-                              }
-                            }}
-                            value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
-                          >
-                            <option value="">-- Pilih User --</option>
-                            {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
-                              <option key={u.id} value={u.name}>{u.name}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            value={signatories.kabagAdministrasi}
-                            onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
-                            placeholder="Nama Kabag Administrasi..."
-                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-semibold text-slate-600">Nama Ketua BAZNAS</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                setSignatories(prev => ({ ...prev, ketua: e.target.value }));
-                              }
-                            }}
-                            value={users.some(u => u.name === signatories.ketua) ? signatories.ketua : ''}
-                          >
-                            <option value="">-- Pilih User --</option>
-                            {users.filter(u => u.role === 'Ketua').map(u => (
-                              <option key={u.id} value={u.name}>{u.name}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            value={signatories.ketua}
-                            onChange={(e) => setSignatories(prev => ({ ...prev, ketua: e.target.value }))}
-                            placeholder="Nama Ketua BAZNAS..."
-                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                          />
-                        </div>
-                      </div>
-                    </>
                   )}
 
                   {/* Staff Administrasi (Untuk Detail Harian) */}
