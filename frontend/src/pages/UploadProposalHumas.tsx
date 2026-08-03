@@ -325,10 +325,8 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
                       <div className="space-y-4">
                         <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
                         <DetailItem label="NIK" value={selectedProposal.nik} />
-                        {selectedProposal.no_kk && (
-                          <DetailItem label="No. KK" value={selectedProposal.no_kk} />
-                        )}
-                        <DetailItem label="Nama Anak" value={selectedProposal.namaAnak} />
+                        <DetailItem label="No. KK" value={selectedProposal.no_kk || (selectedProposal as any).noKk || '-'} />
+                        <DetailItem label="Nama Anak" value={selectedProposal.namaAnak || '-'} />
                         <DetailItem label="Tempat Lahir" value={selectedProposal.tempat_lahir || '-'} />
                         <DetailItem label="Tanggal Lahir" value={selectedProposal.tanggal_lahir || '-'} />
                         <DetailItem label="Jenis Kelamin" value={selectedProposal.jenis_kelamin || '-'} />

@@ -168,6 +168,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   const [selectedMemoSource, setSelectedMemoSource] = useState('');
   const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
   const [selectedGender, setSelectedGender] = useState('');
+  const [isPekerjaanDropdownOpen, setIsPekerjaanDropdownOpen] = useState(false);
+  const [selectedPekerjaan, setSelectedPekerjaan] = useState('');
   const [isKecamatanDropdownOpen, setIsKecamatanDropdownOpen] = useState(false);
   const [kecamatanSearchQuery, setKecamatanSearchQuery] = useState('');
   const [isKelurahanDropdownOpen, setIsKelurahanDropdownOpen] = useState(false);
@@ -695,7 +697,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       alamat:              get('alamat') || null,
       kelurahan:           selectedKelurahan || get('kelurahan') || null,
       kecamatan:           selectedKecamatan || get('kecamatan') || null,
-      pekerjaan:           jenisPengajuanState === 'Perorangan' ? get('pekerjaan') : null,
+      pekerjaan:           jenisPengajuanState === 'Perorangan' ? (selectedPekerjaan || get('pekerjaan') || null) : null,
       no_telpon:           get('telepon') || null,
       email:               get('email') || null,
       catatan:             get('catatan') || null,
@@ -802,6 +804,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     setSelectedProgramCode(proposal.programCode || proposal.jenisPermohonan || '');
     setSelectedMemoSource(proposal.memoSource || '');
     setSelectedGender(proposal.jenis_kelamin || '');
+    setSelectedPekerjaan(proposal.pekerjaan || '');
     let dob = proposal.tanggal_lahir || '';
     if (dob.includes('-')) {
       const parts = dob.split('-');
@@ -1324,6 +1327,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                 setTanggalLahirInput('');
                 setSelectedMemoSource('');
                 setSelectedGender('');
+                setSelectedPekerjaan('');
                 setIsModalOpen(true);
               }}
               className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
@@ -1760,10 +1764,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                     <div className="space-y-4">
                       <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
                       <DetailItem label="NIK" value={selectedProposal.nik} />
-                      {selectedProposal.no_kk && (
-                        <DetailItem label="No. KK" value={selectedProposal.no_kk} />
-                      )}
-                      <DetailItem label="Nama Anak" value={selectedProposal.namaAnak} />
+                      <DetailItem label="No. KK" value={selectedProposal.no_kk || (selectedProposal as any).noKk || '-'} />
+                      <DetailItem label="Nama Anak" value={selectedProposal.namaAnak || '-'} />
                       <DetailItem label="Tempat Lahir" value={selectedProposal.tempat_lahir || '-'} />
                       <DetailItem label="Tanggal Lahir" value={selectedProposal.tanggal_lahir || '-'} />
                       <DetailItem label="Jenis Kelamin" value={selectedProposal.jenis_kelamin || '-'} />
@@ -2436,7 +2438,53 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                         {jenisPengajuanState === 'Perorangan' ? (
                           <>
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
-                            <input name="pekerjaan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Pekerjaan..." defaultValue={editingProposal?.pekerjaan || ""} />
+                            <div className="relative">
+                              <input type="hidden" name="pekerjaan" value={selectedPekerjaan} />
+                              <button
+                                type="button"
+                                onClick={() => setIsPekerjaanDropdownOpen(!isPekerjaanDropdownOpen)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
+                              >
+                                <span className={selectedPekerjaan ? "text-slate-800 font-medium" : "text-slate-400"}>
+                                  {selectedPekerjaan || "Pilih Pekerjaan..."}
+                                </span>
+                                <span className="text-slate-400">▼</span>
+                              </button>
+
+                              {isPekerjaanDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setIsPekerjaanDropdownOpen(false)} />
+                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 text-left max-h-56 overflow-y-auto">
+                                    {[
+                                      "Pedagang",
+                                      "Petani",
+                                      "Peternak",
+                                      "Nelayan",
+                                      "Buruh Harian Lepas",
+                                      "Penyedia Jasa",
+                                      "Sektor Lainnya"
+                                    ].map(opt => (
+                                      <button
+                                        key={opt}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedPekerjaan(opt);
+                                          setIsPekerjaanDropdownOpen(false);
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                          selectedPekerjaan === opt
+                                            ? "bg-primary text-white font-bold"
+                                            : "text-slate-700 hover:bg-slate-100"
+                                        )}
+                                      >
+                                        {opt}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </>
                         ) : (
                           <>
@@ -2960,6 +3008,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   setTanggalLahirInput('');
                   setSelectedMemoSource('');
                   setSelectedGender('');
+                  setSelectedPekerjaan('');
                   setIsModalOpen(true);
                 }}
                 className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
@@ -3047,11 +3096,12 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   );
 }
 
-function DetailItem({ label, value }: { label: string, value: string }) {
+function DetailItem({ label, value }: { label: string, value?: string }) {
+  const displayVal = value && value.trim() ? value : '-';
   return (
     <div className="space-y-1">
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-      <p className="text-sm font-bold text-slate-900 leading-relaxed">{value}</p>
+      <p className="text-sm font-bold text-slate-900 leading-relaxed">{displayVal}</p>
     </div>
   );
 }

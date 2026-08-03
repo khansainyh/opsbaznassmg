@@ -86,6 +86,9 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
     if (data.tanggal_masuk) {
       data.tanggal_masuk = new Date(data.tanggal_masuk);
     }
+    if (body.catatan && !data.keterangan) {
+      data.keterangan = body.catatan;
+    }
     if (data.jenis_permohonan === '') {
       data.jenis_permohonan = null;
     }
@@ -159,6 +162,9 @@ export const updateProposal = async (req: Request, res: Response) => {
 
     if (data.tanggal_masuk) {
       data.tanggal_masuk = new Date(data.tanggal_masuk);
+    }
+    if (body.catatan !== undefined && data.keterangan === undefined) {
+      data.keterangan = body.catatan;
     }
     if (data.jenis_permohonan === '') {
       data.jenis_permohonan = null;
