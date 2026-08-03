@@ -1008,7 +1008,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
               
               .logo-img {
-                  height: 98px;
+                  height: 120px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -1016,17 +1016,17 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               table {
                   width: 100%;
                   border-collapse: collapse;
-                  border: 2px solid #000000;
                   font-family: 'Times New Roman', Times, serif;
                   color: #000000;
               }
 
               th, td {
-                  border: 2px solid #000000;
+                  border: 2px solid #000000 !important;
                   padding: 6px 8px;
                   font-size: 15px;
                   line-height: 1.35;
                   vertical-align: middle;
+                  box-sizing: border-box;
               }
 
               .label-text {
@@ -1082,7 +1082,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .disposisi-table-container {
-                  margin-top: 0px;
+                  margin-top: 5px;
                   flex-shrink: 0;
               }
 
@@ -1103,8 +1103,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .disposisi-box {
-                  height: 165px;
-                  min-height: 165px;
+                  height: 160px;
+                  min-height: 160px;
                   vertical-align: top;
                   padding-top: 8px;
               }
