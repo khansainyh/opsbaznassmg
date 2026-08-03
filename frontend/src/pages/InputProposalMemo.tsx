@@ -756,6 +756,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     const fd = new FormData(e.currentTarget);
     const get = (name: string) => String(fd.get(name) ?? '');
 
+    const catatanText = get('catatan') || get('keterangan') || null;
+
     const payload: Record<string, any> = {
       tanggal_masuk:       get('tanggalMasuk'),
       jam_pengajuan:       get('jamPengajuan'),
@@ -763,7 +765,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       jenis_pengajuan:     jenisPengajuanState,
       nama_instansi:       jenisPengajuanState === 'Lembaga' ? get('namaInstansi') : (get('namaInstansi') || null),
       pimpinan_organisasi: jenisPengajuanState === 'Lembaga' ? get('pimpinanOrganisasi') : (get('pimpinanOrganisasi') || null),
-      nama_pemohon:        jenisPengajuanState === 'Lembaga' ? get('pimpinanOrganisasi') : get('namaPemohon'),
+      nama_pemohon:        get('namaPemohon') || (jenisPengajuanState === 'Lembaga' ? (get('pimpinanOrganisasi') || get('namaInstansi')) : ''),
       nama_anak:           get('namaAnak') || null,
       nik:                 nikCheckStr || get('nik') || null,
       no_kk:               jenisPengajuanState === 'Perorangan' ? (noKk || null) : null,
@@ -776,12 +778,12 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       pekerjaan:           jenisPengajuanState === 'Perorangan' ? (selectedPekerjaan || get('pekerjaan') || null) : null,
       no_telpon:           get('telepon') || null,
       email:               get('email') || null,
-      catatan:             get('catatan') || null,
+      catatan:             catatanText,
+      keterangan:          catatanText,
       yang_mengajukan:     get('yangMengajukan') || null,
       has_memo:            fd.get('hasMemo') === 'on',
       memo_source:         get('memoSource') || null,
       rekomendasi:         get('rekomendasi') || null,
-      keterangan:          get('keterangan') || null,
       status:              'Registrasi',
     };
 
@@ -891,7 +893,14 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     setTanggalLahirInput(dob);
     setMatchedMustahikId(proposal.mustahik_id || null);
 
-    const isLembaga = (proposal as any).jenis_pengajuan === 'Lembaga' || (proposal as any).jenis_pengajuan === 'Kelompok' || proposal.jenisPermohonan === 'Lembaga' || proposal.jenisPermohonan === 'Kelompok';
+    const isLembaga = (proposal as any).jenis_pengajuan === 'Lembaga' ||
+                      (proposal as any).jenis_pengajuan === 'Kelompok' ||
+                      proposal.jenisPengajuan === 'Lembaga' ||
+                      proposal.jenisPengajuan === 'Kelompok' ||
+                      (proposal as any).kategori === 'Lembaga' ||
+                      (proposal as any).kategoriPemohon === 'Lembaga' ||
+                      (proposal as any).mustahik?.kategori === 'Lembaga' ||
+                      Boolean(proposal.namaInstansi && proposal.namaInstansi.trim() && proposal.namaInstansi !== '-');
     setJenisPengajuanState(isLembaga ? 'Lembaga' : 'Perorangan');
     
     const isSemarang = kecamatanKelurahanSemarang.some(k => k.kecamatan === proposal.kecamatan);
@@ -980,22 +989,14 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
     // 2. Logika Baris "a.n." (Atas Nama)
     let anText = '';
-    const perihalLower = (proposal.jenisPermohonan || '').toLowerCase();
-    const isMasjidYayasan = perihalLower.includes('masjid') || perihalLower.includes('mushol') || perihalLower.includes('yayasan') ||
-      instansiRaw.toLowerCase().includes('masjid') || instansiRaw.toLowerCase().includes('mushol') || instansiRaw.toLowerCase().includes('yayasan');
+    const pemohonTrim = (proposal.namaPemohon || '').trim();
+    const instansiTrim = (proposal.namaInstansi || '').trim();
+    const pimpinanTrim = (proposal.pimpinanOrganisasi || '').trim();
 
-    if (isDikdasmen) {
-      if (proposal.namaAnak && proposal.namaAnak.trim()) {
-        anText = `a.n. ${proposal.namaAnak.trim()}`;
-      }
-    } else if (isDikti) {
-      anText = ''; // Dikti / Mahasiswa maju untuk dirinya sendiri
-    } else if (isInstansiKosong) {
-      anText = ''; // Perorangan tidak perlu a.n.
-    } else if (isMasjidYayasan) {
-      anText = ''; // Masjid / Yayasan cukup nama instansi di Surat Dari
-    } else if (!isInstansiKosong && proposal.namaPemohon && proposal.namaPemohon.trim()) {
-      anText = `a.n. ${proposal.namaPemohon.trim()}`;
+    if (proposal.namaAnak && proposal.namaAnak.trim()) {
+      anText = `a.n. ${proposal.namaAnak.trim()}`;
+    } else if (pemohonTrim && pemohonTrim !== '-' && pemohonTrim !== instansiTrim && pemohonTrim !== pimpinanTrim) {
+      anText = `a.n. ${pemohonTrim}`;
     } else {
       anText = '';
     }
@@ -1022,7 +1023,12 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     const noAgenda = proposal.agendaNo || '';
     const noSurat = (proposal as any).noSurat || '';
     const tglMasuk = formatTanggalIndo(proposal.tanggalMasuk);
-    const perihalJudul = proposal.jenisPermohonan || proposal.programCode || '';
+    
+    // Kode Kegiatan (Program Code) & Perihal Judul
+    const programCodeStr = (proposal.programCode || (proposal as any).rkatActivityId || '').trim();
+    const perihalJudul = programCodeStr
+      ? `${programCodeStr} || ${proposal.jenisPermohonan || ''}`
+      : (proposal.jenisPermohonan || '');
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -1034,7 +1040,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           <style>
               @page {
                   size: A5 landscape;
-                  margin: 0.151in 0.586in 0.275in 0.419in;
+                  margin: 0.12in 0.4in 0.12in 0.4in;
               }
               
               * {
@@ -1068,15 +1074,31 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               @media print {
+                  @page {
+                      size: A5 landscape;
+                      margin: 0.12in 0.4in 0.12in 0.4in;
+                  }
                   html, body {
-                      height: 100%;
-                      margin: 0;
-                      padding: 0;
+                      height: 100% !important;
+                      max-height: 100vh !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      overflow: hidden !important;
                   }
                   .container {
-                      width: 100%;
-                      height: 100%;
-                      box-shadow: none;
+                      width: 100% !important;
+                      height: 98% !important;
+                      max-height: 98% !important;
+                      box-shadow: none !important;
+                      overflow: hidden !important;
+                      page-break-after: avoid !important;
+                      page-break-before: avoid !important;
+                      page-break-inside: avoid !important;
+                  }
+                  table, tr, td, th, div {
+                      page-break-after: avoid !important;
+                      page-break-before: avoid !important;
+                      page-break-inside: avoid !important;
                   }
               }
 
@@ -1087,7 +1109,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
               
               .logo-img {
-                  height: 120px;
+                  height: 115px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -1101,9 +1123,9 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               th, td {
                   border: 2px solid #000000 !important;
-                  padding: 6px 8px;
+                  padding: 5px 8px;
                   font-size: 15px;
-                  line-height: 1.35;
+                  line-height: 1.3;
                   vertical-align: middle;
                   box-sizing: border-box;
               }
@@ -1128,13 +1150,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .surat-dari-cell {
-                  padding: 14px 10px;
-                  height: 60px;
+                  padding: 8px 10px;
+                  height: 48px;
               }
 
               .no-surat-cell {
                   padding: 4px 10px;
-                  height: 30px;
+                  height: 28px;
               }
 
               .perihal-cell {
@@ -1145,12 +1167,37 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .perihal-header {
+                  display: flex;
+                  align-items: flex-start;
                   font-weight: bold;
                   font-size: 15px;
                   margin-bottom: 12px;
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: flex-start;
+                  width: 100%;
+              }
+
+              .perihal-title-text {
+                  flex: 0 0 69%;
+                  max-width: 69%;
+                  padding-right: 10px;
+                  overflow: hidden;
+                  display: -webkit-box;
+                  -webkit-line-clamp: 2;
+                  -webkit-box-orient: vertical;
+              }
+
+              .perihal-title-text-full {
+                  width: 100%;
+                  overflow: hidden;
+                  display: -webkit-box;
+                  -webkit-line-clamp: 2;
+                  -webkit-box-orient: vertical;
+              }
+
+              .an-text {
+                  flex: 1;
+                  text-align: left;
+                  white-space: nowrap;
+                  font-weight: bold;
               }
 
               .perihal-locations {
@@ -1161,7 +1208,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .disposisi-table-container {
-                  margin-top: 5px;
+                  margin-top: 3px;
                   flex-shrink: 0;
               }
 
@@ -1222,8 +1269,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                           <td class="colon-sep" style="vertical-align: middle;">:</td>
                           <td colspan="4" class="perihal-cell">
                               <div class="perihal-header">
-                                  <span>${noAgenda ? noAgenda + ' || ' : ''}${perihalJudul}</span>
-                                  ${anText ? `<span style="margin-left: auto; padding-left: 10px;">${anText}</span>` : ''}
+                                  <div class="${anText ? 'perihal-title-text' : 'perihal-title-text-full'}">${perihalJudul}</div>
+                                  ${anText ? `<div class="an-text">${anText}</div>` : ''}
                               </div>
                               <div class="perihal-locations">
                                   <span>${alamatTampil}</span>
@@ -1872,6 +1919,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       <DetailItem label="Pimpinan" value={selectedProposal.pimpinanOrganisasi || '-'} />
                       <DetailItem label="Jam Pengajuan" value={selectedProposal.jamPengajuan} />
                       <DetailItem label="Yang Mengajukan" value={selectedProposal.yangMengajukan || '-'} />
+                      <DetailItem label="Catatan" value={selectedProposal.catatan || selectedProposal.keterangan || '-'} />
                     </div>
                   </div>
 
@@ -2312,6 +2360,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                         </div>
 
                         <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Nama Pemohon (Opsional)
+                          </label>
+                          <input name="namaPemohon" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pemohon..." defaultValue={editingProposal?.namaPemohon || ""} />
+                        </div>
+
+                        <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga *</label>
                           <input required name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, Kelompok, dll..." defaultValue={(editingProposal as any)?.mustahik?.jenis_lembaga || (editingProposal as any)?.jenisLembaga || "Lembaga"} />
                         </div>
@@ -2576,7 +2631,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Catatan</label>
-                        <textarea name="catatan" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Catatan tambahan (opsional)..." defaultValue={editingProposal?.catatan || ""} />
+                        <textarea name="catatan" rows={2} className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Catatan tambahan (opsional)..." defaultValue={editingProposal?.catatan || editingProposal?.keterangan || ""} />
                       </div>
                   </div>
                 </div>

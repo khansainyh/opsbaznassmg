@@ -444,7 +444,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <style>
               @page {
                   size: A5 landscape;
-                  margin: 0.151in 0.586in 0.275in 0.419in;
+                  margin: 0.12in 0.4in 0.12in 0.4in;
               }
               
               * {
@@ -478,15 +478,31 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               @media print {
+                  @page {
+                      size: A5 landscape;
+                      margin: 0.12in 0.4in 0.12in 0.4in;
+                  }
                   html, body {
-                      height: 100%;
-                      margin: 0;
-                      padding: 0;
+                      height: 100% !important;
+                      max-height: 100vh !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      overflow: hidden !important;
                   }
                   .container {
-                      width: 100%;
-                      height: 100%;
-                      box-shadow: none;
+                      width: 100% !important;
+                      height: 98% !important;
+                      max-height: 98% !important;
+                      box-shadow: none !important;
+                      overflow: hidden !important;
+                      page-break-after: avoid !important;
+                      page-break-before: avoid !important;
+                      page-break-inside: avoid !important;
+                  }
+                  table, tr, td, th, div {
+                      page-break-after: avoid !important;
+                      page-break-before: avoid !important;
+                      page-break-inside: avoid !important;
                   }
               }
 
@@ -497,7 +513,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
               
               .logo-img {
-                  height: 120px;
+                  height: 115px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -511,9 +527,9 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
               th, td {
                   border: 2px solid #000000 !important;
-                  padding: 6px 8px;
+                  padding: 5px 8px;
                   font-size: 15px;
-                  line-height: 1.35;
+                  line-height: 1.3;
                   vertical-align: middle;
                   box-sizing: border-box;
               }
@@ -538,13 +554,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .surat-dari-cell {
-                  padding: 14px 10px;
-                  height: 60px;
+                  padding: 8px 10px;
+                  height: 48px;
               }
 
               .no-surat-cell {
                   padding: 4px 10px;
-                  height: 30px;
+                  height: 28px;
               }
 
               .perihal-cell {
@@ -558,6 +574,11 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   font-weight: bold;
                   font-size: 15px;
                   margin-bottom: ${alamatTampil ? '12px' : '4px'};
+                  max-height: 60px;
+                  overflow: hidden;
+                  display: -webkit-box;
+                  -webkit-line-clamp: 3;
+                  -webkit-box-orient: vertical;
               }
 
               .perihal-locations {
@@ -568,7 +589,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .disposisi-table-container {
-                  margin-top: 5px;
+                  margin-top: 3px;
                   flex-shrink: 0;
               }
 
@@ -577,7 +598,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   font-weight: bold;
                   font-size: 16px;
                   letter-spacing: 0.5px;
-                  padding: 6px 0;
+                  padding: 5px 0;
                   background-color: #ffffff;
               }
 
@@ -589,10 +610,10 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .disposisi-box {
-                  height: 160px;
-                  min-height: 160px;
+                  height: 148px;
+                  min-height: 140px;
                   vertical-align: top;
-                  padding-top: 8px;
+                  padding-top: 6px;
               }
           </style>
       </head>
@@ -1453,7 +1474,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsKategoriDropdownOpen(false)} />
                             <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 border-slate-100">
-                              {['-- Kosongkan Kategori --', 'Undangan', 'Surat Izin Kerja', 'Surat Izin Penelitian/Magang', 'Surat Permohonan', 'Laporan'].map(kategori => (
+                              {['-- Kosongkan Kategori --', 'Undangan', 'Surat Izin Kerja', 'Surat Izin Penelitian/Magang', 'Permohonan', 'Laporan'].map(kategori => (
                                 <button
                                   key={kategori}
                                   type="button"
