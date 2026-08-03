@@ -1111,7 +1111,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
               
               .logo-img {
-                  height: 100px;
+                  height: 90px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -1126,7 +1126,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               th, td {
                   border: 2px solid #000000 !important;
                   padding: 5px 8px;
-                  font-size: 16.5px;
+                  font-size: 18px;
                   line-height: 1.3;
                   vertical-align: middle;
                   box-sizing: border-box;
@@ -1134,7 +1134,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               .label-text {
                   font-weight: bold;
-                  font-size: 16.5px;
+                  font-size: 18px;
               }
 
               .colon-sep {
@@ -1143,12 +1143,12 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   width: 12px;
                   padding-left: 0;
                   padding-right: 0;
-                  font-size: 16.5px;
+                  font-size: 18px;
               }
 
               .value-text {
                   font-weight: bold;
-                  font-size: 16.5px;
+                  font-size: 18px;
               }
 
               .surat-dari-cell {
@@ -1162,18 +1162,27 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .perihal-cell {
-                  padding: 10px 12px;
-                  vertical-align: middle;
-                  height: 155px;
-                  min-height: 155px;
+                  padding: 8px 12px;
+                  vertical-align: top;
+                  height: 145px;
+                  min-height: 145px;
+              }
+
+              .perihal-wrapper {
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: space-between;
+                  height: 100%;
+                  min-height: 125px;
               }
 
               .perihal-header {
                   display: flex;
                   align-items: flex-start;
                   font-weight: bold;
-                  font-size: 16.5px;
-                  margin-bottom: 12px;
+                  font-size: 19px;
+                  line-height: 1.25;
+                  margin-bottom: 6px;
                   width: 100%;
               }
 
@@ -1181,18 +1190,12 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   flex: 0 0 69%;
                   max-width: 69%;
                   padding-right: 10px;
-                  overflow: hidden;
-                  display: -webkit-box;
-                  -webkit-line-clamp: 2;
-                  -webkit-box-orient: vertical;
+                  word-break: break-word;
               }
 
               .perihal-title-text-full {
                   width: 100%;
-                  overflow: hidden;
-                  display: -webkit-box;
-                  -webkit-line-clamp: 2;
-                  -webkit-box-orient: vertical;
+                  word-break: break-word;
               }
 
               .an-text {
@@ -1206,7 +1209,9 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   display: flex;
                   justify-content: space-between;
                   font-weight: bold;
-                  font-size: 16.5px;
+                  font-size: 19px;
+                  margin-top: auto;
+                  padding-top: 4px;
               }
 
               .disposisi-table-container {
@@ -1217,24 +1222,24 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               .disposisi-header {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 18px;
+                  font-size: 20px;
                   letter-spacing: 0.5px;
-                  padding: 6px 0;
+                  padding: 5px 0;
                   background-color: #ffffff;
               }
 
               .disposisi-title {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 17px;
+                  font-size: 19px;
                   margin-bottom: 4px;
               }
 
               .disposisi-box {
-                  height: 125px;
-                  min-height: 125px;
+                  height: 120px;
+                  min-height: 120px;
                   vertical-align: top;
-                  padding-top: 8px;
+                  padding-top: 6px;
               }
           </style>
       </head>
@@ -1244,7 +1249,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               
               <!-- Header Logo -->
               <div class="header">
-                  <img class="logo-img" src="${LOGO_BAZNAS_BASE64}" alt="Logo BAZNAS" />
+                  <img class="logo-img" src="${window.location.origin}/LogoBAZNASSMG.png" onerror="this.onerror=null; this.src='${LOGO_BAZNAS_BASE64}';" alt="Logo BAZNAS" />
               </div>
 
               <!-- Info Proposal Table -->
@@ -1267,17 +1272,19 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                           <td class="value-text no-surat-cell">${noAgenda}</td>
                       </tr>
                       <tr>
-                          <td class="label-text" style="vertical-align: middle;">Perihal</td>
-                          <td class="colon-sep" style="vertical-align: middle;">:</td>
+                          <td class="label-text" style="vertical-align: top; padding-top: 8px;">Perihal</td>
+                          <td class="colon-sep" style="vertical-align: top; padding-top: 8px;">:</td>
                           <td colspan="4" class="perihal-cell">
-                              <div class="perihal-header">
-                                  <div class="${anText ? 'perihal-title-text' : 'perihal-title-text-full'}">${perihalJudul}</div>
-                                  ${anText ? `<div class="an-text">${anText}</div>` : ''}
-                              </div>
-                              <div class="perihal-locations">
-                                  <span>${alamatTampil}</span>
-                                  ${kelurahanTampil ? `<span>${kelurahanTampil}</span>` : ''}
-                                  ${kecamatanTampil ? `<span>${kecamatanTampil}</span>` : ''}
+                              <div class="perihal-wrapper">
+                                  <div class="perihal-header">
+                                      <div class="${anText ? 'perihal-title-text' : 'perihal-title-text-full'}">${perihalJudul}</div>
+                                      ${anText ? `<div class="an-text">${anText}</div>` : ''}
+                                  </div>
+                                  <div class="perihal-locations">
+                                      <span>${alamatTampil}</span>
+                                      ${kelurahanTampil ? `<span>${kelurahanTampil}</span>` : ''}
+                                      ${kecamatanTampil ? `<span>${kecamatanTampil}</span>` : ''}
+                                  </div>
                               </div>
                           </td>
                       </tr>
