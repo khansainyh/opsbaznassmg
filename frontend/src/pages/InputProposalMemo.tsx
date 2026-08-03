@@ -992,10 +992,11 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     const pemohonTrim = (proposal.namaPemohon || '').trim();
     const instansiTrim = (proposal.namaInstansi || '').trim();
     const pimpinanTrim = (proposal.pimpinanOrganisasi || '').trim();
+    const anakTrim = (proposal.namaAnak || '').trim();
 
-    if (proposal.namaAnak && proposal.namaAnak.trim()) {
-      anText = `a.n. ${proposal.namaAnak.trim()}`;
-    } else if (pemohonTrim && pemohonTrim !== '-' && pemohonTrim !== instansiTrim && pemohonTrim !== pimpinanTrim) {
+    if (anakTrim && anakTrim !== '-' && anakTrim !== '0') {
+      anText = `a.n. ${anakTrim}`;
+    } else if (!isInstansiKosong && !isPendidikan && pemohonTrim && pemohonTrim !== '-' && pemohonTrim !== '0' && pemohonTrim.toLowerCase() !== suratDari.trim().toLowerCase() && pemohonTrim.toLowerCase() !== instansiTrim.toLowerCase() && pemohonTrim.toLowerCase() !== pimpinanTrim.toLowerCase()) {
       anText = `a.n. ${pemohonTrim}`;
     } else {
       anText = '';
@@ -1067,7 +1068,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   height: 100%;
                   display: flex;
                   flex-direction: column;
-                  justify-content: space-between;
+                  justify-content: flex-start;
                   background: white;
                   margin: 0 auto;
                   box-sizing: border-box;
@@ -1091,6 +1092,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       max-height: 98% !important;
                       box-shadow: none !important;
                       overflow: hidden !important;
+                      justify-content: flex-start !important;
                       page-break-after: avoid !important;
                       page-break-before: avoid !important;
                       page-break-inside: avoid !important;
@@ -1104,12 +1106,12 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               .header {
                   text-align: center;
-                  margin-bottom: 2px;
+                  margin-bottom: 0px;
                   flex-shrink: 0;
               }
               
               .logo-img {
-                  height: 115px;
+                  height: 100px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -1124,7 +1126,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               th, td {
                   border: 2px solid #000000 !important;
                   padding: 5px 8px;
-                  font-size: 15px;
+                  font-size: 16.5px;
                   line-height: 1.3;
                   vertical-align: middle;
                   box-sizing: border-box;
@@ -1132,7 +1134,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               .label-text {
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .colon-sep {
@@ -1141,17 +1143,17 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   width: 12px;
                   padding-left: 0;
                   padding-right: 0;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .value-text {
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .surat-dari-cell {
-                  padding: 8px 10px;
-                  height: 48px;
+                  padding: 5px 10px;
+                  height: 40px;
               }
 
               .no-surat-cell {
@@ -1162,15 +1164,15 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               .perihal-cell {
                   padding: 10px 12px;
                   vertical-align: middle;
-                  height: 95px;
-                  min-height: 95px;
+                  height: 155px;
+                  min-height: 155px;
               }
 
               .perihal-header {
                   display: flex;
                   align-items: flex-start;
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
                   margin-bottom: 12px;
                   width: 100%;
               }
@@ -1204,18 +1206,18 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   display: flex;
                   justify-content: space-between;
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .disposisi-table-container {
-                  margin-top: 3px;
+                  margin-top: 5px;
                   flex-shrink: 0;
               }
 
               .disposisi-header {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 16px;
+                  font-size: 18px;
                   letter-spacing: 0.5px;
                   padding: 6px 0;
                   background-color: #ffffff;
@@ -1224,13 +1226,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               .disposisi-title {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 17px;
                   margin-bottom: 4px;
               }
 
               .disposisi-box {
-                  height: 160px;
-                  min-height: 160px;
+                  height: 125px;
+                  min-height: 125px;
                   vertical-align: top;
                   padding-top: 8px;
               }

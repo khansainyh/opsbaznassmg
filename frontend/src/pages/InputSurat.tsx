@@ -471,7 +471,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   height: 100%;
                   display: flex;
                   flex-direction: column;
-                  justify-content: space-between;
+                  justify-content: flex-start;
                   background: white;
                   margin: 0 auto;
                   box-sizing: border-box;
@@ -495,6 +495,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                       max-height: 98% !important;
                       box-shadow: none !important;
                       overflow: hidden !important;
+                      justify-content: flex-start !important;
                       page-break-after: avoid !important;
                       page-break-before: avoid !important;
                       page-break-inside: avoid !important;
@@ -508,12 +509,12 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
               .header {
                   text-align: center;
-                  margin-bottom: 2px;
+                  margin-bottom: 0px;
                   flex-shrink: 0;
               }
               
               .logo-img {
-                  height: 115px;
+                  height: 100px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -528,7 +529,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               th, td {
                   border: 2px solid #000000 !important;
                   padding: 5px 8px;
-                  font-size: 15px;
+                  font-size: 16.5px;
                   line-height: 1.3;
                   vertical-align: middle;
                   box-sizing: border-box;
@@ -536,7 +537,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
               .label-text {
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .colon-sep {
@@ -545,17 +546,17 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   width: 12px;
                   padding-left: 0;
                   padding-right: 0;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .value-text {
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .surat-dari-cell {
-                  padding: 8px 10px;
-                  height: 48px;
+                  padding: 5px 10px;
+                  height: 40px;
               }
 
               .no-surat-cell {
@@ -566,13 +567,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               .perihal-cell {
                   padding: 10px 12px;
                   vertical-align: middle;
-                  height: 95px;
-                  min-height: 95px;
+                  height: 155px;
+                  min-height: 155px;
               }
 
               .perihal-header {
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
                   margin-bottom: ${alamatTampil ? '12px' : '4px'};
                   max-height: 60px;
                   overflow: hidden;
@@ -585,18 +586,18 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   display: flex;
                   justify-content: space-between;
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 16.5px;
               }
 
               .disposisi-table-container {
-                  margin-top: 3px;
+                  margin-top: 5px;
                   flex-shrink: 0;
               }
 
               .disposisi-header {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 16px;
+                  font-size: 18px;
                   letter-spacing: 0.5px;
                   padding: 5px 0;
                   background-color: #ffffff;
@@ -605,13 +606,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               .disposisi-title {
                   text-align: center;
                   font-weight: bold;
-                  font-size: 15px;
+                  font-size: 17px;
                   margin-bottom: 4px;
               }
 
               .disposisi-box {
-                  height: 148px;
-                  min-height: 140px;
+                  height: 125px;
+                  min-height: 125px;
                   vertical-align: top;
                   padding-top: 6px;
               }
