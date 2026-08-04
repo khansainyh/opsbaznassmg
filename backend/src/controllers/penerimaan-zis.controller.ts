@@ -166,13 +166,21 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         }
       }
 
+      const simbaNoStr = item.no_transaksi_simba ? String(item.no_transaksi_simba).trim() : '';
+      const hasRealSimbaNo = simbaNoStr.length > 0 && 
+        !simbaNoStr.startsWith('SMB-Penerimaan') &&
+        !simbaNoStr.startsWith('SMB-BSZ-') &&
+        !simbaNoStr.startsWith('SMB-');
+
+      const realSimbaNo = hasRealSimbaNo ? simbaNoStr : null;
       const statusSimba = item.status_simba === 'FAILED'
         ? 'FAILED'
-        : ((item.status_simba === 'SYNCED' || (item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0)) ? 'SYNCED' : 'PENDING');
+        : (hasRealSimbaNo ? 'SYNCED' : 'PENDING');
 
       return {
         ...item,
         rkat: rkatObj,
+        no_transaksi_simba: realSimbaNo,
         status_simba: statusSimba,
         coa_code
       };

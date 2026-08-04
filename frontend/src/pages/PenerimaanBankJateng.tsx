@@ -103,6 +103,13 @@ export default function PenerimaanBankJateng() {
   const [batchActiveTab, setBatchActiveTab] = useState<Record<string, 'upz' | 'pegawai' | 'gagal'>>({});
   const [historyUpzSearch, setHistoryUpzSearch] = useState<Record<string, string>>({});
 
+  // Batch SIMBA Modal States
+  const [isSimbaBatchModalOpen, setIsSimbaBatchModalOpen] = useState(false);
+  const [activeBatchName, setActiveBatchName] = useState('');
+  const [batchSimbaItems, setBatchSimbaItems] = useState<any[]>([]);
+  const [batchStartSimbaNo, setBatchStartSimbaNo] = useState('');
+  const [isSavingBatchSimba, setIsSavingBatchSimba] = useState(false);
+
   const toggleBatchExpand = (batchName: string) => {
     setExpandedBatches(prev => ({
       ...prev,
@@ -335,6 +342,119 @@ export default function PenerimaanBankJateng() {
     
     const docName = `${batchName.replace(/[^a-zA-Z0-9]/g, '_')}_SIMBA.xlsx`;
     XLSX.writeFile(workbook, docName);
+  };
+
+  const handleOpenSimbaBatchModal = (batch: any) => {
+    setActiveBatchName(batch.batchName);
+    const sortedItems = [...batch.items].sort((a, b) => {
+      const numA = parseInt(a.no_kuitansi?.split('/').pop() || '0', 10);
+      const numB = parseInt(b.no_kuitansi?.split('/').pop() || '0', 10);
+      return numA - numB;
+    });
+
+    const itemsMapped = sortedItems.map((item: any) => {
+      let opdName = 'UPZ';
+      if (item.keterangan) {
+        const match = item.keterangan.match(/\(([^)]+)\)$/) || item.keterangan.match(/\(([^)]+)\)[^()]*$/);
+        if (match) {
+          opdName = match[1].trim();
+        }
+      }
+      return {
+        id: item.id,
+        no_kuitansi: item.no_kuitansi,
+        nama: item.muzakki?.nama || '-',
+        opd: opdName,
+        nominal: Number(item.nominal || 0),
+        no_transaksi_simba: item.no_transaksi_simba || ''
+      };
+    });
+
+    setBatchSimbaItems(itemsMapped);
+    const firstSimba = itemsMapped.find((i: any) => i.no_transaksi_simba)?.no_transaksi_simba || '';
+    setBatchStartSimbaNo(firstSimba);
+    setIsSimbaBatchModalOpen(true);
+  };
+
+  const helperIncrementSimbaNo = (startStr: string, count: number): string[] => {
+    const trimmed = startStr.trim();
+    if (!trimmed) return Array(count).fill('');
+
+    const match = trimmed.match(/^(.*?)(\d+)$/);
+    if (!match) {
+      return Array.from({ length: count }, (_, idx) => idx === 0 ? trimmed : `${trimmed}-${idx + 1}`);
+    }
+
+    const prefix = match[1];
+    const numStr = match[2];
+    const numLen = numStr.length;
+    const startNum = parseInt(numStr, 10);
+
+    const result: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const nextNum = startNum + i;
+      const paddedNum = String(nextNum).padStart(numLen, '0');
+      result.push(`${prefix}${paddedNum}`);
+    }
+    return result;
+  };
+
+  const handleGenerateBatchSimbaSequence = () => {
+    if (!batchStartSimbaNo.trim()) {
+      alert('Masukkan Nomor SIMBA Pertama terlebih dahulu!');
+      return;
+    }
+    const generated = helperIncrementSimbaNo(batchStartSimbaNo, batchSimbaItems.length);
+    setBatchSimbaItems(prev => prev.map((item, idx) => ({
+      ...item,
+      no_transaksi_simba: generated[idx] || item.no_transaksi_simba
+    })));
+  };
+
+  const handleResequenceFromRow = (targetIdx: number) => {
+    const targetItem = batchSimbaItems[targetIdx];
+    if (!targetItem || !targetItem.no_transaksi_simba.trim()) {
+      alert('Isi nomor SIMBA pada baris ini terlebih dahulu!');
+      return;
+    }
+
+    const remainingCount = batchSimbaItems.length - targetIdx;
+    const generated = helperIncrementSimbaNo(targetItem.no_transaksi_simba, remainingCount);
+
+    setBatchSimbaItems(prev => {
+      const updated = [...prev];
+      for (let i = 0; i < remainingCount; i++) {
+        const curIdx = targetIdx + i;
+        updated[curIdx] = {
+          ...updated[curIdx],
+          no_transaksi_simba: generated[i]
+        };
+      }
+      return updated;
+    });
+  };
+
+  const handleSaveBatchSimba = async () => {
+    if (batchSimbaItems.length === 0) return;
+    setIsSavingBatchSimba(true);
+    try {
+      const updates = batchSimbaItems.map(item => ({
+        id: item.id,
+        no_transaksi_simba: item.no_transaksi_simba.trim() || null
+      }));
+
+      const res = await axios.patch('/api/bank-jateng/batch-simba', { updates });
+      if (res.data.status === 'success') {
+        setMessages([{ type: 'success', text: 'Berhasil meng-update No. Transaksi SIMBA Batch!' }]);
+        setIsSimbaBatchModalOpen(false);
+        fetchHistory();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Gagal menyimpan No. Transaksi SIMBA Batch.');
+    } finally {
+      setIsSavingBatchSimba(false);
+    }
   };
 
   const generateFailedPdf = (itemsToExport: any[], docTitle: string, subtitle: string, fileSource?: string) => {
@@ -2125,6 +2245,13 @@ export default function PenerimaanBankJateng() {
                         <td className="px-4 py-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button
+                              onClick={() => handleOpenSimbaBatchModal(batch)}
+                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                              title="Set / Update No. Transaksi SIMBA Batch"
+                            >
+                              <CheckCircle2 className="size-5" />
+                            </button>
+                            <button
                               onClick={() => exportHistoryToSimba(batch.items, batch.batchName)}
                               className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                               title="Unduh SIMBA Excel"
@@ -2608,6 +2735,140 @@ export default function PenerimaanBankJateng() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal Batch SIMBA Input & Auto-Sequence */}
+        {isSimbaBatchModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsSimbaBatchModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)]"
+            >
+              {/* Header */}
+              <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Input & Update No. Transaksi SIMBA Batch</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Batch: <span className="font-bold text-slate-700">{getDisplayBatchName(activeBatchName)}</span> ({batchSimbaItems.length} Transaksi)
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsSimbaBatchModalOpen(false)} 
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Controls Header */}
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shrink-0">
+                <div className="flex-1 flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                      Nomor SIMBA Pertama
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="Contoh: 2026/ZAKAT/001001 atau 1001" 
+                      value={batchStartSimbaNo}
+                      onChange={(e) => setBatchStartSimbaNo(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateBatchSimbaSequence}
+                    className="self-end px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm shrink-0"
+                  >
+                    Generate Nomor Urut
+                  </button>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-bold text-slate-600">
+                    Terisi: {batchSimbaItems.filter(i => i.no_transaksi_simba?.trim()).length} / {batchSimbaItems.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Editable Table */}
+              <div className="p-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                      <th className="p-3 text-center w-12">#</th>
+                      <th className="p-3">Nama Muzakki</th>
+                      <th className="p-3">OPD / UPZ</th>
+                      <th className="p-3 text-right">Nominal</th>
+                      <th className="p-3 w-72">No. Transaksi SIMBA</th>
+                      <th className="p-3 text-center w-28">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {batchSimbaItems.map((item, idx) => (
+                      <tr key={item.id || idx} className="hover:bg-slate-50/50">
+                        <td className="p-3 text-center font-mono font-bold text-slate-400">{idx + 1}</td>
+                        <td className="p-3 font-bold text-slate-800">{item.nama}</td>
+                        <td className="p-3 font-medium text-slate-600">{item.opd}</td>
+                        <td className="p-3 text-right font-mono font-bold text-slate-800">
+                          Rp {item.nominal.toLocaleString('id-ID')}
+                        </td>
+                        <td className="p-2">
+                          <input 
+                            type="text"
+                            value={item.no_transaksi_simba}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setBatchSimbaItems(prev => prev.map((it, i) => i === idx ? { ...it, no_transaksi_simba: val } : it));
+                            }}
+                            placeholder="Ketik No. SIMBA..."
+                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 outline-none"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleResequenceFromRow(idx)}
+                            title="Urutkan nomor sekuensial ke bawah mulai dari baris ini"
+                            className="px-2 py-1 bg-slate-100 hover:bg-primary hover:text-white text-slate-700 rounded text-[10px] font-bold transition-all shrink-0"
+                          >
+                            Urutkan
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-100 flex justify-end gap-2 shrink-0 bg-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setIsSimbaBatchModalOpen(false)}
+                  className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingBatchSimba}
+                  onClick={handleSaveBatchSimba}
+                  className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-xs transition-all shadow-md disabled:opacity-50"
+                >
+                  {isSavingBatchSimba ? 'Menyimpan...' : 'Simpan & Set Status SYNCED'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

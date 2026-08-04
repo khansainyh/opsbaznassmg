@@ -235,8 +235,8 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
           metode_pembayaran: 'TRANSFER',
           tanggal_pembayaran: paymentDate,
           keterangan: formattedKeterangan,
-          status_simba: 'SYNCED',
-          no_transaksi_simba: `SMB-${no_kuitansi}`,
+          status_simba: 'PENDING',
+          no_transaksi_simba: null,
           transaksi_id: transaksi_id
         });
 
@@ -554,6 +554,35 @@ export const deleteBatch = async (req: Request, res: Response): Promise<void> =>
     res.status(200).json({ status: 'success', message: `Batch ${batchName} berhasil dihapus` });
   } catch (error: any) {
     console.error('Error deleting Bank Jateng batch:', error);
+    res.status(500).json({ status: 'error', error: error.message || String(error) });
+  }
+};
+
+export const updateBatchSimba = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { updates } = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      res.status(400).json({ status: 'error', message: 'Daftar transaksi yang di-update tidak boleh kosong' });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of updates) {
+        if (!item.id) continue;
+        const simbaNo = item.no_transaksi_simba ? String(item.no_transaksi_simba).trim() : null;
+        await tx.penerimaanZis.update({
+          where: { id: item.id },
+          data: {
+            no_transaksi_simba: simbaNo,
+            status_simba: (simbaNo && simbaNo.length > 0) ? 'SYNCED' : 'PENDING'
+          }
+        });
+      }
+    });
+
+    res.status(200).json({ status: 'success', message: 'Berhasil meng-update No Transaksi SIMBA Batch!' });
+  } catch (error: any) {
+    console.error('Error updating Batch SIMBA:', error);
     res.status(500).json({ status: 'error', error: error.message || String(error) });
   }
 };

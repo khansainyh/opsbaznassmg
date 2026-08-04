@@ -2420,16 +2420,14 @@ export default function PenerimaanZis() {
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex justify-center">
-                          {(item.status_simba === 'SYNCED' || (item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0)) ? (
+                          {(item.status_simba === 'SYNCED' && item.no_transaksi_simba && String(item.no_transaksi_simba).trim().length > 0 && !String(item.no_transaksi_simba).startsWith('SMB-')) ? (
                             <div className="flex flex-col items-center gap-0.5">
                               <span className="inline-flex px-2 py-0.5 text-[9px] font-black rounded-lg uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
                                 SYNCED
                               </span>
-                              {item.no_transaksi_simba && (
-                                <span className="text-[9px] text-slate-500 font-mono">
-                                  {item.no_transaksi_simba}
-                                </span>
-                              )}
+                              <span className="text-[9px] text-slate-500 font-mono">
+                                {item.no_transaksi_simba}
+                              </span>
                             </div>
                           ) : (
                             <div className="flex items-center justify-center">
@@ -3330,7 +3328,7 @@ export default function PenerimaanZis() {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Transaksi SIMBA *</label>
                   <input 
                     type="text" 
-                    placeholder="Masukkan No Transaksi Kas Masuk SIMBA..." 
+                    placeholder="Masukkan No. Transaksi SIMBA..." 
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono font-bold"
                     value={promptSimbaValue}
                     onChange={(e) => setPromptSimbaValue(e.target.value)}
