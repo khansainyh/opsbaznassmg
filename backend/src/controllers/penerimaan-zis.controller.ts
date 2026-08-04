@@ -559,7 +559,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
           no_transaksi_simba: no_transaksi_simba || null,
           tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
           keterangan: formattedKeterangan,
-          status_simba: 'PENDING',
+          status_simba: (no_transaksi_simba && String(no_transaksi_simba).trim().length > 0) ? 'SYNCED' : 'PENDING',
           transaksi_id: realisasiTrx.transaksi_id
         },
         include: {
@@ -774,24 +774,31 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
         }
       }
 
+      const finalUpzId = req.body.upz_id !== undefined ? (req.body.upz_id || null) : existing.upz_id;
+      const finalSimbaNo = no_transaksi_simba !== undefined ? (no_transaksi_simba ? String(no_transaksi_simba).trim() : null) : existing.no_transaksi_simba;
+      const finalStatusSimba = (finalSimbaNo && finalSimbaNo.length > 0) ? 'SYNCED' : existing.status_simba;
+
       // 5. Update PenerimaanZis record
       const updatedPenerimaan = await tx.penerimaanZis.update({
         where: { id },
         data: {
           muzakki_id,
+          upz_id: finalUpzId,
           rkat_id: targetRkatId,
-          kode_program: targetKodeProgram,
-          jenis_program: targetJenisProgram,
+          kode_program: targetKodeProgram || existing.kode_program,
+          jenis_program: targetJenisProgram || existing.jenis_program,
           bank_account_id,
           nominal: new Prisma.Decimal(tNominal),
           metode_pembayaran: finalUpdateMetode,
-          no_transaksi_simba: no_transaksi_simba || null,
-          tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : new Date(),
+          no_transaksi_simba: finalSimbaNo,
+          status_simba: finalStatusSimba,
+          tanggal_pembayaran: tanggal_pembayaran ? new Date(tanggal_pembayaran) : existing.tanggal_pembayaran,
           keterangan: formattedKeterangan
         },
         include: {
           muzakki: true,
           rkat: true,
+          upz: true,
           bankAccount: true
         }
       });

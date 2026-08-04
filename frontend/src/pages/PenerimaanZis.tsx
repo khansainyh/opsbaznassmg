@@ -1626,7 +1626,7 @@ export default function PenerimaanZis() {
 
   const handleSaveSimbaNo = async () => {
     if (!promptSimbaValue.trim()) {
-      alert('No Transaksi SIMBA wajib diisi untuk metode pembayaran Kas Tunai!');
+      alert('No Transaksi SIMBA wajib diisi untuk mengubah status menjadi SYNCED!');
       return;
     }
 
@@ -1651,21 +1651,23 @@ export default function PenerimaanZis() {
   const toggleSimbaStatus = async (item: any) => {
     const nextStatus = item.status_simba === 'PENDING' ? 'SYNCED' : 'PENDING';
     
-    if (nextStatus === 'SYNCED' && item.metode_pembayaran === 'TUNAI') {
+    // Always prompt for No Transaksi SIMBA when marking as SYNCED
+    if (nextStatus === 'SYNCED') {
       setPromptSimbaItem(item);
       setPromptSimbaValue(item.no_transaksi_simba || '');
       setIsSimbaPromptOpen(true);
       return;
     }
 
+    // When unchecking back to PENDING:
     try {
       const res = await axios.patch(`/api/penerimaan-zis/${item.id}/simba`, {
-        status_simba: nextStatus,
-        no_transaksi_simba: item.no_transaksi_simba
+        status_simba: 'PENDING',
+        no_transaksi_simba: null
       });
       if (res.data.status === 'success') {
         setPenerimaanData(prev => prev.map(p => p.id === item.id ? res.data.data : p));
-        setMessages([{ type: 'success', text: `Status SIMBA berhasil diperbarui ke ${nextStatus}!` }]);
+        setMessages([{ type: 'success', text: `Status SIMBA dikembalikan ke PENDING!` }]);
       }
     } catch (err: any) {
       console.error(err);
@@ -2957,6 +2959,31 @@ export default function PenerimaanZis() {
                     onChange={(e) => setKeterangan(e.target.value)}
                   />
                 </div>
+
+                {/* No Transaksi SIMBA (Hanya muncul saat MODE EDIT) */}
+                {editingId && (
+                  <div className="space-y-1 text-left animate-fade-in">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">No. Transaksi SIMBA</label>
+                      {noTransaksiSimba.trim() ? (
+                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 uppercase">
+                          Status: SYNCED
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 uppercase">
+                          Status: PENDING
+                        </span>
+                      )}
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Masukkan No Transaksi SIMBA..." 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-slate-300 placeholder:font-sans placeholder:font-normal"
+                      value={noTransaksiSimba}
+                      onChange={(e) => setNoTransaksiSimba(e.target.value)}
+                    />
+                  </div>
+                )}
 
                 {/* Preview Accounting Entries helper */}
                 {nominal && Number(String(nominal).replace(/[^0-9]/g, '')) > 0 && selectedAccountId && (selectedRkatId || (isOutsideRkat && selectedCoaCode)) && (
