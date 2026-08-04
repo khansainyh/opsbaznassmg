@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 export const lookupMuzakki = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -136,27 +137,56 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
       let totalNominal = 0;
       const allUpzs = await tx.upz.findMany();
 
+      // Ensure credit COAs exist once before the loop
+      const coaZakatExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: coaZakatCode } });
+      if (!coaZakatExists) {
+        await tx.chartOfAccounts.create({
+          data: {
+            coa_code: coaZakatCode,
+            nama_akun: 'Zakat Maal Perorangan via UPZ Pengumpulan',
+            klasifikasi: 'Penerimaan',
+            tipe_dana: 'ZAKAT'
+          }
+        });
+      }
+      const coaInfakExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: coaInfakCode } });
+      if (!coaInfakExists) {
+        await tx.chartOfAccounts.create({
+          data: {
+            coa_code: coaInfakCode,
+            nama_akun: 'Infak/Sedekah Tidak Terikat via UPZ Pengumpulan',
+            klasifikasi: 'Penerimaan',
+            tipe_dana: 'INFAK_TIDAK_TERIKAT'
+          }
+        });
+      }
+
+      // Pre-fetch all Muzakki records in a single query
+      const muzakkiIds = Array.from(new Set(transactions.map((t: any) => t.muzakki_id).filter(Boolean)));
+      const muzakkis = await tx.muzakki.findMany({
+        where: { id: { in: muzakkiIds as string[] } }
+      });
+      const muzakkiMap = new Map(muzakkis.map(m => [m.id, m]));
+
+      const penerimaanZisRecords: any[] = [];
+      const realisasiRecords: any[] = [];
+      const journalEntryRecords: any[] = [];
+      const muzakkiUpdates: { id: string; no_rekening: string }[] = [];
+
       for (let i = 0; i < transactions.length; i++) {
         const item = transactions[i];
         const nominalVal = Number(item.nominal);
         totalNominal += nominalVal;
         totalBatchNominal += nominalVal;
 
-        // Generate batch structured kuitansi number
         const no_kuitansi = `${batchName} / ${i + 1}`;
 
-        // Get Muzakki info
-        const muzakki = await tx.muzakki.findUnique({
-          where: { id: item.muzakki_id }
-        });
+        const muzakki = muzakkiMap.get(item.muzakki_id);
         if (!muzakki) throw new Error(`Muzakki dengan ID ${item.muzakki_id} tidak ditemukan`);
 
-        // Link bank account to muzakki if not set or different
         if (item.no_rekening && muzakki.no_rekening !== item.no_rekening) {
-          await tx.muzakki.update({
-            where: { id: muzakki.id },
-            data: { no_rekening: item.no_rekening }
-          });
+          muzakkiUpdates.push({ id: muzakki.id, no_rekening: item.no_rekening });
+          muzakki.no_rekening = item.no_rekening;
         }
 
         const isZakat = nominalVal >= 100000;
@@ -166,19 +196,6 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         }
         const rkat_id = targetRkat.id;
         const creditCoaCode = isZakat ? coaZakatCode : coaInfakCode;
-
-        // Ensure credit COA exists
-        const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
-        if (!coaExists) {
-          await tx.chartOfAccounts.create({
-            data: {
-              coa_code: creditCoaCode,
-              nama_akun: isZakat ? 'Zakat Maal Perorangan via UPZ Pengumpulan' : 'Infak/Sedekah Tidak Terikat via UPZ Pengumpulan',
-              klasifikasi: 'Penerimaan',
-              tipe_dana: isZakat ? 'ZAKAT' : 'INFAK_TIDAK_TERIKAT'
-            }
-          });
-        }
 
         const cleanOpd = item.opd ? (String(item.opd).startsWith('UPZ') ? String(item.opd) : `UPZ ${String(item.opd)}`) : 'UPZ';
         const rawOpdName = item.opd ? String(item.opd).replace(/^UPZ\s+/i, '').toLowerCase().trim() : '';
@@ -202,71 +219,79 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
         const formattedKeterangan = `Terima ${isZakat ? 'Zakat Maal' : 'Infak'} a.n ${muzakki.nama} (${cleanOpd})`;
 
-        // 1. Create PenerimaanZis record (status SYNCED for automatic Bank Jateng import)
-        const penerimaan = await tx.penerimaanZis.create({
-          data: {
-            no_kuitansi,
-            muzakki_id: item.muzakki_id,
-            upz_id,
-            rkat_id,
-            kode_program,
-            jenis_program,
-            bank_account_id,
-            nominal: new Prisma.Decimal(nominalVal),
-            metode_pembayaran: 'TRANSFER',
-            tanggal_pembayaran: paymentDate,
-            keterangan: formattedKeterangan,
-            status_simba: 'SYNCED',
-            no_transaksi_simba: `SMB-${no_kuitansi}`,
-            transaksi_id: null
-          } as any
+        const penerimaanId = randomUUID();
+        const transaksi_id = randomUUID();
+
+        penerimaanZisRecords.push({
+          id: penerimaanId,
+          no_kuitansi,
+          muzakki_id: item.muzakki_id,
+          upz_id,
+          rkat_id,
+          kode_program,
+          jenis_program,
+          bank_account_id,
+          nominal: new Prisma.Decimal(nominalVal),
+          metode_pembayaran: 'TRANSFER',
+          tanggal_pembayaran: paymentDate,
+          keterangan: formattedKeterangan,
+          status_simba: 'SYNCED',
+          no_transaksi_simba: `SMB-${no_kuitansi}`,
+          transaksi_id: transaksi_id
         });
 
-        // 2. Create Realisasi record linked to transit mutation ID if applicable
-        const realisasiTrx = await tx.realisasi.create({
-          data: {
-            rkat_id,
-            tanggal: paymentDate,
-            keterangan: formattedKeterangan,
-            nrm: selected_transit_id || null
-          }
+        realisasiRecords.push({
+          transaksi_id: transaksi_id,
+          rkat_id,
+          tanggal: paymentDate,
+          keterangan: formattedKeterangan,
+          nrm: selected_transit_id || null
         });
 
-        // 3. Update PenerimaanZis with the transaksi_id
-        await tx.penerimaanZis.update({
-          where: { id: penerimaan.id },
-          data: { transaksi_id: realisasiTrx.transaksi_id }
-        });
-
-        // 4. Create Debit entry (Cash/Bank account or Transit Account)
         const debitCoaCode = isTransit ? '49000001' : bankAccount.coa_code;
         const debitAccountId = isTransit ? null : bank_account_id;
 
-        await tx.journalEntry.create({
-          data: {
-            transaksi_id: realisasiTrx.transaksi_id,
-            coa_code: debitCoaCode,
-            debit: new Prisma.Decimal(nominalVal),
-            kredit: new Prisma.Decimal(0.00),
-            account_id: debitAccountId
-          }
+        journalEntryRecords.push({
+          entry_id: randomUUID(),
+          transaksi_id: transaksi_id,
+          coa_code: debitCoaCode,
+          debit: new Prisma.Decimal(nominalVal),
+          kredit: new Prisma.Decimal(0.00),
+          account_id: debitAccountId
         });
 
-        // 5. Create Credit entry (Revenue COA)
-        await tx.journalEntry.create({
-          data: {
-            transaksi_id: realisasiTrx.transaksi_id,
-            coa_code: creditCoaCode,
-            debit: new Prisma.Decimal(0.00),
-            kredit: new Prisma.Decimal(nominalVal),
-            account_id: null
-          }
+        journalEntryRecords.push({
+          entry_id: randomUUID(),
+          transaksi_id: transaksi_id,
+          coa_code: creditCoaCode,
+          debit: new Prisma.Decimal(0.00),
+          kredit: new Prisma.Decimal(nominalVal),
+          account_id: null
         });
-
       }
 
-      // 5.5 Process failed transactions
+      // Update Muzakki account numbers
+      for (const mUpd of muzakkiUpdates) {
+        await tx.muzakki.update({
+          where: { id: mUpd.id },
+          data: { no_rekening: mUpd.no_rekening }
+        });
+      }
+
+      // Execute Bulk Inserts (1 query per model instead of thousands inside loop)
+      if (penerimaanZisRecords.length > 0) {
+        await tx.penerimaanZis.createMany({ data: penerimaanZisRecords });
+      }
+      if (realisasiRecords.length > 0) {
+        await tx.realisasi.createMany({ data: realisasiRecords });
+      }
+      if (journalEntryRecords.length > 0) {
+        await tx.journalEntry.createMany({ data: journalEntryRecords });
+      }
+
+      // Process failed transactions in bulk
       const failedTransactions = req.body.failedTransactions || [];
+      const failedPenerimaanRecords: any[] = [];
       for (let j = 0; j < failedTransactions.length; j++) {
         const failedItem = failedTransactions[j];
         const nominalVal = Number(failedItem.nominal) || 0;
@@ -280,23 +305,26 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
           keterangan: failedItem.keterangan || 'Gagal Potong'
         });
 
-        await tx.penerimaanZis.create({
-          data: {
-            no_kuitansi,
-            muzakki_id: null,
-            rkat_id: null,
-            bank_account_id,
-            nominal: new Prisma.Decimal(nominalVal),
-            metode_pembayaran: 'TRANSFER',
-            tanggal_pembayaran: paymentDate,
-            keterangan: failedKeterangan,
-            status_simba: 'FAILED',
-            transaksi_id: null
-          }
+        failedPenerimaanRecords.push({
+          id: randomUUID(),
+          no_kuitansi,
+          muzakki_id: null,
+          rkat_id: null,
+          bank_account_id,
+          nominal: new Prisma.Decimal(nominalVal),
+          metode_pembayaran: 'TRANSFER',
+          tanggal_pembayaran: paymentDate,
+          keterangan: failedKeterangan,
+          status_simba: 'FAILED',
+          transaksi_id: null
         });
       }
 
-      // 6. Update BankAccount balance only if not transit source
+      if (failedPenerimaanRecords.length > 0) {
+        await tx.penerimaanZis.createMany({ data: failedPenerimaanRecords });
+      }
+
+      // Update BankAccount balance only if not transit source
       if (!isTransit) {
         await tx.bankAccount.update({
           where: { account_id: bank_account_id },
@@ -307,6 +335,9 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
       }
 
       return createdItems;
+    }, {
+      maxWait: 30000,
+      timeout: 300000 // 5 minutes timeout for large bulk batch import (e.g. 1200+ transactions)
     });
 
     if (selected_transit_id) {
