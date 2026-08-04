@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import axios from 'axios';
 import { skHistoryData as initialSkHistoryData } from '@/src/data/upzData';
 import { UPZ, SKHistory } from '@/src/types/upz';
@@ -111,6 +112,9 @@ export default function DatabaseUPZ() {
       if (showLoading) setIsLoading(false);
     }
   };
+
+  // Auto-refetch UPZ list when window/tab regains focus
+  useWindowFocusRefetch(() => fetchUPZList(false));
 
   const getUPZAccumulation = (item: UPZ) => {
     if (item.type !== 'On-Balance') return { total: 0, hak: 0, hakAmil: 0, pct: 0, pctAmil: 0, gagalPotong: 0, totalBankJateng: 0, totalZis: 0 };

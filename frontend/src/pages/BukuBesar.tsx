@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import * as XLSX from 'xlsx';
 
 export interface COAItem {
@@ -516,6 +517,9 @@ export default function BukuBesar() {
   useEffect(() => {
     fetchData();
   }, [startDate, endDate, jurnalCurrentPage, debouncedSearch, selectedCoas]);
+
+  // Auto-refetch when window/tab regains focus
+  useWindowFocusRefetch(fetchData);
 
   // Handle COA selection toggle
   const toggleCoaSelection = (code: string) => {

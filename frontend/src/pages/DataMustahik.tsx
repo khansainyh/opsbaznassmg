@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
@@ -141,6 +142,9 @@ export default function DataMustahik() {
       setIsLoading(false);
     }
   };
+
+  // Auto-refetch Mustahik data when window/tab regains focus
+  useWindowFocusRefetch(fetchData);
 
   const filteredData = localMustahikData.filter(item => {
     const matchesSearch = item.nama.toLowerCase().includes(searchTerm.toLowerCase()) || 

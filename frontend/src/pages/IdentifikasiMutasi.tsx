@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import {
   ArrowRightLeft,
   Search,
@@ -158,6 +159,9 @@ export default function IdentifikasiMutasi() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Auto-refetch when window/tab regains focus
+  useWindowFocusRefetch(fetchData);
 
   // Filtered Muzakki list for selection autocomplete
   const filteredMuzakkis = useMemo(() => {

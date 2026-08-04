@@ -28,6 +28,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -941,6 +942,9 @@ export default function PenerimaanZis() {
   useEffect(() => {
     fetchData();
   }, [currentPage, itemsPerPage, debouncedSearch, mainFilterStartDate, mainFilterEndDate, kodeProgramFilter, rkatFilter]);
+
+  // Auto-refetch data when window/tab regains focus
+  useWindowFocusRefetch(fetchData);
 
   const fetchMetadata = async () => {
     try {

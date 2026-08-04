@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 
 // Helper to format currency in IDR
 const formatCurrency = (val: number | string) => {
@@ -194,6 +195,9 @@ export default function LaporanKinerja() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Auto-refetch when window/tab regains focus
+  useWindowFocusRefetch(fetchData);
 
   // Months map helper
   const months = [

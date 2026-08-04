@@ -20,8 +20,9 @@ import {
  FileSpreadsheet,
  Search
 } from'lucide-react';
-import { motion, AnimatePresence } from'motion/react';
-import { cn } from'../lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import { ProposalMemo } from'../data/proposalMemoData';
 import { Pilar, AsnafTarget } from'../data/pilarData';
 import { useAuth } from'../context/AuthContext';
@@ -592,6 +593,12 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  fetchRkatPengumpulan();
  fetchRkatOperasional();
  }, [fetchRkatPengumpulan, fetchRkatOperasional]);
+
+ // Auto-refetch RKAT data when window/tab regains focus
+ useWindowFocusRefetch(useCallback(() => {
+ fetchRkatPengumpulan();
+ fetchRkatOperasional();
+ }, [fetchRkatPengumpulan, fetchRkatOperasional]));
 
  // 1. Dynamic Pilar Data synced with backend API
  const [data, setData] = useState<Pilar[]>([]);

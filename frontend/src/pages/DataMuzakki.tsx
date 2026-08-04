@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
@@ -189,6 +190,9 @@ export default function DataMuzakki({ onNavigate }: { onNavigate?: (menu: string
       setIsLoading(false);
     }
   };
+
+  // Auto-refetch when window/tab regains focus
+  useWindowFocusRefetch(fetchData);
 
   const filteredData = useMemo(() => {
     return localMuzakkiData.filter(item => {

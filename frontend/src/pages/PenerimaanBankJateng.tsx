@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -792,19 +793,6 @@ export default function PenerimaanBankJateng() {
     XLSX.writeFile(workbook, 'Format_Realisasi_Gaji_Bank_Jateng.xlsx');
   };
 
-  // Fetch RKAT & Bank Accounts & History
-  useEffect(() => {
-    fetchMeta();
-    fetchHistory();
-  }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      const timer = setTimeout(() => setMessages([]), 6000);
-      return () => clearTimeout(timer);
-    }
-  }, [messages]);
-
   const fetchHistory = async () => {
     try {
       const res = await axios.get('/api/bank-jateng/history');
@@ -837,6 +825,22 @@ export default function PenerimaanBankJateng() {
       console.error('Error fetching metadata:', err);
     }
   };
+
+  // Fetch RKAT & Bank Accounts & History
+  useEffect(() => {
+    fetchMeta();
+    fetchHistory();
+  }, []);
+
+  // Auto-refetch history when window/tab regains focus
+  useWindowFocusRefetch(fetchHistory);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      const timer = setTimeout(() => setMessages([]), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [messages]);
 
   // Drag and Drop handlers
   const handleDragOver = (e: React.DragEvent) => {
