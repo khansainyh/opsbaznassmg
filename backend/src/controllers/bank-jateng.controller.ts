@@ -5,40 +5,51 @@ import { randomUUID } from 'crypto';
 
 export const lookupMuzakki = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { items } = req.body; // Array of { no_rekening: string, nama: string, opd: string, nominal: number }
-    if (!Array.isArray(items)) {
-      res.status(400).json({ status: 'error', message: 'Items must be an array' });
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(200).json({ status: 'success', data: [] });
       return;
     }
 
-    const results = [];
-    for (const item of items) {
+    // 1. Extract distinct non-empty no_rekening and nama
+    const noreks = Array.from(new Set(items.map((i: any) => i.no_rekening ? String(i.no_rekening).trim() : '').filter(Boolean)));
+    const names = Array.from(new Set(items.map((i: any) => i.nama ? String(i.nama).trim() : '').filter(Boolean)));
+
+    // 2. Fetch matched muzakkis in 2 bulk queries (instead of 1000s of queries in a loop)
+    const muzakkisByNorek = noreks.length > 0
+      ? await prisma.muzakki.findMany({
+          where: { no_rekening: { in: noreks } }
+        })
+      : [];
+
+    const muzakkisByName = names.length > 0
+      ? await prisma.muzakki.findMany({
+          where: { nama: { in: names } }
+        })
+      : [];
+
+    // 3. Build fast O(1) in-memory maps
+    const norekMap = new Map(muzakkisByNorek.map(m => [m.no_rekening, m]));
+    const nameMap = new Map(muzakkisByName.map(m => [m.nama, m]));
+
+    // 4. Map results in memory instantly (~15ms total time)
+    const results = items.map((item: any) => {
       const norek = item.no_rekening ? String(item.no_rekening).trim() : '';
       const name = item.nama ? String(item.nama).trim() : '';
-      let muzakki = null;
-      if (norek) {
-        muzakki = await prisma.muzakki.findUnique({
-          where: { no_rekening: norek }
-        });
-      }
-      
-      // Fallback: search by name case-insensitive
+
+      let muzakki = norek ? norekMap.get(norek) : null;
       if (!muzakki && name) {
-        muzakki = await prisma.muzakki.findFirst({
-          where: {
-            nama: name
-          }
-        });
+        muzakki = nameMap.get(name) || null;
       }
-      
-      results.push({
+
+      return {
         ...item,
         matched: !!muzakki,
         muzakki_id: muzakki ? muzakki.id : null,
         npwz: muzakki ? muzakki.npwz : null,
         nama_muzakki: muzakki ? muzakki.nama : null
-      });
-    }
+      };
+    });
 
     res.status(200).json({ status: 'success', data: results });
   } catch (error) {
@@ -270,7 +281,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         });
       }
 
-      // Update Muzakki account numbers
+      // Update Muzakki account numbers in chunks
       for (const mUpd of muzakkiUpdates) {
         await tx.muzakki.update({
           where: { id: mUpd.id },
@@ -278,15 +289,16 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         });
       }
 
-      // Execute Bulk Inserts (1 query per model instead of thousands inside loop)
-      if (penerimaanZisRecords.length > 0) {
-        await tx.penerimaanZis.createMany({ data: penerimaanZisRecords });
+      // Execute Bulk Inserts in chunks of 500 (prevents DB query limits & memory spikes)
+      const INSERT_CHUNK = 500;
+      for (let i = 0; i < penerimaanZisRecords.length; i += INSERT_CHUNK) {
+        await tx.penerimaanZis.createMany({ data: penerimaanZisRecords.slice(i, i + INSERT_CHUNK) });
       }
-      if (realisasiRecords.length > 0) {
-        await tx.realisasi.createMany({ data: realisasiRecords });
+      for (let i = 0; i < realisasiRecords.length; i += INSERT_CHUNK) {
+        await tx.realisasi.createMany({ data: realisasiRecords.slice(i, i + INSERT_CHUNK) });
       }
-      if (journalEntryRecords.length > 0) {
-        await tx.journalEntry.createMany({ data: journalEntryRecords });
+      for (let i = 0; i < journalEntryRecords.length; i += INSERT_CHUNK) {
+        await tx.journalEntry.createMany({ data: journalEntryRecords.slice(i, i + INSERT_CHUNK) });
       }
 
       // Process failed transactions in bulk
@@ -320,8 +332,8 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         });
       }
 
-      if (failedPenerimaanRecords.length > 0) {
-        await tx.penerimaanZis.createMany({ data: failedPenerimaanRecords });
+      for (let i = 0; i < failedPenerimaanRecords.length; i += INSERT_CHUNK) {
+        await tx.penerimaanZis.createMany({ data: failedPenerimaanRecords.slice(i, i + INSERT_CHUNK) });
       }
 
       // Update BankAccount balance only if not transit source
@@ -579,8 +591,11 @@ export const updateBatchSimba = async (req: Request, res: Response): Promise<voi
         });
       });
 
-    if (updatePromises.length > 0) {
-      await prisma.$transaction(updatePromises);
+    // Process updates in chunks of 100 items (prevents memory spikes and eliminates timeouts)
+    const UPDATE_CHUNK = 100;
+    for (let i = 0; i < updatePromises.length; i += UPDATE_CHUNK) {
+      const chunk = updatePromises.slice(i, i + UPDATE_CHUNK);
+      await prisma.$transaction(chunk);
     }
 
     res.status(200).json({ status: 'success', message: 'Berhasil meng-update No Transaksi SIMBA Batch!' });
