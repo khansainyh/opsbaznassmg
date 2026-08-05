@@ -12,6 +12,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
     const endDate = req.query.endDate as string;
     const kodeProgramFilter = (req.query.kodeProgram as string || '').trim();
     const rkatIdFilter = (req.query.rkatId as string || '').trim();
+    const statusSimbaFilter = ((req.query.statusSimba || req.query.simbaFilter) as string || '').trim();
 
     const baseWhere: any = {
       status_simba: { not: 'FAILED' },
@@ -21,6 +22,10 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         { AND: [{ keterangan: { not: null } }, { keterangan: { contains: 'failed_deduction' } }] }
       ]
     };
+
+    if (statusSimbaFilter && statusSimbaFilter !== 'all' && statusSimbaFilter !== 'Semua') {
+      baseWhere.status_simba = statusSimbaFilter;
+    }
 
     if (startDate && endDate) {
       baseWhere.tanggal_pembayaran = {
@@ -103,11 +108,21 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       }
     }
 
-    const [totalRecords, aggregateSum, list] = await prisma.$transaction([
+    const [totalRecords, aggregateSum, totalPendingSimba, list] = await prisma.$transaction([
       prisma.penerimaanZis.count({ where: baseWhere }),
       prisma.penerimaanZis.aggregate({
         where: baseWhere,
         _sum: { nominal: true }
+      }),
+      prisma.penerimaanZis.count({
+        where: {
+          status_simba: 'PENDING',
+          NOT: [
+            { no_kuitansi: { contains: 'Gagal' } },
+            { AND: [{ keterangan: { not: null } }, { keterangan: { contains: 'Gagal Potong' } }] },
+            { AND: [{ keterangan: { not: null } }, { keterangan: { contains: 'failed_deduction' } }] }
+          ]
+        }
       }),
       prisma.penerimaanZis.findMany({
         where: baseWhere,
@@ -206,7 +221,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       let strKode = item.kode_program ? String(item.kode_program).trim() : '';
 
       // Check if strKode explicitly maps to Infak or Zakat
-      const isInfakCode = ['101.8', '101.9', '101.10', '101.11', '101.12', '102.5', '102.6', '102.7', '102.7.1', '102.8', '102.9'].includes(strKode);
+      const isInfakCode = ['101.8', '101.9', '101.10', '101.11', '101.12', '102.5', '102.6', '102.7', '102.7.1', '102.8', '102.9', '102.10'].includes(strKode);
       const isZakatCode = ['101.1', '101.2', '101.13', '102.1', '102.2', '102.3', '102.4', '102.11'].includes(strKode);
 
       let isZakat = false;
@@ -249,14 +264,16 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         total: totalRecords,
         page,
         limit: isAll ? totalRecords : limit,
-        totalPages
+        totalPages,
+        totalPendingSimba
       },
       summary: {
         totalTransactions: totalRecords,
         totalNominal,
         totalZakat,
         totalInfak,
-        totalDskl
+        totalDskl,
+        totalPendingSimba
       }
     });
   } catch (error: any) {
@@ -294,8 +311,8 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
       if (!muzakki) throw new Error('Muzakki tidak ditemukan');
 
       let rkat = null;
-      let effectiveRkatId = rkat_id || null;
-      if (kode_program && PROGRAM_KODE_TO_RKAT_MAP[kode_program]) {
+      let effectiveRkatId = rkat_id !== undefined ? rkat_id : null;
+      if (!effectiveRkatId && rkat_id === undefined && kode_program && PROGRAM_KODE_TO_RKAT_MAP[kode_program]) {
         const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[kode_program];
         if (mapInfo.rkat_no) {
           const matchedRkat = await tx.rkatPengumpulan.findFirst({
@@ -792,14 +809,14 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
         finalUpdateMetode = isKas ? 'TUNAI' : 'TRANSFER';
       }
 
-      let targetKodeProgram = req.body.kode_program || req.body.kodeProgram || null;
-      let targetJenisProgram = req.body.jenis_program || req.body.jenisProgram || null;
-      let targetRkatId = rkat_id || null;
+      let targetKodeProgram = req.body.kode_program !== undefined ? req.body.kode_program : existing.kode_program;
+      let targetJenisProgram = req.body.jenis_program !== undefined ? req.body.jenis_program : existing.jenis_program;
+      let targetRkatId = req.body.rkat_id !== undefined ? req.body.rkat_id : existing.rkat_id;
 
       if (targetKodeProgram && PROGRAM_KODE_TO_RKAT_MAP[targetKodeProgram]) {
         const mapInfo = PROGRAM_KODE_TO_RKAT_MAP[targetKodeProgram];
         targetJenisProgram = targetJenisProgram || mapInfo.jenis;
-        if (mapInfo.rkat_no) {
+        if (!targetRkatId && req.body.rkat_id === undefined && mapInfo.rkat_no) {
           const matchedRkat = await tx.rkatPengumpulan.findFirst({
             where: { OR: [{ no: mapInfo.rkat_no }, { id: mapInfo.rkat_no }] }
           });
@@ -810,10 +827,10 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
           k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkat.no
         );
         if (foundKode) {
-          targetKodeProgram = foundKode;
-          targetJenisProgram = PROGRAM_KODE_TO_RKAT_MAP[foundKode].jenis;
+          if (!targetKodeProgram) targetKodeProgram = foundKode;
+          targetJenisProgram = targetJenisProgram || PROGRAM_KODE_TO_RKAT_MAP[foundKode].jenis;
         } else {
-          targetJenisProgram = rkat.nama_program;
+          targetJenisProgram = targetJenisProgram || rkat.nama_program;
         }
       }
 
@@ -970,7 +987,7 @@ export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; 
   '101.9': { rkat_no: '10', jenis: 'Penerimaan Infak Sedekah Terikat Kas', isUpz: false },
   '101.10': { rkat_no: '11', jenis: 'Penerimaan Infak Sedekah Terikat Natura', isUpz: false },
   '101.11': { rkat_no: '13', jenis: 'Infak/Sedekah Terikat Operasional Amil', isUpz: false },
-  '101.12': { rkat_no: '12', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
+  '101.12': { rkat_no: '17', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
   '101.13': { rkat_no: '1', jenis: 'Zakat Maal Entitas', isUpz: false },
   '101.14': { rkat_no: null, jenis: 'Belum Diketahui', isUpz: false },
 
@@ -984,7 +1001,7 @@ export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; 
   '102.7.1': { rkat_no: '9', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Penyaluran', isUpz: true },
   '102.8': { rkat_no: '14', jenis: 'Qurban Via UPZ', isUpz: true },
   '102.9': { rkat_no: '15', jenis: 'Fidyah Via UPZ', isUpz: true },
-  '102.10': { rkat_no: '10', jenis: 'DSKL Lainnya Via UPZ', isUpz: true },
+  '102.10': { rkat_no: '17', jenis: 'DSKL Lainnya Via UPZ', isUpz: true },
   '102.11': { rkat_no: '3', jenis: 'Zakat Maal UPZ Pengumpulan', isUpz: true }
 };
 

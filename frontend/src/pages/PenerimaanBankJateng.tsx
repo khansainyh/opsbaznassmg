@@ -11,6 +11,7 @@ import {
   Search, 
   Building, 
   FileSpreadsheet,
+  FileText,
   Check,
   Trash2,
   Filter,
@@ -319,7 +320,7 @@ export default function PenerimaanBankJateng() {
     return Object.values(groups).sort((a, b) => new Date(b.tanggal_pembayaran).getTime() - new Date(a.tanggal_pembayaran).getTime());
   }, [historyData]);
 
-  const exportHistoryToSimba = (items: any[], batchName: string) => {
+  const exportHistoryToSimba = (items: any[], batchName: string, format: 'xlsx' | 'csv' = 'xlsx') => {
     if (!items || items.length === 0) return;
 
     const exportRows = items.map((item, idx) => {
@@ -359,8 +360,14 @@ export default function PenerimaanBankJateng() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
     
-    const docName = `${batchName.replace(/[^a-zA-Z0-9]/g, '_')}_SIMBA.xlsx`;
-    XLSX.writeFile(workbook, docName);
+    const ext = format === 'csv' ? 'csv' : 'xlsx';
+    const docName = `${batchName.replace(/[^a-zA-Z0-9]/g, '_')}_SIMBA.${ext}`;
+
+    if (format === 'csv') {
+      XLSX.writeFile(workbook, docName, { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(workbook, docName);
+    }
   };
 
   const handleOpenSimbaBatchModal = (batch: any) => {
@@ -1318,7 +1325,7 @@ export default function PenerimaanBankJateng() {
   }, [fileData, failedData]);
 
   // Export to SIMBA format for specific OPD or all
-  const exportToSimba = (groupName?: string) => {
+  const exportToSimba = (groupName?: string, format: 'xlsx' | 'csv' = 'xlsx') => {
     let itemsToExport = fileData;
     if (groupName) {
       itemsToExport = fileData.filter(item => (item.originalOpd || item.opd) === groupName);
@@ -1369,11 +1376,16 @@ export default function PenerimaanBankJateng() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
     
+    const ext = format === 'csv' ? 'csv' : 'xlsx';
     const docName = groupName 
-      ? `SIMBA_Migration_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`
-      : `SIMBA_Migration_All.xlsx`;
+      ? `SIMBA_Migration_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}.${ext}`
+      : `SIMBA_Migration_All.${ext}`;
 
-    XLSX.writeFile(workbook, docName);
+    if (format === 'csv') {
+      XLSX.writeFile(workbook, docName, { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(workbook, docName);
+    }
   };
 
   // Filter local file items based on search
@@ -1547,13 +1559,24 @@ export default function PenerimaanBankJateng() {
                   </button>
                 )}
                 {activeTab === 'berhasil' && (
-                  <button
-                    onClick={() => exportToSimba()}
-                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer"
-                  >
-                    <FileSpreadsheet className="size-3.5" />
-                    Format SIMBA (Semua)
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => exportToSimba(undefined, 'xlsx')}
+                      className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer"
+                      title="Download Format SIMBA Excel (.xlsx)"
+                    >
+                      <FileSpreadsheet className="size-3.5" />
+                      SIMBA (.xlsx)
+                    </button>
+                    <button
+                      onClick={() => exportToSimba(undefined, 'csv')}
+                      className="text-xs bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shadow-sm cursor-pointer"
+                      title="Download Format SIMBA CSV (.csv)"
+                    >
+                      <FileText className="size-3.5" />
+                      SIMBA (.csv)
+                    </button>
+                  </div>
                 )}
                 <button 
                   onClick={() => { setFileData([]); setFailedData([]); setFileName(''); }}
@@ -1913,13 +1936,22 @@ export default function PenerimaanBankJateng() {
                         </div>
                         
                         {group.successCount > 0 && (
-                          <div className="pt-3 border-t border-slate-200 flex justify-end">
+                          <div className="pt-3 border-t border-slate-200 flex justify-end gap-1.5">
                             <button
-                              onClick={() => exportToSimba(group.name)}
-                              className="bg-primary/20 hover:bg-primary text-primary hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                              onClick={() => exportToSimba(group.name, 'xlsx')}
+                              className="bg-primary/20 hover:bg-primary text-primary hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                              title="Download Format SIMBA Excel (.xlsx)"
                             >
                               <FileSpreadsheet className="size-3.5" />
-                              Format SIMBA
+                              SIMBA (.xlsx)
+                            </button>
+                            <button
+                              onClick={() => exportToSimba(group.name, 'csv')}
+                              className="bg-teal-100 hover:bg-teal-600 text-teal-800 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                              title="Download Format SIMBA CSV (.csv)"
+                            >
+                              <FileText className="size-3.5" />
+                              SIMBA (.csv)
                             </button>
                           </div>
                         )}
@@ -2305,11 +2337,18 @@ export default function PenerimaanBankJateng() {
                               <CheckCircle2 className="size-5" />
                             </button>
                             <button
-                              onClick={() => exportHistoryToSimba(batch.items, batch.batchName)}
+                              onClick={() => exportHistoryToSimba(batch.items, batch.batchName, 'xlsx')}
                               className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                              title="Unduh SIMBA Excel"
+                              title="Unduh Format SIMBA (.xlsx)"
                             >
                               <FileSpreadsheet className="size-5" />
+                            </button>
+                            <button
+                              onClick={() => exportHistoryToSimba(batch.items, batch.batchName, 'csv')}
+                              className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                              title="Unduh Format SIMBA (.csv)"
+                            >
+                              <FileText className="size-5" />
                             </button>
                             <button
                               onClick={() => handleDeleteBatch(batch.batchName)}
@@ -2443,14 +2482,24 @@ export default function PenerimaanBankJateng() {
                                                   Rp {upz.total.toLocaleString('id-ID')}
                                                 </td>
                                                 <td className="px-4 py-2.5 text-center">
-                                                  <button
-                                                    onClick={() => exportHistoryToSimba(upz.items, `${batch.batchName}_${upz.upzName}`)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-55 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/50 rounded-lg text-[10px] font-black transition-all active:scale-95 shadow-sm"
-                                                    title={`Unduh Template SIMBA untuk ${upz.upzName}`}
-                                                  >
-                                                    <FileSpreadsheet className="size-3.5" />
-                                                    Format SIMBA
-                                                  </button>
+                                                  <div className="flex justify-center gap-1">
+                                                    <button
+                                                      onClick={() => exportHistoryToSimba(upz.items, `${batch.batchName}_${upz.upzName}`, 'xlsx')}
+                                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-55 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/50 rounded-lg text-[10px] font-black transition-all active:scale-95 shadow-sm"
+                                                      title={`Unduh Template SIMBA (.xlsx) untuk ${upz.upzName}`}
+                                                    >
+                                                      <FileSpreadsheet className="size-3" />
+                                                      SIMBA (.xlsx)
+                                                    </button>
+                                                    <button
+                                                      onClick={() => exportHistoryToSimba(upz.items, `${batch.batchName}_${upz.upzName}`, 'csv')}
+                                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200/50 rounded-lg text-[10px] font-black transition-all active:scale-95 shadow-sm"
+                                                      title={`Unduh Template SIMBA (.csv) untuk ${upz.upzName}`}
+                                                    >
+                                                      <FileText className="size-3" />
+                                                      SIMBA (.csv)
+                                                    </button>
+                                                  </div>
                                                 </td>
                                               </tr>
                                             ))

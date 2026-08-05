@@ -47,7 +47,7 @@ export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; 
   '101.9': { rkat_no: '10', jenis: 'Penerimaan Infak Sedekah Terikat Kas', isUpz: false },
   '101.10': { rkat_no: '11', jenis: 'Penerimaan Infak Sedekah Terikat Natura', isUpz: false },
   '101.11': { rkat_no: '13', jenis: 'Infak/Sedekah Terikat Operasional Amil', isUpz: false },
-  '101.12': { rkat_no: '12', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
+  '101.12': { rkat_no: '17', jenis: 'Infak dan Sedekah Terikat DSK Lainnya', isUpz: false },
   '101.13': { rkat_no: '1', jenis: 'Zakat Maal Entitas', isUpz: false },
   '101.14': { rkat_no: null, jenis: 'Belum Diketahui', isUpz: false },
 
@@ -61,7 +61,7 @@ export const PROGRAM_KODE_TO_RKAT_MAP: Record<string, { rkat_no: string | null; 
   '102.7.1': { rkat_no: '9', jenis: 'Penerimaan Infak/Sedekah Tidak Terikat via UPZ Penyaluran', isUpz: true },
   '102.8': { rkat_no: '14', jenis: 'Qurban Via UPZ', isUpz: true },
   '102.9': { rkat_no: '15', jenis: 'Fidyah Via UPZ', isUpz: true },
-  '102.10': { rkat_no: '10', jenis: 'DSKL Lainnya Via UPZ', isUpz: true },
+  '102.10': { rkat_no: '17', jenis: 'DSKL Lainnya Via UPZ', isUpz: true },
   '102.11': { rkat_no: '3', jenis: 'Zakat Maal UPZ Pengumpulan', isUpz: true }
 };
 
@@ -983,7 +983,8 @@ export default function PenerimaanZis() {
           startDate: mainFilterStartDate || undefined,
           endDate: mainFilterEndDate || undefined,
           kodeProgram: kodeProgramFilter !== 'Semua' ? kodeProgramFilter : undefined,
-          rkatId: rkatFilter !== 'Semua' ? rkatFilter : undefined
+          rkatId: rkatFilter !== 'Semua' ? rkatFilter : undefined,
+          statusSimba: activeTab === 'simba-queue' ? 'PENDING' : (simbaFilter !== 'Semua' ? simbaFilter : undefined)
         }
       });
       if (res.data?.status === 'success') {
@@ -1001,7 +1002,7 @@ export default function PenerimaanZis() {
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, itemsPerPage, debouncedSearch, mainFilterStartDate, mainFilterEndDate, kodeProgramFilter, rkatFilter]);
+  }, [currentPage, itemsPerPage, debouncedSearch, mainFilterStartDate, mainFilterEndDate, kodeProgramFilter, rkatFilter, activeTab, simbaFilter]);
 
   // Auto-refetch data when window/tab regains focus (1 minute cooldown & disabled when active input/modal open)
   useWindowFocusRefetch(
@@ -1079,7 +1080,7 @@ export default function PenerimaanZis() {
       setSelectedCoaCode('');
     }
 
-    if (rkat) {
+    if (rkat && !selectedKodeProgram) {
       const foundKode = Object.keys(PROGRAM_KODE_TO_RKAT_MAP).find(
         k => PROGRAM_KODE_TO_RKAT_MAP[k].rkat_no === rkat.no
       );
@@ -1922,7 +1923,7 @@ export default function PenerimaanZis() {
     }
   };
 
-  const handleDownloadSimbaMigration = () => {
+  const handleDownloadSimbaMigration = (format: 'xlsx' | 'csv' = 'xlsx') => {
     const itemsToExport = selectedSimbaIds.length > 0
       ? penerimaanData.filter(item => selectedSimbaIds.includes(item.id))
       : filteredData;
@@ -1982,11 +1983,17 @@ export default function PenerimaanZis() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
 
+    const ext = format === 'csv' ? 'csv' : 'xlsx';
     const dateStr = new Date().toISOString().split('T')[0];
     const docName = selectedSimbaIds.length > 0 
-      ? `SIMBA_Migration_PenerimaanZIS_Selected_${selectedSimbaIds.length}_items_${dateStr}.xlsx`
-      : `SIMBA_Migration_PenerimaanZIS_${dateStr}.xlsx`;
-    XLSX.writeFile(workbook, docName);
+      ? `SIMBA_Migration_PenerimaanZIS_Selected_${selectedSimbaIds.length}_items_${dateStr}.${ext}`
+      : `SIMBA_Migration_PenerimaanZIS_${dateStr}.${ext}`;
+
+    if (format === 'csv') {
+      XLSX.writeFile(workbook, docName, { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(workbook, docName);
+    }
   };
 
   const helperIncrementSimbaNo = (startStr: string, count: number): string[] => {
@@ -2334,9 +2341,9 @@ export default function PenerimaanZis() {
         {/* Tab Switcher */}
         <div className="flex border-b border-slate-100 bg-slate-50/50">
           <button
-            onClick={() => { setActiveTab('all'); setSelectedSimbaIds([]); }}
+            onClick={() => { setActiveTab('all'); setCurrentPage(1); setSelectedSimbaIds([]); }}
             className={cn(
-              "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all active:scale-95",
+              "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 active:scale-95",
               activeTab === 'all'
                 ? "border-primary text-primary bg-white"
                 : "border-transparent text-slate-400 hover:text-slate-600"
@@ -2345,7 +2352,7 @@ export default function PenerimaanZis() {
             Semua Transaksi
           </button>
           <button
-            onClick={() => setActiveTab('simba-queue')}
+            onClick={() => { setActiveTab('simba-queue'); setCurrentPage(1); }}
             className={cn(
               "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 active:scale-95",
               activeTab === 'simba-queue'
@@ -2354,9 +2361,9 @@ export default function PenerimaanZis() {
             )}
           >
             Antrean SIMBA
-            {penerimaanData.filter(item => item.status_simba === 'PENDING').length > 0 && (
+            {((summaryTotals as any)?.totalPendingSimba || (paginationInfo as any)?.totalPendingSimba || 0) > 0 && (
               <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">
-                {penerimaanData.filter(item => item.status_simba === 'PENDING').length}
+                {((summaryTotals as any)?.totalPendingSimba || (paginationInfo as any)?.totalPendingSimba || 0).toLocaleString('id-ID')}
               </span>
             )}
           </button>
@@ -2587,11 +2594,22 @@ export default function PenerimaanZis() {
 
               <button 
                 type="button"
-                onClick={handleDownloadSimbaMigration}
-                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                onClick={() => handleDownloadSimbaMigration('xlsx')}
+                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                title="Download Format SIMBA Excel (.xlsx)"
               >
                 <FileSpreadsheet className="size-4" />
-                <span>Download Migrasi SIMBA ({selectedSimbaIds.length})</span>
+                <span>SIMBA (.xlsx)</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => handleDownloadSimbaMigration('csv')}
+                className="bg-teal-600 hover:bg-teal-700 active:scale-95 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                title="Download Format SIMBA CSV (.csv)"
+              >
+                <FileText className="size-4" />
+                <span>SIMBA (.csv)</span>
               </button>
             </div>
           </div>
@@ -2619,6 +2637,7 @@ export default function PenerimaanZis() {
                       />
                     </th>
                   )}
+                  <th className="px-3 py-4 text-center">#</th>
                   <th className="px-6 py-4">Tanggal Transaksi</th>
                   <th className="px-6 py-4">NPWZ</th>
                   <th className="px-6 py-4">Nama Muzakki</th>
@@ -2635,12 +2654,12 @@ export default function PenerimaanZis() {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'simba-queue' ? 12 : 11} className="px-6 py-12 text-center text-slate-400 italic font-medium">
+                    <td colSpan={activeTab === 'simba-queue' ? 13 : 12} className="px-6 py-12 text-center text-slate-400 italic font-medium">
                       Belum ada data penerimaan ZIS yang sesuai filter.
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map((item) => (
+                  filteredData.map((item, index) => (
                     <tr key={item.id} className={cn(
                       "hover:bg-slate-50/30 transition-colors group",
                       activeTab === 'simba-queue' && selectedSimbaIds.includes(item.id) && "bg-emerald-50/40"
@@ -2655,6 +2674,9 @@ export default function PenerimaanZis() {
                           />
                         </td>
                       )}
+                      <td className="px-3 py-4 font-mono text-xs text-slate-400 text-center font-bold">
+                        {(currentPage - 1) * itemsPerPage + index + 1}
+                      </td>
                       <td className="px-6 py-4 font-mono text-xs text-slate-600">
                         {new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID')}
                       </td>
@@ -2699,9 +2721,9 @@ export default function PenerimaanZis() {
                       </td>
                       <td className="px-6 py-4 text-slate-700 font-medium">
                         {(() => {
-                          const rkatObj = item.rkat || (item.rkat_id ? rkatList.find(r => r.id === item.rkat_id || r.no === String(item.rkat_id)) : null) || (item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program] ? rkatList.find(r => r.no === PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no) : null);
-                          const progName = rkatObj?.nama_program || item.jenis_program || '-';
-                          const progNo = rkatObj?.no || (item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program] ? PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no : null);
+                          const rkatObj = item.rkat || (item.rkat_id ? rkatList.find(r => r.id === item.rkat_id || r.no === String(item.rkat_id)) : null) || (item.rkat_id === undefined && item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program] ? rkatList.find(r => r.no === PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no) : null);
+                          const progName = rkatObj?.nama_program || item.jenis_program || (item.rkat_id === null ? 'Di Luar RKAT' : '-');
+                          const progNo = rkatObj?.no || (item.rkat_id === undefined && item.kode_program && PROGRAM_KODE_TO_RKAT_MAP[item.kode_program] ? PROGRAM_KODE_TO_RKAT_MAP[item.kode_program].rkat_no : null);
 
                           return (
                             <div className="space-y-1">
@@ -2809,7 +2831,7 @@ export default function PenerimaanZis() {
         <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50/40 text-xs">
           <div className="flex items-center gap-3">
             <span className="text-slate-500 font-bold">
-              Menampilkan {paginationInfo.total === 0 ? 0 : (paginationInfo.page - 1) * paginationInfo.limit + 1} - {Math.min(paginationInfo.page * paginationInfo.limit, paginationInfo.total)} dari {paginationInfo.total} transaksi
+              Menampilkan {paginationInfo.total === 0 ? 0 : ((paginationInfo.page - 1) * paginationInfo.limit + 1).toLocaleString('id-ID')} - {Math.min(paginationInfo.page * paginationInfo.limit, paginationInfo.total).toLocaleString('id-ID')} dari {paginationInfo.total.toLocaleString('id-ID')} transaksi
             </span>
             <select
               value={itemsPerPage}
