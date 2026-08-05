@@ -223,7 +223,9 @@ function CustomSelect({
   className
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   const selectedOpt = useMemo(() => {
     return options.find(o => o.value === value);
@@ -239,11 +241,29 @@ function CustomSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (isOpen) {
+      setSearchQuery('');
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    const q = searchQuery.toLowerCase().trim();
+    return options.filter(o => 
+      o.label.toLowerCase().includes(q) || 
+      (o.sublabel && o.sublabel.toLowerCase().includes(q)) || 
+      (o.value && o.value.toLowerCase().includes(q)) ||
+      (o.group && o.group.toLowerCase().includes(q))
+    );
+  }, [options, searchQuery]);
+
   const groupedOptions = useMemo(() => {
     const groups: { [key: string]: CustomSelectOption[] } = {};
     const unGrouped: CustomSelectOption[] = [];
 
-    options.forEach(opt => {
+    filteredOptions.forEach(opt => {
       if (opt.group) {
         if (!groups[opt.group]) groups[opt.group] = [];
         groups[opt.group].push(opt);
@@ -253,7 +273,7 @@ function CustomSelect({
     });
 
     return { groups, unGrouped };
-  }, [options]);
+  }, [filteredOptions]);
 
   const hasGroups = Object.keys(groupedOptions.groups).length > 0;
 
@@ -286,89 +306,108 @@ function CustomSelect({
       </button>
 
       {isOpen && (
-        <div className="absolute z-[100] left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 space-y-1 max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150">
-          {!hasGroups ? (
-            groupedOptions.unGrouped.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setIsOpen(false);
-                }}
-                className={cn(
-                  "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
-                  value === opt.value
-                    ? "bg-primary/10 text-primary font-black"
-                    : "hover:bg-slate-50 text-slate-700 font-semibold"
-                )}
-              >
-                <span className="truncate">{opt.label}</span>
-                {opt.sublabel && (
-                  <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
-                )}
-                {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
-              </button>
-            ))
-          ) : (
-            <>
-              {groupedOptions.unGrouped.length > 0 && (
-                <div className="space-y-0.5 mb-1">
-                  {groupedOptions.unGrouped.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        onChange(opt.value);
-                        setIsOpen(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
-                        value === opt.value
-                          ? "bg-primary/10 text-primary font-black"
-                          : "hover:bg-slate-50 text-slate-700 font-semibold"
-                      )}
-                    >
-                      <span className="truncate">{opt.label}</span>
-                      {opt.sublabel && (
-                        <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
-                      )}
-                      {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {Object.keys(groupedOptions.groups).map((groupName) => (
-                <div key={groupName} className="space-y-0.5 my-1">
-                  <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 rounded-lg">
-                    {groupName}
+        <div className="absolute z-[100] left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 space-y-1.5 max-h-64 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+          {/* Search Box Inside Dropdown */}
+          <div className="relative shrink-0 pb-1 border-b border-slate-100">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+            <input 
+              ref={searchInputRef}
+              type="text"
+              placeholder="Cari opsi..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white"
+            />
+          </div>
+
+          <div className="overflow-y-auto custom-scrollbar flex-1 space-y-1 max-h-48 pr-1">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-center text-xs text-slate-400 italic font-medium">
+                Tidak ada opsi yang sesuai.
+              </div>
+            ) : !hasGroups ? (
+              groupedOptions.unGrouped.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                    value === opt.value
+                      ? "bg-primary/10 text-primary font-black"
+                      : "hover:bg-slate-50 text-slate-700 font-semibold"
+                  )}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {opt.sublabel && (
+                    <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                  )}
+                  {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                </button>
+              ))
+            ) : (
+              <>
+                {groupedOptions.unGrouped.length > 0 && (
+                  <div className="space-y-0.5 mb-1">
+                    {groupedOptions.unGrouped.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          onChange(opt.value);
+                          setIsOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                          value === opt.value
+                            ? "bg-primary/10 text-primary font-black"
+                            : "hover:bg-slate-50 text-slate-700 font-semibold"
+                        )}
+                      >
+                        <span className="truncate">{opt.label}</span>
+                        {opt.sublabel && (
+                          <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                        )}
+                        {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                      </button>
+                    ))}
                   </div>
-                  {groupedOptions.groups[groupName].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        onChange(opt.value);
-                        setIsOpen(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
-                        value === opt.value
-                          ? "bg-primary/10 text-primary font-black"
-                          : "hover:bg-slate-50 text-slate-700 font-semibold"
-                      )}
-                    >
-                      <span className="truncate">{opt.label}</span>
-                      {opt.sublabel && (
-                        <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
-                      )}
-                      {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </>
-          )}
+                )}
+                {Object.keys(groupedOptions.groups).map((groupName) => (
+                  <div key={groupName} className="space-y-0.5 my-1">
+                    <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 rounded-lg">
+                      {groupName}
+                    </div>
+                    {groupedOptions.groups[groupName].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          onChange(opt.value);
+                          setIsOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                          value === opt.value
+                            ? "bg-primary/10 text-primary font-black"
+                            : "hover:bg-slate-50 text-slate-700 font-semibold"
+                        )}
+                      >
+                        <span className="truncate">{opt.label}</span>
+                        {opt.sublabel && (
+                          <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                        )}
+                        {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -784,6 +823,13 @@ export default function PenerimaanZis() {
     });
   }, [rkatList, selectedRkatId, coaList]);
 
+  const coaListOptions: CustomSelectOption[] = useMemo(() => {
+    return coaList.map(c => ({
+      value: c.coa_code,
+      label: `${c.coa_code} - ${c.nama_akun}`
+    }));
+  }, [coaList]);
+
   const bankAccountOptions: CustomSelectOption[] = useMemo(() => {
     const opts: CustomSelectOption[] = [];
     if (!accountsList.some(acc => acc.account_id === 'non_kas')) {
@@ -960,8 +1006,12 @@ export default function PenerimaanZis() {
     fetchData();
   }, [currentPage, itemsPerPage, debouncedSearch, mainFilterStartDate, mainFilterEndDate, kodeProgramFilter, rkatFilter]);
 
-  // Auto-refetch data when window/tab regains focus
-  useWindowFocusRefetch(fetchData);
+  // Auto-refetch data when window/tab regains focus (1 minute cooldown & disabled when active input/modal open)
+  useWindowFocusRefetch(
+    fetchData, 
+    60000, 
+    !isModalOpen && !isMigrationModalOpen && !isBulkSimbaModalOpen && selectedSimbaIds.length === 0
+  );
 
   const fetchMetadata = async () => {
     try {
@@ -3093,72 +3143,15 @@ export default function PenerimaanZis() {
 
                   {/* 3. Akun Buku Besar (Penerimaan COA) - Outside RKAT search */}
                   {isOutsideRkat && (
-                    <div className="space-y-1.5 text-left animate-fade-in">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    <div className="space-y-1 text-left animate-fade-in">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
                         Akun Buku Besar (Penerimaan COA) *
                       </label>
-                      {selectedCoaCode ? (
-                        <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3 py-2 rounded-xl text-xs font-black">
-                          <span className="flex items-center gap-1.5">
-                            <BookOpen className="size-4 shrink-0" />
-                            Terpilih: {selectedCoaCode} - {coaList.find(c => c.coa_code === selectedCoaCode)?.nama_akun || 'Memuat...'}
-                          </span>
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              setSelectedCoaCode('');
-                              setCoaSearch('');
-                            }} 
-                            className="hover:text-rose-600"
-                          >
-                            <X className="size-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 size-3.5" />
-                            <input 
-                              type="text"
-                              placeholder="Cari kode COA atau nama akun Penerimaan..."
-                              value={coaSearch}
-                              onChange={(e) => setCoaSearch(e.target.value)}
-                              onFocus={() => setIsCoaDropdownOpen(true)}
-                              onBlur={() => setTimeout(() => setIsCoaDropdownOpen(false), 205)}
-                              className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-primary/20"
-                            />
-                          </div>
-
-                          {(isCoaDropdownOpen || coaSearch) && (
-                            <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner text-left">
-                              {filteredCoasForSearch.length === 0 ? (
-                                <p className="p-2 text-[10px] text-slate-400 italic">COA tidak ditemukan</p>
-                              ) : (
-                                filteredCoasForSearch.map(coa => (
-                                  <div 
-                                    key={coa.coa_code}
-                                    onClick={() => {
-                                      setSelectedCoaCode(coa.coa_code);
-                                      setCoaSearch('');
-                                      setIsCoaDropdownOpen(false);
-                                    }}
-                                    className="p-2 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5 text-slate-700"
-                                  >
-                                    <span className="font-mono text-primary text-[11px]">{coa.coa_code}</span>
-                                    <span className="text-slate-650 text-[10px]">{coa.nama_akun}</span>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <input 
-                        type="text" 
-                        value={selectedCoaCode} 
-                        required 
-                        onChange={() => {}} 
-                        className="sr-only h-0 w-0" 
+                      <CustomSelect 
+                        value={selectedCoaCode}
+                        options={coaListOptions}
+                        placeholder="Cari &amp; Pilih Kode COA Akun..."
+                        onChange={(code) => setSelectedCoaCode(code)}
                       />
                     </div>
                   )}
