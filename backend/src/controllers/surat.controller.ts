@@ -54,41 +54,138 @@ export const getSuratById = async (req: Request, res: Response) => {
   }
 };
 
+const buildCleanSuratPayload = (body: any, isUpdate = false) => {
+  const payload: any = {};
+
+  if (body.tanggal_masuk || body.tanggalMasuk) {
+    const d = new Date(body.tanggal_masuk || body.tanggalMasuk);
+    if (!isNaN(d.getTime())) {
+      payload.tanggal_masuk = d;
+    }
+  }
+  if (!isUpdate && !payload.tanggal_masuk) {
+    payload.tanggal_masuk = new Date();
+  }
+
+  if (body.tanggal_acara !== undefined || body.tanggalAcara !== undefined) {
+    const rawAcara = body.tanggal_acara ?? body.tanggalAcara;
+    if (rawAcara && String(rawAcara).trim() !== '' && String(rawAcara) !== 'null') {
+      const d = new Date(rawAcara);
+      if (!isNaN(d.getTime())) {
+        payload.tanggal_acara = d;
+      } else {
+        payload.tanggal_acara = null;
+      }
+    } else {
+      payload.tanggal_acara = null;
+    }
+  }
+
+  if (body.agenda_no !== undefined && body.agenda_no !== null && body.agenda_no !== '') {
+    const num = Number(body.agenda_no);
+    if (!isNaN(num) && num > 0) {
+      payload.agenda_no = num;
+    }
+  }
+
+  if (body.nama_instansi !== undefined || body.namaInstansi !== undefined) {
+    const val = body.nama_instansi ?? body.namaInstansi;
+    payload.nama_instansi = val ? String(val).trim() : null;
+  }
+  if (body.pimpinan_organisasi !== undefined || body.pimpinanOrganisasi !== undefined) {
+    const val = body.pimpinan_organisasi ?? body.pimpinanOrganisasi;
+    payload.pimpinan_organisasi = val ? String(val).trim() : null;
+  }
+  if (body.alamat !== undefined) {
+    payload.alamat = body.alamat ? String(body.alamat).trim() : null;
+  }
+  if (body.kelurahan !== undefined) {
+    payload.kelurahan = body.kelurahan ? String(body.kelurahan).trim() : null;
+  }
+  if (body.kecamatan !== undefined) {
+    payload.kecamatan = body.kecamatan ? String(body.kecamatan).trim() : null;
+  }
+  if (body.keperluan !== undefined || body.perihal !== undefined) {
+    const val = body.keperluan ?? body.perihal;
+    payload.keperluan = val ? String(val).trim() : (isUpdate ? undefined : 'Surat Masuk');
+  } else if (!isUpdate) {
+    payload.keperluan = 'Surat Masuk';
+  }
+  if (body.no_telpon !== undefined || body.noTelpon !== undefined) {
+    const val = body.no_telpon ?? body.noTelpon;
+    payload.no_telpon = val ? String(val).trim() : null;
+  }
+  if (body.jam_pengajuan !== undefined || body.jamPengajuan !== undefined) {
+    const val = body.jam_pengajuan ?? body.jamPengajuan;
+    payload.jam_pengajuan = val ? String(val).trim() : null;
+  }
+  if (body.yang_mengajukan !== undefined || body.yangMengajukan !== undefined) {
+    const val = body.yang_mengajukan ?? body.yangMengajukan;
+    payload.yang_mengajukan = val ? String(val).trim() : null;
+  }
+  if (body.arsip !== undefined) {
+    payload.arsip = body.arsip ? String(body.arsip).trim() : null;
+  }
+  if (body.status !== undefined) {
+    payload.status = body.status ? String(body.status).trim() : 'Registrasi';
+  }
+  if (body.file_gdrive_id !== undefined || body.fileGdriveId !== undefined) {
+    const val = body.file_gdrive_id ?? body.fileGdriveId;
+    payload.file_gdrive_id = val ? String(val).trim() : null;
+  }
+  if (body.file_gdrive_link !== undefined || body.fileGdriveLink !== undefined || body.link_scan !== undefined) {
+    const val = body.file_gdrive_link ?? body.fileGdriveLink ?? body.link_scan;
+    payload.file_gdrive_link = val ? String(val).trim() : null;
+  }
+  if (body.catatanKepala !== undefined || body.catatan_kepala !== undefined) {
+    const val = body.catatanKepala ?? body.catatan_kepala;
+    payload.catatanKepala = val ? String(val).trim() : null;
+  }
+  if (body.catatanPimpinan !== undefined || body.catatan_pimpinan !== undefined) {
+    const val = body.catatanPimpinan ?? body.catatan_pimpinan;
+    payload.catatanPimpinan = val ? String(val).trim() : null;
+  }
+  if (body.jam_acara !== undefined || body.jamAcara !== undefined) {
+    const val = body.jam_acara ?? body.jamAcara;
+    payload.jam_acara = val ? String(val).trim() : null;
+  }
+  if (body.kategori !== undefined) {
+    payload.kategori = body.kategori ? String(body.kategori).trim() : null;
+  }
+  if (body.assigned_staff !== undefined) {
+    payload.assigned_staff = body.assigned_staff;
+  }
+
+  return payload;
+};
+
 export const createSurat = async (req: Request, res: Response) => {
   try {
-    const data = req.body;
-    if (data.tanggal_masuk) {
-      data.tanggal_masuk = new Date(data.tanggal_masuk);
-    }
-    if (data.tanggal_acara) {
-      data.tanggal_acara = new Date(data.tanggal_acara);
-    }
-    const surat = await prisma.surat.create({ data });
+    const payload = buildCleanSuratPayload(req.body, false);
+    const surat = await prisma.surat.create({ data: payload });
     res.status(201).json(surat);
-  } catch (error) {
-    res.status(500).json({ error: String(error) });
+  } catch (error: any) {
+    console.error('Error in createSurat:', error);
+    res.status(500).json({ error: error.message || String(error) });
   }
 };
 
 export const updateSurat = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const data = req.body;
-    if (data.tanggal_masuk) {
-      data.tanggal_masuk = new Date(data.tanggal_masuk);
-    }
-    if (data.tanggal_acara) {
-      data.tanggal_acara = new Date(data.tanggal_acara);
-    }
     const existingSurat = await prisma.surat.findUnique({ where: { id } });
+    if (!existingSurat) {
+      return res.status(404).json({ error: 'Surat not found' });
+    }
 
+    const payload = buildCleanSuratPayload(req.body, true);
     const surat = await prisma.surat.update({
       where: { id },
-      data
+      data: payload
     });
 
     // Handle notification to Kepala Pelaksana when Ketua approves Undangan
-    if (existingSurat?.kategori === 'Undangan' && data.status === 'Penugasan_Kepala_Pelaksana') {
+    if (existingSurat?.kategori === 'Undangan' && payload.status === 'Penugasan_Kepala_Pelaksana') {
       const kapels = await prisma.user.findMany({
         where: { role: 'Kepala_Pelaksana' },
         select: { id: true, name: true, email: true }
@@ -163,9 +260,9 @@ export const updateSurat = async (req: Request, res: Response) => {
     }
 
     // Handle notifications for assigned staff in 'Undangan'
-    if (existingSurat?.kategori === 'Undangan' && data.assigned_staff && Array.isArray(data.assigned_staff)) {
+    if (existingSurat?.kategori === 'Undangan' && payload.assigned_staff && Array.isArray(payload.assigned_staff)) {
       const oldStaff = Array.isArray(existingSurat.assigned_staff) ? existingSurat.assigned_staff as string[] : [];
-      const newStaff = data.assigned_staff as string[];
+      const newStaff = payload.assigned_staff as string[];
       
       const addedStaff = newStaff.filter(staffId => !oldStaff.includes(staffId));
 
