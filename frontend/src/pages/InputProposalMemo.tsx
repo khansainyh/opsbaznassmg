@@ -385,16 +385,16 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
         .filter(g => g.items.length > 0);
 
       contentHtml = `
-        <h2 style="font-size: 20px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px;">
+        <h2 style="font-size: 20px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 12px;">
           ${title}
         </h2>
         ${activeGroups.length === 0 ? `
-          <p style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 16px; margin-top: 50px;">Tidak ada data detail proposal masuk</p>
+          <p style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 16px; margin-top: 30px;">Tidak ada data detail proposal masuk</p>
         ` : activeGroups.map(g => `
-          <h3 style="font-size: 16px; text-align: left; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-top: 30px; margin-bottom: 10px;">
+          <h3 style="font-size: 16px; text-align: left; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-top: 14px; margin-bottom: 6px;">
             ${g.pilar} : ${g.items.length}
           </h3>
-          <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 12px; margin-bottom: 25px;">
+          <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 12px; margin-bottom: 12px;">
             <thead>
               <tr style="background-color: #ffffff; height: 40px;">
                 <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">No</th>
@@ -478,10 +478,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'harian_detail') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 55px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
+        <table style="width: 100%; border: none; margin-top: 20px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
           <tr style="border: none;">
             <td style="border: none; width: 72%; padding-left: 18%;"></td>
-            <td style="border: none; width: 28%; text-align: left; padding-bottom: 8px;">
+            <td style="border: none; width: 28%; text-align: left; padding-bottom: 6px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
@@ -494,7 +494,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Staff Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 110px;">
+          <tr style="border: none; height: 60px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
@@ -1041,7 +1041,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           <style>
               @page {
                   size: A5 landscape;
-                  margin: 0.12in 0.4in 0.12in 0.4in;
+                  margin: 0.11in 0.4in 0.11in 0.4in;
               }
               
               * {
@@ -1077,7 +1077,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               @media print {
                   @page {
                       size: A5 landscape;
-                      margin: 0.12in 0.4in 0.12in 0.4in;
+                      margin: 0.11in 0.4in 0.11in 0.4in;
                   }
                   html, body {
                       height: 100% !important;
@@ -1088,8 +1088,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   }
                   .container {
                       width: 100% !important;
-                      height: 98% !important;
-                      max-height: 98% !important;
+                      height: auto !important;
+                      max-height: 100% !important;
                       box-shadow: none !important;
                       overflow: hidden !important;
                       justify-content: flex-start !important;
@@ -1106,7 +1106,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               .header {
                   text-align: center;
-                  margin-bottom: 0px;
+                  margin-bottom: -10px;
                   flex-shrink: 0;
               }
               
@@ -1152,28 +1152,33 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .surat-dari-cell {
-                  padding: 5px 10px;
-                  height: 40px;
+                  padding: 6px 10px;
+                  height: 52px;
+                  min-height: 52px;
+                  vertical-align: middle;
               }
 
               .no-surat-cell {
                   padding: 4px 10px;
-                  height: 28px;
+                  height: 32px;
+                  min-height: 32px;
+                  vertical-align: middle;
               }
 
               .perihal-cell {
-                  padding: 8px 12px;
+                  padding: 6px 12px;
                   vertical-align: middle;
-                  height: 145px;
-                  min-height: 145px;
+                  height: 135px;
+                  min-height: 135px;
               }
 
               .perihal-wrapper {
                   display: flex;
                   flex-direction: column;
-                  justify-content: space-around;
+                  justify-content: center;
+                  gap: 6px;
                   height: 100%;
-                  min-height: 125px;
+                  min-height: 130px;
               }
 
               .perihal-header {
@@ -1208,37 +1213,16 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               .perihal-locations {
                   display: flex;
+                  justify-content: space-between;
                   align-items: center;
                   font-weight: bold;
                   font-size: 18px;
                   width: 100%;
-              }
-
-              .location-col-1 {
-                  width: 41.5%;
-                  text-align: left;
-                  padding-right: 8px;
-                  word-break: break-word;
-                  box-sizing: border-box;
-              }
-
-              .location-col-2 {
-                  width: 28.5%;
-                  text-align: left;
-                  padding-right: 8px;
-                  word-break: break-word;
-                  box-sizing: border-box;
-              }
-
-              .location-col-3 {
-                  width: 30%;
-                  text-align: left;
-                  word-break: break-word;
-                  box-sizing: border-box;
+                  margin-top: 6px;
               }
 
               .disposisi-table-container {
-                  margin-top: 10px;
+                  margin-top: 5px;
                   flex-shrink: 0;
               }
 
@@ -1247,7 +1231,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   font-weight: bold;
                   font-size: 20px;
                   letter-spacing: 0.5px;
-                  padding: 5px 0;
+                  padding: 4px 0;
                   background-color: #ffffff;
               }
 
@@ -1259,8 +1243,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .disposisi-box {
-                  height: 145px;
-                  min-height: 145px;
+                  height: 130px;
+                  min-height: 130px;
                   vertical-align: top;
                   padding-top: 6px;
               }
@@ -1305,9 +1289,9 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                                   </div>
                                   ${(alamatTampil || kelurahanTampil || kecamatanTampil) ? `
                                   <div class="perihal-locations">
-                                      <div class="location-col-1">${alamatTampil}</div>
-                                      <div class="location-col-2">${kelurahanTampil ? kelurahanTampil : ''}</div>
-                                      <div class="location-col-3">${kecamatanTampil ? kecamatanTampil : ''}</div>
+                                      <span>${alamatTampil}</span>
+                                      ${kelurahanTampil ? `<span>${kelurahanTampil}</span>` : ''}
+                                      ${kecamatanTampil ? `<span>${kecamatanTampil}</span>` : ''}
                                   </div>
                                   ` : ''}
                               </div>

@@ -444,7 +444,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <style>
               @page {
                   size: A5 landscape;
-                  margin: 0.12in 0.4in 0.12in 0.4in;
+                  margin: 0.11in 0.4in 0.11in 0.4in;
               }
               
               * {
@@ -480,7 +480,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               @media print {
                   @page {
                       size: A5 landscape;
-                      margin: 0.12in 0.4in 0.12in 0.4in;
+                      margin: 0.11in 0.4in 0.11in 0.4in;
                   }
                   html, body {
                       height: 100% !important;
@@ -491,8 +491,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   }
                   .container {
                       width: 100% !important;
-                      height: 98% !important;
-                      max-height: 98% !important;
+                      height: auto !important;
+                      max-height: 100% !important;
                       box-shadow: none !important;
                       overflow: hidden !important;
                       justify-content: flex-start !important;
@@ -509,7 +509,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
               .header {
                   text-align: center;
-                  margin-bottom: 0px;
+                  margin-bottom: -10px;
                   flex-shrink: 0;
               }
               
@@ -555,29 +555,33 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .surat-dari-cell {
-                  padding: 5px 10px;
-                  height: 40px;
+                  padding: 6px 10px;
+                  height: 52px;
+                  min-height: 52px;
+                  vertical-align: middle;
               }
 
               .no-surat-cell {
                   padding: 4px 10px;
-                  height: 28px;
+                  height: 32px;
+                  min-height: 32px;
+                  vertical-align: middle;
               }
 
               .perihal-cell {
-                  padding: 8px 12px;
+                  padding: 6px 12px;
                   vertical-align: middle;
-                  height: 145px;
-                  min-height: 145px;
+                  height: 135px;
+                  min-height: 135px;
               }
 
               .perihal-wrapper {
                   display: flex;
                   flex-direction: column;
                   justify-content: center;
-                  gap: 8px;
+                  gap: 6px;
                   height: 100%;
-                  min-height: 125px;
+                  min-height: 130px;
               }
 
               .perihal-header {
@@ -598,7 +602,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .disposisi-table-container {
-                  margin-top: 10px;
+                  margin-top: 5px;
                   flex-shrink: 0;
               }
 
@@ -607,7 +611,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   font-weight: bold;
                   font-size: 20px;
                   letter-spacing: 0.5px;
-                  padding: 5px 0;
+                  padding: 4px 0;
                   background-color: #ffffff;
               }
 
@@ -619,8 +623,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .disposisi-box {
-                  height: 145px;
-                  min-height: 145px;
+                  height: 130px;
+                  min-height: 130px;
                   vertical-align: top;
                   padding-top: 6px;
               }
