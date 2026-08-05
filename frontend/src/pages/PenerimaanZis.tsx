@@ -2711,13 +2711,23 @@ export default function PenerimaanZis() {
                           ) : (
                             <div className="flex items-center justify-center">
                               {(() => {
-                                const hasNpwz = item.muzakki?.npwz && item.muzakki.npwz.trim().length > 0 && !item.muzakki.npwz.startsWith('PENDING') && !item.muzakki.npwz.startsWith('NIK-');
-                                if (hasNpwz) {
+                                const isZakat = (() => {
+                                  const rkatCat = item.rkat?.kategori || '';
+                                  const prog = item.jenis_program || '';
+                                  return rkatCat.toLowerCase().includes('zakat') || prog.toLowerCase().includes('zakat');
+                                })();
+
+                                const hasRealNpwz = Boolean(item.muzakki?.npwz && item.muzakki.npwz.trim().length > 0 && !item.muzakki.npwz.startsWith('PENDING') && !item.muzakki.npwz.startsWith('NIK-') && !item.muzakki.npwz.startsWith('WZ-'));
+
+                                // Untuk Infak / Sedekah / DSKL, SIMBA tidak mewajibkan NPWZ (otomatis Munfiq)
+                                const canSyncSimba = !isZakat || hasRealNpwz;
+
+                                if (canSyncSimba) {
                                   return (
                                     <button 
                                       onClick={() => toggleSimbaStatus(item)}
                                       className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl border border-emerald-100 transition-all active:scale-95 flex items-center justify-center"
-                                      title="Input Kas Masuk ke SIMBA"
+                                      title={item.status_simba === 'SYNCED' ? "Sudah Sync SIMBA" : "Input No. SIMBA"}
                                     >
                                       <CheckCircle2 className="size-4" />
                                     </button>
@@ -2727,7 +2737,7 @@ export default function PenerimaanZis() {
                                     <button 
                                       onClick={() => handleOpenNpwzModal(item.muzakki)}
                                       className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-650 rounded-xl border border-amber-100 transition-all active:scale-95 flex items-center justify-center"
-                                      title="Registrasi NPWZ SIMBA (Belum ada NPWZ)"
+                                      title="Registrasi NPWZ SIMBA (Wajib untuk Zakat)"
                                     >
                                       <UserPlus className="size-4" />
                                     </button>
@@ -3521,6 +3531,10 @@ export default function PenerimaanZis() {
                   <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Muzakki</p>
                   <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedMuzakkiForNpwz.nama}</p>
                   <p className="text-slate-500 mt-1 font-medium">{selectedMuzakkiForNpwz.alamat}</p>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[11px] text-amber-800 font-medium leading-relaxed">
+                  💡 <span className="font-bold">Info SIMBA:</span> NPWZ khusus didaftarkan untuk pembayar <span className="font-bold">Zakat</span>. Untuk transaksi <span className="font-bold">Infak/Sedekah</span>, SIMBA tidak mewajibkan NPWZ (otomatis menggunakan identitas Munfiq/tanpa NPWZ).
                 </div>
 
                 <div className="space-y-1">
