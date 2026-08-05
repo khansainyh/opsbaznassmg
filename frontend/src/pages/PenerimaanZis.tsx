@@ -23,7 +23,10 @@ import {
   Upload,
   Download,
   RefreshCw,
-  Building2
+  Building2,
+  Sparkles,
+  Filter,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -644,6 +647,11 @@ export default function PenerimaanZis() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'all' | 'simba-queue'>('all');
+  const [selectedSimbaIds, setSelectedSimbaIds] = useState<string[]>([]);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [isBulkSimbaModalOpen, setIsBulkSimbaModalOpen] = useState(false);
+  const [bulkSimbaStartNo, setBulkSimbaStartNo] = useState('');
+  const [isSavingBulkSimba, setIsSavingBulkSimba] = useState(false);
   const [npwzModalOpen, setNpwzModalOpen] = useState(false);
   const [selectedMuzakkiForNpwz, setSelectedMuzakkiForNpwz] = useState<any>(null);
   const [newNpwzValue, setNewNpwzValue] = useState('');
@@ -882,6 +890,15 @@ export default function PenerimaanZis() {
   const [mainFilterEndDate, setMainFilterEndDate] = useState('');
   const [selectedFilterMonth, setSelectedFilterMonth] = useState<number | 'all'>('all');
   const [selectedFilterYear, setSelectedFilterYear] = useState<number>(new Date().getFullYear());
+
+  const activeAdvancedFiltersCount = useMemo(() => {
+    let count = 0;
+    if (kodeProgramFilter !== 'Semua') count++;
+    if (rkatFilter !== 'Semua') count++;
+    if (simbaFilter !== 'Semua') count++;
+    if (selectedFilterMonth !== 'all' && selectedFilterYear !== new Date().getFullYear()) count++;
+    return count;
+  }, [kodeProgramFilter, rkatFilter, simbaFilter, selectedFilterMonth, selectedFilterYear]);
 
   const handleMonthFilterChange = (m: number | 'all') => {
     setSelectedFilterMonth(m);
@@ -1849,6 +1866,154 @@ export default function PenerimaanZis() {
     }
   };
 
+  const toggleSelectSimba = (id: string) => {
+    setSelectedSimbaIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const isAllSimbaSelected = useMemo(() => {
+    if (filteredData.length === 0) return false;
+    return filteredData.every(item => selectedSimbaIds.includes(item.id));
+  }, [filteredData, selectedSimbaIds]);
+
+  const toggleSelectAllSimba = () => {
+    if (isAllSimbaSelected) {
+      const filteredSet = new Set(filteredData.map(i => i.id));
+      setSelectedSimbaIds(prev => prev.filter(id => !filteredSet.has(id)));
+    } else {
+      const allFilteredIds = filteredData.map(i => i.id);
+      setSelectedSimbaIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+    }
+  };
+
+  const handleDownloadSimbaMigration = () => {
+    const itemsToExport = selectedSimbaIds.length > 0
+      ? penerimaanData.filter(item => selectedSimbaIds.includes(item.id))
+      : filteredData;
+
+    if (itemsToExport.length === 0) {
+      alert('Tidak ada data transaksi yang dapat diunduh untuk Migrasi SIMBA.');
+      return;
+    }
+
+    const exportRows = itemsToExport.map((item, idx) => {
+      const rkatObj = item.rkat || (item.rkat_id ? rkatList.find((r: any) => r.id === item.rkat_id || r.no === String(item.rkat_id)) : null);
+      const cat = rkatObj?.kategori || (item.jenis_program?.toLowerCase().includes('zakat') ? 'Zakat' : 'Infak');
+      const isZakat = cat.toLowerCase().includes('zakat') || Number(item.nominal) >= 100000;
+
+      let zakatVal: number | '' = '';
+      let infakVal: number | '' = '';
+
+      if (isZakat) {
+        zakatVal = Number(item.nominal || 0);
+      } else {
+        infakVal = Number(item.nominal || 0);
+      }
+
+      const labelTipe = isZakat ? 'Zakat Maal' : 'Infak';
+      const namaMuzakki = item.muzakki?.nama || item.nama || '-';
+
+      const upzObj = item.upz || (item.upz_id ? upzList.find((u: any) => u.id === item.upz_id) : null);
+      const upzName = upzObj ? (upzObj.nama_upz || upzObj.name) : '';
+      const upzSuffix = upzName ? ` (UPZ ${upzName})` : '';
+
+      const keteranganVal = item.keterangan || `Terima ${labelTipe} a.n ${namaMuzakki}${upzSuffix}`;
+
+      // Date format: DD/MM/YYYY
+      const pDate = new Date(item.tanggal_pembayaran);
+      const formattedDate = !isNaN(pDate.getTime()) 
+        ? `${String(pDate.getDate()).padStart(2, '0')}/${String(pDate.getMonth() + 1).padStart(2, '0')}/${pDate.getFullYear()}`
+        : String(item.tanggal_pembayaran);
+
+      const npwzVal = (item.muzakki?.npwz && !/^(WZ-|PENDING-|NIK-)/i.test(item.muzakki.npwz))
+        ? item.muzakki.npwz
+        : (item.npwz || '-');
+
+      return {
+        'No': idx + 1,
+        'tgl_transaksi': formattedDate,
+        'NPWZ': npwzVal,
+        'nama': namaMuzakki,
+        'zakat': zakatVal,
+        'zakat fitrah': '',
+        'infak': infakVal,
+        'titipan': '',
+        'Keterangan': keteranganVal
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'SIMBA Template');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const docName = selectedSimbaIds.length > 0 
+      ? `SIMBA_Migration_PenerimaanZIS_Selected_${selectedSimbaIds.length}_items_${dateStr}.xlsx`
+      : `SIMBA_Migration_PenerimaanZIS_${dateStr}.xlsx`;
+    XLSX.writeFile(workbook, docName);
+  };
+
+  const helperIncrementSimbaNo = (startStr: string, count: number): string[] => {
+    const trimmed = startStr.trim();
+    if (!trimmed) return Array(count).fill('');
+
+    const match = trimmed.match(/^(.*?\D)?(\d+)$/);
+    if (!match) {
+      return Array.from({ length: count }, (_, idx) => idx === 0 ? trimmed : `${trimmed}-${idx + 1}`);
+    }
+
+    const prefix = match[1] || '';
+    const numStr = match[2];
+    const numLen = numStr.length;
+    const startNum = parseInt(numStr, 10);
+
+    const result: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const nextNum = startNum + i;
+      const paddedNum = String(nextNum).padStart(numLen, '0');
+      result.push(`${prefix}${paddedNum}`);
+    }
+    return result;
+  };
+
+  const handleProcessBulkSimbaSequence = async () => {
+    const startStr = bulkSimbaStartNo.trim() || '1';
+    const targetItems = selectedSimbaIds.length > 0
+      ? penerimaanData.filter(i => selectedSimbaIds.includes(i.id))
+      : filteredData;
+
+    if (targetItems.length === 0) {
+      alert('Tidak ada transaksi yang dipilih atau tersedia di antrean!');
+      return;
+    }
+
+    const generated = helperIncrementSimbaNo(startStr, targetItems.length);
+
+    const updates = targetItems.map((item, idx) => ({
+      id: item.id,
+      no_transaksi_simba: generated[idx]
+    }));
+
+    setIsSavingBulkSimba(true);
+    try {
+      const res = await axios.patch('/api/penerimaan-zis/bulk-simba', { updates });
+      if (res.data.status === 'success') {
+        const updatedMap = new Map(res.data.data.map((d: any) => [d.id, d]));
+        setPenerimaanData(prev => prev.map(p => updatedMap.has(p.id) ? updatedMap.get(p.id) : p));
+        setMessages([{ type: 'success', text: `Berhasil meng-generate & menyimpan No. SIMBA untuk ${targetItems.length} transaksi!` }]);
+        setIsBulkSimbaModalOpen(false);
+        setSelectedSimbaIds([]);
+        setBulkSimbaStartNo('');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Gagal menyimpan No. Transaksi SIMBA Massal.');
+    } finally {
+      setIsSavingBulkSimba(false);
+    }
+  };
+
   const handleExportPDFDaily = () => {
     const targetDateStr = pdfReportDate;
     const targetDate = new Date(targetDateStr);
@@ -2134,7 +2299,7 @@ export default function PenerimaanZis() {
         {/* Tab Switcher */}
         <div className="flex border-b border-slate-100 bg-slate-50/50">
           <button
-            onClick={() => setActiveTab('all')}
+            onClick={() => { setActiveTab('all'); setSelectedSimbaIds([]); }}
             className={cn(
               "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all active:scale-95",
               activeTab === 'all'
@@ -2162,15 +2327,17 @@ export default function PenerimaanZis() {
           </button>
         </div>
 
-        <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex flex-wrap gap-3 items-center">
+        {/* Primary Toolbar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Left: Search & Essential Filters */}
+          <div className="flex flex-wrap items-center gap-2.5 flex-1">
             {/* Search */}
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input 
                 type="text"
                 placeholder="Cari kuitansi, nama, NPWZ..."
-                className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary/50 outline-none transition-all font-medium text-slate-800"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -2178,11 +2345,11 @@ export default function PenerimaanZis() {
 
             {/* Filter Bulan */}
             <select 
-              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer font-medium text-slate-700"
+              className="text-xs bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 focus:ring-2 focus:ring-primary/20 focus:border-primary/50 outline-none cursor-pointer font-semibold text-slate-700"
               value={selectedFilterMonth}
               onChange={(e) => handleMonthFilterChange(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             >
-              <option value="all">Bulan: Semua Bulan</option>
+              <option value="all">Semua Bulan</option>
               <option value="1">Januari</option>
               <option value="2">Februari</option>
               <option value="3">Maret</option>
@@ -2197,24 +2364,9 @@ export default function PenerimaanZis() {
               <option value="12">Desember</option>
             </select>
 
-            {/* Filter Tahun */}
-            {selectedFilterMonth !== 'all' && (
-              <select 
-                className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer font-medium text-slate-700"
-                value={selectedFilterYear}
-                onChange={(e) => handleYearFilterChange(Number(e.target.value))}
-              >
-                {[2023, 2024, 2025, 2026, 2027].map((y) => (
-                  <option key={y} value={y}>
-                    Tahun: {y}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Category Filter */}
+            {/* Kategori Filter */}
             <select 
-              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer"
+              className="text-xs bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 focus:ring-2 focus:ring-primary/20 focus:border-primary/50 outline-none cursor-pointer font-semibold text-slate-700"
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
             >
@@ -2225,91 +2377,190 @@ export default function PenerimaanZis() {
               <option value="CSR">CSR</option>
             </select>
 
-            {/* Kode Program Filter */}
-            <select 
-              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer max-w-[210px] font-medium text-slate-700"
-              value={kodeProgramFilter}
-              onChange={(e) => { setKodeProgramFilter(e.target.value); setCurrentPage(1); }}
+            {/* Filter Lanjutan Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+              className={cn(
+                "px-3 py-2.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer",
+                isFilterExpanded || activeAdvancedFiltersCount > 0
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+              )}
             >
-              <option value="Semua">Kode Program: Semua</option>
-              {kodeProgramOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.value} - {opt.label.split('||')[1]?.trim() || opt.label}
-                </option>
-              ))}
-            </select>
-
-            {/* Program RKAT Filter */}
-            <select 
-              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer max-w-[230px] font-medium text-slate-700"
-              value={rkatFilter}
-              onChange={(e) => { setRkatFilter(e.target.value); setCurrentPage(1); }}
-            >
-              <option value="Semua">Program RKAT: Semua</option>
-              {rkatList.map((rkat) => (
-                <option key={rkat.id} value={rkat.id}>
-                  #{rkat.no} - {rkat.nama_program}
-                </option>
-              ))}
-            </select>
-
-            {/* Simba Sync Filter */}
-            <select 
-              className="text-sm bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 focus:ring-primary focus:border-primary outline-none cursor-pointer"
-              value={simbaFilter}
-              onChange={(e) => { setSimbaFilter(e.target.value); setCurrentPage(1); }}
-            >
-              <option value="Semua">Status Simba: Semua</option>
-              <option value="PENDING">PENDING (Belum Sync)</option>
-              <option value="SYNCED">SYNCED (Sudah Sync)</option>
-            </select>
-
-            {/* Reset Filter Button */}
-            {(kodeProgramFilter !== 'Semua' || rkatFilter !== 'Semua' || categoryFilter !== 'Semua' || simbaFilter !== 'Semua' || selectedFilterMonth !== 'all') && (
-              <button
-                onClick={() => {
-                  setKodeProgramFilter('Semua');
-                  setRkatFilter('Semua');
-                  setCategoryFilter('Semua');
-                  setSimbaFilter('Semua');
-                  setSelectedFilterMonth('all');
-                  setMainFilterStartDate('');
-                  setMainFilterEndDate('');
-                  setCurrentPage(1);
-                }}
-                className="text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-2 rounded-lg flex items-center gap-1 transition-all active:scale-95"
-                title="Reset semua filter"
-              >
-                <X className="size-3.5" />
-                Reset Filter
-              </button>
-            )}
+              <Filter className="size-3.5" />
+              <span>Filter Lanjutan</span>
+              {activeAdvancedFiltersCount > 0 && (
+                <span className="bg-primary text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {activeAdvancedFiltersCount}
+                </span>
+              )}
+              <ChevronDown className={cn("size-3.5 transition-transform", isFilterExpanded && "rotate-180")} />
+            </button>
           </div>
 
-          <div className="hidden md:flex gap-2">
-            <button 
-              onClick={() => setIsReportModalOpen(true)}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
-            >
-              <Printer className="size-4" />
-              Cetak Laporan
-            </button>
+          {/* Right: Grouped Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Main Primary Action */}
             <button 
               onClick={() => { resetForm(); setIsModalOpen(true); }}
-              className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-md active:scale-95"
+              className="bg-primary hover:bg-primary/95 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-primary/20 active:scale-95 cursor-pointer"
             >
               <Plus className="size-4" />
-              Input Penerimaan ZIS
+              <span>Input Penerimaan ZIS</span>
             </button>
-            <button 
-              onClick={() => setIsMigrationModalOpen(true)}
-              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm active:scale-95"
-            >
-              <Upload className="size-4" />
-              Migrasi Penerimaan
-            </button>
+
+            {/* Utilities Buttons */}
+            <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+              <button 
+                onClick={() => setIsReportModalOpen(true)}
+                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Cetak Laporan Kas Tunai & Rekap"
+              >
+                <Printer className="size-3.5 text-slate-500" />
+                <span className="hidden sm:inline">Cetak Laporan</span>
+              </button>
+
+              <button 
+                onClick={() => setIsMigrationModalOpen(true)}
+                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Migrasi Penerimaan Excel"
+              >
+                <Upload className="size-3.5 text-slate-500" />
+                <span className="hidden sm:inline">Migrasi</span>
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Collapsible Advanced Filters Drawer */}
+        <AnimatePresence>
+          {isFilterExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden bg-slate-50/80 border-b border-slate-200/80"
+            >
+              <div className="p-4 flex flex-wrap items-center gap-3 text-xs">
+                <span className="font-bold text-slate-400 uppercase text-[10px] tracking-wider mr-1">Filter Tambahan:</span>
+
+                {/* Filter Tahun */}
+                {selectedFilterMonth !== 'all' && (
+                  <select 
+                    className="bg-white border border-slate-200 rounded-xl py-2 px-3 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-semibold text-slate-700 shadow-sm"
+                    value={selectedFilterYear}
+                    onChange={(e) => handleYearFilterChange(Number(e.target.value))}
+                  >
+                    {[2023, 2024, 2025, 2026, 2027].map((y) => (
+                      <option key={y} value={y}>
+                        Tahun: {y}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Kode Program Filter */}
+                <select 
+                  className="bg-white border border-slate-200 rounded-xl py-2 px-3 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer max-w-[220px] font-semibold text-slate-700 shadow-sm"
+                  value={kodeProgramFilter}
+                  onChange={(e) => { setKodeProgramFilter(e.target.value); setCurrentPage(1); }}
+                >
+                  <option value="Semua">Kode Program: Semua</option>
+                  {kodeProgramOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.value} - {opt.label.split('||')[1]?.trim() || opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Program RKAT Filter */}
+                <select 
+                  className="bg-white border border-slate-200 rounded-xl py-2 px-3 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer max-w-[240px] font-semibold text-slate-700 shadow-sm"
+                  value={rkatFilter}
+                  onChange={(e) => { setRkatFilter(e.target.value); setCurrentPage(1); }}
+                >
+                  <option value="Semua">Program RKAT: Semua</option>
+                  {rkatList.map((rkat) => (
+                    <option key={rkat.id} value={rkat.id}>
+                      #{rkat.no} - {rkat.nama_program}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Simba Sync Filter */}
+                <select 
+                  className="bg-white border border-slate-200 rounded-xl py-2 px-3 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-semibold text-slate-700 shadow-sm"
+                  value={simbaFilter}
+                  onChange={(e) => { setSimbaFilter(e.target.value); setCurrentPage(1); }}
+                >
+                  <option value="Semua">Status Simba: Semua</option>
+                  <option value="PENDING">PENDING (Belum Sync)</option>
+                  <option value="SYNCED">SYNCED (Sudah Sync)</option>
+                </select>
+
+                {/* Reset Filter Button */}
+                {(kodeProgramFilter !== 'Semua' || rkatFilter !== 'Semua' || categoryFilter !== 'Semua' || simbaFilter !== 'Semua' || selectedFilterMonth !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKodeProgramFilter('Semua');
+                      setRkatFilter('Semua');
+                      setCategoryFilter('Semua');
+                      setSimbaFilter('Semua');
+                      setSelectedFilterMonth('all');
+                      setMainFilterStartDate('');
+                      setMainFilterEndDate('');
+                      setCurrentPage(1);
+                    }}
+                    className="text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-2 rounded-xl flex items-center gap-1 transition-all active:scale-95 cursor-pointer ml-auto"
+                    title="Reset semua filter"
+                  >
+                    <X className="size-3.5" />
+                    <span>Reset Semua Filter</span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Dedicated SIMBA Action Bar (Appears ONLY when transactions are checked) */}
+        {activeTab === 'simba-queue' && selectedSimbaIds.length > 0 && (
+          <div className="p-3 mx-4 my-3 rounded-xl border bg-emerald-50/90 border-emerald-200 text-emerald-950 flex flex-wrap items-center justify-between gap-3 shadow-sm transition-all animate-in fade-in">
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+              <span>{selectedSimbaIds.length} transaksi dipilih untuk Migrasi SIMBA</span>
+              <button
+                type="button"
+                onClick={() => setSelectedSimbaIds([])}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-700 ml-2 underline transition-colors cursor-pointer"
+              >
+                Batalkan Pilihan
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={() => setIsBulkSimbaModalOpen(true)}
+                className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Sparkles className="size-3.5 text-white" />
+                <span>Auto-Generate No. SIMBA ({selectedSimbaIds.length})</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleDownloadSimbaMigration}
+                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <FileSpreadsheet className="size-4" />
+                <span>Download Migrasi SIMBA ({selectedSimbaIds.length})</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Table View */}
         <div className="overflow-x-auto min-h-[300px]">
@@ -2322,6 +2573,17 @@ export default function PenerimaanZis() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-wider">
+                  {activeTab === 'simba-queue' && (
+                    <th className="px-4 py-4 w-10 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={isAllSimbaSelected}
+                        onChange={toggleSelectAllSimba}
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 size-4 cursor-pointer accent-emerald-600"
+                        title="Pilih Semua Transaksi"
+                      />
+                    </th>
+                  )}
                   <th className="px-6 py-4">Tanggal Transaksi</th>
                   <th className="px-6 py-4">NPWZ</th>
                   <th className="px-6 py-4">Nama Muzakki</th>
@@ -2338,13 +2600,26 @@ export default function PenerimaanZis() {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-12 text-center text-slate-400 italic font-medium">
+                    <td colSpan={activeTab === 'simba-queue' ? 12 : 11} className="px-6 py-12 text-center text-slate-400 italic font-medium">
                       Belum ada data penerimaan ZIS yang sesuai filter.
                     </td>
                   </tr>
                 ) : (
                   filteredData.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
+                    <tr key={item.id} className={cn(
+                      "hover:bg-slate-50/30 transition-colors group",
+                      activeTab === 'simba-queue' && selectedSimbaIds.includes(item.id) && "bg-emerald-50/40"
+                    )}>
+                      {activeTab === 'simba-queue' && (
+                        <td className="px-4 py-4 text-center">
+                          <input 
+                            type="checkbox"
+                            checked={selectedSimbaIds.includes(item.id)}
+                            onChange={() => toggleSelectSimba(item.id)}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 size-4 cursor-pointer accent-emerald-600"
+                          />
+                        </td>
+                      )}
                       <td className="px-6 py-4 font-mono text-xs text-slate-600">
                         {new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID')}
                       </td>
@@ -3785,6 +4060,97 @@ export default function PenerimaanZis() {
                   className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
                 >
                   Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal Auto-Generate No. SIMBA Massal */}
+        {isBulkSimbaModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsBulkSimbaModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)]"
+            >
+              <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Auto-Generate No. SIMBA Massal</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Menghasilkan &amp; menyimpan Nomor Transaksi SIMBA sekuensial secara otomatis.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsBulkSimbaModalOpen(false)} 
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 overflow-y-auto">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                    <Sparkles className="size-4 shrink-0 text-amber-600" />
+                    <span>Generate Massal {selectedSimbaIds.length > 0 ? `${selectedSimbaIds.length} Transaksi Terpilih` : `${filteredData.length} Transaksi Antrean`}</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    Sistem akan mengisi No. Transaksi SIMBA secara berurutan dan mengubah status transaksi menjadi <span className="font-bold">SYNCED</span>.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Nomor SIMBA Pertama <span className="text-rose-500">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="Contoh: 2026/ZAKAT/001001 atau 1001" 
+                    value={bulkSimbaStartNo}
+                    onChange={(e) => setBulkSimbaStartNo(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Format: berakhiran angka yang akan bertambah otomatis (misal <code className="bg-slate-100 px-1 py-0.5 rounded">001001</code> → <code className="bg-slate-100 px-1 py-0.5 rounded">001002</code>, dst).
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkSimbaModalOpen(false)}
+                  disabled={isSavingBulkSimba}
+                  className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleProcessBulkSimbaSequence}
+                  disabled={isSavingBulkSimba}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSavingBulkSimba ? (
+                    <>
+                      <RefreshCw className="size-4 animate-spin" />
+                      <span>Memproses...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-4" />
+                      <span>Generate &amp; Simpan Massal</span>
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>

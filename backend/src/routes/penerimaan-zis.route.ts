@@ -4,6 +4,7 @@ import {
   createPenerimaanZis, 
   updatePenerimaanZis,
   updateSimbaStatus, 
+  bulkUpdateSimbaStatus,
   deletePenerimaanZis,
   migratePenerimaanZis,
   getRekapitulasiBulananZis,
@@ -17,6 +18,7 @@ router.get('/rekap-bulanan', getRekapitulasiBulananZis);
 router.get('/rekap-upz-totals', getZisSummaryForUpz);
 router.post('/', createPenerimaanZis);
 router.post('/migrate', migratePenerimaanZis);
+router.patch('/bulk-simba', bulkUpdateSimbaStatus);
 router.put('/:id', updatePenerimaanZis);
 router.patch('/:id/simba', updateSimbaStatus);
 router.delete('/:id', deletePenerimaanZis);

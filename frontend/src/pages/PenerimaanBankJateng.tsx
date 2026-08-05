@@ -12,7 +12,9 @@ import {
   Building, 
   FileSpreadsheet,
   Check,
-  Trash2
+  Trash2,
+  Filter,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -109,7 +111,23 @@ export default function PenerimaanBankJateng() {
   const [activeBatchName, setActiveBatchName] = useState('');
   const [batchSimbaItems, setBatchSimbaItems] = useState<any[]>([]);
   const [batchStartSimbaNo, setBatchStartSimbaNo] = useState('');
+  const [selectedBatchUpzFilter, setSelectedBatchUpzFilter] = useState<string>('');
   const [isSavingBatchSimba, setIsSavingBatchSimba] = useState(false);
+
+  const batchUpzOptions = useMemo(() => {
+    const set = new Set<string>();
+    batchSimbaItems.forEach(item => {
+      if (item.opd) set.add(item.opd);
+    });
+    return Array.from(set).sort();
+  }, [batchSimbaItems]);
+
+  const displayedBatchItems = useMemo(() => {
+    if (!selectedBatchUpzFilter || selectedBatchUpzFilter === 'ALL') {
+      return batchSimbaItems;
+    }
+    return batchSimbaItems.filter(item => item.opd === selectedBatchUpzFilter);
+  }, [batchSimbaItems, selectedBatchUpzFilter]);
 
   const toggleBatchExpand = (batchName: string) => {
     setExpandedBatches(prev => ({
@@ -354,17 +372,24 @@ export default function PenerimaanBankJateng() {
     });
 
     const itemsMapped = sortedItems.map((item: any) => {
-      let opdName = 'UPZ';
-      if (item.keterangan) {
-        const match = item.keterangan.match(/\(([^)]+)\)$/) || item.keterangan.match(/\(([^)]+)\)[^()]*$/);
-        if (match) {
-          opdName = match[1].trim();
+      let opdName = item.opd || item.muzakki?.opd || '';
+      if (!opdName || opdName === 'UPZ' || opdName === 'Lainnya') {
+        if (item.keterangan) {
+          const matchOpdRek = item.keterangan.match(/OPD\s+(.*?)\s+-\s+Rekening/i);
+          const matchParen = item.keterangan.match(/\(([^)]+)\)$/) || item.keterangan.match(/\(([^)]+)\)[^()]*$/);
+          if (matchOpdRek) {
+            opdName = matchOpdRek[1].trim();
+          } else if (matchParen) {
+            opdName = matchParen[1].trim();
+          }
         }
       }
+      if (!opdName) opdName = 'UPZ Lainnya';
+
       return {
         id: item.id,
         no_kuitansi: item.no_kuitansi,
-        nama: item.muzakki?.nama || '-',
+        nama: item.muzakki?.nama || item.nama || '-',
         opd: opdName,
         nominal: Number(item.nominal || 0),
         no_transaksi_simba: item.no_transaksi_simba || ''
@@ -372,6 +397,7 @@ export default function PenerimaanBankJateng() {
     });
 
     setBatchSimbaItems(itemsMapped);
+    setSelectedBatchUpzFilter('');
     const firstSimba = itemsMapped.find((i: any) => i.no_transaksi_simba)?.no_transaksi_simba || '';
     setBatchStartSimbaNo(firstSimba);
     setIsSimbaBatchModalOpen(true);
@@ -381,12 +407,12 @@ export default function PenerimaanBankJateng() {
     const trimmed = startStr.trim();
     if (!trimmed) return Array(count).fill('');
 
-    const match = trimmed.match(/^(.*?)(\d+)$/);
+    const match = trimmed.match(/^(.*?\D)?(\d+)$/);
     if (!match) {
       return Array.from({ length: count }, (_, idx) => idx === 0 ? trimmed : `${trimmed}-${idx + 1}`);
     }
 
-    const prefix = match[1];
+    const prefix = match[1] || '';
     const numStr = match[2];
     const numLen = numStr.length;
     const startNum = parseInt(numStr, 10);
@@ -401,38 +427,61 @@ export default function PenerimaanBankJateng() {
   };
 
   const handleGenerateBatchSimbaSequence = () => {
-    if (!batchStartSimbaNo.trim()) {
-      alert('Masukkan Nomor SIMBA Pertama terlebih dahulu!');
+    let startNo = batchStartSimbaNo.trim();
+    if (!startNo) {
+      startNo = '1';
+      setBatchStartSimbaNo('1');
+    }
+
+    const isAll = !selectedBatchUpzFilter || selectedBatchUpzFilter === 'ALL' || selectedBatchUpzFilter === 'SEMUA';
+    const targetItems = isAll
+      ? batchSimbaItems
+      : batchSimbaItems.filter(item => item.opd === selectedBatchUpzFilter);
+
+    if (targetItems.length === 0) {
+      alert('Tidak ada transaksi yang sesuai dengan filter UPZ!');
       return;
     }
-    const generated = helperIncrementSimbaNo(batchStartSimbaNo, batchSimbaItems.length);
-    setBatchSimbaItems(prev => prev.map((item, idx) => ({
-      ...item,
-      no_transaksi_simba: generated[idx] || item.no_transaksi_simba
-    })));
+
+    const generated = helperIncrementSimbaNo(startNo, targetItems.length);
+
+    let genIdx = 0;
+    setBatchSimbaItems(prev => prev.map(item => {
+      if (isAll || item.opd === selectedBatchUpzFilter) {
+        const nextVal = generated[genIdx++];
+        return {
+          ...item,
+          no_transaksi_simba: nextVal !== undefined ? nextVal : item.no_transaksi_simba
+        };
+      }
+      return item;
+    }));
   };
 
-  const handleResequenceFromRow = (targetIdx: number) => {
-    const targetItem = batchSimbaItems[targetIdx];
+  const handleResequenceFromRow = (displayedIdx: number) => {
+    const targetItem = displayedBatchItems[displayedIdx];
     if (!targetItem || !targetItem.no_transaksi_simba.trim()) {
       alert('Isi nomor SIMBA pada baris ini terlebih dahulu!');
       return;
     }
 
-    const remainingCount = batchSimbaItems.length - targetIdx;
-    const generated = helperIncrementSimbaNo(targetItem.no_transaksi_simba, remainingCount);
+    const remainingItems = displayedBatchItems.slice(displayedIdx);
+    const generated = helperIncrementSimbaNo(targetItem.no_transaksi_simba, remainingItems.length);
 
-    setBatchSimbaItems(prev => {
-      const updated = [...prev];
-      for (let i = 0; i < remainingCount; i++) {
-        const curIdx = targetIdx + i;
-        updated[curIdx] = {
-          ...updated[curIdx],
-          no_transaksi_simba: generated[i]
+    const updatedMap = new Map<string | number, string>();
+    remainingItems.forEach((item, i) => {
+      updatedMap.set(item.id, generated[i]);
+    });
+
+    setBatchSimbaItems(prev => prev.map(item => {
+      if (updatedMap.has(item.id)) {
+        return {
+          ...item,
+          no_transaksi_simba: updatedMap.get(item.id)!
         };
       }
-      return updated;
-    });
+      return item;
+    }));
   };
 
   const handleSaveBatchSimba = async () => {
@@ -2776,32 +2825,95 @@ export default function PenerimaanBankJateng() {
               </div>
 
               {/* Controls Header */}
-              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shrink-0">
-                <div className="flex-1 flex flex-col md:flex-row items-stretch md:items-center gap-2">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                      Nomor SIMBA Pertama
+              <div className="p-4 bg-slate-50 border-b border-slate-200/80 flex flex-col lg:flex-row items-stretch lg:items-end justify-between gap-4 shrink-0">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  {/* UPZ Filter Select */}
+                  <div className="sm:col-span-5 relative">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1.5 flex items-center gap-1.5">
+                      <Filter className="size-3.5 text-slate-400" />
+                      <span>Filter UPZ / OPD</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedBatchUpzFilter}
+                        onChange={(e) => setSelectedBatchUpzFilter(e.target.value)}
+                        className="w-full appearance-none bg-white border border-slate-200 rounded-xl pl-3.5 pr-9 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 shadow-sm transition-all cursor-pointer"
+                      >
+                        <option value="">Semua UPZ / OPD ({batchSimbaItems.length})</option>
+                        {batchUpzOptions.map(upz => {
+                          const count = batchSimbaItems.filter(i => i.opd === upz).length;
+                          return (
+                            <option key={upz} value={upz}>
+                              {upz} ({count} transaksi)
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown className="size-4" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nomor SIMBA Pertama Input */}
+                  <div className="sm:col-span-4">
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1.5 flex items-center gap-1.5">
+                      <Sparkles className="size-3.5 text-amber-500" />
+                      <span>Nomor SIMBA Pertama</span>
                     </label>
                     <input 
                       type="text" 
-                      placeholder="Contoh: 2026/ZAKAT/001001 atau 1001" 
+                      placeholder="Contoh: 2026/ZAKAT/001001" 
                       value={batchStartSimbaNo}
                       onChange={(e) => setBatchStartSimbaNo(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 shadow-sm transition-all"
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleGenerateBatchSimbaSequence}
-                    className="self-end px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm shrink-0"
-                  >
-                    Generate Nomor Urut
-                  </button>
+
+                  {/* Generate Button */}
+                  <div className="sm:col-span-3">
+                    <button
+                      type="button"
+                      onClick={handleGenerateBatchSimbaSequence}
+                      className="w-full px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold rounded-xl text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 h-[38px]"
+                    >
+                      <Sparkles className="size-3.5 shrink-0" />
+                      <span className="truncate">Generate Nomor</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <span className="text-xs font-bold text-slate-600">
-                    Terisi: {batchSimbaItems.filter(i => i.no_transaksi_simba?.trim()).length} / {batchSimbaItems.length}
-                  </span>
+
+                {/* Summary Stats Badges */}
+                <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200/60">
+                  {/* Terisi Badge */}
+                  <div className="bg-white border border-slate-200/90 rounded-xl px-3 py-1.5 shadow-sm flex items-center gap-2">
+                    <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <div className="text-[11px]">
+                      <span className="text-slate-400 font-medium mr-1">Terisi:</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        {batchSimbaItems.filter(i => i.no_transaksi_simba?.trim()).length}
+                      </span>
+                      <span className="text-slate-400 mx-0.5">/</span>
+                      <span className="font-mono font-bold text-slate-600">{batchSimbaItems.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Filter / Total Display Badge */}
+                  <div className={cn(
+                    "border rounded-xl px-3 py-1.5 shadow-sm flex items-center gap-2 transition-all",
+                    selectedBatchUpzFilter 
+                      ? "bg-emerald-50/80 border-emerald-200 text-emerald-900" 
+                      : "bg-white border-slate-200/90 text-slate-700"
+                  )}>
+                    <Filter className={cn("size-3.5", selectedBatchUpzFilter ? "text-emerald-600" : "text-slate-400")} />
+                    <div className="text-[11px] font-semibold">
+                      <span className={selectedBatchUpzFilter ? "text-emerald-700 font-medium" : "text-slate-400 font-medium"}>
+                        {selectedBatchUpzFilter ? "Menampilkan:" : "Total:"}
+                      </span>{" "}
+                      <span className="font-mono font-bold">{displayedBatchItems.length}</span>
+                      <span className="text-[10px] ml-0.5 font-normal">transaksi</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2819,7 +2931,7 @@ export default function PenerimaanBankJateng() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {batchSimbaItems.map((item, idx) => (
+                    {displayedBatchItems.map((item, idx) => (
                       <tr key={item.id || idx} className="hover:bg-slate-50/50">
                         <td className="p-3 text-center font-mono font-bold text-slate-400">{idx + 1}</td>
                         <td className="p-3 font-bold text-slate-800">{item.nama}</td>
@@ -2833,7 +2945,7 @@ export default function PenerimaanBankJateng() {
                             value={item.no_transaksi_simba}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setBatchSimbaItems(prev => prev.map((it, i) => i === idx ? { ...it, no_transaksi_simba: val } : it));
+                              setBatchSimbaItems(prev => prev.map(it => it.id === item.id ? { ...it, no_transaksi_simba: val } : it));
                             }}
                             placeholder="Ketik No. SIMBA..."
                             className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 outline-none"

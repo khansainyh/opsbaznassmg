@@ -636,6 +636,41 @@ export const updateSimbaStatus = async (req: Request, res: Response) => {
   }
 };
 
+export const bulkUpdateSimbaStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { updates } = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      res.status(400).json({ error: 'Data updates tidak boleh kosong' });
+      return;
+    }
+
+    const updatedRecords = [];
+    for (const item of updates) {
+      const simbaNo = item.no_transaksi_simba ? String(item.no_transaksi_simba).trim() : null;
+      const statusSimba = (simbaNo && simbaNo.length > 0) ? 'SYNCED' : 'PENDING';
+
+      const updated = await prisma.penerimaanZis.update({
+        where: { id: item.id },
+        data: {
+          no_transaksi_simba: simbaNo,
+          status_simba: statusSimba
+        },
+        include: {
+          muzakki: true,
+          rkat: true,
+          bankAccount: true
+        }
+      });
+      updatedRecords.push(updated);
+    }
+
+    res.status(200).json({ status: 'success', message: `Berhasil meng-update SIMBA untuk ${updatedRecords.length} transaksi!`, data: updatedRecords });
+  } catch (error: any) {
+    console.error('Error bulk updating SIMBA status:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+};
+
 export const updatePenerimaanZis = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
