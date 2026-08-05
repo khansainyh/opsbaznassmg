@@ -385,60 +385,62 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
         .filter(g => g.items.length > 0);
 
       contentHtml = `
-        <h2 style="font-size: 20px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 12px;">
+        <h2 style="font-size: 18px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 8px;">
           ${title}
         </h2>
         ${activeGroups.length === 0 ? `
-          <p style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 16px; margin-top: 30px;">Tidak ada data detail proposal masuk</p>
+          <p style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 14px; margin-top: 20px;">Tidak ada data detail proposal masuk</p>
         ` : activeGroups.map(g => `
-          <h3 style="font-size: 16px; text-align: left; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-top: 14px; margin-bottom: 6px;">
-            ${g.pilar} : ${g.items.length}
-          </h3>
-          <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 12px; margin-bottom: 12px;">
-            <thead>
-              <tr style="background-color: #ffffff; height: 40px;">
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">No</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">No Agenda</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Tanggal Proposal Masuk</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Nama Instansi</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 9%;">Pimpinan Organisasi</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Nama Pemohon</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Nama Anak</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 11%;">Alamat</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Kelurahan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 7%;">Kecamatan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Jenis Permohonan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 6%;">NoTelpon</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 4%;">Jam Pengajuan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Yang Mengajukan</th>
-                <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">TTD</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${g.items.map((item, index) => {
-                const combinedPermohonan = item.programCode ? `${item.programCode} || ${item.jenisPermohonan}` : item.jenisPermohonan;
-                return `
-                  <tr style="height: 45px;">
-                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${index + 1}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.agendaNo}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${formatIndonesianDateStr(item.tanggalMasuk)}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaInstansi || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.pimpinanOrganisasi || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaPemohon || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaAnak || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.alamat || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.kelurahan || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${item.kecamatan || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px;">${combinedPermohonan || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.noTelpon || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.jamPengajuan || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.yangMengajukan || '-'}</td>
-                    <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;"></td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
+          <div style="page-break-inside: avoid; break-inside: avoid;">
+            <h3 style="font-size: 14px; text-align: left; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-top: 10px; margin-bottom: 4px;">
+              ${g.pilar} : ${g.items.length}
+            </h3>
+            <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 11px; margin-bottom: 8px; page-break-inside: avoid; break-inside: avoid;">
+              <thead>
+                <tr style="background-color: #ffffff; height: 28px;">
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 3%;">No</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 5%;">No Agenda</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 7%;">Tanggal Proposal Masuk</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 10%;">Nama Instansi</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 9%;">Pimpinan Organisasi</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 8%;">Nama Pemohon</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 7%;">Nama Anak</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 11%;">Alamat</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 7%;">Kelurahan</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 7%;">Kecamatan</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 8%;">Jenis Permohonan</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 6%;">NoTelpon</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 4%;">Jam Pengajuan</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 5%;">Yang Mengajukan</th>
+                  <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 3%;">TTD</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${g.items.map((item, index) => {
+                  const combinedPermohonan = item.programCode ? `${item.programCode} || ${item.jenisPermohonan}` : item.jenisPermohonan;
+                  return `
+                    <tr style="height: 32px;">
+                      <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${index + 1}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.agendaNo}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${formatIndonesianDateStr(item.tanggalMasuk)}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${item.namaInstansi || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${item.pimpinanOrganisasi || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${item.namaPemohon || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${item.namaAnak || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${item.alamat || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${item.kelurahan || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${item.kecamatan || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px;">${combinedPermohonan || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.noTelpon || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.jamPengajuan || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.yangMengajukan || '-'}</td>
+                      <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;"></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
         `).join('')}
       `;
     }
@@ -446,7 +448,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     let signatureHtml = '';
     if (reportType === 'harian_pilar') {
       signatureHtml = `
-        <table style="width: 90%; border: none; margin: 55px auto 0; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
+        <table style="width: 90%; border: none; margin: 30px auto 0; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
             <td style="border: none; width: 68%; padding-left: 20px;"></td>
             <td style="border: none; width: 32%; text-align: left; padding-bottom: 8px;">
@@ -462,7 +464,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 110px;">
+          <tr style="border: none; height: 65px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
@@ -478,10 +480,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'harian_detail') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 20px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
+        <table style="width: 100%; border: none; margin-top: 15px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
             <td style="border: none; width: 72%; padding-left: 18%;"></td>
-            <td style="border: none; width: 28%; text-align: left; padding-bottom: 6px;">
+            <td style="border: none; width: 28%; text-align: left; padding-bottom: 4px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
@@ -494,7 +496,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Staff Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 60px;">
+          <tr style="border: none; height: 65px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
@@ -510,7 +512,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'mingguan') {
       signatureHtml = `
-        <table style="width: 85%; margin: 45px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
+        <table style="width: 85%; margin: 30px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
             <td style="border: none; width: 33%;"></td>
             <td style="border: none; width: 33%;"></td>
@@ -531,7 +533,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 85px;">
+          <tr style="border: none; height: 65px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
@@ -551,7 +553,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     } else if (reportType === 'bulanan') {
       signatureHtml = `
-        <table style="width: 85%; margin: 45px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px;">
+        <table style="width: 85%; margin: 30px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
             <td style="border: none; width: 33%;"></td>
             <td style="border: none; width: 33%;"></td>
@@ -600,7 +602,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
             </td>
             <td style="border: none;"></td>
           </tr>
-          <tr style="border: none; height: 85px;">
+          <tr style="border: none; height: 65px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
@@ -629,13 +631,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           <style>
             @page {
               size: ${reportType === 'harian_detail' ? 'A4 landscape' : 'A4 portrait'};
-              margin: 15mm;
+              margin: 10mm 12mm;
             }
             body {
               font-family: 'Times New Roman', Times, serif;
               color: #000;
               margin: 0;
-              padding: 10px;
+              padding: 0;
             }
             table {
               page-break-inside: auto;
