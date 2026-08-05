@@ -70,7 +70,7 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
     let totalBatchNominal = 0;
 
-    // Process all in a transaction
+    // Process all in a transaction with extended timeout
     const results = await prisma.$transaction(async (tx) => {
       const paramRkatZakatNo = await tx.systemParameter.findUnique({ where: { key: 'rkat_pengumpulan_no_zakat' } });
       const paramRkatInfakNo = await tx.systemParameter.findUnique({ where: { key: 'rkat_pengumpulan_no_infak' } });
@@ -438,7 +438,7 @@ export const deleteBatch = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Process deletion in a transaction
+    // Process deletion in a transaction with extended timeout
     await prisma.$transaction(async (tx) => {
       // 1. Group total nominal by bank account to decrement balance
       const balanceDecrements: Record<string, number> = {};
@@ -549,7 +549,7 @@ export const deleteBatch = async (req: Request, res: Response): Promise<void> =>
           console.error('Error updating mutations.json in deleteBatch:', mErr);
         }
       }
-    });
+    }, { timeout: 60000 });
 
     res.status(200).json({ status: 'success', message: `Batch ${batchName} berhasil dihapus` });
   } catch (error: any) {
@@ -566,19 +566,22 @@ export const updateBatchSimba = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
-      for (const item of updates) {
-        if (!item.id) continue;
+    const updatePromises = updates
+      .filter((item: any) => item && item.id)
+      .map((item: any) => {
         const simbaNo = item.no_transaksi_simba ? String(item.no_transaksi_simba).trim() : null;
-        await tx.penerimaanZis.update({
+        return prisma.penerimaanZis.updateMany({
           where: { id: item.id },
           data: {
             no_transaksi_simba: simbaNo,
             status_simba: (simbaNo && simbaNo.length > 0) ? 'SYNCED' : 'PENDING'
           }
         });
-      }
-    });
+      });
+
+    if (updatePromises.length > 0) {
+      await prisma.$transaction(updatePromises);
+    }
 
     res.status(200).json({ status: 'success', message: 'Berhasil meng-update No Transaksi SIMBA Batch!' });
   } catch (error: any) {
