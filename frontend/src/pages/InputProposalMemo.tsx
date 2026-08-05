@@ -1111,7 +1111,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
               
               .logo-img {
-                  height: 90px;
+                  height: 110px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -1238,7 +1238,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .disposisi-table-container {
-                  margin-top: 5px;
+                  margin-top: 10px;
                   flex-shrink: 0;
               }
 
@@ -1259,8 +1259,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .disposisi-box {
-                  height: 120px;
-                  min-height: 120px;
+                  height: 145px;
+                  min-height: 145px;
                   vertical-align: top;
                   padding-top: 6px;
               }

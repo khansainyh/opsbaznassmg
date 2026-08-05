@@ -514,7 +514,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
               
               .logo-img {
-                  height: 90px;
+                  height: 110px;
                   max-width: 100%;
                   object-fit: contain;
               }
@@ -574,7 +574,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               .perihal-wrapper {
                   display: flex;
                   flex-direction: column;
-                  justify-content: space-around;
+                  justify-content: center;
+                  gap: 8px;
                   height: 100%;
                   min-height: 125px;
               }
@@ -597,7 +598,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .disposisi-table-container {
-                  margin-top: 5px;
+                  margin-top: 10px;
                   flex-shrink: 0;
               }
 
@@ -618,8 +619,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               }
 
               .disposisi-box {
-                  height: 120px;
-                  min-height: 120px;
+                  height: 145px;
+                  min-height: 145px;
                   vertical-align: top;
                   padding-top: 6px;
               }
@@ -654,8 +655,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                           <td class="value-text no-surat-cell">${surat.agendaNo || ''}</td>
                       </tr>
                       <tr>
-                          <td class="label-text" style="vertical-align: top; padding-top: 8px;">Perihal</td>
-                          <td class="colon-sep" style="vertical-align: top; padding-top: 8px;">:</td>
+                          <td class="label-text" style="vertical-align: middle;">Perihal</td>
+                          <td class="colon-sep" style="vertical-align: middle;">:</td>
                           <td colspan="4" class="perihal-cell">
                               <div class="perihal-wrapper">
                                   <div class="perihal-header">
