@@ -17,7 +17,6 @@ import {
   TrendingUp,
   FileSpreadsheet,
   Edit3,
-  BookOpen,
   Printer,
   FileText,
   Upload,
@@ -749,8 +748,6 @@ export default function PenerimaanZis() {
   const [muzakkiSearch, setMuzakkiSearch] = useState('');
   const [showMuzakkiDropdown, setShowMuzakkiDropdown] = useState(false);
   const [isOutsideRkat, setIsOutsideRkat] = useState(false);
-  const [coaSearch, setCoaSearch] = useState('');
-  const [isCoaDropdownOpen, setIsCoaDropdownOpen] = useState(false);
   const [noTransaksiSimba, setNoTransaksiSimba] = useState('');
   const [selectedKodeProgram, setSelectedKodeProgram] = useState('');
   const [selectedUpzId, setSelectedUpzId] = useState('');
@@ -1663,8 +1660,6 @@ export default function PenerimaanZis() {
     setNoKuitansi(item.no_kuitansi || '');
     setNoTransaksiSimba(item.no_transaksi_simba || '');
     setIsOutsideRkat(!rkatId);
-    setCoaSearch('');
-    setIsCoaDropdownOpen(false);
     setIsModalOpen(true);
   };
 
@@ -1779,8 +1774,6 @@ export default function PenerimaanZis() {
     setShowQuickRegister(false);
     setEditingId(null);
     setIsOutsideRkat(false);
-    setCoaSearch('');
-    setIsCoaDropdownOpen(false);
     setNoTransaksiSimba('');
     setSelectedUpzId('');
     setSelectedKodeProgram('');
@@ -1799,15 +1792,7 @@ export default function PenerimaanZis() {
     }).slice(0, 10);
   }, [muzakkiList, muzakkiSearch]);
 
-  const filteredCoasForSearch = useMemo(() => {
-    const basePenerimaan = coaList.filter(c => c.klasifikasi === 'Penerimaan' || c.coa_code.startsWith('4'));
-    if (!coaSearch) return basePenerimaan;
-    const term = coaSearch.toLowerCase();
-    return basePenerimaan.filter(coa => 
-      coa.coa_code.toLowerCase().includes(term) || 
-      coa.nama_akun.toLowerCase().includes(term)
-    );
-  }, [coaList, coaSearch]);
+
 
   const getIndonesianDayName = (dateStr: string) => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
