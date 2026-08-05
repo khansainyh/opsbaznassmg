@@ -309,6 +309,28 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         const nominalVal = Number(failedItem.nominal) || 0;
         const no_kuitansi = `${batchName} / Gagal / ${j + 1}`;
         
+        const rawFailedOpd = failedItem.opd ? String(failedItem.opd).replace(/^UPZ\s+/i, '').toLowerCase().trim() : '';
+        let failedUpzId: string | null = null;
+        if (rawFailedOpd) {
+          const matchedUpz = allUpzs.find(u => 
+            u.nama_upz.toLowerCase().includes(rawFailedOpd) ||
+            rawFailedOpd.includes(u.nama_upz.toLowerCase())
+          );
+          if (matchedUpz) failedUpzId = matchedUpz.id;
+        }
+
+        const failedNorek = failedItem.no_rekening ? String(failedItem.no_rekening).trim() : '';
+        const failedName = failedItem.nama ? String(failedItem.nama).trim() : '';
+        let failedMuzakkiId: string | null = null;
+        if (failedNorek) {
+          const matchedMuz = Array.from(muzakkiMap.values()).find(m => m.no_rekening === failedNorek);
+          if (matchedMuz) failedMuzakkiId = matchedMuz.id;
+        }
+        if (!failedMuzakkiId && failedName) {
+          const matchedMuz = Array.from(muzakkiMap.values()).find(m => m.nama.toLowerCase() === failedName.toLowerCase());
+          if (matchedMuz) failedMuzakkiId = matchedMuz.id;
+        }
+
         const failedKeterangan = JSON.stringify({
           type: 'failed_deduction',
           nama: failedItem.nama || '-',
@@ -320,7 +342,8 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
         failedPenerimaanRecords.push({
           id: randomUUID(),
           no_kuitansi,
-          muzakki_id: null,
+          muzakki_id: failedMuzakkiId,
+          upz_id: failedUpzId,
           rkat_id: null,
           bank_account_id,
           nominal: new Prisma.Decimal(nominalVal),
@@ -395,6 +418,43 @@ export const approveBankJateng = async (req: Request, res: Response): Promise<vo
 
 export const getHistory = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Backfill existing failed deduction records that have upz_id = null
+    const unlinkedFailed = await prisma.penerimaanZis.findMany({
+      where: {
+        upz_id: null,
+        OR: [
+          { status_simba: 'FAILED' },
+          { keterangan: { contains: 'failed_deduction' } }
+        ]
+      }
+    });
+
+    if (unlinkedFailed.length > 0) {
+      const allUpzs = await prisma.upz.findMany();
+      for (const rec of unlinkedFailed) {
+        if (!rec.keterangan) continue;
+        let opdName = '';
+        try {
+          const parsed = JSON.parse(rec.keterangan);
+          if (parsed && parsed.opd) opdName = String(parsed.opd);
+        } catch (e) {}
+
+        if (!opdName) continue;
+        const cleanOpd = opdName.replace(/^UPZ\s+/i, '').toLowerCase().trim();
+        const matchedUpz = allUpzs.find(u => 
+          u.nama_upz.toLowerCase().includes(cleanOpd) ||
+          cleanOpd.includes(u.nama_upz.toLowerCase())
+        );
+
+        if (matchedUpz) {
+          await prisma.penerimaanZis.update({
+            where: { id: rec.id },
+            data: { upz_id: matchedUpz.id }
+          });
+        }
+      }
+    }
+
     const history = await prisma.penerimaanZis.findMany({
       where: {
         OR: [
@@ -413,7 +473,8 @@ export const getHistory = async (req: Request, res: Response): Promise<void> => 
       include: {
         muzakki: true,
         bankAccount: true,
-        rkat: true
+        rkat: true,
+        upz: true
       },
       orderBy: {
         tanggal_pembayaran: 'desc'
