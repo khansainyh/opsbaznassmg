@@ -219,8 +219,17 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.namaInstansi || 'Perorangan'}</p>
+                      {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                        <>
+                          <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
+                          <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
+                          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.namaInstansi || 'Perorangan'}</p>
+                        </>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-900">{item.tanggalMasuk}</p>
@@ -360,7 +369,10 @@ export default function ReviewKabag({ data, onUpdate, suratData, onUpdateSurat }
                       <div>
                         <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
                         <div className="space-y-4">
-                          <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
+                          <DetailItem 
+                            label={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? "Nama Instansi" : "Nama Lengkap"} 
+                            value={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
+                          />
                           <DetailItem label="NIK" value={selectedProposal.nik || '-'} />
                           <DetailItem label="Alamat" value={selectedProposal.alamat || '-'} />
                           <DetailItem label="Kelurahan" value={selectedProposal.kelurahan || '-'} />

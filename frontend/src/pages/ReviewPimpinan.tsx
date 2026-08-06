@@ -426,8 +426,17 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                       <span className="text-sm font-black bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                      <p className="text-[10px] text-slate-400">Relawan: {item.surveyorName || '-'}</p>
+                      {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                        <>
+                          <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
+                          <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
+                          <p className="text-[10px] text-slate-400">Relawan: {item.surveyorName || '-'}</p>
+                        </>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-700">{item.tanggalMasuk}</p>

@@ -717,7 +717,14 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                           {String(item.agendaNo).padStart(3, '0')}
                         </td>
                         <td className="py-3 px-4 text-slate-800 font-bold">
-                          {item.namaPemohon}
+                          {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
+                              <p className="text-[10px] text-slate-500 font-normal">{item.namaPemohon}</p>
+                            </div>
+                          ) : (
+                            item.namaPemohon
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
@@ -1180,7 +1187,10 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                       <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
-                          <DetailItem label="Nama Lengkap" value={selectedDetailProposal.namaPemohon} />
+                          <DetailItem 
+                            label={(selectedDetailProposal.jenisPengajuan === 'Lembaga' || selectedDetailProposal.namaInstansi) ? "Nama Instansi" : "Nama Lengkap"} 
+                            value={(selectedDetailProposal.jenisPengajuan === 'Lembaga' || selectedDetailProposal.namaInstansi) ? (selectedDetailProposal.namaInstansi || selectedDetailProposal.namaPemohon) : selectedDetailProposal.namaPemohon} 
+                          />
                         </div>
                         <DetailItem label="NIK" value={selectedDetailProposal.nik} />
                         <DetailItem label="Alamat" value={selectedDetailProposal.alamat} />

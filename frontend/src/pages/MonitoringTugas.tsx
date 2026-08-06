@@ -727,9 +727,15 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <p className="font-bold text-slate-900">{task.namaPemohon}</p>
+                      <p className="font-bold text-slate-900">
+                        {task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (task.namaInstansi || task.namaPemohon) : task.namaPemohon}
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-500">{task.alamat}</p>
+                    {task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (
+                      <p className="text-xs text-slate-500">Pemohon: {task.namaPemohon} · {task.alamat}</p>
+                    ) : (
+                      <p className="text-xs text-slate-500">{task.alamat}</p>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1">

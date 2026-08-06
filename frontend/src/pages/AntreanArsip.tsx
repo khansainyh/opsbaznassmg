@@ -356,8 +356,17 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                        <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.nik}</p>
+                        {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                          <>
+                            <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
+                            <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.nik}</p>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">

@@ -1522,20 +1522,26 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                     <p className="text-[10px] text-slate-400 font-medium">{item.jamPengajuan}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                      {item.hasMemo && (
-                        <div className="group/memo relative">
-                          <AlertCircle className="size-3 text-emerald-500 cursor-help" />
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/memo:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
-                            Memo: {item.memoSource}
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-slate-900">
+                          {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon}
+                        </p>
+                        {item.hasMemo && (
+                          <div className="group/memo relative">
+                            <AlertCircle className="size-3 text-emerald-500 cursor-help" />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/memo:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
+                              Memo: {item.memoSource}
+                            </div>
                           </div>
-                        </div>
+                        )}
+                      </div>
+                      {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                        <span className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</span>
                       )}
                     </div>
-                    {item.namaInstansi && (
-                      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.namaInstansi}</p>
-                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate font-medium">
                     {item.jenisPermohonan}
@@ -1905,7 +1911,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   <div>
                     <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
                     <div className="space-y-4">
-                      <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
+                      <DetailItem 
+                        label={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? "Nama Instansi" : "Nama Lengkap"} 
+                        value={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
+                      />
                       <DetailItem label="NIK" value={selectedProposal.nik} />
                       <DetailItem label="No. KK" value={selectedProposal.no_kk || (selectedProposal as any).noKk || '-'} />
                       <DetailItem label="Nama Anak" value={selectedProposal.namaAnak || '-'} />
@@ -2585,65 +2594,58 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                         <input name="email" type="email" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="email@..." defaultValue={editingProposal?.email || ""} />
                       </div>
 
-                      <div className="space-y-1">
-                        {jenisPengajuanState === 'Perorangan' ? (
-                          <>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
-                            <div className="relative">
-                              <input type="hidden" name="pekerjaan" value={selectedPekerjaan} />
-                              <button
-                                type="button"
-                                onClick={() => setIsPekerjaanDropdownOpen(!isPekerjaanDropdownOpen)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
-                              >
-                                <span className={selectedPekerjaan ? "text-slate-800 font-medium" : "text-slate-400"}>
-                                  {selectedPekerjaan || "Pilih Pekerjaan..."}
-                                </span>
-                                <span className="text-slate-400">▼</span>
-                              </button>
+                      {jenisPengajuanState === 'Perorangan' && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pekerjaan (Opsional)</label>
+                          <div className="relative">
+                            <input type="hidden" name="pekerjaan" value={selectedPekerjaan} />
+                            <button
+                              type="button"
+                              onClick={() => setIsPekerjaanDropdownOpen(!isPekerjaanDropdownOpen)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center"
+                            >
+                              <span className={selectedPekerjaan ? "text-slate-800 font-medium" : "text-slate-400"}>
+                                {selectedPekerjaan || "Pilih Pekerjaan..."}
+                              </span>
+                              <span className="text-slate-400">▼</span>
+                            </button>
 
-                              {isPekerjaanDropdownOpen && (
-                                <>
-                                  <div className="fixed inset-0 z-40" onClick={() => setIsPekerjaanDropdownOpen(false)} />
-                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 text-left max-h-56 overflow-y-auto">
-                                    {[
-                                      "Pedagang",
-                                      "Petani",
-                                      "Peternak",
-                                      "Nelayan",
-                                      "Buruh Harian Lepas",
-                                      "Penyedia Jasa",
-                                      "Sektor Lainnya"
-                                    ].map(opt => (
-                                      <button
-                                        key={opt}
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedPekerjaan(opt);
-                                          setIsPekerjaanDropdownOpen(false);
-                                        }}
-                                        className={cn(
-                                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
-                                          selectedPekerjaan === opt
-                                            ? "bg-primary text-white font-bold"
-                                            : "text-slate-700 hover:bg-slate-100"
-                                        )}
-                                      >
-                                        {opt}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Lembaga (Opsional)</label>
-                            <input name="jenisLembaga" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Yayasan, Masjid, dll..." defaultValue={(editingProposal as any)?.jenisLembaga || "Lembaga"} />
-                          </>
-                        )}
-                      </div>
+                            {isPekerjaanDropdownOpen && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsPekerjaanDropdownOpen(false)} />
+                                <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 text-left max-h-56 overflow-y-auto">
+                                  {[
+                                    "Pedagang",
+                                    "Petani",
+                                    "Peternak",
+                                    "Nelayan",
+                                    "Buruh Harian Lepas",
+                                    "Penyedia Jasa",
+                                    "Sektor Lainnya"
+                                  ].map(opt => (
+                                    <button
+                                      key={opt}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedPekerjaan(opt);
+                                        setIsPekerjaanDropdownOpen(false);
+                                      }}
+                                      className={cn(
+                                        "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                        selectedPekerjaan === opt
+                                          ? "bg-primary text-white font-bold"
+                                          : "text-slate-700 hover:bg-slate-100"
+                                      )}
+                                    >
+                                      {opt}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Yang Mengajukan</label>
                         <input name="yangMengajukan" type="text" className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Nama pengaju..." defaultValue={editingProposal?.yangMengajukan || ""} />

@@ -1496,7 +1496,12 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                       <CheckCircle2 className="size-3" /> Survei Selesai
                     </span>
                   </div>
-                  <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">{task.namaPemohon}</h3>
+                  <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">
+                    {task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (task.namaInstansi || task.namaPemohon) : task.namaPemohon}
+                  </h3>
+                  {task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (
+                    <p className="text-xs text-slate-500 font-medium mb-1">Pemohon: {task.namaPemohon}</p>
+                  ) : null}
                   <div className="flex items-center gap-1.5 text-slate-400 mb-4">
                     <MapPin className="size-3" />
                     <span className="text-xs font-semibold">Kec. {task.kecamatan}</span>

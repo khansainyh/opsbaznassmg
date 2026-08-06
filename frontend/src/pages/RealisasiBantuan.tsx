@@ -549,8 +549,17 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                        <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.nik}</p>
+                        {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                          <>
+                            <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
+                            <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.nik}</p>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -712,9 +721,17 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                     {/* Body Row: Mustahik, Program, and Nominal */}
                     <div className="space-y-2.5 text-xs">
                       <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mustahik</p>
-                        <p className="text-sm font-bold text-slate-900 mt-0.5">{item.namaPemohon}</p>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">NIK: {item.nik}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                          {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? 'Instansi / Lembaga' : 'Mustahik'}
+                        </p>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">
+                          {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon}
+                        </p>
+                        {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Pemohon: {item.namaPemohon}</p>
+                        ) : (
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">NIK: {item.nik}</p>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
@@ -925,7 +942,10 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                     <div>
                       <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
                       <div className="space-y-4">
-                        <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
+                        <DetailItem 
+                          label={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? "Nama Instansi" : "Nama Lengkap"} 
+                          value={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
+                        />
                         <DetailItem label="NIK" value={selectedProposal.nik} />
                         <DetailItem label="No. Telepon" value={selectedProposal.noTelpon || '-'} />
                         <DetailItem label="Alamat" value={selectedProposal.alamat} />

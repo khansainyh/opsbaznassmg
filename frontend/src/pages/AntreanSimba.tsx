@@ -894,13 +894,20 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                       
                       {/* 3. Nama Mustahik */}
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="font-bold text-slate-900 text-sm">{item.namaPemohon}</div>
-                          {item.jenisPengajuan === 'Lembaga' && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
-                              Lembaga
-                            </span>
-                          )}
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <div className="font-bold text-slate-900 text-sm">
+                              {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon}
+                            </div>
+                            {item.jenisPengajuan === 'Lembaga' && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                Lembaga
+                              </span>
+                            )}
+                          </div>
+                          {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                            <span className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</span>
+                          ) : null}
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5 font-semibold">NIK: {item.nik}</div>
                         

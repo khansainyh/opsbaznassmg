@@ -239,11 +239,18 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
                     <p className="text-[10px] text-slate-400 font-medium">{item.jamPengajuan}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                    </div>
-                    {item.namaInstansi && (
-                      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.namaInstansi}</p>
+                    {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                      <>
+                        <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
+                        {item.namaInstansi && (
+                          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.namaInstansi}</p>
+                        )}
+                      </>
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate font-medium">
@@ -323,7 +330,10 @@ export default function UploadProposalHumas({ data, allData, onUpdate: _onUpdate
                     <div>
                       <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
                       <div className="space-y-4">
-                        <DetailItem label="Nama Lengkap" value={selectedProposal.namaPemohon} />
+                        <DetailItem 
+                          label={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? "Nama Instansi" : "Nama Lengkap"} 
+                          value={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
+                        />
                         <DetailItem label="NIK" value={selectedProposal.nik} />
                         <DetailItem label="No. KK" value={selectedProposal.no_kk || (selectedProposal as any).noKk || '-'} />
                         <DetailItem label="Nama Anak" value={selectedProposal.namaAnak || '-'} />
