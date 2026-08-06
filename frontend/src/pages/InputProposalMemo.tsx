@@ -1334,13 +1334,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                       </thead>
                       <tbody>
                           <tr>
-                              <td style="width: 33.33%;" class="disposisi-box">
+                              <td style="width: 35%;" class="disposisi-box">
                                   <div class="disposisi-title"><u>Ketua</u></div>
                               </td>
-                              <td style="width: 33.33%;" class="disposisi-box">
+                              <td style="width: 45%;" class="disposisi-box">
                                   <div class="disposisi-title"><u>Kepala Pelaksana</u></div>
                               </td>
-                              <td style="width: 33.33%;" class="disposisi-box">
+                              <td style="width: 20%;" class="disposisi-box">
                                   <div class="disposisi-title"><u>Kabag. Administrasi</u></div>
                               </td>
                           </tr>
