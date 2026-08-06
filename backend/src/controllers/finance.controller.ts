@@ -1843,18 +1843,19 @@ export const getTransitEntries = async (req: Request, res: Response): Promise<vo
           : { _sum: { nominal: null } };
 
         const dbAllocated = Number(linkedReceipts._sum?.nominal || 0);
-        const jsonAllocated = Number(m.allocatedNominal || 0);
-        const actualAllocated = Math.max(dbAllocated, jsonAllocated);
+        const actualAllocated = dbAllocated;
         const totalNominal = Number(m.nominal || 0);
         const sisa = Math.max(0, totalNominal - actualAllocated);
 
         // Sync mutations.json state if needed
-        if (actualAllocated !== jsonAllocated || (sisa <= 0.01 && m.status !== 'RECONCILED') || (sisa > 0.01 && actualAllocated > 0 && m.status !== 'PARTIAL')) {
+        if (actualAllocated !== Number(m.allocatedNominal || 0) || (sisa <= 0.01 && m.status !== 'RECONCILED') || (sisa > 0.01 && actualAllocated > 0 && m.status !== 'PARTIAL') || (actualAllocated <= 0.01 && m.status !== 'PENDING')) {
           m.allocatedNominal = actualAllocated;
           if (sisa <= 0.01) {
             m.status = 'RECONCILED';
           } else if (actualAllocated > 0) {
             m.status = 'PARTIAL';
+          } else {
+            m.status = 'PENDING';
           }
           fileUpdated = true;
         }

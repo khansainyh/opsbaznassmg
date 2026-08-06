@@ -8,14 +8,15 @@
     "keteranganBank": "Gaji a.n Khansa Inayah",
     "nominal": 200000,
     "type": "KREDIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-04T03:45:25.627Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": null,
     "muzakkiName": "-",
     "coaCode": "53010102",
     "sumberDana": "ZAKAT",
-    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Gaji a.n Khansa Inayah"
+    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Gaji a.n Khansa Inayah",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1780544615756",
@@ -26,14 +27,15 @@
     "keteranganBank": "Biaya Listrik",
     "nominal": 2235000,
     "type": "KREDIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-04T04:04:17.200Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": null,
     "muzakkiName": "-",
     "coaCode": "56040102",
     "sumberDana": "-",
-    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Biaya Listrik"
+    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Biaya Listrik",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1780545975969",
@@ -44,14 +46,15 @@
     "keteranganBank": "Belanja ATK bulanan",
     "nominal": 500000,
     "type": "KREDIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-04T04:08:49.954Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": null,
     "muzakkiName": "-",
     "coaCode": "53040405",
     "sumberDana": "-",
-    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Belanja Server Hosting"
+    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Belanja Server Hosting",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1780546320082",
@@ -62,14 +65,15 @@
     "keteranganBank": "Pembuatan Aplikasi Baznas Operational Hub",
     "nominal": 2000000,
     "type": "KREDIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-04T04:12:58.518Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": null,
     "muzakkiName": "-",
     "coaCode": "53040403",
     "sumberDana": "-",
-    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Pembuatan Aplikasi Baznas Operational Hub"
+    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Pembuatan Aplikasi Baznas Operational Hub",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1780546940992",
@@ -80,14 +84,15 @@
     "keteranganBank": "TV CCTV Ruang Pimpinan",
     "nominal": 4000000,
     "type": "KREDIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-04T04:41:00.380Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": null,
     "muzakkiName": "-",
     "coaCode": "56050101",
     "sumberDana": "-",
-    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi TV CCTV Ruang Pimpinan"
+    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi TV CCTV Ruang Pimpinan",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1780636538813",
@@ -97,14 +102,15 @@
     "keteranganBank": "Transfer an Khansa Inayah",
     "nominal": 200000,
     "type": "DEBIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-05T05:18:10.399Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": "f9ee993c-97f2-4285-894f-5564e05e4112",
     "muzakkiName": "Khansa Inayah Arrazaqu",
     "coaCode": "41020101",
     "sumberDana": "Zakat",
-    "keteranganRealisasi": "Zakat Fitrah an Khansa Inayah Arrazaqu"
+    "keteranganRealisasi": "Zakat Fitrah an Khansa Inayah Arrazaqu",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1780887725197",
@@ -114,14 +120,15 @@
     "keteranganBank": "twa",
     "nominal": 200000,
     "type": "DEBIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-08T03:15:04.134Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": "46827c42-7562-46fa-9473-9536652346ad",
     "muzakkiName": "Siti Rahma",
     "coaCode": "41010101",
     "sumberDana": "Zakat",
-    "keteranganRealisasi": "Zakat Fitrah an Siti Rahma"
+    "keteranganRealisasi": "Zakat Fitrah an Siti Rahma",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1780979458116",
@@ -132,7 +139,7 @@
     "keteranganBank": "Belanja ATK Bulan Juni",
     "nominal": 2300000,
     "type": "KREDIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-09T04:32:13.250Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": null,
@@ -140,7 +147,8 @@
     "coaCode": "53040201",
     "rkatId": "d0980e41-b62a-4dcf-a78b-8614097ce05c",
     "sumberDana": "-",
-    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Belanja ATK Bulan Juni"
+    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Belanja ATK Bulan Juni",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1781065236213",
@@ -151,7 +159,7 @@
     "keteranganBank": "Beli Pulpen",
     "nominal": 50000,
     "type": "KREDIT",
-    "status": "RECONCILED",
+    "status": "PENDING",
     "reconciledAt": "2026-06-10T04:22:35.254Z",
     "reconciledBy": "Super Admin",
     "muzakkiId": null,
@@ -159,7 +167,8 @@
     "coaCode": "53040201",
     "rkatId": "d0980e41-b62a-4dcf-a78b-8614097ce05c",
     "sumberDana": "-",
-    "keteranganRealisasi": "Belanja ATK Pulpen Bulan Juni"
+    "keteranganRealisasi": "Belanja ATK Pulpen Bulan Juni",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1781759219876",
@@ -188,7 +197,8 @@
     "keteranganBank": "Transfer an Aca",
     "nominal": 200000,
     "type": "KREDIT",
-    "status": "PENDING"
+    "status": "PENDING",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1782807049128",
@@ -199,7 +209,8 @@
     "keteranganBank": "Gaji an Khansa Inayah",
     "nominal": 2000000,
     "type": "KREDIT",
-    "status": "PENDING"
+    "status": "PENDING",
+    "allocatedNominal": 0
   },
   {
     "id": "mut-1785224137512",
