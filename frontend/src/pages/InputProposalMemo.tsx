@@ -445,87 +445,105 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     }
 
+    const formatSignatureName = (name: string | undefined, maxLen = 22) => {
+      if (!name || !name.trim()) return '................................';
+      const clean = name.trim();
+      if (clean.length <= maxLen) return clean;
+
+      const words = clean.split(' ');
+      let line1 = '';
+      let line2 = '';
+      for (let i = 0; i < words.length; i++) {
+        if ((line1 + ' ' + words[i]).trim().length <= maxLen || i === 0) {
+          line1 += (line1 ? ' ' : '') + words[i];
+        } else {
+          line2 += (line2 ? ' ' : '') + words[i];
+        }
+      }
+      return line2 ? `${line1}<br>${line2}` : clean;
+    };
+
     let signatureHtml = '';
     if (reportType === 'harian_pilar') {
       signatureHtml = `
-        <table style="width: 90%; border: none; margin: 30px auto 0; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px; page-break-inside: avoid; break-inside: avoid;">
+        <table style="width: 96%; border: none; margin: 25px auto 0; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
-            <td style="border: none; width: 68%; padding-left: 20px;"></td>
-            <td style="border: none; width: 32%; text-align: left; padding-bottom: 8px;">
+            <td style="border: none; width: 65%; padding-left: 20px;"></td>
+            <td style="border: none; width: 35%; text-align: left; padding-bottom: 8px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 68%; text-align: left; vertical-align: top; padding-left: 20px;">
+            <td style="border: none; width: 65%; text-align: left; vertical-align: top; padding-left: 20px;">
               Kepala Pelaksana
             </td>
-            <td style="border: none; width: 32%; text-align: left; vertical-align: top; padding: 0;">
+            <td style="border: none; width: 35%; text-align: left; vertical-align: top; padding: 0;">
               Kepala Bagian<br>
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 65px;">
+          <tr style="border: none; height: 60px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 68%; text-align: left; vertical-align: bottom; padding-left: 20px;">
-              <strong>${signatories.kepalaPelaksana || '................................'}</strong>
+            <td style="border: none; width: 65%; text-align: left; vertical-align: top; padding-left: 20px; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.kepalaPelaksana)}</strong>
             </td>
-            <td style="border: none; width: 32%; text-align: left; vertical-align: bottom; padding: 0;">
-              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            <td style="border: none; width: 35%; text-align: left; vertical-align: top; padding: 0; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
             </td>
           </tr>
         </table>
       `;
     } else if (reportType === 'harian_detail') {
       signatureHtml = `
-        <table style="width: 100%; border: none; margin-top: 15px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
+        <table style="width: 96%; border: none; margin-top: 15px; margin-left: 2%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
-            <td style="border: none; width: 72%; padding-left: 18%;"></td>
-            <td style="border: none; width: 28%; text-align: left; padding-bottom: 4px;">
+            <td style="border: none; width: 65%; padding-left: 15%;"></td>
+            <td style="border: none; width: 35%; text-align: left; padding-bottom: 4px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 72%; text-align: left; vertical-align: top; padding-left: 18%;">
+            <td style="border: none; width: 65%; text-align: left; vertical-align: top; padding-left: 15%;">
               Kepala Bagian<br>
               Administrasi, SDM, dan Umum
             </td>
-            <td style="border: none; width: 28%; text-align: left; vertical-align: top; padding: 0;">
+            <td style="border: none; width: 35%; text-align: left; vertical-align: top; padding: 0;">
               Staff Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 65px;">
+          <tr style="border: none; height: 60px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 72%; text-align: left; vertical-align: bottom; padding-left: 18%;">
-              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            <td style="border: none; width: 65%; text-align: left; vertical-align: top; padding-left: 15%; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
             </td>
-            <td style="border: none; width: 28%; text-align: left; vertical-align: bottom; padding: 0;">
-              <strong>${signatories.stafAdministrasi || '................................'}</strong>
+            <td style="border: none; width: 35%; text-align: left; vertical-align: top; padding: 0; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.stafAdministrasi)}</strong>
             </td>
           </tr>
         </table>
       `;
     } else if (reportType === 'mingguan') {
       signatureHtml = `
-        <table style="width: 85%; margin: 30px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px; page-break-inside: avoid; break-inside: avoid;">
+        <table style="width: 96%; margin: 25px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
-            <td style="border: none; width: 33%;"></td>
-            <td style="border: none; width: 33%;"></td>
+            <td style="border: none; width: 33%; padding-right: 10px;"></td>
+            <td style="border: none; width: 33%; padding-right: 10px;"></td>
             <td style="border: none; width: 34%; text-align: left; padding-bottom: 8px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px;">
               Mengetahui<br>
               Wakil Ketua IV
             </td>
-            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px;">
               Kepala Pelaksana
             </td>
             <td style="border: none; width: 34%; text-align: left; vertical-align: top;">
@@ -533,39 +551,39 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 65px;">
+          <tr style="border: none; height: 55px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
-              <strong>${signatories.wakilKetuaIv || '................................'}</strong>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.wakilKetuaIv)}</strong>
             </td>
-            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
-              <strong>${signatories.kepalaPelaksana || '................................'}</strong>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.kepalaPelaksana)}</strong>
             </td>
-            <td style="border: none; width: 34%; text-align: left; vertical-align: bottom;">
-              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            <td style="border: none; width: 34%; text-align: left; vertical-align: top; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
             </td>
           </tr>
         </table>
       `;
     } else if (reportType === 'bulanan') {
       signatureHtml = `
-        <table style="width: 85%; margin: 30px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 15px; page-break-inside: avoid; break-inside: avoid;">
+        <table style="width: 96%; margin: 25px auto 0; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
           <tr style="border: none;">
-            <td style="border: none; width: 33%;"></td>
-            <td style="border: none; width: 33%;"></td>
+            <td style="border: none; width: 33%; padding-right: 10px;"></td>
+            <td style="border: none; width: 33%; padding-right: 10px;"></td>
             <td style="border: none; width: 34%; text-align: left; padding-bottom: 8px;">
               Semarang, ${semarangDate}
             </td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px;">
               Wakil Ketua IV
             </td>
-            <td style="border: none; width: 33%; text-align: left; vertical-align: top;">
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px;">
               Kepala Pelaksana
             </td>
             <td style="border: none; width: 34%; text-align: left; vertical-align: top;">
@@ -573,44 +591,44 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               Administrasi, SDM, dan Umum
             </td>
           </tr>
-          <tr style="border: none; height: 85px;">
+          <tr style="border: none; height: 75px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
-            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
-              <strong>${signatories.wakilKetuaIv || '................................'}</strong>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.wakilKetuaIv)}</strong>
             </td>
-            <td style="border: none; width: 33%; text-align: left; vertical-align: bottom;">
-              <strong>${signatories.kepalaPelaksana || '................................'}</strong>
+            <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.kepalaPelaksana)}</strong>
             </td>
-            <td style="border: none; width: 34%; text-align: left; vertical-align: bottom;">
-              <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+            <td style="border: none; width: 34%; text-align: left; vertical-align: top; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
             </td>
           </tr>
-          <tr style="border: none; height: 35px;">
+          <tr style="border: none; height: 30px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
             <td style="border: none;"></td>
-            <td style="border: none; text-align: left; vertical-align: top;">
+            <td style="border: none; text-align: left; vertical-align: top; padding-right: 10px;">
               Mengetahui,<br>
               Ketua BAZNAS Kota Semarang
             </td>
             <td style="border: none;"></td>
           </tr>
-          <tr style="border: none; height: 65px;">
+          <tr style="border: none; height: 55px;">
             <td style="border: none;"></td>
             <td style="border: none;"></td>
             <td style="border: none;"></td>
           </tr>
           <tr style="border: none;">
             <td style="border: none;"></td>
-            <td style="border: none; text-align: left; vertical-align: bottom;">
-              <strong>${signatories.ketua || '................................'}</strong>
+            <td style="border: none; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
+              <strong>${formatSignatureName(signatories.ketua)}</strong>
             </td>
             <td style="border: none;"></td>
           </tr>

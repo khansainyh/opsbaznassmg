@@ -304,41 +304,59 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
       </table>
     `;
 
+    const formatSignatureName = (name: string | undefined, maxLen = 22) => {
+      if (!name || !name.trim()) return '................................';
+      const clean = name.trim();
+      if (clean.length <= maxLen) return clean;
+
+      const words = clean.split(' ');
+      let line1 = '';
+      let line2 = '';
+      for (let i = 0; i < words.length; i++) {
+        if ((line1 + ' ' + words[i]).trim().length <= maxLen || i === 0) {
+          line1 += (line1 ? ' ' : '') + words[i];
+        } else {
+          line2 += (line2 ? ' ' : '') + words[i];
+        }
+      }
+      return line2 ? `${line1}<br>${line2}` : clean;
+    };
+
     const signatureHtml = `
-      <table style="width: 92%; margin-top: 15px; margin-left: 8%; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
+      <table style="width: 96%; margin-top: 20px; margin-left: 2%; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
         <tr style="border: none;">
-          <td style="border: none; width: 33%; padding-left: 10px;"></td>
-          <td style="border: none; width: 33%;"></td>
+          <td style="border: none; width: 33%; padding-right: 10px;"></td>
+          <td style="border: none; width: 33%; padding-right: 10px;"></td>
           <td style="border: none; width: 34%; text-align: left; padding-bottom: 4px;">
             Semarang, ${semarangDate}
           </td>
         </tr>
         <tr style="border: none;">
-          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-left: 10px;">
+          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px;">
             Kepala Pelaksana
           </td>
-          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding: 0;">
+          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px;">
             Kepala Bagian<br>
             Administrasi, SDM, dan Umum
           </td>
-          <td style="border: none; width: 34%; text-align: left; vertical-align: top; padding: 0;">
+          <td style="border: none; width: 34%; text-align: left; vertical-align: top;">
             Staff Administrasi, SDM, dan Umum
           </td>
         </tr>
-        <tr style="border: none; height: 65px;">
+        <tr style="border: none; height: 55px;">
           <td style="border: none;"></td>
           <td style="border: none;"></td>
           <td style="border: none;"></td>
         </tr>
         <tr style="border: none;">
-          <td style="border: none; width: 33%; text-align: left; vertical-align: bottom; padding-left: 10px;">
-            <strong>${signatories.kepalaPelaksana || '................................'}</strong>
+          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
+            <strong>${formatSignatureName(signatories.kepalaPelaksana)}</strong>
           </td>
-          <td style="border: none; width: 33%; text-align: left; vertical-align: bottom; padding: 0;">
-            <strong>${signatories.kabagAdministrasi || '................................'}</strong>
+          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
+            <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
           </td>
-          <td style="border: none; width: 34%; text-align: left; vertical-align: bottom; padding: 0;">
-            <strong>${signatories.stafAdministrasi || '................................'}</strong>
+          <td style="border: none; width: 34%; text-align: left; vertical-align: top; line-height: 1.3;">
+            <strong>${formatSignatureName(signatories.stafAdministrasi)}</strong>
           </td>
         </tr>
       </table>
