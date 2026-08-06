@@ -1168,7 +1168,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .perihal-cell {
-                  padding: 6px 12px;
+                  padding: 8px 12px;
                   vertical-align: middle;
                   height: 135px;
                   min-height: 135px;
@@ -1177,10 +1177,12 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               .perihal-wrapper {
                   display: flex;
                   flex-direction: column;
-                  justify-content: center;
-                  gap: 6px;
+                  justify-content: space-between;
+                  gap: 8px;
                   height: 100%;
-                  min-height: 130px;
+                  min-height: 120px;
+                  padding: 4px 0;
+                  box-sizing: border-box;
               }
 
               .perihal-header {
@@ -1188,8 +1190,9 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   align-items: center;
                   font-weight: bold;
                   font-size: 18px;
-                  line-height: 1.3;
+                  line-height: 1.35;
                   width: 100%;
+                  margin-bottom: auto;
               }
 
               .perihal-title-text {
@@ -1220,7 +1223,8 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                   font-weight: bold;
                   font-size: 18px;
                   width: 100%;
-                  margin-top: 6px;
+                  margin-top: auto;
+                  padding-top: 8px;
               }
 
               .disposisi-table-container {
