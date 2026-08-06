@@ -21,6 +21,7 @@ import {
    getCoaSummaries,
    createManualExpense,
    checkLedgerHealth,
+   syncBankBalances,
    getReplenishments,
    migrateBukuBesar,
    getTransitEntries
@@ -59,6 +60,7 @@ router.post('/manual-expense', createManualExpense);
 router.get('/ledger', getJournalEntries);
 router.get('/ledger/rekap', getCoaSummaries);
 router.get('/ledger/health-check', checkLedgerHealth);
+router.post('/ledger/sync-bank-balances', syncBankBalances);
 router.post('/ledger/migrate', migrateBukuBesar);
 router.get('/transit-entries', getTransitEntries);
 

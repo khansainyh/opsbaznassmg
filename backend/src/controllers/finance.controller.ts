@@ -1490,6 +1490,46 @@ export const checkLedgerHealth = async (req: Request, res: Response) => {
   }
 };
 
+export const syncBankBalances = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const accounts = await prisma.bankAccount.findMany({ include: { coa: true } });
+    const bankAggregates = await prisma.journalEntry.groupBy({
+      by: ['account_id'],
+      _sum: { debit: true, kredit: true },
+      where: { account_id: { not: null } }
+    });
+
+    const bankAggMap: Record<string, { debit: number; kredit: number }> = {};
+    for (const agg of bankAggregates) {
+      if (agg.account_id) {
+        bankAggMap[agg.account_id] = {
+          debit: Number(agg._sum.debit || 0),
+          kredit: Number(agg._sum.kredit || 0)
+        };
+      }
+    }
+
+    let updatedCount = 0;
+    for (const acc of accounts) {
+      const agg = bankAggMap[acc.account_id] || { debit: 0, kredit: 0 };
+      const accDebit = agg.debit;
+      const accKredit = agg.kredit;
+      const calculatedBalance = Number(acc.coa?.saldo_awal || 0) + accDebit - accKredit;
+
+      await prisma.bankAccount.update({
+        where: { account_id: acc.account_id },
+        data: { saldo: calculatedBalance }
+      });
+      updatedCount++;
+    }
+
+    res.status(200).json({ status: 'success', message: `Berhasil menyelaraskan ${updatedCount} saldo akun kas & bank dengan Buku Besar.` });
+  } catch (error) {
+    console.error('Error syncing bank balances:', error);
+    res.status(500).json({ status: 'error', error: String(error) });
+  }
+};
+
 export const getReplenishments = async (req: Request, res: Response) => {
   try {
     const list = await prisma.cashMutation.findMany({

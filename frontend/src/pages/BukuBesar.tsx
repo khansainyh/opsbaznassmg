@@ -514,6 +514,22 @@ export default function BukuBesar() {
     }
   };
 
+  const handleSyncBankBalances = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.post('/api/finance/ledger/sync-bank-balances');
+      if (res.data.status === 'success') {
+        alert('🎉 ' + res.data.message);
+        fetchData();
+      }
+    } catch (err: any) {
+      console.error('Error syncing bank balances:', err);
+      alert('Gagal menyelaraskan saldo: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, [startDate, endDate, jurnalCurrentPage, debouncedSearch, selectedCoas]);
@@ -1851,6 +1867,15 @@ export default function BukuBesar() {
 
               {/* Modal Footer */}
               <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleSyncBankBalances}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2"
+                >
+                  <RefreshCw className="size-4" />
+                  Penyelarasan Saldo Kas &amp; Bank
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
