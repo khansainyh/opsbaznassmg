@@ -598,7 +598,7 @@ export default function DatabaseUPZ() {
     const initData = async () => {
       setIsLoading(true);
       try {
-        await Promise.all([
+        await Promise.allSettled([
           fetchHistories(),
           fetchUPZList(false)
         ]);
@@ -831,15 +831,48 @@ export default function DatabaseUPZ() {
   };
 
   const filteredData = useMemo(() => {
+    const cleanSearch = (searchTerm || '').trim().toLowerCase();
+    const cleanCategoryFilter = (categoryFilter || '').trim().toLowerCase();
+    const cleanKecamatanFilter = (kecamatanFilter || '').trim().toLowerCase();
+    const cleanSkStatusFilter = (skStatusFilter || '').trim().toLowerCase();
+
+    const isSemuaCat = !cleanCategoryFilter || cleanCategoryFilter === 'semua' || cleanCategoryFilter === 'all' || cleanCategoryFilter.includes('semua') || cleanCategoryFilter.includes('all');
+    const isSemuaKec = !cleanKecamatanFilter || cleanKecamatanFilter === 'semua' || cleanKecamatanFilter === 'all' || cleanKecamatanFilter.includes('semua') || cleanKecamatanFilter.includes('all');
+    const isSemuaSk = !cleanSkStatusFilter || cleanSkStatusFilter === 'semua' || cleanSkStatusFilter === 'all' || cleanSkStatusFilter.includes('semua') || cleanSkStatusFilter.includes('all');
+
     const filtered = data.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.kelurahan.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = categoryFilter === 'Semua' || item.category === categoryFilter;
-      const matchesKecamatan = kecamatanFilter === 'Semua' || item.kecamatan === kecamatanFilter;
+      if (!item) return false;
+      const itemName = (item.name || '').toLowerCase();
+      const itemCode = (item.code || '').toLowerCase();
+      const itemKel = (item.kelurahan || '').toLowerCase();
+      const matchesSearch = !cleanSearch || itemName.includes(cleanSearch) || itemCode.includes(cleanSearch) || itemKel.includes(cleanSearch);
+
+      let matchesCategory = isSemuaCat;
+      if (!matchesCategory) {
+        const itemCat = (item.category || '').trim().toLowerCase();
+        if (itemCat === cleanCategoryFilter) {
+          matchesCategory = true;
+        } else if (cleanCategoryFilter.includes('masjid') && itemCat.includes('masjid')) {
+          matchesCategory = true;
+        } else if (cleanCategoryFilter.includes('yayasan') && itemCat.includes('yayasan')) {
+          matchesCategory = true;
+        } else if (cleanCategoryFilter.includes('kecamatan') && itemCat.includes('kecamatan')) {
+          matchesCategory = true;
+        } else if (cleanCategoryFilter.includes('pendidikan') && (itemCat.includes('sekolah') || itemCat.includes('pendidikan'))) {
+          matchesCategory = true;
+        } else if (itemCat.includes(cleanCategoryFilter) || cleanCategoryFilter.includes(itemCat)) {
+          matchesCategory = true;
+        }
+      }
+
+      let matchesKecamatan = isSemuaKec;
+      if (!matchesKecamatan) {
+        const itemKec = (item.kecamatan || '').trim().toLowerCase();
+        matchesKecamatan = itemKec === cleanKecamatanFilter || itemKec.includes(cleanKecamatanFilter) || cleanKecamatanFilter.includes(itemKec);
+      }
       
       let matchesSKStatus = true;
-      if (skStatusFilter !== 'Semua') {
+      if (!isSemuaSk) {
         const hasSK = !!(item.activeSKNumber && item.activeSKNumber !== '-');
         const expiryYearStr = hasSK && item.skExpiryDate ? (item.skExpiryDate.includes('-') ? item.skExpiryDate.split('-')[0] : item.skExpiryDate) : '';
         const expiryYear = parseInt(expiryYearStr, 10);
@@ -848,9 +881,9 @@ export default function DatabaseUPZ() {
         const upzStatus = item.status || 'Aktif';
         const isSKActive = !!(hasSK && upzStatus === 'Aktif' && !isSKExpired);
         
-        if (skStatusFilter === 'Aktif') {
+        if (cleanSkStatusFilter.includes('aktif') && !cleanSkStatusFilter.includes('tidak')) {
           matchesSKStatus = isSKActive;
-        } else if (skStatusFilter === 'Tidak Aktif') {
+        } else if (cleanSkStatusFilter.includes('tidak') || cleanSkStatusFilter.includes('non')) {
           matchesSKStatus = !isSKActive;
         }
       }
@@ -3142,7 +3175,7 @@ export default function DatabaseUPZ() {
 
       {/* Filters & Actions */}
       <div className="p-4 bg-white rounded-xl border border-primary/10 shadow-sm flex flex-wrap gap-4 items-center justify-between no-print">
-        <div className="flex flex-wrap gap-4 items-center">
+        <div className="flex flex-wrap gap-4 items-center notranslate" translate="no">
           <div className="relative w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
             <input 
