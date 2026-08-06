@@ -15,7 +15,9 @@ import {
   Check,
   Trash2,
   Filter,
-  Sparkles
+  Sparkles,
+  ShieldAlert,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -106,6 +108,29 @@ export default function PenerimaanBankJateng() {
   const [expandedBatches, setExpandedBatches] = useState<Record<string, boolean>>({});
   const [batchActiveTab, setBatchActiveTab] = useState<Record<string, 'upz' | 'pegawai' | 'gagal'>>({});
   const [historyUpzSearch, setHistoryUpzSearch] = useState<Record<string, string>>({});
+
+  // Double Guard System Helpers & States
+  const isNpwzBlank = (npwz: string | null | undefined): boolean => {
+    if (!npwz) return true;
+    const str = String(npwz).trim().toLowerCase();
+    return str === '' || str === '-' || str === 'null' || str === 'undefined' || str === '0';
+  };
+
+  const isOpdBlank = (opd: string | null | undefined): boolean => {
+    if (!opd) return true;
+    const str = String(opd).trim().toLowerCase();
+    return str === '' || str === '-' || str === 'null' || str === 'undefined' || str === 'tanpa opd' || str === 'lainnya';
+  };
+
+  const [showDoubleGuardModal, setShowDoubleGuardModal] = useState(false);
+
+  const missingNpwzCount = useMemo(() => {
+    return fileData.filter(item => item.matched && isNpwzBlank(item.npwz)).length;
+  }, [fileData]);
+
+  const missingOpdCount = useMemo(() => {
+    return fileData.filter(item => isOpdBlank(item.opd)).length;
+  }, [fileData]);
 
   // Batch SIMBA Modal States
   const [isSimbaBatchModalOpen, setIsSimbaBatchModalOpen] = useState(false);
@@ -1213,7 +1238,7 @@ export default function PenerimaanBankJateng() {
     }
   };
 
-  // Approve & Save Selected Transactions
+  // Approve & Save Selected Transactions with Double Guard System
   const handleApprove = async () => {
     const selectedTx = fileData.filter(item => item.selected && item.matched);
     
@@ -1227,6 +1252,20 @@ export default function PenerimaanBankJateng() {
       return;
     }
 
+    // Double Guard Check: Check for missing NPWZ or missing OPD in selected transactions
+    const missingNpwzSelected = selectedTx.filter(t => isNpwzBlank(t.npwz));
+    const missingOpdSelected = selectedTx.filter(t => isOpdBlank(t.opd));
+
+    if (missingNpwzSelected.length > 0 || missingOpdSelected.length > 0) {
+      setShowDoubleGuardModal(true);
+      return;
+    }
+
+    await executeApproval();
+  };
+
+  const executeApproval = async () => {
+    const selectedTx = fileData.filter(item => item.selected && item.matched);
     setIsSubmitting(true);
     try {
       const payload = {
@@ -1615,6 +1654,28 @@ export default function PenerimaanBankJateng() {
               {/* Table rendering based on tab */}
               {activeTab === 'berhasil' && (
                 <div className="overflow-x-auto min-h-[300px]">
+                  {fileData.length > 0 && (missingNpwzCount > 0 || missingOpdCount > 0) && (
+                    <div className="m-4 bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 shadow-sm animate-in fade-in">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-amber-200/80 rounded-xl text-amber-950 shrink-0">
+                          <ShieldAlert className="size-6 text-amber-800" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-amber-950 flex items-center gap-2">
+                            DOUBLE GUARD SYSTEM DETECTOR
+                          </h4>
+                          <p className="text-xs font-medium text-amber-800 mt-0.5">
+                            {missingNpwzCount > 0 && <span>Ditemukan <strong className="underline font-bold text-amber-950">{missingNpwzCount} Muzakki terpetakan yang NPWZ-nya masih KOSONG</strong>. </span>}
+                            {missingOpdCount > 0 && <span>Ditemukan <strong className="underline font-bold text-amber-950">{missingOpdCount} transaksi yang OPD-nya belum ter-mapping (<code className="bg-amber-100 px-1 rounded">-</code>)</strong>.</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest bg-amber-200 text-amber-950 px-3 py-1.5 rounded-lg shrink-0 border border-amber-300">
+                        Perlu Perhatian Staf
+                      </span>
+                    </div>
+                  )}
+
                    <table className="w-full text-left">
                     <thead>
                       <tr className="bg-slate-50 text-slate-550 uppercase text-[11px] font-bold tracking-wider border-b border-slate-150">
@@ -1659,9 +1720,16 @@ export default function PenerimaanBankJateng() {
                             </td>
                             <td className="px-4 py-3">
                               {row.matched ? (
-                                <div>
-                                  <p className="font-mono font-bold text-slate-900 text-xs">{row.npwz || '-'}</p>
-                                  <p className="text-[10px] text-primary font-medium mt-0.5">{row.nama_muzakki}</p>
+                                <div className="space-y-0.5">
+                                  {isNpwzBlank(row.npwz) ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                                      <AlertTriangle className="size-3 text-amber-700 shrink-0" />
+                                      NPWZ KOSONG
+                                    </span>
+                                  ) : (
+                                    <p className="font-mono font-bold text-slate-900 text-xs">{row.npwz}</p>
+                                  )}
+                                  <p className="text-[10px] text-primary font-bold">{row.nama_muzakki}</p>
                                 </div>
                               ) : (
                                 <span className="text-rose-600 font-semibold text-[10px] italic bg-rose-50 px-2.5 py-1 rounded border border-rose-100 inline-block">
@@ -1670,7 +1738,14 @@ export default function PenerimaanBankJateng() {
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              <p className="font-medium text-slate-700">{row.opd}</p>
+                              {isOpdBlank(row.opd) ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                                  <AlertTriangle className="size-3 text-amber-700 shrink-0" />
+                                  OPD BELUM MAPPED
+                                </span>
+                              ) : (
+                                <p className="font-medium text-slate-700">{row.opd}</p>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-center">
                               {row.nominal >= 100000 ? (
@@ -3032,6 +3107,93 @@ export default function PenerimaanBankJateng() {
                   className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white font-bold rounded-xl text-xs transition-all shadow-md disabled:opacity-50"
                 >
                   {isSavingBatchSimba ? 'Menyimpan...' : 'Simpan & Set Status SYNCED'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Double Guard Confirmation Modal */}
+      <AnimatePresence>
+        {showDoubleGuardModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-6"
+            >
+              <div className="flex items-start gap-4">
+                <div className="p-3.5 bg-amber-100 text-amber-900 rounded-2xl shrink-0 border border-amber-200">
+                  <ShieldAlert className="size-8 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">DOUBLE GUARD SYSTEM WARNING!</h3>
+                  <p className="text-xs font-semibold text-amber-800 mt-1">
+                    Sistem mendeteksi adanya kelengkapan data yang belum terpenuhi pada transaksi yang Anda pilih untuk di-approve:
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3 text-xs">
+                {(() => {
+                  const selectedTx = fileData.filter(item => item.selected && item.matched);
+                  const missingNpwz = selectedTx.filter(t => isNpwzBlank(t.npwz));
+                  const missingOpd = selectedTx.filter(t => isOpdBlank(t.opd));
+
+                  return (
+                    <>
+                      {missingNpwz.length > 0 && (
+                        <div className="flex items-start gap-2 text-amber-950">
+                          <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">{missingNpwz.length} Transaksi dengan NPWZ Kosong:</p>
+                            <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                              {missingNpwz.map(i => i.nama_muzakki || i.nama).slice(0, 4).join(', ')}
+                              {missingNpwz.length > 4 ? ` dan ${missingNpwz.length - 4} lainnya` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {missingOpd.length > 0 && (
+                        <div className="flex items-start gap-2 text-amber-950">
+                          <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">{missingOpd.length} Transaksi dengan OPD Belum Mapped (-):</p>
+                            <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                              {missingOpd.map(i => i.nama).slice(0, 4).join(', ')}
+                              {missingOpd.length > 4 ? ` dan ${missingOpd.length - 4} lainnya` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                Anda disarankan untuk membatalkan proses agar dapat melengkapi NPWZ atau OPD terlebih dahulu. Apakah Anda yakin ingin melanjutkan approval pembukuan ini?
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDoubleGuardModal(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black rounded-xl transition-all"
+                >
+                  Batal &amp; Lengkapi Data
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDoubleGuardModal(false);
+                    executeApproval();
+                  }}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl shadow-md transition-all"
+                >
+                  Saya Paham, Tetap Lanjutkan
                 </button>
               </div>
             </motion.div>

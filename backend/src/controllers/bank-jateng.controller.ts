@@ -42,12 +42,20 @@ export const lookupMuzakki = async (req: Request, res: Response): Promise<void> 
         muzakki = nameMap.get(name) || null;
       }
 
+      const npwzVal = muzakki ? (muzakki.npwz ? String(muzakki.npwz).trim() : null) : null;
+      const opdVal = item.opd ? String(item.opd).trim() : '';
+
+      const isNpwzMissing = !!muzakki && (!npwzVal || npwzVal === '' || npwzVal === '-');
+      const isOpdMissing = !opdVal || opdVal === '' || opdVal === '-' || opdVal.toLowerCase() === 'tanpa opd';
+
       return {
         ...item,
         matched: !!muzakki,
         muzakki_id: muzakki ? muzakki.id : null,
-        npwz: muzakki ? muzakki.npwz : null,
-        nama_muzakki: muzakki ? muzakki.nama : null
+        npwz: npwzVal,
+        nama_muzakki: muzakki ? muzakki.nama : null,
+        is_npwz_missing: isNpwzMissing,
+        is_opd_missing: isOpdMissing
       };
     });
 
