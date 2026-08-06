@@ -305,16 +305,16 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
     `;
 
     const signatureHtml = `
-      <table style="width: 100%; border: none; margin-top: 15px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
+      <table style="width: 92%; margin-top: 15px; margin-left: 8%; border: none; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
         <tr style="border: none;">
-          <td style="border: none; width: 33%; padding-left: 20px;"></td>
+          <td style="border: none; width: 33%; padding-left: 10px;"></td>
           <td style="border: none; width: 33%;"></td>
           <td style="border: none; width: 34%; text-align: left; padding-bottom: 4px;">
             Semarang, ${semarangDate}
           </td>
         </tr>
         <tr style="border: none;">
-          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-left: 20px;">
+          <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-left: 10px;">
             Kepala Pelaksana
           </td>
           <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding: 0;">
@@ -331,7 +331,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <td style="border: none;"></td>
         </tr>
         <tr style="border: none;">
-          <td style="border: none; width: 33%; text-align: left; vertical-align: bottom; padding-left: 20px;">
+          <td style="border: none; width: 33%; text-align: left; vertical-align: bottom; padding-left: 10px;">
             <strong>${signatories.kepalaPelaksana || '................................'}</strong>
           </td>
           <td style="border: none; width: 33%; text-align: left; vertical-align: bottom; padding: 0;">
