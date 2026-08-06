@@ -257,47 +257,47 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
     const semarangDate = formatIndonesianDateStr(selectedDate);
 
     const contentHtml = `
-      <h2 style="font-size: 18px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 30px;">
+      <h2 style="font-size: 18px; text-align: center; font-family: 'Times New Roman', Times, serif; font-weight: bold; margin-bottom: 12px; line-height: 1.3;">
         ${title}
       </h2>
-      <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 10px; margin-bottom: 25px;">
+      <table style="width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 11px; margin-bottom: 12px; page-break-inside: auto;">
         <thead>
-          <tr style="background-color: #ffffff; height: 35px;">
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 3%;">No</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">No Agenda</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Tanggal Proposal Masuk</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 12%;">Nama Instansi</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 10%;">Pimpinan Organisasi</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 15%;">Alamat</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kelurahan</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Kecamatan</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 15%;">Keperluan</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">No Telpon</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Jam Pengajuan</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 8%;">Yang Mengajukan</th>
-            <th style="border: 1px solid #000; padding: 6px 4px; text-align: center; width: 5%;">Keterangan</th>
+          <tr style="background-color: #ffffff; height: 28px;">
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 3%;">No</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 5%;">No Agenda</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 8%;">Tanggal Proposal Masuk</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 12%;">Nama Instansi</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 10%;">Pimpinan Organisasi</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 15%;">Alamat</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 8%;">Kelurahan</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 8%;">Kecamatan</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 15%;">Keperluan</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 8%;">No Telpon</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 5%;">Jam Pengajuan</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 8%;">Yang Mengajukan</th>
+            <th style="border: 1px solid #000; padding: 4px 2px; text-align: center; width: 5%;">Keterangan</th>
           </tr>
         </thead>
         <tbody>
           ${filtered.length === 0 ? `
-            <tr style="height: 45px;">
-              <td colspan="13" style="border: 1px solid #000; padding: 12px; text-align: center; color: #555; height: 45px;">Tidak ada data surat masuk</td>
+            <tr style="height: 32px;">
+              <td colspan="13" style="border: 1px solid #000; padding: 6px; text-align: center; color: #555; height: 32px;">Tidak ada data surat masuk</td>
             </tr>
           ` : filtered.map((item, index) => `
-            <tr style="height: 45px;">
-              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${index + 1}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.agendaNo}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${formatIndonesianDateStr(item.tanggalMasuk)}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px;">${item.namaInstansi || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px;">${item.pimpinanOrganisasi || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px;">${item.alamat || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px;">${item.kelurahan || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px;">${item.kecamatan || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px;">${item.keperluan || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.noTelpon || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.jamPengajuan || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.yangMengajukan || '-'}</td>
-              <td style="border: 1px solid #000; padding: 6px 4px; text-align: center;">${item.arsip || '-'}</td>
+            <tr style="height: 32px;">
+              <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${index + 1}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.agendaNo}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${formatIndonesianDateStr(item.tanggalMasuk)}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px;">${item.namaInstansi || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px;">${item.pimpinanOrganisasi || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px;">${item.alamat || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px;">${item.kelurahan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px;">${item.kecamatan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px;">${item.keperluan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.noTelpon || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.jamPengajuan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.yangMengajukan || '-'}</td>
+              <td style="border: 1px solid #000; padding: 4px 2px; text-align: center;">${item.arsip || '-'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -305,11 +305,11 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
     `;
 
     const signatureHtml = `
-      <table style="width: 100%; border: none; margin-top: 40px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 13px;">
+      <table style="width: 100%; border: none; margin-top: 15px; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; page-break-inside: avoid; break-inside: avoid;">
         <tr style="border: none;">
           <td style="border: none; width: 33%; padding-left: 20px;"></td>
           <td style="border: none; width: 33%;"></td>
-          <td style="border: none; width: 34%; text-align: left; padding-bottom: 8px;">
+          <td style="border: none; width: 34%; text-align: left; padding-bottom: 4px;">
             Semarang, ${semarangDate}
           </td>
         </tr>
@@ -325,7 +325,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
             Staff Administrasi, SDM, dan Umum
           </td>
         </tr>
-        <tr style="border: none; height: 75px;">
+        <tr style="border: none; height: 65px;">
           <td style="border: none;"></td>
           <td style="border: none;"></td>
           <td style="border: none;"></td>
@@ -357,13 +357,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
           <style>
             @page {
               size: A4 landscape;
-              margin: 15mm;
+              margin: 10mm 12mm;
             }
             body {
               font-family: 'Times New Roman', Times, serif;
               color: #000;
               margin: 0;
-              padding: 10px;
+              padding: 0;
             }
             table {
               page-break-inside: auto;
