@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
   Search, Filter, FileText, Clock, CheckCircle2,
-  ChevronLeft, ChevronRight, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle
+  ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
+import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 
 interface TrackingProposalProps {
   data: ProposalMemo[];
@@ -167,12 +169,208 @@ function matchesStatus(itemStatus: string, filterStatus: string) {
   return normItem === normFilter;
 }
 
+interface SearchableDropdownProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  placeholder: string;
+  allOptionLabel: string;
+  disabled?: boolean;
+  widthClass?: string;
+}
+
+function SearchableDropdown({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  allOptionLabel,
+  disabled = false,
+  widthClass = "w-56"
+}: SearchableDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
+
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  const updateCoords = React.useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 220)
+      });
+    }
+  }, []);
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (!isOpen) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 220)
+      });
+    }
+    setIsOpen(prev => !prev);
+  };
+
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', updateCoords, true);
+      window.removeEventListener('resize', updateCoords);
+    };
+  }, [isOpen, updateCoords]);
+
+  const filteredOptions = useMemo(() => {
+    if (!query.trim()) return options;
+    const q = query.toLowerCase();
+    return options.filter(opt => opt.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const displayValue = value === 'Semua' ? allOptionLabel : value;
+
+  return (
+    <div className={`flex flex-col gap-1 relative ${widthClass}`} ref={dropdownRef}>
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>
+      
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={disabled}
+        onClick={handleToggle}
+        className={cn(
+          "w-full bg-white border border-slate-200 rounded-lg py-2 px-3 flex items-center justify-between text-xs font-semibold shadow-sm transition-all text-left outline-none",
+          disabled 
+            ? "bg-slate-100/80 text-slate-400 border-slate-200 cursor-not-allowed" 
+            : "hover:border-primary/40 focus:ring-2 focus:ring-primary/20 text-slate-700 cursor-pointer",
+          isOpen && "border-primary ring-2 ring-primary/20"
+        )}
+      >
+        <span className="truncate">
+          {displayValue}
+        </span>
+        <ChevronDown className={cn("size-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && !disabled && createPortal(
+        <div 
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            zIndex: 99999
+          }}
+          className="bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden text-xs min-w-[210px]"
+        >
+          {/* Search Box inside Dropdown */}
+          <div className="p-2 border-b border-slate-100 relative bg-slate-50/50">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder={placeholder || `Cari ${label.toLowerCase()}...`}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-md pl-8 pr-7 py-1.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary font-medium"
+              autoFocus
+            />
+            {query && (
+              <button 
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Options List */}
+          <div className="max-h-48 overflow-y-auto custom-scrollbar py-1">
+            {/* Default "Semua" Option */}
+            <div
+              onClick={() => {
+                onChange('Semua');
+                setIsOpen(false);
+                setQuery('');
+              }}
+              className={cn(
+                "px-3 py-2 cursor-pointer font-medium transition-colors flex items-center justify-between hover:bg-slate-50",
+                value === 'Semua' ? "bg-primary/10 text-primary font-bold" : "text-slate-700"
+              )}
+            >
+              <span>{allOptionLabel}</span>
+              {value === 'Semua' && <CheckCircle2 className="size-3.5 text-primary" />}
+            </div>
+
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-4 text-center text-slate-400 text-[11px] italic">
+                Tidak ada hasil ditemukan
+              </div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt}
+                  onClick={() => {
+                    onChange(opt);
+                    setIsOpen(false);
+                    setQuery('');
+                  }}
+                  className={cn(
+                    "px-3 py-2 cursor-pointer transition-colors flex items-center justify-between hover:bg-slate-50 truncate",
+                    value === opt ? "bg-primary/10 text-primary font-bold" : "text-slate-700 font-medium"
+                  )}
+                  title={opt}
+                >
+                  <span className="truncate">{opt}</span>
+                  {value === opt && <CheckCircle2 className="size-3.5 text-primary shrink-0 ml-1" />}
+                </div>
+              ))
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 export default function TrackingProposal({ data }: TrackingProposalProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState('Semua');
   const [selectedMemo, setSelectedMemo] = useState('Semua');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
+
+  // Filter Lanjutan (Advanced Filters)
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [selectedKecamatan, setSelectedKecamatan] = useState('Semua');
+  const [selectedKelurahan, setSelectedKelurahan] = useState('Semua');
+  const [selectedProgram, setSelectedProgram] = useState('Semua');
+
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
   const [pilars, setPilars] = useState<any[]>([]);
@@ -194,6 +392,48 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
     });
     return map;
   }, [pilars]);
+
+  // Options for Advanced Filters
+  const kecamatanOptions = useMemo(() => {
+    const fromData = (data || []).map(d => d.kecamatan).filter(Boolean);
+    const fromList = kecamatanKelurahanSemarang.map(k => k.kecamatan);
+    return Array.from(new Set([...fromList, ...fromData])).sort();
+  }, [data]);
+
+  const kelurahanOptions = useMemo(() => {
+    if (selectedKecamatan === 'Semua') {
+      return [];
+    }
+    const found = kecamatanKelurahanSemarang.find(k => k.kecamatan.toLowerCase() === selectedKecamatan.toLowerCase());
+    const fromList = found ? found.kelurahan : [];
+    const fromData = (data || [])
+      .filter(d => (d.kecamatan || '').toLowerCase() === selectedKecamatan.toLowerCase())
+      .map(d => d.kelurahan)
+      .filter(Boolean);
+    return Array.from(new Set([...fromList, ...fromData])).sort();
+  }, [data, selectedKecamatan]);
+
+  const programOptions = useMemo(() => {
+    const setOptions = new Set<string>();
+    (data || []).forEach(item => {
+      if (item.programCode && item.jenisPermohonan) {
+        setOptions.add(`${item.programCode} - ${item.jenisPermohonan}`);
+      } else if (item.jenisPermohonan) {
+        setOptions.add(item.jenisPermohonan);
+      } else if (item.programCode) {
+        setOptions.add(item.programCode);
+      }
+    });
+    return Array.from(setOptions).sort();
+  }, [data]);
+
+  const activeAdvancedFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedKecamatan !== 'Semua') count++;
+    if (selectedKelurahan !== 'Semua') count++;
+    if (selectedProgram !== 'Semua') count++;
+    return count;
+  }, [selectedKecamatan, selectedKelurahan, selectedProgram]);
 
   React.useEffect(() => {
     const getTemplateKey = () => {
@@ -251,14 +491,24 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
           item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
           (item.nik || '').includes(searchTerm);
-        return yearOk && monthOk && memoOk && statusOk && searchOk;
+
+        const kecOk = selectedKecamatan === 'Semua' || (item.kecamatan || '').toLowerCase() === selectedKecamatan.toLowerCase();
+        const kelOk = selectedKelurahan === 'Semua' || (item.kelurahan || '').toLowerCase() === selectedKelurahan.toLowerCase();
+
+        let progOk = selectedProgram === 'Semua';
+        if (!progOk) {
+          const combo = item.programCode && item.jenisPermohonan ? `${item.programCode} - ${item.jenisPermohonan}` : (item.jenisPermohonan || item.programCode || '');
+          progOk = combo === selectedProgram || item.jenisPermohonan === selectedProgram || item.programCode === selectedProgram;
+        }
+
+        return yearOk && monthOk && memoOk && statusOk && searchOk && kecOk && kelOk && progOk;
       })
       .sort((a, b) => Number(b.agendaNo) - Number(a.agendaNo));
-  }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus]);
+  }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus, selectedKecamatan, selectedKelurahan, selectedProgram]);
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus]);
+  }, [searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus, selectedKecamatan, selectedKelurahan, selectedProgram]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
 
@@ -302,7 +552,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
 
       {/* Table */}
       <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.2 }}
-        className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden flex flex-col">
+        className={cn("bg-white rounded-xl border border-primary/10 shadow-sm flex flex-col", !isFilterExpanded && "overflow-hidden")}>
 
         {/* Filter Bar */}
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-3 items-center bg-white sticky top-0 z-10">
@@ -328,7 +578,104 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
             value={selectedMemo} onChange={e => setSelectedMemo(e.target.value)}>
             {MEMO_SOURCES.map(m => <option key={m} value={m}>{m === 'Semua' ? 'Semua Memo' : m}</option>)}
           </select>
+
+          {/* Filter Lanjutan Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+            className={cn(
+              "px-3 py-2 rounded-lg text-sm font-bold border flex items-center gap-1.5 transition-all cursor-pointer ml-auto sm:ml-0",
+              isFilterExpanded || activeAdvancedFiltersCount > 0
+                ? "bg-primary/10 border-primary/30 text-primary shadow-sm"
+                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+            )}
+          >
+            <Filter className="size-4" />
+            <span>Filter Lanjutan</span>
+            {activeAdvancedFiltersCount > 0 && (
+              <span className="bg-primary text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                {activeAdvancedFiltersCount}
+              </span>
+            )}
+            <ChevronDown className={cn("size-4 transition-transform duration-200", isFilterExpanded && "rotate-180")} />
+          </button>
         </div>
+
+        {/* Collapsible Advanced Filters Drawer */}
+        <AnimatePresence>
+          {isFilterExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden bg-slate-50/80 border-b border-slate-200/80"
+            >
+              <div className="p-4 flex flex-wrap items-end gap-4 text-xs">
+                {/* Filter Kecamatan */}
+                <SearchableDropdown
+                  label="Kecamatan"
+                  value={selectedKecamatan}
+                  onChange={(val) => {
+                    setSelectedKecamatan(val);
+                    setSelectedKelurahan('Semua');
+                    setCurrentPage(1);
+                  }}
+                  options={kecamatanOptions}
+                  placeholder="Pilih Kecamatan"
+                  allOptionLabel="Semua Kecamatan"
+                  widthClass="w-56"
+                />
+
+                {/* Filter Kelurahan (Hanya aktif setelah memilih Kecamatan) */}
+                <SearchableDropdown
+                  label="Kelurahan"
+                  value={selectedKelurahan}
+                  onChange={(val) => {
+                    setSelectedKelurahan(val);
+                    setCurrentPage(1);
+                  }}
+                  options={kelurahanOptions}
+                  placeholder="Pilih Kelurahan"
+                  allOptionLabel="Semua Kelurahan"
+                  disabled={selectedKecamatan === 'Semua'}
+                  widthClass="w-56"
+                />
+
+                {/* Filter Program & Kegiatan */}
+                <SearchableDropdown
+                  label="Program & Kegiatan"
+                  value={selectedProgram}
+                  onChange={(val) => {
+                    setSelectedProgram(val);
+                    setCurrentPage(1);
+                  }}
+                  options={programOptions}
+                  placeholder="Pilih Program / Kegiatan"
+                  allOptionLabel="Semua Program & Kegiatan"
+                  widthClass="w-72"
+                />
+
+                {/* Reset Filter Lanjutan */}
+                {activeAdvancedFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedKecamatan('Semua');
+                      setSelectedKelurahan('Semua');
+                      setSelectedProgram('Semua');
+                      setCurrentPage(1);
+                    }}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  >
+                    <RotateCcw className="size-3.5" />
+                    <span>Reset Filter Lanjutan</span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Table */}
         <div className="overflow-x-auto">
