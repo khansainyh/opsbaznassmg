@@ -283,29 +283,29 @@ function CustomSelect({
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full text-left text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold flex items-center justify-between gap-2 outline-none transition-all cursor-pointer shadow-sm hover:border-slate-300",
+          "w-full text-left text-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold flex items-center justify-between gap-2 outline-none transition-all cursor-pointer shadow-sm hover:border-slate-300 min-h-[44px]",
           selectedOpt ? "text-slate-800 font-bold" : "text-slate-400 font-semibold",
           isOpen && "ring-2 ring-primary/20 border-primary/40 bg-white",
           className
         )}
       >
-        <span className="truncate flex-1">
+        <span className="flex-1 min-w-0">
           {selectedOpt ? (
-            <span className="flex items-center justify-between w-full">
-              <span className="truncate font-bold text-slate-800">{selectedOpt.label}</span>
+            <span className="flex items-start justify-between w-full gap-2">
+              <span className="font-bold text-slate-800 break-words whitespace-normal leading-snug">{selectedOpt.label}</span>
               {selectedOpt.sublabel && (
-                <span className="text-[10px] text-slate-400 font-normal ml-2 shrink-0">{selectedOpt.sublabel}</span>
+                <span className="text-[10px] text-slate-400 font-normal mt-0.5 shrink-0">{selectedOpt.sublabel}</span>
               )}
             </span>
           ) : (
             placeholder
           )}
         </span>
-        <ChevronRight className={cn("size-4 text-slate-400 shrink-0 transition-transform duration-200", isOpen ? "-rotate-90" : "rotate-90")} />
+        <ChevronRight className={cn("size-4 text-slate-400 shrink-0 transition-transform duration-200 mt-0.5", isOpen ? "-rotate-90" : "rotate-90")} />
       </button>
 
       {isOpen && (
-        <div className="absolute z-[100] left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 space-y-1.5 max-h-64 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute z-[100] left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 space-y-1.5 max-h-72 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
           {/* Search Box Inside Dropdown */}
           <div className="relative shrink-0 pb-1 border-b border-slate-100">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
@@ -319,7 +319,7 @@ function CustomSelect({
             />
           </div>
 
-          <div className="overflow-y-auto custom-scrollbar flex-1 space-y-1 max-h-48 pr-1">
+          <div className="overflow-y-auto custom-scrollbar flex-1 space-y-1 max-h-56 pr-1">
             {filteredOptions.length === 0 ? (
               <div className="p-3 text-center text-xs text-slate-400 italic font-medium">
                 Tidak ada opsi yang sesuai.
@@ -334,17 +334,17 @@ function CustomSelect({
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                    "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-start justify-between gap-2 cursor-pointer",
                     value === opt.value
                       ? "bg-primary/10 text-primary font-black"
                       : "hover:bg-slate-50 text-slate-700 font-semibold"
                   )}
                 >
-                  <span className="truncate">{opt.label}</span>
+                  <span className="break-words whitespace-normal leading-snug flex-1">{opt.label}</span>
                   {opt.sublabel && (
-                    <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                    <span className="text-[10px] text-slate-400 font-normal shrink-0 mt-0.5">{opt.sublabel}</span>
                   )}
-                  {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                  {value === opt.value && <Check className="size-3.5 text-primary shrink-0 mt-0.5" />}
                 </button>
               ))
             ) : (
@@ -360,17 +360,17 @@ function CustomSelect({
                           setIsOpen(false);
                         }}
                         className={cn(
-                          "w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                          "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-start justify-between gap-2 cursor-pointer",
                           value === opt.value
                             ? "bg-primary/10 text-primary font-black"
                             : "hover:bg-slate-50 text-slate-700 font-semibold"
                         )}
                       >
-                        <span className="truncate">{opt.label}</span>
+                        <span className="break-words whitespace-normal leading-snug flex-1">{opt.label}</span>
                         {opt.sublabel && (
-                          <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                          <span className="text-[10px] text-slate-400 font-normal shrink-0 mt-0.5">{opt.sublabel}</span>
                         )}
-                        {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                        {value === opt.value && <Check className="size-3.5 text-primary shrink-0 mt-0.5" />}
                       </button>
                     ))}
                   </div>
@@ -389,17 +389,17 @@ function CustomSelect({
                           setIsOpen(false);
                         }}
                         className={cn(
-                          "w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer",
+                          "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold transition-all flex items-start justify-between gap-2 cursor-pointer",
                           value === opt.value
                             ? "bg-primary/10 text-primary font-black"
                             : "hover:bg-slate-50 text-slate-700 font-semibold"
                         )}
                       >
-                        <span className="truncate">{opt.label}</span>
+                        <span className="break-words whitespace-normal leading-snug flex-1">{opt.label}</span>
                         {opt.sublabel && (
-                          <span className="text-[10px] text-slate-400 font-normal shrink-0">{opt.sublabel}</span>
+                          <span className="text-[10px] text-slate-400 font-normal shrink-0 mt-0.5">{opt.sublabel}</span>
                         )}
-                        {value === opt.value && <Check className="size-3.5 text-primary shrink-0" />}
+                        {value === opt.value && <Check className="size-3.5 text-primary shrink-0 mt-0.5" />}
                       </button>
                     ))}
                   </div>
@@ -1881,7 +1881,13 @@ export default function PenerimaanZis() {
         'Kegiatan (RKAT)': item.rkat?.nama_program || item.jenis_program || '-',
         'Kode Program': item.kode_program || '-',
         'via (Kas & Bank)': item.bankAccount?.nama_akun || '-',
-        'Program Kegiatan (COA)': item.rkat?.coa_codes || item.coa_code || '-',
+        'Program Kegiatan (COA)': (() => {
+          const code = (item.coa_code || (item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : '')).trim();
+          if (!code || code === '-') return '-';
+          const coa = coaList.find(c => c.coa_code === code);
+          const coaName = coa?.nama_akun || item.rkat?.nama_program || '';
+          return coaName ? `${code} - ${coaName}` : code;
+        })(),
         'Nominal (Rp)': Number(item.nominal || 0),
         'No Transaksi SIMBA': item.no_transaksi_simba || '-',
         'Status SIMBA': item.status_simba || 'PENDING'
@@ -2748,8 +2754,27 @@ export default function PenerimaanZis() {
                       <td className="px-6 py-4 text-xs font-medium text-slate-600">
                         {item.bankAccount?.nama_akun || '-'}
                       </td>
-                      <td className="px-6 py-4 text-xs font-mono text-slate-500">
-                        {item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : (item.coa_code || '-')}
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const code = (item.coa_code || (item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : '')).trim();
+                          if (!code || code === '-') return <span className="text-slate-400 font-mono text-xs">-</span>;
+
+                          const coa = coaList.find(c => c.coa_code === code);
+                          const coaName = coa?.nama_akun || item.rkat?.nama_program || '';
+
+                          return (
+                            <div className="max-w-xs space-y-1">
+                              <span className="inline-block px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/60 rounded">
+                                {code}
+                              </span>
+                              {coaName ? (
+                                <p className="text-xs font-semibold text-slate-800 leading-snug break-words">
+                                  {coaName}
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900">
                         Rp {Number(item.nominal || 0).toLocaleString('id-ID')}
@@ -3442,8 +3467,13 @@ export default function PenerimaanZis() {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Program Kegiatan (COA)</p>
                   <p className="text-sm font-bold text-slate-850">
                     {(() => {
-                      const coa = coaList.find(c => c.coa_code === selectedData.coa_code);
-                      return coa ? `${selectedData.coa_code} - ${coa.nama_akun}` : (selectedData.coa_code || '-');
+                      const code = (selectedData.coa_code || (selectedData.rkat?.coa_codes ? selectedData.rkat.coa_codes.split(',')[0].trim() : '')).trim();
+                      if (!code || code === '-') return '-';
+
+                      const coa = coaList.find(c => c.coa_code === code);
+                      const coaName = coa?.nama_akun || selectedData.rkat?.nama_program || '';
+
+                      return coaName ? `${code} - ${coaName}` : code;
                     })()}
                   </p>
                 </div>

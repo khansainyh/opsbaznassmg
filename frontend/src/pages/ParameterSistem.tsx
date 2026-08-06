@@ -15,7 +15,8 @@ import {
   FolderOpen,
   Info,
   HelpCircle,
-  Check
+  Check,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -39,7 +40,7 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [activeTab, setActiveTab] = useState<'utama' | 'survei'>('utama');
+  const [activeTab, setActiveTab] = useState<'utama' | 'survei'>(isSuperAdmin ? 'utama' : 'survei');
   const [selectedSurveyType, setSelectedSurveyType] = useState<'perorangan_konsumtif' | 'perorangan_produktif' | 'lembaga'>('perorangan_konsumtif');
   const [surveyTemplate, setSurveyTemplate] = useState<any[]>([]);
   const [showDriveGuide, setShowDriveGuide] = useState(false);
@@ -339,6 +340,279 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
     }
   };
 
+  const handlePrintBlankSurveyForm = () => {
+    const surveyTypeName = selectedSurveyType === 'perorangan_konsumtif' 
+      ? 'ASESMEN MUSTAHIK PERORANGAN (KONSUMTIF)' 
+      : selectedSurveyType === 'perorangan_produktif' 
+        ? 'ASESMEN MUSTAHIK PERORANGAN (PRODUKTIF)' 
+        : 'ASESMEN MUSTAHIK LEMBAGA / INSTANSI';
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const sections = selectedSurveyType === 'lembaga'
+      ? [
+          { code: 'A', title: 'Bagian A: Profil & Legitimasi Lembaga' },
+          { code: 'B', title: 'Bagian B: Kelayakan & Kebermanfaatan' }
+        ]
+      : [
+          { code: 'A', title: 'Bagian A: Kondisi Tempat Tinggal & Sanitasi' },
+          { code: 'B', title: 'Bagian B: Kondisi Ekonomi & Penghasilan' },
+          { code: 'C', title: 'Bagian C: Kondisi Fisik, Kesehatan & Tanggungan' }
+        ];
+
+    let sectionsHtml = '';
+
+    sections.forEach(sec => {
+      const sectionQuestions = surveyTemplate.filter(q => q.section === sec.code);
+      if (sectionQuestions.length === 0) return;
+
+      sectionsHtml += `
+        <div style="margin-bottom: 10px;">
+          <h3 style="font-size: 11px; font-weight: bold; background-color: #f1f5f9; padding: 4px 8px; border-left: 3px solid #059669; margin: 0 0 6px 0; font-family: Arial, sans-serif; text-transform: uppercase;">
+            ${sec.title}
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px;">
+            <thead>
+              <tr style="background-color: #f8fafc;">
+                <th style="border: 1px solid #cbd5e1; padding: 4px; text-align: center; width: 30px;">No</th>
+                <th style="border: 1px solid #cbd5e1; padding: 4px; text-align: left; width: 40%;">Parameter / Pertanyaan</th>
+                <th style="border: 1px solid #cbd5e1; padding: 4px; text-align: left;">Pilihan Opsi Jawaban (Beri tanda [ ✓ ])</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      sectionQuestions.forEach((q, idx) => {
+        let optionsHtml = '';
+        if (q.type === 'text') {
+          optionsHtml = `<div style="border-bottom: 1px dotted #94a3b8; height: 26px; color: #64748b; font-size: 9.5px;">Catatan Isian: </div>`;
+        } else if (q.options && q.options.length > 0) {
+          optionsHtml = `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px;">`;
+          q.options.forEach((opt: any) => {
+            optionsHtml += `
+              <div style="display: flex; align-items: center; gap: 5px; font-size: 9.5px;">
+                <span style="display: inline-block; width: 12px; height: 12px; border: 1px solid #475569; border-radius: 2px; flex-shrink: 0;"></span>
+                <span>${opt.label}</span>
+              </div>
+            `;
+          });
+          optionsHtml += `</div>`;
+        } else {
+          optionsHtml = `<div style="height: 22px; border-bottom: 1px dotted #cbd5e1;"></div>`;
+        }
+
+        sectionsHtml += `
+          <tr>
+            <td style="border: 1px solid #cbd5e1; padding: 4px 5px; text-align: center; font-weight: bold; vertical-align: top;">${idx + 1}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 4px 5px; font-weight: bold; vertical-align: top; color: #1e293b;">${q.label}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 4px 5px; vertical-align: top;">${optionsHtml}</td>
+          </tr>
+        `;
+      });
+
+      sectionsHtml += `
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Formulir Survei Kosongan - BAZNAS Kota Semarang</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 8mm 12mm 10mm 12mm;
+            }
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              color: #0f172a;
+              margin: 0;
+              padding: 0;
+              line-height: 1.2;
+            }
+            .kop-container {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              border-bottom: 2.5px double #000;
+              padding-bottom: 4px;
+              margin-bottom: 6px;
+            }
+            .kop-text {
+              text-align: center;
+              flex: 1;
+            }
+            .kop-title {
+              font-size: 14px;
+              font-weight: 900;
+              letter-spacing: 0.5px;
+              color: #064e3b;
+              margin: 0;
+            }
+            .kop-sub {
+              font-size: 12px;
+              font-weight: 800;
+              margin: 1px 0;
+              color: #0f172a;
+            }
+            .kop-address {
+              font-size: 9px;
+              color: #475569;
+              margin: 0;
+            }
+            .form-header {
+              text-align: center;
+              margin-bottom: 8px;
+            }
+            .form-header h2 {
+              font-size: 12px;
+              font-weight: 900;
+              margin: 0;
+              text-transform: uppercase;
+              text-decoration: underline;
+              letter-spacing: 0.5px;
+            }
+            .form-header p {
+              font-size: 9.5px;
+              font-weight: 700;
+              color: #059669;
+              margin: 1px 0 0 0;
+            }
+            .identitas-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 8px;
+              font-size: 9.5px;
+            }
+            .identitas-table td {
+              padding: 3px 5px;
+              border: 1px solid #cbd5e1;
+              vertical-align: middle;
+            }
+            .identitas-label {
+              font-weight: bold;
+              background-color: #f8fafc;
+              width: 18%;
+            }
+            .evaluasi-box {
+              border: 1px solid #059669;
+              border-radius: 4px;
+              padding: 8px 10px;
+              margin-top: 10px;
+              background-color: #f0fdf4;
+              page-break-inside: avoid;
+            }
+            .evaluasi-title {
+              font-size: 10.5px;
+              font-weight: 900;
+              color: #064e3b;
+              text-transform: uppercase;
+              margin-bottom: 4px;
+              border-bottom: 1px solid #a7f3d0;
+              padding-bottom: 2px;
+            }
+            .ttd-container {
+              display: flex;
+              justify-content: space-between;
+              margin-top: 12px;
+              page-break-inside: avoid;
+              font-size: 10px;
+            }
+            .ttd-box {
+              text-align: center;
+              width: 42%;
+            }
+          </style>
+        </head>
+        <body>
+          <!-- KOP SURAT BAZNAS -->
+          <div class="kop-container">
+            <div class="kop-text">
+              <p class="kop-title">BADAN AMIL ZAKAT NASIONAL (BAZNAS)</p>
+              <p class="kop-sub">KOTA SEMARANG</p>
+              <p class="kop-address">Jl. Abdul Rahman Saleh No.Raya, Kalipancur, Kec. Ngaliyan, Kota Semarang, Jawa Tengah 50149 | Telp: (024) 76431420 | Email: baznaskota.semarang@baznas.go.id</p>
+            </div>
+          </div>
+
+          <!-- FORM TITLE -->
+          <div class="form-header">
+            <h2>FORMULIR HASIL SURVEI / ASSESSMENT LAPANGAN</h2>
+            <p>KATEGORI: ${surveyTypeName}</p>
+          </div>
+
+          <!-- IDENTITAS MUSTAHIK -->
+          <table class="identitas-table">
+            <tr>
+              <td class="identitas-label">No. Registrasi / Agenda</td>
+              <td style="width: 32%;">_______________________________</td>
+              <td class="identitas-label">Tanggal Survei</td>
+              <td>____ / ____ / 2026</td>
+            </tr>
+            <tr>
+              <td class="identitas-label">${selectedSurveyType === 'lembaga' ? 'Nama Instansi / Lembaga' : 'Nama Lengkap Mustahik'}</td>
+              <td>_______________________________</td>
+              <td class="identitas-label">NIK / No. KTP</td>
+              <td>_______________________________</td>
+            </tr>
+            <tr>
+              <td class="identitas-label">Nama Pemohon / Pimpinan</td>
+              <td>_______________________________</td>
+              <td class="identitas-label">No. HP / WhatsApp</td>
+              <td>_______________________________</td>
+            </tr>
+            <tr>
+              <td class="identitas-label">Alamat Lengkap</td>
+              <td colspan="3">__________________________________________________________________________________</td>
+            </tr>
+            <tr>
+              <td class="identitas-label">Kelurahan & Kecamatan</td>
+              <td>Kel. _______________ / Kec. _______________</td>
+              <td class="identitas-label">Nama Relawan / Surveyor</td>
+              <td>_______________________________</td>
+            </tr>
+          </table>
+
+          <!-- QUESTIONS SECTIONS -->
+          ${sectionsHtml}
+
+          <!-- CATATAN LAPANGAN RELAWAN / SURVEYOR -->
+          <div class="evaluasi-box">
+            <div class="evaluasi-title">CATATAN LAPANGAN RELAWAN / SURVEYOR</div>
+            <div style="border-bottom: 1px dotted #94a3b8; height: 20px; margin-top: 2px;"></div>
+            <div style="border-bottom: 1px dotted #94a3b8; height: 20px;"></div>
+            <div style="border-bottom: 1px dotted #94a3b8; height: 20px;"></div>
+          </div>
+
+          <!-- TANDA TANGAN -->
+          <div class="ttd-container">
+            <div class="ttd-box">
+              <p>Mengetahui / Mengonfirmasi,<br><strong>Mustahik / Pemohon</strong></p>
+              <div style="height: 42px;"></div>
+              <p>( ___________________________ )</p>
+            </div>
+            <div class="ttd-box">
+              <p>Semarang, ____ / ____ / 2026<br><strong>Relawan Lapangan / Surveyor</strong></p>
+              <div style="height: 42px;"></div>
+              <p>( ___________________________ )</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 400);
+  };
+
   const formatCurrency = (val: string) => {
     const num = parseFloat(val) || 0;
     return new Intl.NumberFormat('id-ID', {
@@ -367,23 +641,23 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
         </p>
       </div>
 
-      {isSuperAdmin ? (
-        <>
-          {/* Tab Switcher */}
-          <div className="flex border-b border-slate-200 gap-6">
-        <button
-          type="button"
-          onClick={() => setActiveTab('utama')}
-          className={cn(
-            "pb-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
-            activeTab === 'utama'
-              ? "border-primary text-primary"
-              : "border-transparent text-slate-400 hover:text-slate-600"
-          )}
-        >
-          <Settings className="size-4" />
-          Parameter Utama
-        </button>
+      {/* Tab Switcher */}
+      <div className="flex border-b border-slate-200 gap-6">
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('utama')}
+            className={cn(
+              "pb-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2",
+              activeTab === 'utama'
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <Settings className="size-4" />
+            Parameter Utama
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setActiveTab('survei')}
@@ -404,7 +678,7 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
           <div className="size-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
           <p className="text-sm font-bold text-slate-400">Memuat ketentuan parameter...</p>
         </div>
-      ) : activeTab === 'utama' ? (
+      ) : (activeTab === 'utama' && isSuperAdmin) ? (
         <form onSubmit={handleSave} className="space-y-8 max-w-4xl">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -619,7 +893,7 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
                         </div>
                         <ol className="list-decimal list-inside space-y-2 font-medium">
                           <li>Buka folder penyimpanan di Google Drive pribadi atau instansi Anda.</li>
-                          <li>Bagikan (Share) folder tersebut ke email Service Account (lihat file <code className="bg-sky-100 text-sky-850 px-1 py-0.5 rounded font-mono font-bold">service-account.json</code> di backend): <code className="bg-sky-105 text-sky-900 px-1 py-0.5 rounded font-mono font-bold">client_email</code>.</li>
+                          <li>Bagikan (Share) folder tersebut ke email: <code className="bg-sky-105 text-sky-900 px-1 py-0.5 rounded font-mono font-bold select-all">operational.baznas.smg@gmail.com</code>.</li>
                           <li>Pastikan memberikan hak akses sebagai <strong className="text-sky-900 font-bold">Editor</strong> agar sistem dapat mengunggah file.</li>
                           <li>Salin <strong className="text-sky-900 font-bold">Folder ID</strong> dari URL browser.</li>
                         </ol>
@@ -989,29 +1263,40 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
           </motion.div>
 
         </form>
-      ) : (
+      ) : activeTab === 'survei' ? (
         <div className="space-y-8 max-w-4xl">
-          {/* Sub-tabs for Survey Types */}
-          <div className="flex bg-slate-100 p-1.5 rounded-xl w-fit gap-1 border border-slate-200">
-            {[
-              { id: 'perorangan_konsumtif', name: 'Perorangan Konsumtif' },
-              { id: 'perorangan_produktif', name: 'Perorangan Produktif' },
-              { id: 'lembaga', name: 'Lembaga' }
-            ].map(type => (
-              <button
-                key={type.id}
-                type="button"
-                onClick={() => setSelectedSurveyType(type.id as any)}
-                className={cn(
-                  "px-4 py-2 text-xs font-bold rounded-lg transition-all",
-                  selectedSurveyType === type.id
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                )}
-              >
-                {type.name}
-              </button>
-            ))}
+          {/* Sub-tabs for Survey Types & Print Blank Button */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="flex bg-slate-100 p-1.5 rounded-xl w-fit gap-1 border border-slate-200">
+              {[
+                { id: 'perorangan_konsumtif', name: 'Perorangan Konsumtif' },
+                { id: 'perorangan_produktif', name: 'Perorangan Produktif' },
+                { id: 'lembaga', name: 'Lembaga' }
+              ].map(type => (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => setSelectedSurveyType(type.id as any)}
+                  className={cn(
+                    "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+                    selectedSurveyType === type.id
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  {type.name}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePrintBlankSurveyForm}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/20 transition-all active:scale-95 shrink-0"
+            >
+              <Printer className="size-4" />
+              CETAK FORMULIR KOSONGAN (PDF)
+            </button>
           </div>
 
           <form onSubmit={handleSaveSurveyTemplate} className="space-y-8">
@@ -1221,38 +1506,7 @@ export default function ParameterSistem({ onObsMenuToggle }: ParameterSistemProp
           </motion.div>
         </form>
         </div>
-      )}
-        </>
-      ) : (
-        <div className="max-w-4xl bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="p-8 space-y-6">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <div className="space-y-1">
-                <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Modul Off-Balancing (OBS)</h4>
-                <p className="text-xs text-slate-550 font-bold uppercase tracking-wider mt-0.5">Pengaktifan Fitur Tambahan</p>
-                <p className="text-xs text-slate-500 font-medium mt-1">
-                  Mengaktifkan menu <strong>Off-Balancing</strong> dan <strong>Survei OBS</strong> di Sidebar untuk Staf Pelaporan, Distribusi, dan Relawan Lapangan. (Biasa diaktifkan tiap akhir semester: Juni &amp; Desember).
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleObsToggle}
-                className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                  formValues.obs_menu_enabled === 'true' ? "bg-primary" : "bg-slate-200"
-                )}
-              >
-                <span
-                  className={cn(
-                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                    formValues.obs_menu_enabled === 'true' ? "translate-x-5" : "translate-x-0"
-                  )}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {/* Toast Notification */}
       <AnimatePresence>
