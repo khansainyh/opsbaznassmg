@@ -34,13 +34,16 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
     // 2. Total Penyaluran (from Proposal where status in finished statuses in the given year)
     const finishedStatuses = [
       'Selesai & Arsip',
+      'Selesai',
       'Realisasi Bantuan',
       'MENUNGGU_SIMBA',
       'MENUNGGU_REALISASI_DISTRIBUSI',
       'Pencairan Dana',
       'Antrean Arsip',
       'Antrean_Arsip',
-      'Arsip'
+      'Arsip',
+      'CAIR',
+      'APPROVED'
     ];
     const penyaluranAgg = await prisma.proposal.aggregate({
       where: {
@@ -89,7 +92,7 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
     >`
       SELECT MONTH(tanggal_masuk) as month, SUM(nominal) as total
       FROM Proposal
-      WHERE status IN ('Selesai & Arsip', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana', 'Antrean Arsip', 'Antrean_Arsip', 'Arsip')
+      WHERE status IN ('Selesai & Arsip', 'Selesai', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana', 'Antrean Arsip', 'Antrean_Arsip', 'Arsip', 'CAIR', 'APPROVED')
         AND tanggal_masuk >= ${startDate} AND tanggal_masuk <= ${endDate}
       GROUP BY MONTH(tanggal_masuk)
     `;
@@ -144,25 +147,79 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
       };
     });
 
-    // 4. Proporsi per Pilar
+    // 4. Robust Proposal-to-Program & Pilar Matching
     const dbPilars = await prisma.pilar.findMany({
       include: {
-        programs: {
-          include: {
-            proposals: {
-              where: {
-                status: {
-                  in: finishedStatuses,
-                },
-                tanggal_masuk: {
-                  gte: startDate,
-                  lte: endDate,
-                },
-              },
-            },
-          },
+        programs: true,
+      },
+    });
+
+    const allPrograms = await prisma.program.findMany({
+      include: { pilar: true }
+    });
+
+    const allProposals = await prisma.proposal.findMany({
+      where: {
+        status: {
+          not: 'Ditolak'
+        },
+        tanggal_masuk: {
+          gte: startDate,
+          lte: endDate,
         },
       },
+    });
+
+    const programProposalsMap = new Map<string, any[]>();
+    const directCodeMap = new Map<string, string>();
+    const subActivityMap = new Map<string, string>();
+
+    allPrograms.forEach((prog) => {
+      programProposalsMap.set(prog.code, []);
+      directCodeMap.set(prog.code, prog.code);
+      if (prog.code.includes('.')) {
+        directCodeMap.set(prog.code.replace(/\./g, ''), prog.code);
+      }
+
+      const details = (Array.isArray(prog.rkat_details) ? prog.rkat_details : []) as any[];
+      details.forEach((item: any) => {
+        if (item.id) subActivityMap.set(String(item.id).trim(), prog.code);
+        if (item.code) subActivityMap.set(String(item.code).trim(), prog.code);
+        if (item.kode) subActivityMap.set(String(item.kode).trim(), prog.code);
+        if (item.no) subActivityMap.set(String(item.no).trim(), prog.code);
+        if (item.asnafTargetId) subActivityMap.set(String(item.asnafTargetId).trim(), prog.code);
+      });
+    });
+
+    const findProgramCodeInstant = (prop: any): string | null => {
+      const target2 = prop.rkat_activity_id ? String(prop.rkat_activity_id).trim() : '';
+      if (target2) {
+        if (directCodeMap.has(target2)) return directCodeMap.get(target2)!;
+        if (subActivityMap.has(target2)) return subActivityMap.get(target2)!;
+      }
+
+      const target1 = prop.jenis_permohonan ? String(prop.jenis_permohonan).trim() : '';
+      if (target1) {
+        if (directCodeMap.has(target1)) return directCodeMap.get(target1)!;
+        if (subActivityMap.has(target1)) return subActivityMap.get(target1)!;
+
+        const clean1 = target1.replace(/\./g, '');
+        if (directCodeMap.has(clean1)) return directCodeMap.get(clean1)!;
+
+        if (clean1.length >= 4) {
+          const p4 = clean1.substring(0, 4);
+          if (directCodeMap.has(p4)) return directCodeMap.get(p4)!;
+        }
+      }
+
+      return null;
+    };
+
+    allProposals.forEach(prop => {
+      const matchedProgCode = findProgramCodeInstant(prop);
+      if (matchedProgCode && programProposalsMap.has(matchedProgCode)) {
+        programProposalsMap.get(matchedProgCode)!.push(prop);
+      }
     });
 
     const pilarColors: Record<string, string> = {
@@ -180,10 +237,15 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
 
     const proporsiPilar = dbPilars.map((pilar) => {
       const target = pilar.programs.reduce((sum, prog) => sum + (prog.budget_rkat || 0), 0);
-      const realisasi = pilar.programs.reduce((sum, prog) => {
-        return sum + prog.proposals.reduce((pSum, prop) => pSum + (Number(prop.nominal) || 0), 0);
-      }, 0);
-      const penerima = pilar.programs.reduce((sum, prog) => sum + prog.proposals.length, 0);
+      let realisasi = 0;
+      let penerima = 0;
+
+      pilar.programs.forEach((prog) => {
+        const props = programProposalsMap.get(prog.code) || [];
+        penerima += props.length;
+        realisasi += props.reduce((pSum, prop) => pSum + (Number(prop.nominal) || 0), 0);
+      });
+
       const code = pilar.code;
 
       return {
@@ -197,66 +259,44 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
     });
 
     // 5. Sebaran Proposal per Kecamatan (per Pilar)
-    const sebaranKecamatanRaw = await prisma.$queryRaw<
-      { pilar_code: string; kecamatan: string; jumlah: number }[]
-    >`
-      SELECT p.pilar_code, pr.kecamatan, COUNT(pr.id) as jumlah
-      FROM Proposal pr
-      JOIN Program p ON pr.jenis_permohonan = p.code
-      WHERE pr.status IN ('Selesai & Arsip', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana', 'Antrean Arsip', 'Antrean_Arsip', 'Arsip')
-        AND pr.tanggal_masuk >= ${startDate} AND pr.tanggal_masuk <= ${endDate}
-        AND pr.kecamatan IS NOT NULL AND pr.kecamatan != ''
-      GROUP BY p.pilar_code, pr.kecamatan
-    `;
-
     const sebaranKecamatan: Record<string, { kecamatan: string; jumlah: number }[]> = {};
     dbPilars.forEach((pilar) => {
       sebaranKecamatan[pilar.code] = [];
     });
 
-    sebaranKecamatanRaw.forEach((row: any) => {
-      const pCode = row.pilar_code;
-      if (sebaranKecamatan[pCode]) {
-        sebaranKecamatan[pCode].push({
-          kecamatan: row.kecamatan,
-          jumlah: Number(row.jumlah || 0),
+    dbPilars.forEach((pilar) => {
+      const kecCounts: Record<string, number> = {};
+      pilar.programs.forEach((prog) => {
+        const props = programProposalsMap.get(prog.code) || [];
+        props.forEach((pr) => {
+          if (pr.kecamatan && pr.kecamatan.trim() !== '') {
+            const kec = pr.kecamatan.trim();
+            kecCounts[kec] = (kecCounts[kec] || 0) + 1;
+          }
         });
-      }
-    });
+      });
 
-    Object.keys(sebaranKecamatan).forEach((k) => {
-      sebaranKecamatan[k].sort((a, b) => b.jumlah - a.jumlah);
+      Object.entries(kecCounts).forEach(([kecamatan, jumlah]) => {
+        sebaranKecamatan[pilar.code].push({ kecamatan, jumlah });
+      });
+
+      sebaranKecamatan[pilar.code].sort((a, b) => b.jumlah - a.jumlah);
     });
 
     // 6. Top 5 Program Tersalur
-    const topProgramsRaw = await prisma.program.findMany({
-      include: {
-        proposals: {
-          where: {
-            status: {
-              in: finishedStatuses,
-            },
-            tanggal_masuk: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-        },
-      },
-    });
-
-    const topProgram = topProgramsRaw
+    const topProgram = allPrograms
       .map((prog) => {
-        const total = prog.proposals.reduce((sum, prop) => sum + (Number(prop.nominal) || 0), 0);
+        const props = programProposalsMap.get(prog.code) || [];
+        const total = props.reduce((sum, prop) => sum + (Number(prop.nominal) || 0), 0);
         return {
           nama: prog.name,
           kode: prog.code,
-          jumlah: prog.proposals.length,
+          jumlah: props.length,
           total,
         };
       })
-      .filter((p) => p.total > 0)
-      .sort((a, b) => b.total - a.total)
+      .filter((p) => p.total > 0 || p.jumlah > 0)
+      .sort((a, b) => b.total - a.total || b.jumlah - a.jumlah)
       .slice(0, 5);
 
     const currentMonthName = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
