@@ -721,48 +721,64 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  );
  }, [proposals]);
 
- const getParentProgramCode = (code?: string): string => {
+const getParentProgramCode = (code?: string): string => {
  if (!code) return"";
  return code.split('.')[0].trim();
  };
 
- // Robust automatic helper matching a proposal dynamically to an RKAT activity based on Pilar + Program + Asnaf
- const getMatchedActivityForProposal = (p: ProposalMemo, currentActivities: typeof activities) => {
- // 1. Prioritize matching by explicit rkatActivityId (which maps from backend's rkat_activity_id)
- if (p.rkatActivityId) {
- const matchById = currentActivities.find(act => act.id === p.rkatActivityId || act.asnafTargetId === p.rkatActivityId);
- if (matchById) return matchById;
- }
+  // Robust automatic helper matching a proposal dynamically to an RKAT activity based on Pilar + Program + Asnaf
+  const getMatchedActivityForProposal = (p: ProposalMemo, currentActivities: typeof activities) => {
+    // 1. Prioritize matching by explicit rkatActivityId (which maps from backend's rkat_activity_id)
+    if (p.rkatActivityId) {
+      const matchById = currentActivities.find(act => act.id === p.rkatActivityId || act.asnafTargetId === p.rkatActivityId);
+      if (matchById) return matchById;
 
- // 2. Match by exact program code and asnaf
- if (p.programCode) {
- const matchByCode = currentActivities.find(act => {
- const matchesCode = p.programCode === act.programCode;
- if (!matchesCode) return false;
+      // Match by 1-based numeric index in currentActivities table (e.g. No 1, No 2)
+      if (/^\d+$/.test(p.rkatActivityId)) {
+        const idx = Number(p.rkatActivityId) - 1;
+        if (idx >= 0 && idx < currentActivities.length) {
+          return currentActivities[idx];
+        }
+      }
+    }
 
- if (act.asnaf) {
- const pAsnaf = (p.asnaf ||'Miskin').toLowerCase();
- return act.asnaf.toLowerCase() === pAsnaf;
- }
- return true;
- });
- if (matchByCode) return matchByCode;
- 
- // Fallback to parent program code match if exact code is not found
- const parentP = getParentProgramCode(p.programCode);
- const matchByParentCode = currentActivities.find(act => {
- const parentAct = getParentProgramCode(act.programCode);
- const matchesCode = parentP === parentAct;
- if (!matchesCode) return false;
+    // 1b. Check if jenisPermohonan is a numeric 1-based index
+    if (p.jenisPermohonan && /^\d+$/.test(p.jenisPermohonan)) {
+      const idx = Number(p.jenisPermohonan) - 1;
+      if (idx >= 0 && idx < currentActivities.length) {
+        return currentActivities[idx];
+      }
+    }
 
- if (act.asnaf) {
- const pAsnaf = (p.asnaf ||'Miskin').toLowerCase();
- return act.asnaf.toLowerCase() === pAsnaf;
- }
- return true;
- });
- if (matchByParentCode) return matchByParentCode;
- }
+    // 2. Match by exact program code and asnaf
+    if (p.programCode) {
+      const matchByCode = currentActivities.find(act => {
+        const matchesCode = p.programCode === act.programCode;
+        if (!matchesCode) return false;
+
+        if (act.asnaf) {
+          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          return act.asnaf.toLowerCase() === pAsnaf;
+        }
+        return true;
+      });
+      if (matchByCode) return matchByCode;
+      
+      // Fallback to parent program code match if exact code is not found
+      const parentP = getParentProgramCode(p.programCode);
+      const matchByParentCode = currentActivities.find(act => {
+        const parentAct = getParentProgramCode(act.programCode);
+        const matchesCode = parentP === parentAct;
+        if (!matchesCode) return false;
+
+        if (act.asnaf) {
+          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          return act.asnaf.toLowerCase() === pAsnaf;
+        }
+        return true;
+      });
+      if (matchByParentCode) return matchByParentCode;
+    }
 
  // 3. Fallback to name-based matching
  return currentActivities.find(act => {

@@ -85,43 +85,57 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   const [migrating, setMigrating] = useState(false);
 
   const downloadProposalTemplate = () => {
-    const simpleData = [
+    const templateRows = [
       {
-        Tanggal_Proposal: '2025-11-20',
-        Tanggal_Pencairan: '2026-01-15',
-        No_Agenda_Proposal: 'PROP-2025-001',
-        Nama_Pemohon_Lembaga: "Masjid Baitun Ni'mah",
-        NIK: '3374010101800001',
-        No_KK: '3374010101800000',
-        Alamat: 'Jl. Majapahit No. 12',
-        Kecamatan: 'Pedurungan',
-        Kelurahan: 'Tlogosari',
-        Kode_Kegiatan: '250112',
-        Asnaf: 'Fakir',
-        Nominal: 25000000,
-        Keterangan: 'Bantuan Operasional Masjid & Sembako'
+        ID_Proposal: 'PROP-2026-001',
+        Tanggal_Proposal: '2026-08-01',
+        Nama_Instansi: 'SD N 1 Ngaliyan',
+        Pimpinan_Organisasi: 'Drs. H. Supriyanto, M.Pd.',
+        Nama_Pemohon: 'Budi Santoso, S.Pd.',
+        Nama_Anak: 'Ahmad Syahputra',
+        NIK: '3374011203090001',
+        No_KK: '3374011005050002',
+        Alamat: 'Jl. Ngaliyan No. 12',
+        Kelurahan: 'Ngaliyan',
+        Kecamatan: 'Ngaliyan',
+        No_Telpon: '081234567890',
+        Jenis_Permohonan: '230101',
+        Kode_COA: '51010101',
+        Kode_RKAT: 'asnaf-1786077405033-ihye',
+        Nominal: 2500000,
+        Asnaf: 'Miskin',
+        Jenis_Pengajuan: 'Lembaga',
+        Status: 'Selesai & Arsip',
+        Keterangan: 'Bantuan Operasional SPP Sekolah'
       },
       {
-        Tanggal_Proposal: '2026-01-05',
-        Tanggal_Pencairan: '2026-01-10',
-        No_Agenda_Proposal: '',
-        Nama_Pemohon_Lembaga: 'Ahmad Fauzi',
-        NIK: '3374012345678901',
-        No_KK: '3374012345678902',
-        Alamat: 'Jl. Pemuda No. 12',
-        Kecamatan: 'Semarang Tengah',
-        Kelurahan: 'Sekayu',
-        Kode_Kegiatan: '1.1.1',
-        Asnaf: 'Miskin',
-        Nominal: 1500000,
-        Keterangan: 'Bantuan Biaya Pengobatan'
+        ID_Proposal: 'PROP-2026-002',
+        Tanggal_Proposal: '2026-08-02',
+        Nama_Instansi: '',
+        Pimpinan_Organisasi: '',
+        Nama_Pemohon: 'Siti Aminah',
+        Nama_Anak: '',
+        NIK: '3374024506880003',
+        No_KK: '3374021104040005',
+        Alamat: 'Jl. Kalipancur No. 45',
+        Kelurahan: 'Kalipancur',
+        Kecamatan: 'Ngaliyan',
+        No_Telpon: '085712345678',
+        Jenis_Permohonan: 'Bantuan Pengobatan RS',
+        Kode_COA: '',
+        Kode_RKAT: '',
+        Nominal: 0,
+        Asnaf: 'Fakir',
+        Jenis_Pengajuan: 'Perorangan',
+        Status: 'Registrasi',
+        Keterangan: 'Proposal Baru Dalam Proses (Dapat di-update COA/RKAT nanti)'
       }
     ];
 
-    const ws = XLSX.utils.json_to_sheet(simpleData);
+    const ws = XLSX.utils.json_to_sheet(templateRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "MIGRASI_PROPOSAL");
-    XLSX.writeFile(wb, "Template_Migrasi_Proposal.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Migrasi_Proposal");
+    XLSX.writeFile(wb, "Template_Migrasi_Proposal_BAZNAS.xlsx");
   };
 
   const handleProposalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

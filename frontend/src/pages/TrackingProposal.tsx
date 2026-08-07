@@ -91,8 +91,10 @@ const STEPS = [
 ];
 
 function getProgressSteps(status: string) {
-  const normStatus = status === 'Selesai' ? 'Selesai & Arsip' : status;
+  const normStatus = (status === 'Selesai' || status === 'Selesai & Arsip' || status?.toLowerCase().startsWith('selesai')) ? 'Selesai & Arsip' : status;
   if (normStatus === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
+  if (normStatus === 'Selesai & Arsip') return STEPS.map(s => ({ ...s, active: false, completed: true, rejected: false }));
+
   const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === normStatus.toLowerCase());
   return STEPS.map((step, i) => {
     const ranges = [

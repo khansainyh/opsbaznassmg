@@ -3,6 +3,20 @@ import * as XLSX from 'xlsx';
 import prisma from '../utils/prisma';
 import { Prisma, StatusPengajuan } from '@prisma/client';
 
+function parseExcelDate(val: any): Date {
+  if (!val) return new Date();
+  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
+  if (typeof val === 'number' || (!isNaN(Number(val)) && !String(val).includes('-') && !String(val).includes('/'))) {
+    const num = Number(val);
+    if (num > 10000 && num < 100000) {
+      // Excel serial date formula (convert days since 1899-12-30 to MS)
+      return new Date(Math.round((num - 25569) * 86400 * 1000));
+    }
+  }
+  const parsed = new Date(String(val));
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 export const migrateProposalExcel = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.file) {
@@ -61,40 +75,126 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
       const rowNum = i + 2;
 
       try {
-        const idProposal = String(row.ID_Proposal || row['ID Proposal'] || row.No_Proposal || row['No Proposal'] || `PROP-MIG-${Date.now()}-${i + 1}`).trim();
+        const rawId = String(row.ID_Proposal || row['ID Proposal'] || row.No_Proposal || row['No Proposal'] || row.No_Agenda || row['No Agenda'] || row.Agenda_No || row['Agenda No'] || '').trim();
         const namaLembaga = String(row.Nama_Lembaga || row['Nama Lembaga'] || row.Instansi || row.Pemohon || 'Lembaga Tanpa Nama').trim();
         const pic = String(row.PIC_Pemohon || row['PIC Pemohon'] || row.PIC || '').trim();
         const nominalVal = Number(row.Nominal_Global || row['Nominal Global'] || row.Nominal || row['Total Nominal'] || 0);
         const keterangan = String(row.Keterangan || row.Peruntukan || `Migrasi Proposal: ${namaLembaga}`).trim();
         const sumberDana = String(row.Sumber_Dana || row['Sumber Dana'] || 'Zakat').trim();
-        const rkatCode = String(row.Kode_Kegiatan || row['Kode Kegiatan'] || row.Jenis_Permohonan || row['Jenis Permohonan'] || row.Program_RKAT || row['Program RKAT'] || row.RKAT || '').trim();
+        const rkatCode = String(row.Kode_RKAT || row['Kode RKAT'] || row.No_RKAT || row['No RKAT'] || row.Kode_Kegiatan || row['Kode Kegiatan'] || row.Program_RKAT || row['Program RKAT'] || row.RKAT || '').trim();
+        const coaCode = String(row.Kode_COA || row['Kode COA'] || row.COA || '').trim();
 
         // Dates
         const tglPropRaw = row.Tanggal_Proposal || row['Tanggal Proposal'] || row.Tanggal || new Date();
         const tglCairRaw = row.Tanggal_Pencairan || row['Tanggal Pencairan'] || row.Tanggal_Realisasi || tglPropRaw;
 
-        const tanggalProposal = new Date(tglPropRaw);
-        const tanggalPencairan = new Date(tglCairRaw);
+        const validTglProp = parseExcelDate(tglPropRaw);
+        const validTglCair = parseExcelDate(tglCairRaw);
+        const yearVal = validTglProp.getFullYear();
 
-        const validTglProp = isNaN(tanggalProposal.getTime()) ? new Date() : tanggalProposal;
-        const validTglCair = isNaN(tanggalPencairan.getTime()) ? validTglProp : tanggalPencairan;
-
-        // Check if matching RKAT Operasional exists
-        let rkatId: string | null = null;
-        if (rkatCode) {
-          const rkatObj = await prisma.rkatOperasional.findFirst({
-            where: {
-              OR: [
-                { no: { contains: rkatCode } },
-                { nama: { contains: rkatCode } }
-              ]
-            }
-          });
-          if (rkatObj) rkatId = rkatObj.id;
+        // Auto-generate standardized ID_Proposal (e.g. "1" -> "PROP-2026-0001")
+        let idProposal = '';
+        if (!rawId) {
+          idProposal = `PROP-${yearVal}-${String(i + 1).padStart(4, '0')}`;
+        } else if (/^\d+$/.test(rawId)) {
+          idProposal = `PROP-${yearVal}-${String(rawId).padStart(4, '0')}`;
+        } else if (rawId.toUpperCase().startsWith('PROP-')) {
+          idProposal = rawId.toUpperCase();
+        } else {
+          idProposal = `PROP-${yearVal}-${rawId}`;
         }
 
+        // Check matching RKAT Penyaluran (Program table) first!
+        let programObj: any = null;
+        let rkatObj: any = null;
+        let matchedAsnafId: string | null = null;
+
+        const targetCode = rkatCode || coaCode;
+        if (targetCode) {
+          // 1. Fetch all RKAT Penyaluran Programs
+          const allPrograms = await prisma.program.findMany({
+            orderBy: [{ code: 'asc' }, { created_at: 'asc' }]
+          });
+
+          // A. Check if targetCode matches any rkat_details item ID directly (e.g. asnaf-1786078759614-oc7l)
+          for (const prog of allPrograms) {
+            const rkatDetailsArr = (Array.isArray(prog.rkat_details) ? prog.rkat_details : []) as any[];
+            const foundItem = rkatDetailsArr.find((item: any) => item.id === targetCode || item.asnafTargetId === targetCode);
+            if (foundItem) {
+              programObj = prog;
+              matchedAsnafId = foundItem.id;
+              break;
+            }
+          }
+
+          // B. If targetCode is numeric (like "1", "2", "3"), match by 1-based index across all rkat_details sub-activities!
+          if (!programObj && /^\d+$/.test(targetCode)) {
+            const numericIndex = Number(targetCode) - 1;
+            let globalIndex = 0;
+            for (const prog of allPrograms) {
+              const rkatDetailsArr = (Array.isArray(prog.rkat_details) ? prog.rkat_details : []) as any[];
+              if (rkatDetailsArr.length > 0) {
+                for (const item of rkatDetailsArr) {
+                  if (globalIndex === numericIndex) {
+                    programObj = prog;
+                    matchedAsnafId = item.id;
+                    break;
+                  }
+                  globalIndex++;
+                }
+              } else {
+                if (globalIndex === numericIndex) {
+                  programObj = prog;
+                  matchedAsnafId = prog.code;
+                  break;
+                }
+                globalIndex++;
+              }
+              if (programObj) break;
+            }
+          }
+
+          // C. Check exact program code or pilar code
+          if (!programObj) {
+            programObj = allPrograms.find(prog => prog.code === targetCode || prog.pilar_code === targetCode);
+          }
+
+          // D. Name substring match (ONLY if targetCode is not a simple pure number)
+          if (!programObj && !/^\d+$/.test(targetCode)) {
+            programObj = allPrograms.find(prog => prog.name.toLowerCase().includes(targetCode.toLowerCase()));
+          }
+
+          // E. Fallback to 1-based program index if sub-activity list didn't match
+          if (!programObj && /^\d+$/.test(targetCode)) {
+            const idx = Number(targetCode) - 1;
+            if (idx >= 0 && idx < allPrograms.length) {
+              programObj = allPrograms[idx];
+            }
+          }
+
+          // F. Fallback to RKAT Operasional if matching
+          if (!programObj) {
+            rkatObj = await prisma.rkatOperasional.findFirst({
+              where: {
+                OR: [
+                  { no: { contains: targetCode } },
+                  { nama: { contains: targetCode } }
+                ]
+              }
+            });
+          }
+        }
+
+        // Foreign-key safe fields:
+        // Proposal.jenis_permohonan MUST be a valid Program.code or null
+        const validProgramCode = programObj ? programObj.code : null;
+        // PengajuanPencairan.rkat_id MUST be a valid RkatOperasional.id (UUID) or null
+        const validRkatOperasionalId = rkatObj ? rkatObj.id : null;
+        // Plain string fields (No FK constraint)
+        const displayRkatActivityId = matchedAsnafId || (programObj ? programObj.code : (rkatObj ? rkatObj.no : (targetCode || null)));
+
         // Get linked mustahik details
-        const linkedDetails = detailsByProposalId.get(idProposal) || [];
+        const linkedDetails = detailsByProposalId.get(rawId) || detailsByProposalId.get(idProposal) || [];
         let mustahikSummary = linkedDetails.map((md: any) => ({
           nama: String(md.Nama_Mustahik || md['Nama Mustahik'] || md.Nama || '-').trim(),
           nik: String(md.NIK || md['No NIK'] || '-').trim(),
@@ -120,6 +220,20 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
           }];
         }
 
+        const pimpinanOrganisasiVal = String(row.Pimpinan_Organisasi || row['Pimpinan Organisasi'] || row.Nama_Pimpinan || row['Nama Pimpinan'] || row.Pimpinan || '').trim() || null;
+        const namaAnakVal = String(row.Nama_Anak || row['Nama Anak'] || row.Nama_Siswa || row['Nama Siswa'] || row.Anak || '').trim() || null;
+        const nikVal = String(row.NIK || row['No NIK'] || row.nik || row['NIK Pemohon'] || '').trim() || null;
+        const noKkVal = String(row.No_KK || row['No KK'] || row.no_kk || '').trim() || null;
+        const alamatVal = String(row.Alamat || row['Alamat Lengkap'] || row.alamat || '').trim() || null;
+        const kelurahanVal = String(row.Kelurahan || row.kelurahan || '').trim() || null;
+        const kecamatanVal = String(row.Kecamatan || row.kecamatan || '').trim() || null;
+        const noTelponVal = String(row.No_Telpon || row['No Telpon'] || row.No_HP || row['No HP'] || row.no_telpon || '').trim() || null;
+        const asnafVal = String(row.Asnaf || row.asnaf || '').trim() || null;
+        
+        // Smart Status Defaulting: If specified in Excel use it. If empty & has nominal > 0 -> 'Selesai & Arsip', otherwise default -> 'Registrasi'
+        const statusRaw = String(row.Status || row.status || '').trim();
+        const statusVal = statusRaw ? statusRaw : (nominalVal > 0 ? 'Selesai & Arsip' : 'Registrasi');
+
         // Execute DB Insertion in a transaction (BYPASSING GL & Bank Balance changes)
         await prisma.$transaction(async (tx) => {
           // 1. Upsert PengajuanPencairan
@@ -131,7 +245,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
               tanggal: validTglCair,
               keterangan: `${keterangan} (Pemohon: ${namaLembaga}${pic ? ` - PIC: ${pic}` : ''})`,
               nominal: new Prisma.Decimal(nominalVal),
-              rkat_id: rkatId,
+              rkat_id: validRkatOperasionalId,
               status: StatusPengajuan.CAIR,
               sumber_dana: sumberDana
             },
@@ -142,7 +256,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
               kategori_biaya: 'Penyaluran ZIS',
               keterangan: `${keterangan} (Pemohon: ${namaLembaga}${pic ? ` - PIC: ${pic}` : ''})`,
               nominal: new Prisma.Decimal(nominalVal),
-              rkat_id: rkatId,
+              rkat_id: validRkatOperasionalId,
               status: StatusPengajuan.CAIR,
               sumber_dana: sumberDana
             }
@@ -168,23 +282,78 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
           // 3. Create Realisasi record for RKAT tracking (without creating journal entries)
           await tx.realisasi.create({
             data: {
-              rkat_id: rkatId,
+              rkat_id: displayRkatActivityId,
               tanggal: validTglCair,
               keterangan: `[MIGRASI PROPOSAL] ${namaLembaga} - ${keterangan}`
             }
           });
 
-          // 4. Create Proposal record (so it shows up in Tracking Proposal & Memo views)
-          await tx.proposal.create({
-            data: {
-              tanggal_masuk: validTglProp,
-              nama_pemohon: pic || namaLembaga,
-              nama_instansi: namaLembaga,
-              keterangan: `${idProposal}: ${keterangan}`,
-              jenis_pengajuan: mustahikSummary.length > 1 ? 'Lembaga' : 'Perorangan',
-              status: 'Selesai & Arsip'
+          const agendaNoVal = /^\d+$/.test(rawId) ? Number(rawId) : undefined;
+
+          // 4. Upsert Proposal record (if re-migrated with same ID_Proposal or Agenda No, update RKAT/COA/Nominal seamlessly)
+          const searchConditions: any[] = [
+            { keterangan: { startsWith: `${idProposal}:` } },
+            { id: idProposal }
+          ];
+          if (agendaNoVal) {
+            searchConditions.push({ agenda_no: agendaNoVal });
+          }
+
+          const existingProposal = await tx.proposal.findFirst({
+            where: {
+              OR: searchConditions
             }
           });
+
+          if (existingProposal) {
+            await tx.proposal.update({
+              where: { id: existingProposal.id },
+              data: {
+                ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
+                tanggal_masuk: validTglProp,
+                nama_pemohon: pic || String(row.Nama_Pemohon || row['Nama Pemohon'] || row.Pemohon || namaLembaga).trim(),
+                nama_instansi: namaLembaga !== 'Lembaga Tanpa Nama' ? namaLembaga : (String(row.Nama_Instansi || row['Nama Instansi'] || '').trim() || null),
+                pimpinan_organisasi: pimpinanOrganisasiVal || existingProposal.pimpinan_organisasi,
+                nama_anak: namaAnakVal || existingProposal.nama_anak,
+                nik: nikVal || existingProposal.nik,
+                no_kk: noKkVal || existingProposal.no_kk,
+                alamat: alamatVal || existingProposal.alamat,
+                kelurahan: kelurahanVal || existingProposal.kelurahan,
+                kecamatan: kecamatanVal || existingProposal.kecamatan,
+                no_telpon: noTelponVal || existingProposal.no_telpon,
+                jenis_permohonan: validProgramCode || existingProposal.jenis_permohonan,
+                rkat_activity_id: displayRkatActivityId || existingProposal.rkat_activity_id,
+                nominal: nominalVal > 0 ? Math.round(nominalVal) : existingProposal.nominal,
+                asnaf: asnafVal || existingProposal.asnaf,
+                keterangan: `${idProposal}: ${keterangan}`,
+                status: statusVal || existingProposal.status
+              }
+            });
+          } else {
+            await tx.proposal.create({
+              data: {
+                ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
+                tanggal_masuk: validTglProp,
+                nama_pemohon: pic || String(row.Nama_Pemohon || row['Nama Pemohon'] || row.Pemohon || namaLembaga).trim(),
+                nama_instansi: namaLembaga !== 'Lembaga Tanpa Nama' ? namaLembaga : (String(row.Nama_Instansi || row['Nama Instansi'] || '').trim() || null),
+                pimpinan_organisasi: pimpinanOrganisasiVal,
+                nama_anak: namaAnakVal,
+                nik: nikVal,
+                no_kk: noKkVal,
+                alamat: alamatVal,
+                kelurahan: kelurahanVal,
+                kecamatan: kecamatanVal,
+                no_telpon: noTelponVal,
+                jenis_permohonan: validProgramCode,
+                rkat_activity_id: displayRkatActivityId,
+                nominal: nominalVal > 0 ? Math.round(nominalVal) : null,
+                asnaf: asnafVal,
+                keterangan: `${idProposal}: ${keterangan}`,
+                jenis_pengajuan: namaLembaga && namaLembaga !== 'Lembaga Tanpa Nama' ? 'Lembaga' : (mustahikSummary.length > 1 ? 'Lembaga' : 'Perorangan'),
+                status: statusVal
+              }
+            });
+          }
         });
 
         importedCount++;
