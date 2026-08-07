@@ -1497,9 +1497,11 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                     </span>
                   </div>
                   <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">
-                    {task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (task.namaInstansi || task.namaPemohon) : task.namaPemohon}
+                    {task.namaAnak ? task.namaAnak : (task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (task.namaInstansi || task.namaPemohon) : task.namaPemohon)}
                   </h3>
-                  {task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (
+                  {task.namaAnak ? (
+                    <p className="text-xs text-slate-500 font-medium mb-1">Sekolah/Instansi: {task.namaInstansi || task.namaPemohon}</p>
+                  ) : task.jenisPengajuan === 'Lembaga' || task.namaInstansi ? (
                     <p className="text-xs text-slate-500 font-medium mb-1">Pemohon: {task.namaPemohon}</p>
                   ) : null}
                   <div className="flex items-center gap-1.5 text-slate-400 mb-4">

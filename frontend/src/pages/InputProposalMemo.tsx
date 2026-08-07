@@ -1547,7 +1547,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-bold text-slate-900">
-                          {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon}
+                          {item.namaAnak ? item.namaAnak : (item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon)}
                         </p>
                         {item.hasMemo && (
                           <div className="group/memo relative">
@@ -1558,7 +1558,9 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
                           </div>
                         )}
                       </div>
-                      {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                      {item.namaAnak ? (
+                        <span className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</span>
+                      ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
                         <span className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</span>
                       ) : (
                         <span className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</span>

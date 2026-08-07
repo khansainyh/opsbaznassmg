@@ -705,7 +705,14 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo}</span>
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
-                    {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                    {item.namaAnak ? (
+                      <>
+                        <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
+                        <div className="flex flex-col gap-0.5 mt-0.5">
+                          <span className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</span>
+                        </div>
+                      </>
+                    ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
                       <>
                         <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                         <div className="flex flex-col gap-0.5 mt-0.5">
@@ -974,7 +981,18 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     {/* Mustahik & Bantuan Info Card */}
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                       <div>
-                        {(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (
+                        {selectedProposal.namaAnak ? (
+                          <>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Anak / Siswa</p>
+                            <p className="text-sm font-bold text-slate-900">{selectedProposal.namaAnak}</p>
+                            {selectedProposal.namaInstansi && (
+                              <p className="text-xs text-slate-500 font-semibold mt-0.5">Instansi / Sekolah: {selectedProposal.namaInstansi}</p>
+                            )}
+                            {selectedProposal.namaPemohon && (
+                              <p className="text-xs text-slate-400 font-medium mt-0.5">Pemohon: {selectedProposal.namaPemohon}</p>
+                            )}
+                          </>
+                        ) : (selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (
                           <>
                             <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Instansi / Lembaga</p>
                             <p className="text-sm font-bold text-slate-900">{selectedProposal.namaInstansi || selectedProposal.namaPemohon}</p>

@@ -379,7 +379,12 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                       <span className="text-sm font-black bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo}</span>
                     </td>
                     <td className="px-6 py-4">
-                      {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                      {item.namaAnak ? (
+                        <>
+                          <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
+                          <p className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
+                        </>
+                      ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
                         <>
                           <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                           <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>

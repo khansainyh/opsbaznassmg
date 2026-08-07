@@ -717,7 +717,12 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                           {String(item.agendaNo).padStart(3, '0')}
                         </td>
                         <td className="py-3 px-4 text-slate-800 font-bold">
-                          {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                          {item.namaAnak ? (
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
+                              <p className="text-[10px] text-slate-500 font-normal">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
+                            </div>
+                          ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
                             <div>
                               <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                               <p className="text-[10px] text-slate-500 font-normal">{item.namaPemohon}</p>

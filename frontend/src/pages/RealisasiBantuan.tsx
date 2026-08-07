@@ -549,7 +549,12 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        {item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                        {item.namaAnak ? (
+                          <>
+                            <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
+                          </>
+                        ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
                           <>
                             <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                             <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
