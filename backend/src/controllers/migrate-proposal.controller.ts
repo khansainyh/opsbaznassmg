@@ -81,7 +81,20 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         const nominalVal = Number(row.Nominal_Global || row['Nominal Global'] || row.Nominal || row['Total Nominal'] || 0);
         const keterangan = String(row.Keterangan || row.Peruntukan || `Migrasi Proposal: ${namaLembaga}`).trim();
         const sumberDana = String(row.Sumber_Dana || row['Sumber Dana'] || 'Zakat').trim();
-        const rkatCode = String(row.Kode_RKAT || row['Kode RKAT'] || row.No_RKAT || row['No RKAT'] || row.Kode_Kegiatan || row['Kode Kegiatan'] || row.Program_RKAT || row['Program RKAT'] || row.RKAT || '').trim();
+        const rkatCode = String(
+          row.Kode_RKAT || row['Kode RKAT'] ||
+          row.No_RKAT || row['No RKAT'] ||
+          row.Kode_Kegiatan || row['Kode Kegiatan'] ||
+          row.Program_RKAT || row['Program RKAT'] ||
+          row.RKAT ||
+          row.Jenis_Permohonan || row['Jenis Permohonan'] ||
+          row.Jenis_Pengajuan || row['Jenis Pengajuan'] ||
+          row.Program || row['Program'] ||
+          row['Program / Jenis Permohonan'] || row['Program/Jenis Permohonan'] ||
+          row['Jenis Permohonan / Kode Kegiatan'] ||
+          row.Kegiatan || row['Kegiatan'] ||
+          ''
+        ).trim();
         const coaCode = String(row.Kode_COA || row['Kode COA'] || row.COA || '').trim();
 
         // Dates
@@ -116,19 +129,31 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
             orderBy: [{ code: 'asc' }, { created_at: 'asc' }]
           });
 
-          // A. Check if targetCode matches any rkat_details item ID directly (e.g. asnaf-1786078759614-oc7l)
-          for (const prog of allPrograms) {
-            const rkatDetailsArr = (Array.isArray(prog.rkat_details) ? prog.rkat_details : []) as any[];
-            const foundItem = rkatDetailsArr.find((item: any) => item.id === targetCode || item.asnafTargetId === targetCode);
-            if (foundItem) {
-              programObj = prog;
-              matchedAsnafId = foundItem.id;
-              break;
+          // A. Check exact Program.code match first!
+          programObj = allPrograms.find(prog => prog.code === targetCode || prog.pilar_code === targetCode);
+
+          // B. Check if targetCode matches any rkat_details item ID or code/no/name directly
+          if (!programObj) {
+            for (const prog of allPrograms) {
+              const rkatDetailsArr = (Array.isArray(prog.rkat_details) ? prog.rkat_details : []) as any[];
+              const foundItem = rkatDetailsArr.find((item: any) =>
+                item.id === targetCode ||
+                item.asnafTargetId === targetCode ||
+                item.code === targetCode ||
+                item.kode === targetCode ||
+                item.no === targetCode ||
+                (item.name && item.name.toLowerCase() === targetCode.toLowerCase())
+              );
+              if (foundItem) {
+                programObj = prog;
+                matchedAsnafId = foundItem.id;
+                break;
+              }
             }
           }
 
-          // B. If targetCode is numeric (like "1", "2", "3"), match by 1-based index across all rkat_details sub-activities!
-          if (!programObj && /^\d+$/.test(targetCode)) {
+          // C. If targetCode is a small number (like "1", "2", "3"), match by 1-based index across all rkat_details sub-activities!
+          if (!programObj && /^\d{1,3}$/.test(targetCode)) {
             const numericIndex = Number(targetCode) - 1;
             let globalIndex = 0;
             for (const prog of allPrograms) {
@@ -154,18 +179,13 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
             }
           }
 
-          // C. Check exact program code or pilar code
-          if (!programObj) {
-            programObj = allPrograms.find(prog => prog.code === targetCode || prog.pilar_code === targetCode);
-          }
-
-          // D. Name substring match (ONLY if targetCode is not a simple pure number)
+          // D. Name substring match (ONLY if targetCode is not a pure number)
           if (!programObj && !/^\d+$/.test(targetCode)) {
             programObj = allPrograms.find(prog => prog.name.toLowerCase().includes(targetCode.toLowerCase()));
           }
 
-          // E. Fallback to 1-based program index if sub-activity list didn't match
-          if (!programObj && /^\d+$/.test(targetCode)) {
+          // E. Fallback to 1-based program index if small number didn't match sub-activity list
+          if (!programObj && /^\d{1,3}$/.test(targetCode)) {
             const idx = Number(targetCode) - 1;
             if (idx >= 0 && idx < allPrograms.length) {
               programObj = allPrograms[idx];
@@ -186,8 +206,8 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         }
 
         // Foreign-key safe fields:
-        // Proposal.jenis_permohonan MUST be a valid Program.code or null
-        const validProgramCode = programObj ? programObj.code : null;
+        // Proposal.jenis_permohonan will use Program.code if matched, otherwise fallback to targetCode if provided
+        const validProgramCode = programObj ? programObj.code : (targetCode || null);
         // PengajuanPencairan.rkat_id MUST be a valid RkatOperasional.id (UUID) or null
         const validRkatOperasionalId = rkatObj ? rkatObj.id : null;
         // Plain string fields (No FK constraint)
