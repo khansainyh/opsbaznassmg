@@ -232,6 +232,9 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
       '2201': '#10b981', // Semarang Sehat (emerald)
       '2301': '#3b82f6', // Semarang Cerdas (blue)
       '2401': '#eab308', // Semarang Makmur (yellow)
+      '2501': '#8b5cf6', // Semarang Taqwa (violet)
+    };
+
     const pilarNames: Record<string, string> = {
       '1100': 'Semarang Peduli (Kemanusiaan)',
       '1200': 'Semarang Sehat (Kesehatan)',
