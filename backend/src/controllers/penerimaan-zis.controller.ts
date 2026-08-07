@@ -1331,27 +1331,73 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           }
         }
 
-        let rawKodeProgram = getVal(txData, ['Kode Program', 'kode_program', 'Kode_Program', 'Kode', 'Kode Prog']);
+        let rawKodeProgram = getVal(txData, [
+          'Kode Program', 'kode_program', 'Kode_Program', 'Kode', 'Kode Prog',
+          'Kode_COA', 'Kode COA', 'COA', 'No_COA', 'No COA', 'Akun COA', 'Kode Akun',
+          'COA Penerimaan', 'Kode SIMBA', 'SIMBA Code', 'Rekening COA', 'Akun'
+        ]);
         if (typeof rawKodeProgram === 'number') rawKodeProgram = String(rawKodeProgram);
         let kodeProgram = rawKodeProgram ? String(rawKodeProgram).trim() : null;
 
-        let rawJenisProgram = getVal(txData, ['Jenis Program', 'jenis_program', 'Jenis_Program', 'Program']);
+        let rawJenisProgram = getVal(txData, ['Jenis Program', 'jenis_program', 'Jenis_Program', 'Program', 'Nama Program', 'Kategori ZIS', 'Kategori']);
         let jenisProgram = rawJenisProgram ? String(rawJenisProgram).trim() : null;
 
-        let rawRkatId = txData.rkat_id || null;
+        let rawRkatId = txData.rkat_id || getVal(txData, ['rkat_id', 'Kode RKAT', 'Kode_RKAT', 'No RKAT', 'No_RKAT', 'RKAT']);
         let rkatId: string | null = null;
         if (rawRkatId) {
-          const matchedRkat = rkats.find(r => r.id === rawRkatId || r.no === String(rawRkatId));
+          const strRkat = String(rawRkatId).trim();
+          const matchedRkat = rkats.find(r => r.id === strRkat || r.no === strRkat || (r.coa_codes && r.coa_codes.includes(strRkat)));
           if (matchedRkat) rkatId = matchedRkat.id;
         }
 
-        if (kodeProgram && PROGRAM_KODE_TO_RKAT_MAP[kodeProgram]) {
-          const mapItem = PROGRAM_KODE_TO_RKAT_MAP[kodeProgram];
-          if (!jenisProgram) jenisProgram = mapItem.jenis;
-          if (!rkatId && mapItem.rkat_no) {
-            const matchedRkat = rkats.find(r => r.no === mapItem.rkat_no || r.id === mapItem.rkat_no);
-            if (matchedRkat) rkatId = matchedRkat.id;
+        // COA & SIMBA Map Matching
+        if (kodeProgram) {
+          if (PROGRAM_KODE_TO_RKAT_MAP[kodeProgram]) {
+            const mapItem = PROGRAM_KODE_TO_RKAT_MAP[kodeProgram];
+            if (!jenisProgram) jenisProgram = mapItem.jenis;
+            if (!rkatId && mapItem.rkat_no) {
+              const matchedRkat = rkats.find(r => r.no === mapItem.rkat_no || r.id === mapItem.rkat_no);
+              if (matchedRkat) rkatId = matchedRkat.id;
+            }
+          } else {
+            // Direct lookup in RkatPengumpulan by coa_codes, no, or nama_program
+            const matchedRkat = rkats.find(r => 
+              (r.coa_codes && r.coa_codes.includes(kodeProgram!)) ||
+              r.no === kodeProgram ||
+              (r.nama_program && r.nama_program.toLowerCase().includes(kodeProgram!.toLowerCase()))
+            );
+            if (matchedRkat) {
+              if (!rkatId) rkatId = matchedRkat.id;
+              if (!jenisProgram) jenisProgram = matchedRkat.nama_program;
+            }
           }
+        } else if (rkatId) {
+          const matchedRkat = rkats.find(r => r.id === rkatId);
+          if (matchedRkat) {
+            if (matchedRkat.coa_codes) kodeProgram = matchedRkat.coa_codes;
+            if (!jenisProgram) jenisProgram = matchedRkat.nama_program;
+          }
+        }
+
+        // Mandatory COA Fallback Guarantee (Ensures kode_program is NEVER left null or unmapped)
+        if (!kodeProgram) {
+          const textToCheck = `${jenisProgram || ''} ${rowKeterangan || ''}`.toLowerCase();
+          if (textToCheck.includes('infak') || textToCheck.includes('sedekah')) {
+            kodeProgram = '42020101';
+            if (!jenisProgram) jenisProgram = 'Infak/Sedekah Tidak Terikat via UPZ Pengumpulan';
+          } else if (textToCheck.includes('zakat')) {
+            kodeProgram = '41020201';
+            if (!jenisProgram) jenisProgram = 'Zakat Maal Perorangan via UPZ Pengumpulan';
+          } else {
+            kodeProgram = '49000001';
+            if (!jenisProgram) jenisProgram = 'Penerimaan ZIS Belum Teridentifikasi (Transit)';
+          }
+        }
+
+        // Re-verify rkatId link with the mandatory COA
+        if (!rkatId && kodeProgram) {
+          const matchedRkat = rkats.find(r => r.coa_codes && r.coa_codes.includes(kodeProgram!));
+          if (matchedRkat) rkatId = matchedRkat.id;
         }
 
         let upzId = txData.upz_id || null;
