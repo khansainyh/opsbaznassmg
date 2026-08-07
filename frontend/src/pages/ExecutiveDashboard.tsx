@@ -183,7 +183,23 @@ export default function ExecutiveDashboard() {
   }, [currentProporsiPilar]);
 
   const pieData = useMemo(() => {
-    return currentProporsiPilar.map((p: any) => ({ ...p, value: p.realisasi || 0 }));
+    const totalRealisasi = currentProporsiPilar.reduce((acc: number, p: any) => acc + (p.realisasi || 0), 0);
+    const totalPenerima = currentProporsiPilar.reduce((acc: number, p: any) => acc + (p.penerima || 0), 0);
+
+    return currentProporsiPilar.map((p: any) => {
+      let val = 0;
+      if (totalRealisasi > 0) {
+        val = p.realisasi || 0;
+      } else if (totalPenerima > 0) {
+        val = p.penerima || 0;
+      } else {
+        val = 1;
+      }
+      return {
+        ...p,
+        value: val,
+      };
+    });
   }, [currentProporsiPilar]);
 
   const availableYears = [2024, 2025, 2026, 2027];
@@ -391,12 +407,22 @@ export default function ExecutiveDashboard() {
 
           <div className="space-y-2 mt-2">
             {currentProporsiPilar.map((p: any) => (
-              <div key={p.kode} className="flex items-center justify-between">
+              <div
+                key={p.kode}
+                onClick={() => setActivePilar(activePilar?.kode === p.kode ? null : p)}
+                className={cn(
+                  "flex items-center justify-between p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-slate-50",
+                  activePilar?.kode === p.kode && "bg-slate-100 font-bold"
+                )}
+              >
                 <div className="flex items-center gap-2">
                   <span className="size-2.5 rounded-full shrink-0" style={{ background: p.warna }} />
-                  <span className="text-[11px] font-bold text-slate-600 leading-tight">{p.nama}</span>
+                  <span className="text-[11px] font-bold text-slate-700 leading-tight">{p.nama}</span>
                 </div>
-                <span className="text-[11px] font-black text-slate-800">{formatRupiah(p.realisasi)}</span>
+                <div className="text-right flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-slate-400">({p.penerima || 0} proposal)</span>
+                  <span className="text-[11px] font-black text-slate-800">{formatRupiah(p.realisasi || 0)}</span>
+                </div>
               </div>
             ))}
           </div>

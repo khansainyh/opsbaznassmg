@@ -232,7 +232,17 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
       '2201': '#10b981', // Semarang Sehat (emerald)
       '2301': '#3b82f6', // Semarang Cerdas (blue)
       '2401': '#eab308', // Semarang Makmur (yellow)
-      '2501': '#8b5cf6', // Semarang Taqwa (violet)
+    const pilarNames: Record<string, string> = {
+      '1100': 'Semarang Peduli (Kemanusiaan)',
+      '1200': 'Semarang Sehat (Kesehatan)',
+      '1300': 'Semarang Cerdas (Pendidikan)',
+      '1400': 'Semarang Taqwa (Dakwah & Advokasi)',
+      '2100': 'Semarang Makmur (Ekonomi)',
+      '2101': 'Kemanusiaan',
+      '2201': 'Kesehatan',
+      '2301': 'Pendidikan',
+      '2401': 'Ekonomi',
+      '2501': 'Dakwah & Advokasi',
     };
 
     const proporsiPilar = dbPilars.map((pilar) => {
@@ -247,10 +257,11 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
       });
 
       const code = pilar.code;
+      const name = (pilar.name && pilar.name.trim() !== '') ? pilar.name.trim() : (pilarNames[code] || `Pilar ${code}`);
 
       return {
         kode: code,
-        nama: pilar.name,
+        nama: name,
         warna: pilarColors[code] || '#64748b',
         realisasi,
         target: target || 1000000000,
