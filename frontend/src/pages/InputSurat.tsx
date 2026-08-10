@@ -304,7 +304,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
       </table>
     `;
 
-    const formatSignatureName = (name: string | undefined, maxLen = 22) => {
+    const formatSignatureName = (name: string | undefined, maxLen = 35) => {
       if (!name || !name.trim()) return '................................';
       const clean = name.trim();
       if (clean.length <= maxLen) return clean;

@@ -461,7 +461,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       `;
     }
 
-    const formatSignatureName = (name: string | undefined, maxLen = 22) => {
+    const formatSignatureName = (name: string | undefined, maxLen = 35) => {
       if (!name || !name.trim()) return '................................';
       const clean = name.trim();
       if (clean.length <= maxLen) return clean;
@@ -504,10 +504,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           </tr>
           <tr style="border: none;">
             <td style="border: none; width: 65%; text-align: left; vertical-align: top; padding-left: 20px; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.kepalaPelaksana)}</strong>
+              <strong>${formatSignatureName(signatories.kepalaPelaksana, 35)}</strong>
             </td>
             <td style="border: none; width: 35%; text-align: left; vertical-align: top; padding: 0; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
+              <strong>${formatSignatureName(signatories.kabagAdministrasi, 35)}</strong>
             </td>
           </tr>
         </table>
@@ -536,10 +536,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           </tr>
           <tr style="border: none;">
             <td style="border: none; width: 65%; text-align: left; vertical-align: top; padding-left: 15%; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
+              <strong>${formatSignatureName(signatories.kabagAdministrasi, 35)}</strong>
             </td>
             <td style="border: none; width: 35%; text-align: left; vertical-align: top; padding: 0; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.stafAdministrasi)}</strong>
+              <strong>${formatSignatureName(signatories.stafAdministrasi, 35)}</strong>
             </td>
           </tr>
         </table>
@@ -574,13 +574,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           </tr>
           <tr style="border: none;">
             <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.wakilKetuaIv)}</strong>
+              <strong>${formatSignatureName(signatories.wakilKetuaIv, 22)}</strong>
             </td>
             <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.kepalaPelaksana)}</strong>
+              <strong>${formatSignatureName(signatories.kepalaPelaksana, 22)}</strong>
             </td>
             <td style="border: none; width: 34%; text-align: left; vertical-align: top; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
+              <strong>${formatSignatureName(signatories.kabagAdministrasi, 22)}</strong>
             </td>
           </tr>
         </table>
@@ -614,13 +614,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           </tr>
           <tr style="border: none;">
             <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.wakilKetuaIv)}</strong>
+              <strong>${formatSignatureName(signatories.wakilKetuaIv, 22)}</strong>
             </td>
             <td style="border: none; width: 33%; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.kepalaPelaksana)}</strong>
+              <strong>${formatSignatureName(signatories.kepalaPelaksana, 22)}</strong>
             </td>
             <td style="border: none; width: 34%; text-align: left; vertical-align: top; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.kabagAdministrasi)}</strong>
+              <strong>${formatSignatureName(signatories.kabagAdministrasi, 22)}</strong>
             </td>
           </tr>
           <tr style="border: none; height: 30px;">
@@ -644,7 +644,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
           <tr style="border: none;">
             <td style="border: none;"></td>
             <td style="border: none; text-align: left; vertical-align: top; padding-right: 10px; line-height: 1.3;">
-              <strong>${formatSignatureName(signatories.ketua)}</strong>
+              <strong>${formatSignatureName(signatories.ketua, 22)}</strong>
             </td>
             <td style="border: none;"></td>
           </tr>
@@ -1221,7 +1221,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
 
               .perihal-header {
                   display: flex;
-                  align-items: center;
+                  align-items: flex-start;
                   font-weight: bold;
                   font-size: 18px;
                   line-height: 1.35;
@@ -1230,7 +1230,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .perihal-title-text {
-                  width: 70%;
+                  width: 65%;
                   padding-right: 12px;
                   word-break: break-word;
                   box-sizing: border-box;
@@ -1242,8 +1242,9 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
               }
 
               .an-text {
-                  width: 30%;
-                  white-space: nowrap;
+                  width: 35%;
+                  white-space: normal;
+                  word-break: break-word;
                   font-weight: bold;
                   font-size: 18px;
                   text-align: left;
