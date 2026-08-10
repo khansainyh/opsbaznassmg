@@ -105,11 +105,21 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     return list.filter(p => p.status === 'Antrean SIMBA' || p.status === 'Antrean_SIMBA' || p.status === 'MENUNGGU_SIMBA');
   }, [data]);
 
+  const checkIsByName = (item: any): boolean => {
+    if (!item) return false;
+    if (item.jenisPengajuan === 'Lembaga') return true;
+    if (item.volume !== undefined && item.volume !== null && Number(item.volume) > 1) return true;
+    if (item.penerima_detail && Array.isArray(item.penerima_detail) && item.penerima_detail.length > 0) return true;
+    if (item.namaInstansi && String(item.namaInstansi).trim().length > 0) return true;
+    if (item.namaPemohon && (/\b\d+\s+pemohon\b/i.test(item.namaPemohon) || /\blembaga\b/i.test(item.namaPemohon))) return true;
+    return false;
+  };
+
   const readyNrmList = useMemo(() => {
     return disbursedProposals.filter(p => {
-      const isByName = p.jenisPengajuan === 'Lembaga' && p.volume && p.volume > 1 && p.penerima_detail && Array.isArray(p.penerima_detail) && p.penerima_detail.length > 0;
+      const isByName = checkIsByName(p);
       if (isByName) {
-        const list = p.penerima_detail as any[];
+        const list = (p.penerima_detail && Array.isArray(p.penerima_detail)) ? (p.penerima_detail as any[]) : [];
         return list.length > 0 && list.every(item => !!item.nrm);
       }
       return !!p.mustahik?.nrm;
@@ -118,9 +128,10 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
 
   const pendingNrmList = useMemo(() => {
     return disbursedProposals.filter(p => {
-      const isByName = p.jenisPengajuan === 'Lembaga' && p.volume && p.volume > 1 && p.penerima_detail && Array.isArray(p.penerima_detail) && p.penerima_detail.length > 0;
+      const isByName = checkIsByName(p);
       if (isByName) {
-        return (p.penerima_detail as any[]).some(item => !item.nrm);
+        const list = (p.penerima_detail && Array.isArray(p.penerima_detail)) ? (p.penerima_detail as any[]) : [];
+        return list.length === 0 || list.some(item => !item.nrm);
       }
       return !p.mustahik?.nrm;
     });
@@ -434,8 +445,8 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     const todayStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
     pendingNrmList.forEach(proposal => {
-      const isByName = proposal.jenisPengajuan === 'Lembaga' && proposal.volume && proposal.volume > 1 && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
-      if (isByName) {
+      const isByName = checkIsByName(proposal);
+      if (isByName && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0) {
         (proposal.penerima_detail as any[]).forEach(item => {
           if (!item.nrm) {
             listToExport.push({
@@ -494,7 +505,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     let counter = 1;
 
     listToExport.forEach(proposal => {
-      const isByName = proposal.jenisPengajuan === 'Lembaga' && proposal.volume && proposal.volume > 1 && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
+      const isByName = checkIsByName(proposal);
       
       const dateStr = proposal.updatedAt
         ? new Date(proposal.updatedAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
@@ -866,11 +877,12 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                     </td>
                   </tr>
                 ) : filteredList.map((item, idx) => {
-                  const isByName = item.jenisPengajuan === 'Lembaga' && item.volume && item.volume > 1 && item.penerima_detail && Array.isArray(item.penerima_detail) && item.penerima_detail.length > 0;
+                  const isByName = checkIsByName(item);
+                  const hasByNames = item.penerima_detail && Array.isArray(item.penerima_detail) && item.penerima_detail.length > 0;
                   const savedNrm = item.mustahik?.nrm || '';
                   const draftNrm = editingNrm[item.id] !== undefined ? editingNrm[item.id] : savedNrm;
                   const isReady = isByName 
-                    ? (item.penerima_detail as any[]).every(x => !!x.nrm)
+                    ? (hasByNames && (item.penerima_detail as any[]).every(x => !!x.nrm))
                     : !!savedNrm;
                   
                   return (
@@ -944,14 +956,17 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                       {/* 5. NRM (Input / Text / By-Name Status) */}
                       <td className="px-6 py-4">
                         {isByName ? (
-                          <div className="text-center">
-                            <span className="px-2.5 py-1 text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200 rounded-lg uppercase tracking-wider block w-fit mx-auto">
-                              Registrasi Per-Mustahik
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-bold block mt-1">
-                              {item.penerima_detail && Array.isArray(item.penerima_detail)
+                          <div className="text-center space-y-1">
+                            <button
+                              onClick={() => handleOpenByNameModal(item)}
+                              className="px-2.5 py-1 text-[10px] font-black bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200 rounded-lg uppercase tracking-wider block w-fit mx-auto transition-all shadow-sm"
+                            >
+                              + Kelola Penerima By-Name ({item.penerima_detail?.length || 0})
+                            </button>
+                            <span className="text-[10px] text-slate-500 font-bold block">
+                              {hasByNames
                                 ? `${(item.penerima_detail as any[]).filter((x: any) => !!x.nrm).length} dari ${(item.penerima_detail as any[]).length} NRM Terisi`
-                                : '0 Mustahik'
+                                : '0 Mustahik (Klik tombol di atas)'
                               }
                             </span>
                           </div>

@@ -12,7 +12,9 @@ import {
   Info,
   FileText,
   ExternalLink,
-  Target
+  Target,
+  Filter,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -30,6 +32,11 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
   const [pilars, setPilars] = useState<any[]>([]);
+  const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('');
+  const [selectedProgramFilter, setSelectedProgramFilter] = useState<string>('');
+  const [isPilarDropdownOpen, setIsPilarDropdownOpen] = useState(false);
+  const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
+  const [searchProgramQuery, setSearchProgramQuery] = useState('');
   const [rkatInfo, setRkatInfo] = useState<{
     name: string;
     code: string;
@@ -67,6 +74,44 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
     });
     return map;
   }, [pilars]);
+
+  const getParentProgramCode = (code?: string) => {
+    if (!code) return '';
+    const clean = code.trim();
+    const parts = clean.split('.');
+    if (parts.length > 2) {
+      return `${parts[0]}.${parts[1]}`;
+    }
+    return clean;
+  };
+
+  const allPrograms = useMemo(() => {
+    const progs: { code: string; name: string; pilarName: string }[] = [];
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        progs.push({
+          code: prog.code,
+          name: prog.name,
+          pilarName: pilar.name
+        });
+      });
+    });
+    return progs;
+  }, [pilars]);
+
+  const pilarNames = useMemo(() => {
+    return Array.from(new Set(allPrograms.map(p => p.pilarName)));
+  }, [allPrograms]);
+
+  const handlePilarChange = (pilarName: string) => {
+    setSelectedPilarFilter(pilarName);
+    if (pilarName) {
+      const belongs = allPrograms.find(p => p.code === selectedProgramFilter && p.pilarName === pilarName);
+      if (!belongs) {
+        setSelectedProgramFilter('');
+      }
+    }
+  };
 
   useEffect(() => {
     if (!selectedProposal) return;
@@ -124,7 +169,7 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
         setRkatInfo({
           name: matchedAct?.name || res.data?.rkat_spesifik?.nama_kegiatan || selectedProposal.jenisPermohonan || 'Kegiatan Penyaluran',
           code: matchedAct?.programCode || selectedProposal.programCode || res.data?.rkat_spesifik?.kode_coa || '-',
-          keterangan: matchedAct?.keterangan || '',
+          keterangan: matchedAct?.keterangan || matchedAct?.keterangan_spesifikasi || res.data?.rkat_spesifik?.keterangan || '',
           asnaf: matchedAct?.asnaf || selectedProposal.asnaf || 'Semua Asnaf',
           unitCost: matchedAct?.nominal || matchedAct?.unitCost || 0,
           sisaPagu: matchedAct?.sisa_pagu ?? res.data?.rkat_spesifik?.sisa_pagu,
@@ -150,7 +195,22 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                          (item.nik || '').includes(searchTerm);
-      return isPencairan && searchMatch;
+      if (!isPencairan || !searchMatch) return false;
+
+      // Pilar filter
+      if (selectedPilarFilter) {
+        if (item.program !== selectedPilarFilter) return false;
+      }
+
+      // Program filter
+      if (selectedProgramFilter) {
+        const itemCode = (item.programCode || item.jenisPermohonan || '').trim();
+        const cleanCode = getParentProgramCode(itemCode);
+        const filterCleanCode = getParentProgramCode(selectedProgramFilter);
+        if (cleanCode !== filterCleanCode && item.jenisPermohonan !== selectedProgramFilter && item.programCode !== selectedProgramFilter) return false;
+      }
+
+      return true;
     });
 
     const urgencyOrder: Record<string, number> = {
@@ -174,7 +234,7 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
       }
       return Number(b.agendaNo) - Number(a.agendaNo);
     });
-  }, [data, searchTerm]);
+  }, [data, searchTerm, selectedPilarFilter, selectedProgramFilter]);
 
   const stats = useMemo(() => {
     const pencairanData = data.filter(d => d.status === 'Pencairan Dana' || d.status === 'Antrean Bantuan');
@@ -257,16 +317,173 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
       <div className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden">
         {/* Filter Bar */}
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex items-center gap-4 flex-1">
+          <div className="flex flex-wrap items-center gap-3 flex-1">
             <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input 
                 type="text"
                 placeholder="Cari No. Agenda / Nama..."
-                className="w-full text-sm bg-slate-50 border-slate-200 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-10 py-2.5 focus:ring-primary focus:border-primary outline-none transition-all font-semibold"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+            </div>
+
+            {/* Dropdown Filter Pilar */}
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full">
+                <button 
+                  onClick={() => setIsPilarDropdownOpen(!isPilarDropdownOpen)}
+                  className={cn(
+                    "flex items-center justify-between sm:justify-start gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border w-full sm:w-auto",
+                    selectedPilarFilter 
+                      ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
+                      : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter className={cn("size-4 shrink-0", selectedPilarFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                    <span className="truncate">
+                      {selectedPilarFilter ? `Pilar: ${selectedPilarFilter}` : "Pilih Pilar Bantuan"}
+                    </span>
+                  </div>
+                  <ChevronDown className="size-4 text-slate-400 sm:hidden" />
+                </button>
+                {selectedPilarFilter && (
+                  <button 
+                    onClick={() => handlePilarChange('')}
+                    className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm shrink-0"
+                    title="Hapus Filter Pilar"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {isPilarDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsPilarDropdownOpen(false)} />
+                  <div className="absolute left-0 sm:right-auto mt-2 w-full sm:w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
+                    <button 
+                      onClick={() => {
+                        handlePilarChange('');
+                        setIsPilarDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold",
+                        !selectedPilarFilter && "bg-primary/5 text-primary font-bold"
+                      )}
+                    >
+                      Semua Pilar
+                    </button>
+                    {pilarNames.map(name => (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          handlePilarChange(name);
+                          setIsPilarDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold mt-0.5",
+                          selectedPilarFilter === name && "bg-primary/5 text-primary font-bold"
+                        )}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Search Dropdown for Program / Kegiatan */}
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full">
+                <button 
+                  onClick={() => setIsProgramDropdownOpen(!isProgramDropdownOpen)}
+                  className={cn(
+                    "flex items-center justify-between sm:justify-start gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all border w-full sm:w-auto",
+                    selectedProgramFilter 
+                      ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
+                      : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter className={cn("size-4 shrink-0", selectedProgramFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                    <span className="truncate max-w-[200px]">
+                      {selectedProgramFilter ? (
+                        <span>Program: {allPrograms.find(p => p.code === selectedProgramFilter)?.name || selectedProgramFilter}</span>
+                      ) : (
+                        <span>Pilih Program / Kegiatan</span>
+                      )}
+                    </span>
+                  </div>
+                  <ChevronDown className="size-4 text-slate-400 sm:hidden" />
+                </button>
+                {selectedProgramFilter && (
+                  <button 
+                    onClick={() => {
+                      setSelectedProgramFilter('');
+                      setSearchProgramQuery('');
+                    }}
+                    className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm shrink-0"
+                    title="Hapus Filter Program"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {isProgramDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsProgramDropdownOpen(false)} />
+                  <div className="absolute left-0 sm:right-auto mt-2 w-full sm:w-96 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-2">
+                    <input 
+                      type="text"
+                      placeholder="Cari program / kegiatan..."
+                      className="w-full text-xs bg-slate-50 border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-primary focus:border-primary outline-none font-semibold text-slate-800"
+                      value={searchProgramQuery}
+                      onChange={(e) => setSearchProgramQuery(e.target.value)}
+                    />
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar text-xs font-semibold text-slate-700">
+                      <button 
+                        onClick={() => {
+                          setSelectedProgramFilter('');
+                          setIsProgramDropdownOpen(false);
+                          setSearchProgramQuery('');
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors",
+                          !selectedProgramFilter && "bg-primary/5 text-primary font-bold"
+                        )}
+                      >
+                        Semua Program &amp; Kegiatan
+                      </button>
+                      {allPrograms
+                        .filter(p => !selectedPilarFilter || p.pilarName === selectedPilarFilter)
+                        .filter(p => p.name.toLowerCase().includes(searchProgramQuery.toLowerCase()) || p.pilarName.toLowerCase().includes(searchProgramQuery.toLowerCase()))
+                        .map(prog => (
+                          <button
+                            key={prog.code}
+                            onClick={() => {
+                              setSelectedProgramFilter(prog.code);
+                              setIsProgramDropdownOpen(false);
+                              setSearchProgramQuery('');
+                            }}
+                            className={cn(
+                              "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors mt-0.5 flex flex-col gap-0.5",
+                              selectedProgramFilter === prog.code && "bg-primary/5 text-primary font-bold"
+                            )}
+                          >
+                            <span className="block text-[10px] text-slate-400 uppercase font-black">{prog.pilarName}</span>
+                            <span className="block whitespace-normal break-words leading-tight">{prog.name} ({prog.code})</span>
+                          </button>
+                        ))
+                      }
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -432,7 +649,7 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                         <DetailItem label="Program Pilar" value={selectedProposal.program || 'Umum'} />
                         <DetailItem label="Jenis Permohonan / Program" value={selectedProposal.jenisPermohonan || '-'} />
 
-                        <div className="col-span-2 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+                        <div className="col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
                           <div className="flex items-center justify-between">
                             <p className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
                               <Target className="size-3.5" /> Kegiatan RKAT Penyaluran
@@ -447,14 +664,31 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                             <p className="text-xs text-slate-400 font-medium italic">Memuat informasi RKAT...</p>
                           ) : (
                             <>
-                              <p className="text-xs font-bold text-slate-900 leading-relaxed">
-                                {rkatInfo?.name || selectedProposal.jenisPermohonan || 'Kegiatan Penyaluran RKAT'}
-                              </p>
-                              {rkatInfo?.keterangan && (
-                                <p className="text-[11px] text-slate-500 italic">
-                                  "{rkatInfo.keterangan}"
+                              <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Nama Program / Kegiatan Kerja</p>
+                                <p className="text-xs font-black text-slate-900 leading-relaxed">
+                                  {rkatInfo?.name || selectedProposal.jenisPermohonan || 'Kegiatan Penyaluran RKAT'}
                                 </p>
-                              )}
+                              </div>
+
+                              {rkatInfo?.keterangan ? (
+                                <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-lg space-y-0.5">
+                                  <p className="text-[10px] font-black text-blue-700 uppercase tracking-wider">Keterangan Spesifikasi Kegiatan RKAT</p>
+                                  <p className="text-xs text-slate-800 font-medium leading-relaxed">
+                                    {rkatInfo.keterangan}
+                                  </p>
+                                </div>
+                              ) : null}
+
+                              {selectedProposal.keterangan ? (
+                                <div className="p-2.5 bg-amber-50/70 border border-amber-100 rounded-lg space-y-0.5">
+                                  <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Keterangan / Peruntukan Proposal</p>
+                                  <p className="text-xs text-slate-800 font-medium leading-relaxed italic">
+                                    "{selectedProposal.keterangan}"
+                                  </p>
+                                </div>
+                              ) : null}
+
                               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-[11px]">
                                 <div>
                                   <span className="text-slate-400">Asnaf Target:</span> <span className="font-bold text-slate-700">{rkatInfo?.asnaf || selectedProposal.asnaf || 'Semua Asnaf'}</span>

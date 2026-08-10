@@ -306,9 +306,9 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
         keterangan: simKeterangan
       });
 
-      // Update global proposals status in UI
+      // Update global proposals status in UI to Realisasi Bantuan
       const updatedData = data.map(item => 
-        checkedProposalIds.includes(item.id) ? { ...item, status: 'Selesai & Arsip' as any } : item
+        checkedProposalIds.includes(item.id) ? { ...item, status: 'Realisasi Bantuan' as any } : item
       );
       onUpdate(updatedData);
 

@@ -1009,10 +1009,10 @@ export const executeDisbursement = async (req: Request, res: Response) => {
           }
         });
 
-        // Update proposal status
+        // Update proposal status to Realisasi_Bantuan so it proceeds to Realisasi Bantuan queue
         await tx.proposal.update({
           where: { id: proposal.id } as any,
-          data: { status: 'Selesai & Arsip' }
+          data: { status: 'Realisasi_Bantuan' }
         });
       }
 
