@@ -703,7 +703,21 @@ export default function DatabaseUPZ() {
     anggota1: { nama: '', alamat: '' },
     anggota2: { nama: '', alamat: '' },
   });
-  const [anggotaTambahan, setAnggotaTambahan] = useState<{ nama: string; alamat: string }[]>([]);
+  const PREDEFINED_UPZ_ROLES = [
+    'Anggota',
+    'Bendahara',
+    'Bendahara 1',
+    'Bendahara 2',
+    'Sekretaris',
+    'Sekretaris 1',
+    'Sekretaris 2',
+    'Wakil Ketua',
+    'Wakil Ketua 1',
+    'Wakil Ketua 2',
+    'Seksi / Pengurus',
+  ];
+
+  const [anggotaTambahan, setAnggotaTambahan] = useState<{ nama: string; alamat: string; role?: string }[]>([]);
 
   const [formNamaUpz, setFormNamaUpz] = useState('');
   const [formAlamatLengkap, setFormAlamatLengkap] = useState('');
@@ -740,14 +754,15 @@ export default function DatabaseUPZ() {
     setFormPengurus(prev => ({ ...prev, [jabatan]: { ...prev[jabatan], [field]: value } }));
   };
 
-  const addAnggotaTambahan = () => {
-    setAnggotaTambahan(prev => [...prev, { nama: '', alamat: '' }]);
+  const addAnggotaTambahan = (defaultRole?: any) => {
+    const roleVal = typeof defaultRole === 'string' ? defaultRole : 'Anggota';
+    setAnggotaTambahan(prev => [...prev, { nama: '', alamat: '', role: roleVal }]);
   };
 
-  const updateAnggotaTambahan = (index: number, field: 'nama' | 'alamat', value: string) => {
+  const updateAnggotaTambahan = (index: number, field: 'nama' | 'alamat' | 'role', value: string) => {
     setAnggotaTambahan(prev => {
       const updated = [...prev];
-      updated[index][field] = value;
+      updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
   };
@@ -829,7 +844,7 @@ export default function DatabaseUPZ() {
         Array.isArray(p.anggotaTambahan)
           ? p.anggotaTambahan
               .filter(a => a && typeof a === 'object')
-              .map(a => ({ nama: a.nama || '', alamat: a.alamat || '' }))
+              .map(a => ({ nama: a.nama || '', alamat: a.alamat || '', role: (a as any).role || (a as any).jabatan || 'Anggota' }))
           : []
       );
     }
@@ -994,7 +1009,7 @@ export default function DatabaseUPZ() {
         Array.isArray(p.anggotaTambahan)
           ? p.anggotaTambahan
               .filter(a => a && typeof a === 'object')
-              .map(a => ({ nama: a.nama || '', alamat: a.alamat || '' }))
+              .map(a => ({ nama: a.nama || '', alamat: a.alamat || '', role: (a as any).role || (a as any).jabatan || 'Anggota' }))
           : []
       );
     } else {
@@ -1482,7 +1497,8 @@ export default function DatabaseUPZ() {
     if (p?.anggotaTambahan && Array.isArray(p.anggotaTambahan)) {
       p.anggotaTambahan.forEach(a => {
         if (a.nama) {
-          pengurusList.push({ nama: a.nama, alamat: a.alamat || '', jabatan: 'Anggota' });
+          const jabatanVal = ((a as any).role || (a as any).jabatan || 'Anggota').trim();
+          pengurusList.push({ nama: a.nama, alamat: a.alamat || '', jabatan: jabatanVal || 'Anggota' });
         }
       });
     }
@@ -3904,14 +3920,44 @@ export default function DatabaseUPZ() {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
-                          <button type="button" onClick={addAnggotaTambahan} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
+                          <button type="button" onClick={() => addAnggotaTambahan()} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
                         </div>
                         {anggotaTambahan.map((a, idx) => (
-                          <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
-                            <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
-                              <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
+                          <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start">
+                            <div className="md:col-span-4 space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pengurus</label>
+                              <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div className="md:col-span-3 space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jabatan / Role</label>
+                              <select
+                                value={PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') ? (a.role || 'Anggota') : 'Lainnya'}
+                                onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value === 'Lainnya' ? '' : e.target.value)}
+                                className="w-full bg-white border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold outline-none"
+                              >
+                                {PREDEFINED_UPZ_ROLES.map(r => (
+                                  <option key={r} value={r}>{r}</option>
+                                ))}
+                                <option value="Lainnya">Lainnya... (Custom)</option>
+                              </select>
+                              {(!PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') || a.role === '') && (
+                                <input
+                                  type="text"
+                                  value={a.role || ''}
+                                  onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value)}
+                                  placeholder="Ketik Jabatan..."
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none mt-1 font-semibold"
+                                />
+                              )}
+                            </div>
+                            <div className="md:col-span-4 space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
+                              </label>
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div className="md:col-span-1 flex items-center justify-end md:mt-6">
+                              <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500 p-1 hover:bg-rose-50 rounded-lg transition-all"><X className="size-4" /></button>
                             </div>
                           </div>
                         ))}
@@ -3978,14 +4024,44 @@ export default function DatabaseUPZ() {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
-                          <button type="button" onClick={addAnggotaTambahan} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
+                          <button type="button" onClick={() => addAnggotaTambahan()} className="text-[10px] font-black text-primary border border-primary/20 px-3 py-1 rounded-lg">Tambah</button>
                         </div>
                         {anggotaTambahan.map((a, idx) => (
-                          <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
-                            <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
-                              <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
+                          <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start">
+                            <div className="md:col-span-4 space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pengurus</label>
+                              <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div className="md:col-span-3 space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jabatan / Role</label>
+                              <select
+                                value={PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') ? (a.role || 'Anggota') : 'Lainnya'}
+                                onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value === 'Lainnya' ? '' : e.target.value)}
+                                className="w-full bg-white border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold outline-none"
+                              >
+                                {PREDEFINED_UPZ_ROLES.map(r => (
+                                  <option key={r} value={r}>{r}</option>
+                                ))}
+                                <option value="Lainnya">Lainnya... (Custom)</option>
+                              </select>
+                              {(!PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') || a.role === '') && (
+                                <input
+                                  type="text"
+                                  value={a.role || ''}
+                                  onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value)}
+                                  placeholder="Ketik Jabatan..."
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none mt-1 font-semibold"
+                                />
+                              )}
+                            </div>
+                            <div className="md:col-span-4 space-y-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
+                              </label>
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div className="md:col-span-1 flex items-center justify-end md:mt-6">
+                              <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500 p-1 hover:bg-rose-50 rounded-lg transition-all"><X className="size-4" /></button>
                             </div>
                           </div>
                         ))}
@@ -4915,7 +4991,7 @@ export default function DatabaseUPZ() {
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
                         <button
                           type="button"
-                          onClick={addAnggotaTambahan}
+                          onClick={() => addAnggotaTambahan()}
                           className="text-[10px] font-black text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/20 uppercase tracking-widest flex items-center gap-1.5 transition-all"
                         >
                           <PlusCircle className="size-3" />
@@ -4924,11 +5000,33 @@ export default function DatabaseUPZ() {
                       </div>
                        {anggotaTambahan.map((a, idx) => (
                         <div key={idx} className="flex flex-col md:grid md:grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start w-full">
-                          <div className="w-full md:col-span-5 space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anggota {idx + 3}</label>
+                          <div className="w-full md:col-span-4 space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pengurus {idx + 3}</label>
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
-                          <div className="w-full md:col-span-6 space-y-1">
+                          <div className="w-full md:col-span-3 space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jabatan / Role</label>
+                            <select
+                              value={PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') ? (a.role || 'Anggota') : 'Lainnya'}
+                              onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value === 'Lainnya' ? '' : e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
+                            >
+                              {PREDEFINED_UPZ_ROLES.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                              <option value="Lainnya">Lainnya... (Custom)</option>
+                            </select>
+                            {(!PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') || a.role === '') && (
+                              <input
+                                type="text"
+                                value={a.role || ''}
+                                onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value)}
+                                placeholder="Ketik Jabatan..."
+                                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none mt-1"
+                              />
+                            )}
+                          </div>
+                          <div className="w-full md:col-span-4 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                               {!isMasjidCategory(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
@@ -5342,7 +5440,7 @@ export default function DatabaseUPZ() {
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
                         <button
                           type="button"
-                          onClick={addAnggotaTambahan}
+                          onClick={() => addAnggotaTambahan()}
                           className="text-[10px] font-black text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/20 uppercase tracking-widest flex items-center gap-1.5 transition-all"
                         >
                           <PlusCircle className="size-3" />
@@ -5351,11 +5449,33 @@ export default function DatabaseUPZ() {
                       </div>
                       {anggotaTambahan.map((a, idx) => (
                         <div key={idx} className="flex flex-col md:grid md:grid-cols-12 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start w-full">
-                          <div className="w-full md:col-span-5 space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Anggota {idx + 3}</label>
+                          <div className="w-full md:col-span-4 space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Pengurus {idx + 3}</label>
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
-                          <div className="w-full md:col-span-6 space-y-1">
+                          <div className="w-full md:col-span-3 space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jabatan / Role</label>
+                            <select
+                              value={PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') ? (a.role || 'Anggota') : 'Lainnya'}
+                              onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value === 'Lainnya' ? '' : e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
+                            >
+                              {PREDEFINED_UPZ_ROLES.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                              <option value="Lainnya">Lainnya... (Custom)</option>
+                            </select>
+                            {(!PREDEFINED_UPZ_ROLES.includes(a.role || 'Anggota') || a.role === '') && (
+                              <input
+                                type="text"
+                                value={a.role || ''}
+                                onChange={e => updateAnggotaTambahan(idx, 'role', e.target.value)}
+                                placeholder="Ketik Jabatan..."
+                                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none mt-1"
+                              />
+                            )}
+                          </div>
+                          <div className="w-full md:col-span-4 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                               {!isMasjidCategory(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>

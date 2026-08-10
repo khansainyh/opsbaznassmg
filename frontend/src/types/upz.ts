@@ -20,6 +20,8 @@ export interface PengurusEntry {
 export interface AnggotaTambahan {
   nama: string;
   alamat?: string;
+  role?: string;
+  jabatan?: string;
 }
 
 export interface UPZPengurus {
