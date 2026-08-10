@@ -403,21 +403,16 @@ export const autoRegisterMustahik = async (req: Request, res: Response): Promise
     } = req.body;
 
     const isLembaga = kategori === 'Lembaga';
-
-    if (isLembaga) {
-      if (!nik || !nama || !nama_pimpinan || !jenis_lembaga || !alamat || !telepon) {
-        res.status(400).json({ status: 'error', message: 'Field NIK Pimpinan, Nama Lembaga, Nama Pimpinan, Jenis Lembaga, Alamat, dan Telepon wajib diisi.' });
-        return;
-      }
-    } else {
-      if (!nik || !nama || !jenis_kelamin || !alamat || !telepon) {
-        res.status(400).json({ status: 'error', message: 'Field NIK, Nama, Jenis Kelamin, Alamat, dan Telepon wajib diisi.' });
-        return;
-      }
-    }
+    const finalNik = String(nik || `3374${Date.now().toString().slice(-12)}`);
+    const finalNama = String(nama || 'Mustahik');
+    const finalNamaPimpinan = isLembaga ? String(nama_pimpinan || finalNama || 'Pimpinan') : null;
+    const finalJenisLembaga = isLembaga ? String(jenis_lembaga || 'Lembaga') : null;
+    const finalJenisKelamin = !isLembaga ? String(jenis_kelamin || 'Pria') : null;
+    const finalAlamat = String(alamat || 'Kota Semarang');
+    const finalTelepon = String(telepon || '080000000000');
 
     // Check if NIK already exists
-    const existing = await prisma.mustahik.findUnique({ where: { nik: String(nik) } });
+    const existing = await prisma.mustahik.findUnique({ where: { nik: finalNik } });
     if (existing) {
       // Already exists — just return the id (don't duplicate)
       res.status(200).json({ status: 'exists', mustahik_id: existing.id, nama: existing.nama });
@@ -429,18 +424,18 @@ export const autoRegisterMustahik = async (req: Request, res: Response): Promise
     const newMustahik = await prisma.mustahik.create({
       data: {
         kategori: kategori || 'Perorangan',
-        nik: String(nik),
+        nik: finalNik,
         nrm: null, // Will be assigned after SIMBA processing
-        nama: String(nama),
-        nama_pimpinan: isLembaga ? String(nama_pimpinan) : null,
-        jenis_lembaga: isLembaga ? String(jenis_lembaga) : null,
+        nama: finalNama,
+        nama_pimpinan: finalNamaPimpinan,
+        jenis_lembaga: finalJenisLembaga,
         jumlah_anggota: isLembaga ? parsedJumlahAnggota : 0,
         tempat_lahir: !isLembaga && tempat_lahir ? String(tempat_lahir) : null,
         tanggal_lahir: !isLembaga && tanggal_lahir ? String(tanggal_lahir) : null,
-        jenis_kelamin: !isLembaga && jenis_kelamin ? String(jenis_kelamin) : null,
+        jenis_kelamin: finalJenisKelamin,
         pekerjaan: !isLembaga && pekerjaan ? String(pekerjaan) : null,
-        alamat: String(alamat),
-        telepon: String(telepon),
+        alamat: finalAlamat,
+        telepon: finalTelepon,
         handphone: !isLembaga && handphone ? String(handphone) : null,
         email: email ? String(email) : null,
         provinsi: provinsi ? String(provinsi) : null,

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
   RefreshCw, 
@@ -105,37 +105,81 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     return list.filter(p => p.status === 'Antrean SIMBA' || p.status === 'Antrean_SIMBA' || p.status === 'MENUNGGU_SIMBA');
   }, [data]);
 
-  const checkIsByName = (item: any): boolean => {
+  const [byNameOverrides, setByNameOverrides] = useState<{ [id: string]: boolean }>({});
+
+  const toggleByNameMode = (itemId: string, currentIsByName: boolean) => {
+    setByNameOverrides(prev => ({
+      ...prev,
+      [itemId]: !currentIsByName
+    }));
+  };
+
+  const checkIsByName = useCallback((item: any): boolean => {
     if (!item) return false;
-    if (item.jenisPengajuan === 'Lembaga') return true;
-    if (item.volume !== undefined && item.volume !== null && Number(item.volume) > 1) return true;
-    if (item.penerima_detail && Array.isArray(item.penerima_detail) && item.penerima_detail.length > 0) return true;
-    if (item.namaInstansi && String(item.namaInstansi).trim().length > 0) return true;
-    if (item.namaPemohon && (/\b\d+\s+pemohon\b/i.test(item.namaPemohon) || /\blembaga\b/i.test(item.namaPemohon))) return true;
+    
+    // Explicit user toggle override takes highest priority
+    if (byNameOverrides[item.id] !== undefined) {
+      return byNameOverrides[item.id];
+    }
+
+    // Explicitly contains penerima_detail array with length > 0
+    if (item.penerima_detail && Array.isArray(item.penerima_detail) && item.penerima_detail.length > 0) {
+      return true;
+    }
+
+    // Volume > 1 (multi-mustahik)
+    if (item.volume !== undefined && item.volume !== null && Number(item.volume) > 1) {
+      return true;
+    }
+
+    // Text explicitly mentions multi-pemohon (e.g. "10 Pemohon", "5 Mustahik", "Multi Mustahik")
+    const pemohonText = String(item.namaPemohon || '');
+    if (/\b\d+\s+pemohon\b/i.test(pemohonText) || /\bmulti\s+mustahik\b/i.test(pemohonText)) {
+      return true;
+    }
+
+    // Purely individual or single-recipient institution defaults to FALSE (single NRM)
     return false;
+  }, [byNameOverrides]);
+
+  const getTargetVolume = (item: any): number => {
+    if (!item) return 1;
+    const volNum = Number(item.volume);
+    if (!isNaN(volNum) && volNum > 1) return volNum;
+
+    // Extract from title if specified (e.g. "10 Pemohon" -> 10)
+    const match = String(item.namaPemohon || '').match(/\b(\d+)\s+pemohon\b/i);
+    if (match && match[1]) {
+      const extracted = parseInt(match[1], 10);
+      if (!isNaN(extracted) && extracted > 0) return extracted;
+    }
+
+    return 1;
   };
 
   const readyNrmList = useMemo(() => {
     return disbursedProposals.filter(p => {
       const isByName = checkIsByName(p);
       if (isByName) {
+        const targetVol = getTargetVolume(p);
         const list = (p.penerima_detail && Array.isArray(p.penerima_detail)) ? (p.penerima_detail as any[]) : [];
-        return list.length > 0 && list.every(item => !!item.nrm);
+        return list.length === targetVol && list.every(item => !!item.nrm);
       }
       return !!p.mustahik?.nrm;
     });
-  }, [disbursedProposals]);
+  }, [disbursedProposals, checkIsByName]);
 
   const pendingNrmList = useMemo(() => {
     return disbursedProposals.filter(p => {
       const isByName = checkIsByName(p);
       if (isByName) {
+        const targetVol = getTargetVolume(p);
         const list = (p.penerima_detail && Array.isArray(p.penerima_detail)) ? (p.penerima_detail as any[]) : [];
-        return list.length === 0 || list.some(item => !item.nrm);
+        return list.length !== targetVol || list.some(item => !item.nrm);
       }
       return !p.mustahik?.nrm;
     });
-  }, [disbursedProposals]);
+  }, [disbursedProposals, checkIsByName]);
 
   // Dynamic Program Bantuan filter options
   const uniqueBantuanOptions = useMemo(() => {
@@ -247,7 +291,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
   };
 
   // Save NRM to database
-  const handleSaveNrm = async (proposalId: string, mustahikId: string) => {
+  const handleSaveNrm = async (proposalId: string, mustahikIdRaw: string) => {
     const nrmValue = editingNrm[proposalId]?.trim();
     if (!nrmValue) {
       alert('Mohon masukkan Nomor Register Mustahik (NRM) terlebih dahulu.');
@@ -255,33 +299,75 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     }
 
     setSavingId(proposalId);
+    let targetMustahikId = mustahikIdRaw;
+    const targetProposal = data.find(p => p.id === proposalId);
+
+    // Step 1: Attempt auto-registration if mustahik_id is missing
+    if (!targetMustahikId) {
+      try {
+        const nikVal = (targetProposal?.nik && String(targetProposal.nik).trim() !== '' && String(targetProposal.nik).trim() !== '-')
+          ? String(targetProposal.nik).trim()
+          : `3374${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+
+        const autoRes = await axios.post('/api/mustahik/auto-register', {
+          nik: nikVal,
+          nama: targetProposal?.namaPemohon || targetProposal?.namaInstansi || 'Mustahik',
+          kategori: targetProposal?.jenisPengajuan === 'Lembaga' ? 'Lembaga' : 'Perorangan',
+          nama_pimpinan: targetProposal?.pimpinanOrganisasi || targetProposal?.namaPemohon || 'Pimpinan',
+          jenis_lembaga: 'Lembaga',
+          jenis_kelamin: (targetProposal as any)?.jenis_kelamin || (targetProposal as any)?.jenisKelamin || 'Pria',
+          alamat: targetProposal?.alamat || 'Kota Semarang',
+          telepon: targetProposal?.noTelpon || (targetProposal as any)?.no_telpon || '080000000000'
+        });
+
+        if (autoRes.data?.mustahik_id) {
+          targetMustahikId = autoRes.data.mustahik_id;
+        }
+      } catch (err: any) {
+        console.warn('Auto-register mustahik warning:', err.response?.data || err.message);
+      }
+    }
+
+    // Step 2: Try saving to Mustahik endpoint if we have an ID
+    if (targetMustahikId) {
+      try {
+        await axios.put(`/api/mustahik/${targetMustahikId}`, { nrm: nrmValue });
+      } catch (err: any) {
+        console.warn('Mustahik update warning:', err.response?.data || err.message);
+      }
+    }
+
+    // Step 3: Always update proposal record backend & local state
     try {
-      const res = await axios.put(`/api/mustahik/${mustahikId}`, {
+      await axios.put(`/api/proposals/${proposalId}`, {
+        ...(targetMustahikId ? { mustahik_id: targetMustahikId } : {}),
         nrm: nrmValue
+      }).catch(() => {});
+
+      const updated = data.map(p => {
+        if (p.id === proposalId) {
+          return {
+            ...p,
+            mustahik_id: targetMustahikId || p.mustahik_id,
+            mustahik: {
+              ...(p.mustahik || {}),
+              id: targetMustahikId || p.mustahik?.id || `m_${proposalId}`,
+              nrm: nrmValue
+            }
+          };
+        }
+        return p;
       });
 
-      if (res.data?.status === 'success' || res.status === 200) {
-        const updated = data.map(p => {
-          if (p.id === proposalId) {
-            return {
-              ...p,
-              mustahik: {
-                ...p.mustahik,
-                nrm: nrmValue
-              }
-            };
-          }
-          return p;
-        });
-        onUpdate(updated);
-        setEditingNrm(prev => {
-          const next = { ...prev };
-          delete next[proposalId];
-          return next;
-        });
-      }
+      onUpdate(updated);
+
+      setEditingNrm(prev => {
+        const next = { ...prev };
+        delete next[proposalId];
+        return next;
+      });
     } catch (e: any) {
-      console.error(e);
+      console.error('Save NRM error:', e);
       alert('Gagal menyimpan NRM: ' + (e.response?.data?.message || e.message));
     } finally {
       setSavingId(null);
@@ -340,6 +426,14 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
       return;
     }
 
+    if (selectedProposal) {
+      const targetVol = getTargetVolume(selectedProposal);
+      if (byNameList.length >= targetVol) {
+        alert(`Gagal menambah: Jumlah penerima By-Name sudah mencapai target volume proposal (${targetVol} mustahik). Data tidak boleh melebihi target volume!`);
+        return;
+      }
+    }
+
     const newItem = {
       nama_lengkap: formNama,
       nik: formNik,
@@ -370,6 +464,13 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
 
   const handleSaveByName = async () => {
     if (!selectedProposal) return;
+    const targetVol = getTargetVolume(selectedProposal);
+
+    if (byNameList.length !== targetVol) {
+      alert(`Gagal menyimpan: Data By-Name wajib diisi tepat ${targetVol} mustahik sesuai volume proposal (saat ini terisi ${byNameList.length} mustahik). Tidak boleh kurang dan tidak boleh lebih!`);
+      return;
+    }
+
     setIsSavingByName(true);
     try {
       const res = await axios.put(`/api/proposals/${selectedProposal.id}`, {
@@ -925,18 +1026,36 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5 font-semibold">NIK: {item.nik}</div>
                         
-                        {/* By Name Button */}
-                        {isByName && (
-                          <div className="mt-2">
+                        {/* By Name Toggle Option */}
+                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          {isByName ? (
+                            <>
+                              <button
+                                onClick={() => handleOpenByNameModal(item)}
+                                className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-purple-700 hover:text-purple-800 transition-colors border border-purple-200 bg-purple-50 px-2 py-0.5 rounded shadow-sm"
+                              >
+                                <Users className="size-3" />
+                                Penerima By-Name ({item.penerima_detail?.length || 0} / {getTargetVolume(item)})
+                              </button>
+                              <button
+                                onClick={() => toggleByNameMode(item.id, isByName)}
+                                className="text-[9px] text-slate-400 hover:text-slate-600 underline font-medium"
+                                title="Klik jika bantuan ini dicairkan atas nama Lembaga (NRM Tunggal)"
+                              >
+                                (Ke NRM Lembaga)
+                              </button>
+                            </>
+                          ) : (
                             <button
-                              onClick={() => handleOpenByNameModal(item)}
-                              className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-primary hover:text-primary/80 transition-colors border border-primary/20 bg-primary/5 px-2 py-1 rounded"
+                              onClick={() => toggleByNameMode(item.id, isByName)}
+                              className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-primary transition-colors"
+                              title="Klik jika bantuan lembaga ini direalisasikan/dibagikan ke banyak pemohon (By-Name)"
                             >
                               <Users className="size-3" />
-                              Penerima By-Name ({item.penerima_detail?.length || 0})
+                              Ubah ke By-Name
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
                       
                       {/* 4. Tgl Cair Bank */}
@@ -961,12 +1080,12 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                               onClick={() => handleOpenByNameModal(item)}
                               className="px-2.5 py-1 text-[10px] font-black bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200 rounded-lg uppercase tracking-wider block w-fit mx-auto transition-all shadow-sm"
                             >
-                              + Kelola Penerima By-Name ({item.penerima_detail?.length || 0})
+                              + Kelola Penerima By-Name ({item.penerima_detail?.length || 0} / {getTargetVolume(item)})
                             </button>
                             <span className="text-[10px] text-slate-500 font-bold block">
                               {hasByNames
-                                ? `${(item.penerima_detail as any[]).filter((x: any) => !!x.nrm).length} dari ${(item.penerima_detail as any[]).length} NRM Terisi`
-                                : '0 Mustahik (Klik tombol di atas)'
+                                ? `${(item.penerima_detail as any[]).filter((x: any) => !!x.nrm).length} dari ${getTargetVolume(item)} NRM Terisi`
+                                : `Target Volume: ${getTargetVolume(item)} Mustahik`
                               }
                             </span>
                           </div>
@@ -982,7 +1101,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                                   className="w-full text-xs font-mono font-bold bg-slate-55 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 outline-none text-center"
                                 />
                                 <button
-                                  onClick={() => handleSaveNrm(item.id, item.mustahik_id || '')}
+                                  onClick={() => handleSaveNrm(item.id, item.mustahik_id || item.mustahik?.id || '')}
                                   disabled={savingId === item.id || !draftNrm}
                                   className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all disabled:opacity-50 text-slate-700 flex items-center shrink-0 shadow-sm border border-slate-200"
                                   title="Simpan NRM ke database"
@@ -1008,7 +1127,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                                 />
                                 {draftNrm !== savedNrm && (
                                   <button
-                                    onClick={() => handleSaveNrm(item.id, item.mustahik_id || '')}
+                                    onClick={() => handleSaveNrm(item.id, item.mustahik_id || item.mustahik?.id || '')}
                                     disabled={savingId === item.id}
                                     className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shrink-0"
                                   >
@@ -1073,8 +1192,11 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                     <Users className="size-5" />
                   </div>
                   <div>
-                    <h3 className="text-md md:text-lg font-black text-slate-900 uppercase tracking-tight">
+                    <h3 className="text-md md:text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
                       Kelola Penerima By-Name
+                      <span className="px-2.5 py-0.5 text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded-lg">
+                        Target: {getTargetVolume(selectedProposal)} Mustahik
+                      </span>
                     </h3>
                     <p className="text-[11px] md:text-xs text-slate-500 font-medium mt-0.5 leading-normal">
                       Agenda No: {String(selectedProposal.agendaNo).padStart(3, '0')} | Lembaga: {selectedProposal.namaPemohon}
@@ -1351,8 +1473,22 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                           }
 
                           if (importedList.length > 0) {
-                            setByNameList(prev => [...prev, ...importedList]);
-                            alert(`Berhasil mengimpor ${successCount} data penerima.${failCount > 0 ? ` Gagal mengimpor ${failCount} baris karena data/format tidak valid.` : ''}`);
+                            const targetVol = getTargetVolume(selectedProposal);
+                            const remainingQuota = targetVol - byNameList.length;
+
+                            if (remainingQuota <= 0) {
+                              alert(`Daftar penerima sudah memenuhi target volume (${targetVol} mustahik). Hapus data jika ingin mengganti data dari Excel.`);
+                              return;
+                            }
+
+                            let finalToImport = importedList;
+                            if (importedList.length > remainingQuota) {
+                              alert(`Jumlah data Excel (${importedList.length}) melebihi sisa kuota target volume (${remainingQuota} mustahik dari total ${targetVol}). Hanya ${remainingQuota} data pertama yang akan diimpor.`);
+                              finalToImport = importedList.slice(0, remainingQuota);
+                            }
+
+                            setByNameList(prev => [...prev, ...finalToImport]);
+                            alert(`Berhasil mengimpor ${finalToImport.length} data penerima By-Name.`);
                             setExcelPasteText('');
                           } else {
                             alert('Tidak ada data valid yang ditemukan. Pastikan format kolom: Tanggal registrasi, Nama lengkap, NIK (16 digit), Jenis Kelamin, Alamat, Telepon, Handphone, Email, Keterangan.');
@@ -1373,7 +1509,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                   <div className="flex-1 border border-slate-100 rounded-2xl overflow-hidden flex flex-col bg-white">
                     <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
                       <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">
-                        Daftar Penerima ({byNameList.length})
+                        Daftar Penerima ({byNameList.length} / {selectedProposal ? getTargetVolume(selectedProposal) : 0})
                       </h4>
                       {byNameList.length === 0 && (
                         <span className="text-[10px] text-rose-600 font-bold flex items-center gap-1">

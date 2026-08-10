@@ -41,6 +41,8 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
   const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
   const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('');
   const [isPilarDropdownOpen, setIsPilarDropdownOpen] = useState(false);
+  const [waModalProposal, setWaModalProposal] = useState<ProposalMemo | null>(null);
+  const [waMessageText, setWaMessageText] = useState<string>('');
 
   const pilarNames = useMemo(() => {
     return (pilars || []).map(p => p.name);
@@ -170,20 +172,58 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
     setScheduleDate('');
   };
 
+  const buildWAMessage = (proposal: ProposalMemo) => {
+    const namaMustahik = proposal.namaPemohon || proposal.namaInstansi || 'Bpk/Ibu';
+    const alamatMustahik = proposal.alamat || 'Semarang';
+    const jenisPermohonan = proposal.jenisPermohonan || proposal.tipeBantuan || 'Bantuan BAZNAS';
+
+    let hariTanggal = '[HARI, TANGGAL]';
+    let jam = '[JAM]';
+
+    if (proposal.jadwalRealisasi) {
+      const d = new Date(proposal.jadwalRealisasi);
+      if (!isNaN(d.getTime())) {
+        hariTanggal = d.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        jam = `${hours}.${minutes}`;
+      }
+    }
+
+    const isPendayagunaan = /\b(usaha|modal|ekonomi|pendayagunaan|pelatihan|dagang|ternak)\b/i.test(
+      `${proposal.jenisPermohonan || ''} ${proposal.tipeBantuan || ''} ${proposal.keterangan || ''}`
+    );
+    const bidangText = isPendayagunaan ? 'Pendayagunaan' : 'Pendistribusian';
+
+    return `Assalamualaikum Wr. Wb.
+
+Kami informasikan kepada ${namaMustahik} , ${alamatMustahik}.
+
+Bahwa pengajuan panjenengan kepada Baznas Kota Semarang sudah di ACC. Mohon untuk dapat melakukan pengambilan ${jenisPermohonan} di Kantor BAZNAS Kota Semarang; Ruko Kalipancur No.2 Semarang  pada hari ${hariTanggal} Pukul ${jam} WIB dengan membawa fotokopi KTP,  tidak dapat diwakilkan, dan mohon datang sesuai waktu yang telah ditentukan.
+
+Demikian informasi ini disampaikan agar menjadi perhatian khusus dan kami tunggu konfirmasi kehadirannya. Terimakasih
+
+Wassalamu'alaikum Wr.Wb.
+
+Ttd
+
+Bidang ${bidangText}
+BAZNAS Kota Semarang.`;
+  };
+
   const handleWhatsApp = (proposal: ProposalMemo) => {
     if (!proposal.noTelpon) {
       alert('Nomor telepon tidak tersedia.');
       return;
     }
-    // Clean phone number
-    let phone = proposal.noTelpon.replace(/[^0-9]/g, '');
-    if (phone.startsWith('0')) {
-      phone = '62' + phone.slice(1);
-    }
-    
-    const message = `Assalamu'alaikum Bpk/Ibu ${proposal.namaPemohon}, kami dari BAZNAS Kota Semarang ingin menginformasikan terkait realisasi bantuan Anda dengan No. Agenda ${proposal.agendaNo}. Mohon kesediaannya untuk...`;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    const initialMsg = buildWAMessage(proposal);
+    setWaMessageText(initialMsg);
+    setWaModalProposal(proposal);
   };
 
   const toggleSelect = (id: string) => {
@@ -995,6 +1035,81 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                   className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all"
                 >
                   Lanjut ke Antrean SIMBA
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal WhatsApp Preview & Edit */}
+      <AnimatePresence>
+        {waModalProposal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setWaModalProposal(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-emerald-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold shrink-0">
+                    <MessageCircle className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Kirim Notifikasi WhatsApp</h3>
+                    <p className="text-xs text-slate-500 font-medium">Tujuan: {waModalProposal.namaPemohon} ({waModalProposal.noTelpon})</p>
+                  </div>
+                </div>
+                <button onClick={() => setWaModalProposal(null)} className="p-1.5 hover:bg-slate-200/60 rounded-full transition-colors">
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">Draft Pesan WhatsApp (Bisa Disesuaikan)</label>
+                  <textarea
+                    rows={12}
+                    value={waMessageText}
+                    onChange={(e) => setWaMessageText(e.target.value)}
+                    className="w-full text-xs font-sans bg-slate-50 border border-slate-200 rounded-xl p-3.5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 outline-none leading-relaxed text-slate-800 resize-none font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(waMessageText);
+                    alert('Pesan berhasil disalin ke clipboard!');
+                  }}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all border border-slate-200"
+                >
+                  Salin Teks Pesan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    let phone = waModalProposal.noTelpon.replace(/[^0-9]/g, '');
+                    if (phone.startsWith('0')) phone = '62' + phone.slice(1);
+                    const url = `https://wa.me/${phone}?text=${encodeURIComponent(waMessageText)}`;
+                    window.open(url, '_blank');
+                    setWaModalProposal(null);
+                  }}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2"
+                >
+                  <MessageCircle className="size-4" />
+                  Buka WhatsApp Web / App
                 </button>
               </div>
             </motion.div>
