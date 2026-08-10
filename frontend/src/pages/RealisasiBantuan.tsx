@@ -141,13 +141,13 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
 
   const handleComplete = async (id: string) => {
     try {
-      // Persist the status in database as 'Antrean_Arsip' to proceed to archiving
+      // Persist the status in database as 'Antrean_SIMBA' to proceed to SIMBA queue
       await axios.put(`/api/proposals/${id}`, {
-        status: 'Antrean_Arsip'
+        status: 'Antrean_SIMBA'
       });
 
       const updatedData = data.map(item => 
-        item.id === id ? { ...item, status: 'Antrean Arsip' as any } : item
+        item.id === id ? { ...item, status: 'Antrean SIMBA' as any } : item
       );
       onUpdate(updatedData);
 
@@ -156,7 +156,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
       }
     } catch (e: any) {
       console.error(e);
-      alert('Gagal memindahkan ke antrean arsip: ' + (e.response?.data?.error || e.message));
+      alert('Gagal memindahkan ke antrean SIMBA: ' + (e.response?.data?.error || e.message));
     }
   };
 
@@ -994,7 +994,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
                   }}
                   className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all"
                 >
-                  Lanjut ke Pengarsipan
+                  Lanjut ke Antrean SIMBA
                 </button>
               </div>
             </motion.div>

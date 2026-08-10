@@ -56,6 +56,8 @@ const STATUS_ORDER = [
   'Penentuan Nominal',
   'Pencairan Dana',
   'Realisasi Bantuan',
+  'Antrean SIMBA',
+  'Antrean_SIMBA',
   'Antrean Arsip',
   'Selesai & Arsip',
 ];
@@ -72,6 +74,7 @@ const FILTER_STATUSES = [
   'Penentuan Nominal',
   'Pencairan Dana',
   'Realisasi Bantuan',
+  'Antrean SIMBA',
   'Antrean Arsip',
   'Selesai & Arsip',
   'Ditolak'
@@ -105,9 +108,9 @@ function getProgressSteps(status: string) {
       [10,11], // KAPEL: Survei Selesai, Review Kepala Pelaksana (idx 10-11)
       [12,13], // PIMP: Review Pimpinan, Persetujuan Pimpinan (idx 12-13)
       [14,15], // KEU: Penentuan Nominal, Pencairan Dana (idx 14-15)
-      [16,16], // DIST: Realisasi Bantuan (idx 16)
-      [17,17], // Arsip: Antrean Arsip (idx 17)
-      [18,18]  // DONE: Selesai & Arsip (idx 18)
+      [16,18], // DIST: Realisasi Bantuan, Antrean SIMBA, Antrean_SIMBA (idx 16-18)
+      [19,19], // Arsip: Antrean Arsip (idx 19)
+      [20,20]  // DONE: Selesai & Arsip (idx 20)
     ];
     const [lo, hi] = ranges[i];
     const active = idx >= lo && idx <= hi;

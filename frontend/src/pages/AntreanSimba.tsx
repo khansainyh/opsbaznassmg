@@ -102,7 +102,7 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
   // Group into pending NRM and ready NRM (checking by-name sub-records if applicable)
   const disbursedProposals = useMemo(() => {
     const list = data || [];
-    return list.filter(p => p.status === 'Selesai & Arsip');
+    return list.filter(p => p.status === 'Antrean SIMBA' || p.status === 'Antrean_SIMBA' || p.status === 'MENUNGGU_SIMBA');
   }, [data]);
 
   const readyNrmList = useMemo(() => {
@@ -277,18 +277,18 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
     }
   };
 
-  // Mark SIMBA Sync as completed -> move to 'Realisasi Bantuan'
+  // Mark SIMBA Sync as completed -> move to 'Antrean Arsip'
   const handleCompleteSync = async (proposalId: string) => {
     setSyncingId(proposalId);
     try {
       const res = await axios.put(`/api/proposals/${proposalId}`, {
-        status: 'Realisasi_Bantuan'
+        status: 'Antrean_Arsip'
       });
 
       if (res.status === 200) {
         const updated = data.map(p => {
           if (p.id === proposalId) {
-            return { ...p, status: 'Realisasi Bantuan' };
+            return { ...p, status: 'Antrean Arsip' };
           }
           return p;
         });
