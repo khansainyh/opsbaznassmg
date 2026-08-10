@@ -1511,7 +1511,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsKategoriDropdownOpen(false)} />
                             <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 border-slate-100">
-                              {['-- Kosongkan Kategori --', 'Undangan', 'Surat Izin Kerja', 'Surat Izin Penelitian/Magang', 'Permohonan', 'Laporan'].map(kategori => (
+                              {['-- Kosongkan Kategori --', 'Undangan', 'Surat Izin Kerja', 'Surat Izin Penelitian/Magang', 'Permohonan', 'Laporan', 'Lain-Lain'].map(kategori => (
                                 <button
                                   key={kategori}
                                   type="button"
