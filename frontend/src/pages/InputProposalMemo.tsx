@@ -89,6 +89,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       {
         ID_Proposal: 'PROP-2026-001',
         Tanggal_Proposal: '2026-08-01',
+        Tanggal_Pencairan: '2026-08-05',
         Nama_Instansi: 'SD N 1 Ngaliyan',
         Pimpinan_Organisasi: 'Drs. H. Supriyanto, M.Pd.',
         Nama_Pemohon: 'Budi Santoso, S.Pd.',
@@ -111,6 +112,7 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       {
         ID_Proposal: 'PROP-2026-002',
         Tanggal_Proposal: '2026-08-02',
+        Tanggal_Pencairan: '',
         Nama_Instansi: '',
         Pimpinan_Organisasi: '',
         Nama_Pemohon: 'Siti Aminah',

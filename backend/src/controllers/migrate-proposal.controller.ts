@@ -373,6 +373,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
               data: {
                 ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
                 tanggal_masuk: validTglProp,
+                updated_at: validTglCair,
                 nama_pemohon: finalNamaPemohon,
                 nama_instansi: finalNamaInstansi,
                 pimpinan_organisasi: pimpinanOrganisasiVal || existingProposal.pimpinan_organisasi,
@@ -397,6 +398,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
               data: {
                 ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
                 tanggal_masuk: validTglProp,
+                updated_at: validTglCair,
                 nama_pemohon: finalNamaPemohon,
                 nama_instansi: finalNamaInstansi,
                 pimpinan_organisasi: pimpinanOrganisasiVal,

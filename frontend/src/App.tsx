@@ -202,6 +202,7 @@ function App() {
                 mustahik: item.mustahik || null,
                 mustahik_id: item.mustahik_id || null,
                 updatedAt: item.updated_at || '',
+                tanggalPencairan: item.updated_at ? new Date(item.updated_at).toISOString().split('T')[0] : '',
                 is_rutin: item.is_rutin ?? false,
                 frekuensi_berulang: item.frekuensi_berulang ?? undefined,
                 tanggal_pencairan: item.tanggal_pencairan ?? undefined,
