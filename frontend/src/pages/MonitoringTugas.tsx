@@ -818,7 +818,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     // Initialize disposisi state from task
     setIsBantuanBerulang(task.is_rutin ?? false);
     setFrekuensiBerulang(task.frekuensi_berulang ?? 1);
-    setTanggalPencairan(task.tanggal_pencairan ?? 1);
+    setTanggalPencairan(typeof task.tanggal_pencairan === 'number' ? task.tanggal_pencairan : (parseInt(String(task.tanggal_pencairan || ''), 10) || 1));
     setPerluSurvei(task.butuh_survei ?? true);
     setIsDetailModalOpen(true);
   };
