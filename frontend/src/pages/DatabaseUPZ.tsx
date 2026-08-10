@@ -961,6 +961,7 @@ export default function DatabaseUPZ() {
 
   const handleHistoryClick = (upz: UPZ) => {
     setSelectedUPZ(upz);
+    setFormCategory(upz.category);
     setHistoryView('list');
     
     const activeSK = upz.activeSKNumber && upz.activeSKNumber !== '-' ? upz.activeSKNumber : '';
@@ -3899,7 +3900,7 @@ export default function DatabaseUPZ() {
                         </div>
                       </div>
                     ))}
-                    {isFlexibleAnggota && (
+                    {(selectedUPZ ? !isMasjidCategory(selectedUPZ.category) : isFlexibleAnggota) && (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
@@ -3973,7 +3974,7 @@ export default function DatabaseUPZ() {
                         </div>
                       </div>
                     ))}
-                    {isFlexibleAnggota && (
+                    {(selectedUPZ ? !isMasjidCategory(selectedUPZ.category) : isFlexibleAnggota) && (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
