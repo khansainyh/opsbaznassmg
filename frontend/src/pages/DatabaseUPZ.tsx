@@ -728,7 +728,13 @@ export default function DatabaseUPZ() {
     return found ? found.kelurahan : [];
   }, [formKecamatan]);
 
-  const isFlexibleAnggota = formCategory === 'OPD' || formCategory === 'Pemerintah Kecamatan' || formCategory === 'Pemerintahan Kecamatan' || formCategory === 'Desa/Kelurahan';
+  const isMasjidCategory = (cat?: string) => {
+    if (!cat) return false;
+    const c = cat.toLowerCase().trim();
+    return c.includes('masjid') || c.includes('mushola') || c.includes('musholla');
+  };
+
+  const isFlexibleAnggota = !isMasjidCategory(formCategory);
 
   const updatePengurusField = (jabatan: keyof typeof formPengurus, field: 'nama' | 'alamat', value: string) => {
     setFormPengurus(prev => ({ ...prev, [jabatan]: { ...prev[jabatan], [field]: value } }));
@@ -2086,7 +2092,7 @@ export default function DatabaseUPZ() {
 </html>`;
     }
 
-    if (upz.category === 'Instansi Vertikal' || upz.category === 'OPD' || upz.category === 'BUMD' || upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan' || upz.category === 'Pemerintahan Kecamatan') {
+    if (!isMasjidCategory(upz.category)) {
       const isKecamatan = upz.category === 'Kecamatan' || upz.category === 'Pemerintah Kecamatan' || upz.category === 'Pemerintahan Kecamatan';
       const upzTitleName = upz.name.toUpperCase();
       const upzTextName = upz.name;
@@ -2813,10 +2819,10 @@ export default function DatabaseUPZ() {
       const anggota2Nama = row['Nama Anggota 2'] || row['Anggota 2 (Nama)'] || '';
       const anggota2Alamat = row['Alamat Anggota 2'] || row['Anggota 2 (Jabatan/Alamat)'] || '';
 
-      const anggota3Nama = row['Nama Anggota 3 (Khusus OPD/Kecamatan - kosongkan jika tidak ada)'] || '';
-      const anggota3Alamat = row['Alamat Anggota 3 (Khusus OPD/Kecamatan)'] || '';
-      const anggota4Nama = row['Nama Anggota 4 (Khusus OPD/Kecamatan - kosongkan jika tidak ada)'] || '';
-      const anggota4Alamat = row['Alamat Anggota 4 (Khusus OPD/Kecamatan)'] || '';
+      const anggota3Nama = row['Nama Anggota 3'] || row['Anggota 3 (Nama)'] || row['Nama Anggota 3 (Khusus OPD/Kecamatan - kosongkan jika tidak ada)'] || '';
+      const anggota3Alamat = row['Alamat Anggota 3'] || row['Anggota 3 (Jabatan/Alamat)'] || row['Alamat Anggota 3 (Khusus OPD/Kecamatan)'] || '';
+      const anggota4Nama = row['Nama Anggota 4'] || row['Anggota 4 (Nama)'] || row['Nama Anggota 4 (Khusus OPD/Kecamatan - kosongkan jika tidak ada)'] || '';
+      const anggota4Alamat = row['Alamat Anggota 4'] || row['Anggota 4 (Jabatan/Alamat)'] || row['Alamat Anggota 4 (Khusus OPD/Kecamatan)'] || '';
 
       if (!namaUpz) {
         failCount++;
@@ -3555,7 +3561,7 @@ export default function DatabaseUPZ() {
                               <th className="px-6 py-4">Pengurus Utama</th>
                               <th className="px-6 py-4 text-center">Status</th>
                               <th className="px-6 py-4 text-center">Scan SK</th>
-                              {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) && (
+                              {selectedUPZ && (
                                 <th className="px-6 py-4 text-right">Draft SK</th>
                               )}
                               <th className="px-6 py-4 text-center">Aksi</th>
@@ -3670,7 +3676,7 @@ export default function DatabaseUPZ() {
                                     )}
                                   </div>
                                 </td>
-                                {['Masjid & Mushola', 'Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) && (
+                                {selectedUPZ && (
                                   <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                                     <div className="flex items-center justify-end gap-2">
                                       <button
@@ -3887,9 +3893,9 @@ export default function DatabaseUPZ() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
+                            {selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
                           </label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -3903,7 +3909,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -3961,9 +3967,9 @@ export default function DatabaseUPZ() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
+                            {selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan di Instansi' : 'Alamat'}
                           </label>
-                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                          <input type="text" value={formPengurus[jabatan].alamat} onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                         </div>
                       </div>
                     ))}
@@ -3977,7 +3983,7 @@ export default function DatabaseUPZ() {
                           <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <input type="text" value={a.nama} onChange={e => updateAnggotaTambahan(idx, 'nama', e.target.value)} placeholder="Nama..." className="bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                             <div className="flex gap-2">
-                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && ['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                              <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={selectedUPZ && !isMasjidCategory(selectedUPZ.category) ? 'Jabatan...' : 'Alamat...'} className="flex-1 bg-white border-slate-200 rounded-lg px-3 py-2 text-sm" />
                               <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="text-rose-500"><X className="size-4" /></button>
                             </div>
                           </div>
@@ -4888,24 +4894,24 @@ export default function DatabaseUPZ() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
-                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                          {!isMasjidCategory(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                         </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
+                          placeholder={!isMasjidCategory(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
                     </div>
                   ))}
 
-                  {/* Dynamic Anggota Tambahan - OPD & Kecamatan only */}
+                  {/* Dynamic Anggota Tambahan */}
                   {isFlexibleAnggota && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan <span className="text-primary">(OPD/Kecamatan)</span></p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
                         <button
                           type="button"
                           onClick={addAnggotaTambahan}
@@ -4923,9 +4929,9 @@ export default function DatabaseUPZ() {
                           </div>
                           <div className="w-full md:col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                              {!isMasjidCategory(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={!isMasjidCategory(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="w-full md:col-span-1 flex items-end justify-end mt-1 md:mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-400 hover:bg-rose-55 rounded-lg transition-all w-full md:w-auto flex justify-center border border-rose-200 md:border-0">
@@ -5315,24 +5321,24 @@ export default function DatabaseUPZ() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-bold">
-                          {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                          {!isMasjidCategory(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                         </label>
                         <input
                           type="text"
                           value={formPengurus[jabatan].alamat}
                           onChange={e => updatePengurusField(jabatan, 'alamat', e.target.value)}
-                          placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'}
+                          placeholder={!isMasjidCategory(formCategory) ? 'Jabatan...' : 'Alamat...'}
                           className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                         />
                       </div>
                     </div>
                   ))}
 
-                  {/* Dynamic Anggota Tambahan - OPD & Kecamatan only */}
+                  {/* Dynamic Anggota Tambahan */}
                   {isFlexibleAnggota && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan <span className="text-primary">(OPD/Kecamatan)</span></p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Anggota Tambahan</p>
                         <button
                           type="button"
                           onClick={addAnggotaTambahan}
@@ -5350,9 +5356,9 @@ export default function DatabaseUPZ() {
                           </div>
                           <div className="w-full md:col-span-6 space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
+                              {!isMasjidCategory(formCategory) ? 'Jabatan di Instansi' : 'Alamat'}
                             </label>
-                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={['Instansi Vertikal', 'OPD', 'BUMD', 'Kecamatan', 'Pemerintah Kecamatan', 'Pemerintahan Kecamatan'].includes(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
+                            <input type="text" value={a.alamat} onChange={e => updateAnggotaTambahan(idx, 'alamat', e.target.value)} placeholder={!isMasjidCategory(formCategory) ? 'Jabatan...' : 'Alamat...'} className="w-full bg-white border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" />
                           </div>
                           <div className="w-full md:col-span-1 flex items-end justify-end mt-1 md:mt-5">
                             <button type="button" onClick={() => removeAnggotaTambahan(idx)} className="p-2 text-rose-450 hover:bg-rose-50 rounded-lg transition-all w-full md:w-auto flex justify-center border border-rose-200 md:border-0">
