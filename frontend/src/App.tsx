@@ -108,7 +108,7 @@ function App() {
         { name: "Realisasi Bantuan", roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Antrean Arsip", roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Tim Survei", roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-        { name: "Antrean Pencairan", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kepala_Pelaksana"] },
+        { name: "Antrean Pencairan", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kepala_Pelaksana", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan"] },
         { name: "Simulator Pencairan", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
         { name: "Pemindahan Dana", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
         { name: "Pengeluaran Manual", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },

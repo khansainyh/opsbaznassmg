@@ -116,7 +116,7 @@ const menuGroups = [
   {
     title: "KEUANGAN",
     items: [
-      { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kepala_Pelaksana"] },
+      { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kepala_Pelaksana", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan"] },
       { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
       { name: "Pemindahan Dana", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
       { name: "Pengeluaran Manual", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
