@@ -11,7 +11,8 @@ import {
   Coins,
   Info,
   FileText,
-  ExternalLink
+  ExternalLink,
+  Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -29,6 +30,15 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [dynamicQuestions, setDynamicQuestions] = useState<any[]>([]);
   const [pilars, setPilars] = useState<any[]>([]);
+  const [rkatInfo, setRkatInfo] = useState<{
+    name: string;
+    code: string;
+    keterangan?: string;
+    asnaf?: string;
+    unitCost?: number;
+    sisaPagu?: number;
+    loading?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -91,6 +101,46 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
       })
       .catch(console.error);
   }, [selectedProposal, programTipeMap]);
+
+  useEffect(() => {
+    if (!selectedProposal) {
+      setRkatInfo(null);
+      return;
+    }
+
+    setRkatInfo({ name: '', code: '', loading: true });
+
+    const pCode = selectedProposal.programCode || selectedProposal.jenisPermohonan || '';
+    const asnaf = selectedProposal.asnaf || '';
+    const amt = selectedProposal.nominal || 0;
+
+    axios.get(`/api/finance/check-penyaluran-guard?proposalId=${selectedProposal.id}&programCode=${pCode}&asnaf=${asnaf}&amount=${amt}`)
+      .then(res => {
+        const acts = res.data?.rkat_activities || [];
+        const matchedAct = acts.find((a: any) => a.id === selectedProposal.rkatActivityId) ||
+                           acts.find((a: any) => a.asnaf && a.asnaf.toLowerCase() === asnaf.toLowerCase()) ||
+                           acts[0];
+
+        setRkatInfo({
+          name: matchedAct?.name || res.data?.rkat_spesifik?.nama_kegiatan || selectedProposal.jenisPermohonan || 'Kegiatan Penyaluran',
+          code: matchedAct?.programCode || selectedProposal.programCode || res.data?.rkat_spesifik?.kode_coa || '-',
+          keterangan: matchedAct?.keterangan || '',
+          asnaf: matchedAct?.asnaf || selectedProposal.asnaf || 'Semua Asnaf',
+          unitCost: matchedAct?.nominal || matchedAct?.unitCost || 0,
+          sisaPagu: matchedAct?.sisa_pagu ?? res.data?.rkat_spesifik?.sisa_pagu,
+          loading: false
+        });
+      })
+      .catch(err => {
+        console.error('Failed to fetch RKAT info:', err);
+        setRkatInfo({
+          name: selectedProposal.jenisPermohonan || 'Kegiatan Penyaluran',
+          code: selectedProposal.programCode || selectedProposal.rkatActivityId || '-',
+          asnaf: selectedProposal.asnaf || 'Semua Asnaf',
+          loading: false
+        });
+      });
+  }, [selectedProposal]);
 
   // Filter only proposals with 'Pencairan Dana' or 'Antrean Bantuan' status
   const filteredData = useMemo(() => {
@@ -377,10 +427,56 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
                     </div>
 
                     <div>
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Bantuan</h4>
+                      <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Informasi Bantuan &amp; RKAT</h4>
                       <div className="grid grid-cols-2 gap-4">
-                        <DetailItem label="Program" value={selectedProposal.program || 'Umum'} />
-                        <DetailItem label="Jenis" value={selectedProposal.jenisPermohonan} />
+                        <DetailItem label="Program Pilar" value={selectedProposal.program || 'Umum'} />
+                        <DetailItem label="Jenis Permohonan / Program" value={selectedProposal.jenisPermohonan || '-'} />
+
+                        <div className="col-span-2 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
+                              <Target className="size-3.5" /> Kegiatan RKAT Penyaluran
+                            </p>
+                            {rkatInfo?.code && rkatInfo.code !== '-' && (
+                              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-[10px] font-black font-mono">
+                                Kode: {rkatInfo.code}
+                              </span>
+                            )}
+                          </div>
+                          {rkatInfo?.loading ? (
+                            <p className="text-xs text-slate-400 font-medium italic">Memuat informasi RKAT...</p>
+                          ) : (
+                            <>
+                              <p className="text-xs font-bold text-slate-900 leading-relaxed">
+                                {rkatInfo?.name || selectedProposal.jenisPermohonan || 'Kegiatan Penyaluran RKAT'}
+                              </p>
+                              {rkatInfo?.keterangan && (
+                                <p className="text-[11px] text-slate-500 italic">
+                                  "{rkatInfo.keterangan}"
+                                </p>
+                              )}
+                              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-[11px]">
+                                <div>
+                                  <span className="text-slate-400">Asnaf Target:</span> <span className="font-bold text-slate-700">{rkatInfo?.asnaf || selectedProposal.asnaf || 'Semua Asnaf'}</span>
+                                </div>
+                                {rkatInfo?.unitCost ? (
+                                  <div>
+                                    <span className="text-slate-400">Target Unit Cost:</span> <span className="font-bold text-slate-700">{formatCurrency(rkatInfo.unitCost)}</span>
+                                  </div>
+                                ) : null}
+                                {rkatInfo?.sisaPagu !== undefined && (
+                                  <div className="col-span-2 flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-200 mt-1">
+                                    <span className="text-slate-500 font-medium">Sisa Pagu RKAT Penyaluran:</span>
+                                    <span className={cn("font-black text-xs", (rkatInfo.sisaPagu || 0) >= (selectedProposal.nominal || 0) ? "text-emerald-600" : "text-amber-600")}>
+                                      {formatCurrency(rkatInfo.sisaPagu || 0)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
                         <DetailItem label="Tipe Bantuan" value={selectedProposal.tipeBantuan || '-'} />
                         <DetailItem label="Asnaf (Golongan Penerima)" value={selectedProposal.asnaf || '—'} />
                       </div>
