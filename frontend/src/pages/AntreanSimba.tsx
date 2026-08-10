@@ -102,7 +102,14 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
   // Group into pending NRM and ready NRM (checking by-name sub-records if applicable)
   const disbursedProposals = useMemo(() => {
     const list = data || [];
-    return list.filter(p => p.status === 'Antrean SIMBA' || p.status === 'Antrean_SIMBA' || p.status === 'MENUNGGU_SIMBA');
+    return list.filter(p => {
+      const s = (p.status || '').toString().toLowerCase();
+      // Exclude proposals that are already marked as Selesai / Arsip
+      if (s.includes('selesai') || s.includes('arsip')) {
+        return false;
+      }
+      return p.status === 'Antrean SIMBA' || p.status === 'Antrean_SIMBA' || p.status === 'MENUNGGU_SIMBA';
+    });
   }, [data]);
 
   const [byNameOverrides, setByNameOverrides] = useState<{ [id: string]: boolean }>({});
@@ -396,6 +403,40 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
       alert('Gagal menyelesaikan sinkronisasi: ' + (e.response?.data?.error || e.message));
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+
+  const handleBulkCompleteSync = async () => {
+    if (readyNrmList.length === 0) {
+      alert('Tidak ada proposal dengan NRM lengkap yang siap dipindahkan.');
+      return;
+    }
+    if (!window.confirm(`Pindahkan ${readyNrmList.length} proposal yang NRM-nya sudah lengkap ke Antrean Arsip?`)) {
+      return;
+    }
+
+    setIsBulkSyncing(true);
+    try {
+      const readyIds = readyNrmList.map(p => p.id);
+      await Promise.all(
+        readyIds.map(id => axios.put(`/api/proposals/${id}`, { status: 'Antrean_Arsip' }).catch(() => {}))
+      );
+
+      const updated = data.map(p => {
+        if (readyIds.includes(p.id)) {
+          return { ...p, status: 'Antrean Arsip' };
+        }
+        return p;
+      });
+      onUpdate(updated);
+      alert(`Berhasil memindahkan ${readyIds.length} proposal ke Antrean Arsip!`);
+    } catch (e: any) {
+      console.error(e);
+      alert('Gagal memindahkan proposal: ' + e.message);
+    } finally {
+      setIsBulkSyncing(false);
     }
   };
 
@@ -775,14 +816,26 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
             Layanan integrasi dan sinkronisasi data mustahik penerima pencairan ke sistem SIMBA Pusat BAZNAS.
           </p>
         </div>
-        <button
-          onClick={handleSyncNrmFromMustahik}
-          disabled={isSyncingAll}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm hover:shadow-md transition-all disabled:opacity-50 shrink-0"
-        >
-          <RefreshCw className={cn("size-4", isSyncingAll && "animate-spin")} />
-          Cek & Perbarui NRM
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            onClick={handleSyncNrmFromMustahik}
+            disabled={isSyncingAll}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold uppercase tracking-wider rounded-xl transition-all disabled:opacity-50 border border-slate-200"
+          >
+            <RefreshCw className={cn("size-4", isSyncingAll && "animate-spin")} />
+            Cek & Perbarui NRM
+          </button>
+          {readyNrmList.length > 0 && (
+            <button
+              onClick={handleBulkCompleteSync}
+              disabled={isBulkSyncing}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50"
+            >
+              <Check className="size-4" />
+              Pindahkan {readyNrmList.length} Proposal Siap ke Arsip
+            </button>
+          )}
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
