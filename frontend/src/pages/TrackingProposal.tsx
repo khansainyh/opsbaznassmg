@@ -714,7 +714,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                           <span className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</span>
                         </div>
                       </>
-                    ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                    ) : (item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
                       <>
                         <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                         <div className="flex flex-col gap-0.5 mt-0.5">
@@ -994,7 +994,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                               <p className="text-xs text-slate-400 font-medium mt-0.5">Pemohon: {selectedProposal.namaPemohon}</p>
                             )}
                           </>
-                        ) : (selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (
+                        ) : (selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
                           <>
                             <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Instansi / Lembaga</p>
                             <p className="text-sm font-bold text-slate-900">{selectedProposal.namaInstansi || selectedProposal.namaPemohon}</p>
@@ -1006,6 +1006,9 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                           <>
                             <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Mustahik / Pemohon</p>
                             <p className="text-sm font-bold text-slate-900">{selectedProposal.namaPemohon}</p>
+                            {selectedProposal.namaInstansi && (
+                              <p className="text-xs text-slate-500 font-semibold mt-0.5">Instansi / Sekolah: {selectedProposal.namaInstansi}</p>
+                            )}
                           </>
                         )}
                         {selectedProposal.nik && (

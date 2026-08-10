@@ -722,13 +722,16 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                               <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
                               <p className="text-[10px] text-slate-500 font-normal">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
                             </div>
-                          ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                          ) : (item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
                             <div>
                               <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                               <p className="text-[10px] text-slate-500 font-normal">{item.namaPemohon}</p>
                             </div>
                           ) : (
-                            item.namaPemohon
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
+                              {item.namaInstansi && <p className="text-[10px] text-slate-500 font-normal">{item.namaInstansi}</p>}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -1193,8 +1196,8 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
                           <DetailItem 
-                            label={(selectedDetailProposal.jenisPengajuan === 'Lembaga' || selectedDetailProposal.namaInstansi) ? "Nama Instansi" : "Nama Lengkap"} 
-                            value={(selectedDetailProposal.jenisPengajuan === 'Lembaga' || selectedDetailProposal.namaInstansi) ? (selectedDetailProposal.namaInstansi || selectedDetailProposal.namaPemohon) : selectedDetailProposal.namaPemohon} 
+                            label={(selectedDetailProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : "Nama Lengkap"} 
+                            value={(selectedDetailProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (selectedDetailProposal.namaInstansi || selectedDetailProposal.namaPemohon) : selectedDetailProposal.namaPemohon} 
                           />
                         </div>
                         <DetailItem label="NIK" value={selectedDetailProposal.nik} />

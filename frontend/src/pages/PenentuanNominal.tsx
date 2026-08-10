@@ -356,7 +356,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                             <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
                             <p className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
                           </>
-                        ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                        ) : (item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
                           <>
                             <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                             <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
@@ -364,7 +364,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                         ) : (
                           <>
                             <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                            <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.nik || '-'}</p>
+                            <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.namaInstansi || item.nik || '-'}</p>
                           </>
                         )}
                       </div>

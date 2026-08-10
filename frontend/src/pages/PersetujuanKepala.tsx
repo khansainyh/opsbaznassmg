@@ -384,7 +384,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
                           <p className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
                         </>
-                      ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
+                      ) : (item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
                         <>
                           <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
                           <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
@@ -521,8 +521,8 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           </h4>
                           <div className="space-y-3">
                             <DetailItem 
-                              label={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? "Nama Instansi" : "Nama Lengkap"} 
-                              value={(selectedProposal.jenisPengajuan === 'Lembaga' || selectedProposal.namaInstansi) ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
+                              label={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : "Nama Lengkap"} 
+                              value={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
                             />
                             <DetailItem label="NIK" value={selectedProposal.nik || '-'} />
                             <DetailItem label="Alamat" value={selectedProposal.alamat || '-'} />

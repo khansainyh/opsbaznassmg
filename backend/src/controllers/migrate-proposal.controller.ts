@@ -75,11 +75,17 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
       const rowNum = i + 2;
 
       try {
-        const rawId = String(row.ID_Proposal || row['ID Proposal'] || row.No_Proposal || row['No Proposal'] || row.No_Agenda || row['No Agenda'] || row.Agenda_No || row['Agenda No'] || '').trim();
-        const namaLembaga = String(row.Nama_Lembaga || row['Nama Lembaga'] || row.Instansi || row.Pemohon || 'Lembaga Tanpa Nama').trim();
+        const rawId = String(
+          row.ID_Proposal || row['ID Proposal'] ||
+          row.No_Proposal || row['No Proposal'] ||
+          row.No_Agenda || row['No Agenda'] ||
+          row.Agenda_No || row['Agenda No'] ||
+          row.No || row['No'] ||
+          ''
+        ).trim();
+
         const pic = String(row.PIC_Pemohon || row['PIC Pemohon'] || row.PIC || '').trim();
         const nominalVal = Number(row.Nominal_Global || row['Nominal Global'] || row.Nominal || row['Total Nominal'] || 0);
-        const keterangan = String(row.Keterangan || row.Peruntukan || `Migrasi Proposal: ${namaLembaga}`).trim();
         const sumberDana = String(row.Sumber_Dana || row['Sumber Dana'] || 'Zakat').trim();
         const rkatCode = String(
           row.Kode_RKAT || row['Kode RKAT'] ||
@@ -105,16 +111,16 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         const validTglCair = parseExcelDate(tglCairRaw);
         const yearVal = validTglProp.getFullYear();
 
-        // Auto-generate standardized ID_Proposal (e.g. "1" -> "PROP-2026-0001")
+        // Auto-generate standardized ID_Proposal (e.g. "1" -> "PROP_2026_0001")
         let idProposal = '';
         if (!rawId) {
-          idProposal = `PROP-${yearVal}-${String(i + 1).padStart(4, '0')}`;
+          idProposal = `PROP_${yearVal}_${String(i + 1).padStart(4, '0')}`;
         } else if (/^\d+$/.test(rawId)) {
-          idProposal = `PROP-${yearVal}-${String(rawId).padStart(4, '0')}`;
-        } else if (rawId.toUpperCase().startsWith('PROP-')) {
-          idProposal = rawId.toUpperCase();
+          idProposal = `PROP_${yearVal}_${String(rawId).padStart(4, '0')}`;
+        } else if (rawId.toUpperCase().startsWith('PROP')) {
+          idProposal = rawId.toUpperCase().replace(/-/g, '_');
         } else {
-          idProposal = `PROP-${yearVal}-${rawId}`;
+          idProposal = `PROP_${yearVal}_${rawId}`;
         }
 
         // Check matching RKAT Penyaluran (Program table) first!
@@ -206,15 +212,57 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         }
 
         // Foreign-key safe fields:
-        // Proposal.jenis_permohonan will use Program.code if matched, otherwise fallback to targetCode if provided
         const validProgramCode = programObj ? programObj.code : (targetCode || null);
-        // PengajuanPencairan.rkat_id MUST be a valid RkatOperasional.id (UUID) or null
         const validRkatOperasionalId = rkatObj ? rkatObj.id : null;
-        // Plain string fields (No FK constraint)
         const displayRkatActivityId = matchedAsnafId || (programObj ? programObj.code : (rkatObj ? rkatObj.no : (targetCode || null)));
 
         // Get linked mustahik details
         const linkedDetails = detailsByProposalId.get(rawId) || detailsByProposalId.get(idProposal) || [];
+
+        // Raw fields from Excel for applicant, instansi, & jenis pengajuan
+        const explicitJenisPengajuan = String(
+          row.Jenis_Pengajuan || row['Jenis Pengajuan'] ||
+          row.Jenis_Ajuan || row['Jenis Ajuan'] ||
+          row.Kategori || row['Kategori'] ||
+          ''
+        ).trim();
+
+        const rawPemohon = String(
+          row.Nama_Pemohon || row['Nama Pemohon'] ||
+          row.Pemohon || row.PIC_Pemohon || row['PIC Pemohon'] ||
+          row.PIC || row.Nama_Mustahik || row['Nama Mustahik'] ||
+          row.Mustahik || row.Nama || pic ||
+          ''
+        ).trim();
+
+        const rawInstansi = String(
+          row.Nama_Instansi || row['Nama Instansi'] ||
+          row.Nama_Lembaga || row['Nama Lembaga'] ||
+          row.Instansi || row.Lembaga ||
+          ''
+        ).trim();
+
+        const pimpinanOrganisasiVal = String(row.Pimpinan_Organisasi || row['Pimpinan Organisasi'] || row.Nama_Pimpinan || row['Nama Pimpinan'] || row.Pimpinan || '').trim() || null;
+
+        // Determine final jenis_pengajuan
+        let finalJenisPengajuan = 'Perorangan';
+        if (explicitJenisPengajuan) {
+          if (explicitJenisPengajuan.toLowerCase().includes('lembaga') || explicitJenisPengajuan.toLowerCase().includes('kelompok')) {
+            finalJenisPengajuan = 'Lembaga';
+          } else {
+            finalJenisPengajuan = 'Perorangan';
+          }
+        } else if (rawInstansi && rawInstansi.toLowerCase() !== rawPemohon.toLowerCase() && rawInstansi !== 'Lembaga Tanpa Nama') {
+          finalJenisPengajuan = 'Lembaga';
+        } else if (linkedDetails.length > 1) {
+          finalJenisPengajuan = 'Lembaga';
+        }
+
+        const finalNamaPemohon = rawPemohon || (finalJenisPengajuan === 'Lembaga' ? (pimpinanOrganisasiVal || rawInstansi || 'Pemohon Tanpa Nama') : 'Pemohon Tanpa Nama');
+        const finalNamaInstansi = rawInstansi || (finalJenisPengajuan === 'Lembaga' ? rawPemohon : null);
+        const namaLembaga = finalNamaInstansi || finalNamaPemohon;
+        const keterangan = String(row.Keterangan || row.Peruntukan || `Migrasi Proposal: ${namaLembaga}`).trim();
+
         let mustahikSummary = linkedDetails.map((md: any) => ({
           nama: String(md.Nama_Mustahik || md['Nama Mustahik'] || md.Nama || '-').trim(),
           nik: String(md.NIK || md['No NIK'] || '-').trim(),
@@ -226,10 +274,9 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
           nominal: Number(md.Nominal_Per_Orang || md['Nominal Per Orang'] || md.Nominal || nominalVal || 0)
         }));
 
-        // Fallback for Perorangan / Simple Single-Sheet Proposals (No Sheet 2 required!)
         if (mustahikSummary.length === 0) {
           mustahikSummary = [{
-            nama: String(row.Nama_Mustahik || row.Nama_Pemohon || row['Nama Pemohon'] || row.Pemohon || namaLembaga).trim(),
+            nama: finalNamaPemohon,
             nik: String(row.NIK || row.nik || '-').trim(),
             no_kk: String(row.No_KK || row.no_kk || '-').trim(),
             asnaf: String(row.Asnaf || row.asnaf || 'Miskin').trim(),
@@ -240,7 +287,6 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
           }];
         }
 
-        const pimpinanOrganisasiVal = String(row.Pimpinan_Organisasi || row['Pimpinan Organisasi'] || row.Nama_Pimpinan || row['Nama Pimpinan'] || row.Pimpinan || '').trim() || null;
         const namaAnakVal = String(row.Nama_Anak || row['Nama Anak'] || row.Nama_Siswa || row['Nama Siswa'] || row.Anak || '').trim() || null;
         const nikVal = String(row.NIK || row['No NIK'] || row.nik || row['NIK Pemohon'] || '').trim() || null;
         const noKkVal = String(row.No_KK || row['No KK'] || row.no_kk || '').trim() || null;
@@ -250,20 +296,19 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         const noTelponVal = String(row.No_Telpon || row['No Telpon'] || row.No_HP || row['No HP'] || row.no_telpon || '').trim() || null;
         const asnafVal = String(row.Asnaf || row.asnaf || '').trim() || null;
         
-        // Smart Status Defaulting: If specified in Excel use it. If empty & has nominal > 0 -> 'Selesai & Arsip', otherwise default -> 'Registrasi'
+        // Smart Status Defaulting
         const statusRaw = String(row.Status || row.status || '').trim();
         const statusVal = statusRaw ? statusRaw : (nominalVal > 0 ? 'Selesai & Arsip' : 'Registrasi');
 
-        // Execute DB Insertion in a transaction (BYPASSING GL & Bank Balance changes)
+        // Execute DB Insertion in a transaction
         await prisma.$transaction(async (tx) => {
-          // 1. Upsert PengajuanPencairan
           const noPengajuan = idProposal;
           
           const createdPengajuan = await tx.pengajuanPencairan.upsert({
             where: { no_pengajuan: noPengajuan },
             update: {
               tanggal: validTglCair,
-              keterangan: `${keterangan} (Pemohon: ${namaLembaga}${pic ? ` - PIC: ${pic}` : ''})`,
+              keterangan: `${keterangan} (Pemohon: ${finalNamaPemohon}${pic ? ` - PIC: ${pic}` : ''})`,
               nominal: new Prisma.Decimal(nominalVal),
               rkat_id: validRkatOperasionalId,
               status: StatusPengajuan.CAIR,
@@ -274,7 +319,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
               tanggal: validTglCair,
               pengaju_id: defaultUser.id,
               kategori_biaya: 'Penyaluran ZIS',
-              keterangan: `${keterangan} (Pemohon: ${namaLembaga}${pic ? ` - PIC: ${pic}` : ''})`,
+              keterangan: `${keterangan} (Pemohon: ${finalNamaPemohon}${pic ? ` - PIC: ${pic}` : ''})`,
               nominal: new Prisma.Decimal(nominalVal),
               rkat_id: validRkatOperasionalId,
               status: StatusPengajuan.CAIR,
@@ -282,7 +327,6 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
             }
           });
 
-          // 2. Create Log entry detailing the historical migration & By Name list
           await tx.pengajuanLog.create({
             data: {
               pengajuan_id: createdPengajuan.id,
@@ -299,7 +343,6 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
             }
           });
 
-          // 3. Create Realisasi record for RKAT tracking (without creating journal entries)
           await tx.realisasi.create({
             data: {
               rkat_id: displayRkatActivityId,
@@ -310,7 +353,6 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
 
           const agendaNoVal = /^\d+$/.test(rawId) ? Number(rawId) : undefined;
 
-          // 4. Upsert Proposal record (if re-migrated with same ID_Proposal or Agenda No, update RKAT/COA/Nominal seamlessly)
           const searchConditions: any[] = [
             { keterangan: { startsWith: `${idProposal}:` } },
             { id: idProposal }
@@ -331,8 +373,8 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
               data: {
                 ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
                 tanggal_masuk: validTglProp,
-                nama_pemohon: pic || String(row.Nama_Pemohon || row['Nama Pemohon'] || row.Pemohon || namaLembaga).trim(),
-                nama_instansi: namaLembaga !== 'Lembaga Tanpa Nama' ? namaLembaga : (String(row.Nama_Instansi || row['Nama Instansi'] || '').trim() || null),
+                nama_pemohon: finalNamaPemohon,
+                nama_instansi: finalNamaInstansi,
                 pimpinan_organisasi: pimpinanOrganisasiVal || existingProposal.pimpinan_organisasi,
                 nama_anak: namaAnakVal || existingProposal.nama_anak,
                 nik: nikVal || existingProposal.nik,
@@ -346,6 +388,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
                 nominal: nominalVal > 0 ? Math.round(nominalVal) : existingProposal.nominal,
                 asnaf: asnafVal || existingProposal.asnaf,
                 keterangan: `${idProposal}: ${keterangan}`,
+                jenis_pengajuan: finalJenisPengajuan,
                 status: statusVal || existingProposal.status
               }
             });
@@ -354,8 +397,8 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
               data: {
                 ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
                 tanggal_masuk: validTglProp,
-                nama_pemohon: pic || String(row.Nama_Pemohon || row['Nama Pemohon'] || row.Pemohon || namaLembaga).trim(),
-                nama_instansi: namaLembaga !== 'Lembaga Tanpa Nama' ? namaLembaga : (String(row.Nama_Instansi || row['Nama Instansi'] || '').trim() || null),
+                nama_pemohon: finalNamaPemohon,
+                nama_instansi: finalNamaInstansi,
                 pimpinan_organisasi: pimpinanOrganisasiVal,
                 nama_anak: namaAnakVal,
                 nik: nikVal,
@@ -369,7 +412,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
                 nominal: nominalVal > 0 ? Math.round(nominalVal) : null,
                 asnaf: asnafVal,
                 keterangan: `${idProposal}: ${keterangan}`,
-                jenis_pengajuan: namaLembaga && namaLembaga !== 'Lembaga Tanpa Nama' ? 'Lembaga' : (mustahikSummary.length > 1 ? 'Lembaga' : 'Perorangan'),
+                jenis_pengajuan: finalJenisPengajuan,
                 status: statusVal
               }
             });
