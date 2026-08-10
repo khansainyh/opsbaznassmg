@@ -711,15 +711,14 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  }, [formProgramsAvailable]);
 
  // Realized proposals are those that have been paid/disbursed or are currently queued layout
- const realizedProposals = useMemo(() => {
- return proposals.filter(p => 
- p.status ==='Selesai & Arsip' || 
- p.status ==='Realisasi Bantuan' || 
- p.status ==='MENUNGGU_SIMBA' || 
- p.status ==='MENUNGGU_REALISASI_DISTRIBUSI' ||
- p.status ==='Pencairan Dana'
- );
- }, [proposals]);
+  const realizedProposals = useMemo(() => {
+    return proposals.filter(p => 
+      p.status === 'Selesai & Arsip' || 
+      p.status === 'Realisasi Bantuan' || 
+      p.status === 'CAIR' ||
+      p.status === 'Selesai'
+    );
+  }, [proposals]);
 
 const getParentProgramCode = (code?: string): string => {
  if (!code) return"";
@@ -921,7 +920,8 @@ const getParentProgramCode = (code?: string): string => {
 
  const cat = getPilarCategory(pName);
 
- const dateStr = p.tglCairBank || p.tanggalMasuk;
+  const rawDate = p.tanggalPencairan || (typeof p.tanggal_pencairan === 'string' ? p.tanggal_pencairan : '') || p.tglCairBank || p.tanggalRealisasi || p.tanggalMasuk;
+  const dateStr = String(rawDate || '');
  if (dateStr) {
  const parts = dateStr.split('-');
  if (parts.length >= 2) {

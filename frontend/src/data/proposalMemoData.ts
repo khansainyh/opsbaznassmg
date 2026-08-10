@@ -89,7 +89,9 @@ export interface ProposalMemo {
   jadwalRealisasi?: string;
   is_rutin?: boolean;
   frekuensi_berulang?: number;
-  tanggal_pencairan?: number;
+  tanggal_pencairan?: number | string;
+  tanggalPencairan?: string;
+  tanggalRealisasi?: string;
   butuh_survei?: boolean;
   penerima_detail?: any[];
   volume?: number;

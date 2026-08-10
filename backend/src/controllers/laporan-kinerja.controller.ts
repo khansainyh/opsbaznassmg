@@ -406,7 +406,7 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       prisma.proposal.findMany({
         where: {
           status: {
-            in: ['Selesai & Arsip', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana']
+            in: ['Selesai & Arsip', 'Realisasi Bantuan', 'Selesai', 'CAIR']
           },
           tanggal_masuk: { gte: startDate, lte: endDate }
         },

@@ -36,14 +36,10 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
       'Selesai & Arsip',
       'Selesai',
       'Realisasi Bantuan',
-      'MENUNGGU_SIMBA',
-      'MENUNGGU_REALISASI_DISTRIBUSI',
-      'Pencairan Dana',
       'Antrean Arsip',
       'Antrean_Arsip',
       'Arsip',
-      'CAIR',
-      'APPROVED'
+      'CAIR'
     ];
     const penyaluranAgg = await prisma.proposal.aggregate({
       where: {
@@ -90,11 +86,11 @@ export const getExecutiveDashboardData = async (req: Request, res: Response) => 
     const monthlyPenyaluran = await prisma.$queryRaw<
       { month: number; total: number }[]
     >`
-      SELECT MONTH(tanggal_masuk) as month, SUM(nominal) as total
+      SELECT MONTH(COALESCE(tanggal_pencairan, updated_at, tanggal_masuk)) as month, SUM(nominal) as total
       FROM Proposal
-      WHERE status IN ('Selesai & Arsip', 'Selesai', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana', 'Antrean Arsip', 'Antrean_Arsip', 'Arsip', 'CAIR', 'APPROVED')
-        AND tanggal_masuk >= ${startDate} AND tanggal_masuk <= ${endDate}
-      GROUP BY MONTH(tanggal_masuk)
+      WHERE status IN ('Selesai & Arsip', 'Selesai', 'Realisasi Bantuan', 'Antrean Arsip', 'Antrean_Arsip', 'Arsip', 'CAIR')
+        AND COALESCE(tanggal_pencairan, updated_at, tanggal_masuk) >= ${startDate} AND COALESCE(tanggal_pencairan, updated_at, tanggal_masuk) <= ${endDate}
+      GROUP BY MONTH(COALESCE(tanggal_pencairan, updated_at, tanggal_masuk))
     `;
 
     const targetSums = await prisma.rkatPengumpulan.aggregate({

@@ -506,7 +506,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
   const realizedProposals = useMemo(() => {
     return data.filter((p: ProposalMemo) => 
-      ['Selesai & Arsip', 'Realisasi Bantuan', 'MENUNGGU_SIMBA', 'MENUNGGU_REALISASI_DISTRIBUSI', 'Pencairan Dana', 'Selesai'].includes(p.status)
+      ['Selesai & Arsip', 'Realisasi Bantuan', 'Selesai', 'CAIR'].includes(p.status)
     );
   }, [data]);
 
