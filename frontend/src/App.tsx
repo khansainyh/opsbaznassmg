@@ -94,7 +94,7 @@ function App() {
         { name: "Upload Proposal", roles: ["Super_Admin", "Humas"] },
         { name: "Input Surat", roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi"] },
         { name: "Tracking Proposal", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Humas", "Staf_Keuangan", "Kabag_Keuangan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan"] },
-        { name: "Tracking Surat", roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi"] },
+        { name: "Tracking Surat", roles: ["Super_Admin", "Kepala_Pelaksana", "Kabag_Administrasi", "Staf_Administrasi", "Staf_Keuangan"] },
         { name: "Persetujuan Kabag Administrasi", roles: ["Super_Admin", "Kabag_Administrasi"] },
         { name: "Persetujuan Kepala Pelaksana", roles: ["Super_Admin", "Kepala_Pelaksana"] },
         { name: "Persetujuan Ketua", roles: ["Super_Admin", "Ketua"] },

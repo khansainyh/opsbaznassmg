@@ -199,6 +199,7 @@ model Surat {
   updated_at          DateTime  @updatedAt
   file_gdrive_id      String?
   file_gdrive_link    String?
+  link_surat_keluar   String?   @db.Text
   catatanKepala       String?   @db.Text
   catatanPimpinan     String?   @db.Text
   jam_acara           String?

@@ -1,11 +1,14 @@
 import React, { useState, useMemo } from 'react';
+import axios from 'axios';
 import {
   Search, Filter, Calendar, FileText, Clock, CheckCircle2,
-  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, ExternalLink
+  ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, ExternalLink,
+  Send, Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Surat } from './InputSurat';
+import { useAuth } from '../context/AuthContext';
 
 interface TrackingSuratProps {
   data: Surat[];
@@ -98,8 +101,7 @@ function getStatusColor(status: string) {
     case 'Review Kabag Admin': return 'bg-indigo-100 text-indigo-700';
     case 'Review Kepala Pelaksana': return 'bg-blue-100 text-blue-700';
     case 'Review Pimpinan': return 'bg-purple-100 text-purple-700';
-    case 'Penugasan Kepala Pelaksana': return 'bg-amber-100 text-amber-700 border border-amber-200';
-    case 'Arsip': return 'bg-amber-100 text-amber-700';
+    case 'Penugasan Kepala Pelaksana': return 'bg-amber-100 text-amber-700';
     case 'Selesai': return 'bg-emerald-100 text-emerald-700';
     case 'Ditolak': return 'bg-rose-100 text-rose-700';
     default: return 'bg-slate-100 text-slate-600';
@@ -116,11 +118,52 @@ function toGDriveEmbedUrl(link: string): string | null {
 }
 
 export default function TrackingSurat({ data }: TrackingSuratProps) {
+  const { user } = useAuth();
+  const canEditSuratKeluar = user?.role === 'Staf_Administrasi' || user?.role === 'Kabag_Administrasi' || user?.role === 'Super_Admin';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState('Semua');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
   const [selectedSurat, setSelectedSurat] = useState<Surat | null>(null);
+
+  const [editingSuratKeluar, setEditingSuratKeluar] = useState(false);
+  const [inputLinkSuratKeluar, setInputLinkSuratKeluar] = useState('');
+  const [savingSuratKeluar, setSavingSuratKeluar] = useState(false);
+
+  const openSuratDetail = (item: Surat) => {
+    setSelectedSurat(item);
+    setInputLinkSuratKeluar(item.linkSuratKeluar || item.link_surat_keluar || '');
+    setEditingSuratKeluar(false);
+  };
+
+  const handleSaveSuratKeluar = async () => {
+    if (!selectedSurat) return;
+    setSavingSuratKeluar(true);
+    try {
+      const newLink = inputLinkSuratKeluar.trim();
+      await axios.put(`/api/surats/${selectedSurat.id}`, {
+        link_surat_keluar: newLink || null
+      });
+
+      selectedSurat.linkSuratKeluar = newLink || undefined;
+      selectedSurat.link_surat_keluar = newLink || undefined;
+
+      const matchedInList = data.find(d => d.id === selectedSurat.id);
+      if (matchedInList) {
+        matchedInList.linkSuratKeluar = newLink || undefined;
+        matchedInList.link_surat_keluar = newLink || undefined;
+      }
+
+      setEditingSuratKeluar(false);
+      alert('Berhasil menyimpan Tautan Surat Keluar!');
+    } catch (e: any) {
+      console.error(e);
+      alert('Gagal menyimpan tautan Surat Keluar: ' + (e.response?.data?.error || e.message));
+    } finally {
+      setSavingSuratKeluar(false);
+    }
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -249,7 +292,14 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                     {item.pimpinanOrganisasi && (
                       <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">{item.pimpinanOrganisasi}</p>
                     )}
-                    <p className="text-[9px] text-slate-400 font-semibold">{item.tanggalMasuk} {item.jamPengajuan ? '· ' + item.jamPengajuan : ''}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[9px] text-slate-400 font-semibold">{item.tanggalMasuk} {item.jamPengajuan ? '· ' + item.jamPengajuan : ''}</p>
+                      {(item.linkSuratKeluar || item.link_surat_keluar) && (
+                        <span title="Ada Surat Keluar" className="inline-flex items-center justify-center size-5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+                          <Send className="size-3" />
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-0.5">
@@ -279,7 +329,7 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                       <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
                         {formatStatusDisplay(item.status)}
                       </span>
-                      <button onClick={() => setSelectedSurat(item)}
+                      <button onClick={() => openSuratDetail(item)}
                         className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100">
                         <Eye className="size-4" />
                       </button>
@@ -376,12 +426,12 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                   </div>
                 </div>
 
-                {/* PDF/GDrive Viewer if exists */}
+                {/* PDF/GDrive Viewer Surat Masuk */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FileText className="size-4 text-primary" />
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dokumen Surat</h4>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dokumen Surat Masuk</h4>
                     </div>
                     {selectedSurat.fileGdriveLink && (
                       <a href={selectedSurat.fileGdriveLink} target="_blank" rel="noopener noreferrer"
@@ -395,14 +445,113 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                       <iframe
                         src={toGDriveEmbedUrl(selectedSurat.fileGdriveLink)!}
                         className="w-full h-full bg-slate-100"
-                        title="Dokumen Surat"
+                        title="Dokumen Surat Masuk"
                         allow="autoplay"
                       />
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
-                      <FileText className="size-8 mb-2 opacity-30" />
+                    <div className="flex flex-col items-center justify-center h-28 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
+                      <FileText className="size-6 mb-1 opacity-30" />
                       <p className="text-xs font-medium">Tidak ada dokumen terlampir</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Dokumen Surat Keluar */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Send className="size-4 text-emerald-600" />
+                      <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.2em]">File Surat Keluar</h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(selectedSurat.linkSuratKeluar || selectedSurat.link_surat_keluar) && (
+                        <>
+                          <a 
+                            href={selectedSurat.linkSuratKeluar || selectedSurat.link_surat_keluar} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:underline"
+                          >
+                            <ExternalLink className="size-3" /> Buka Link
+                          </a>
+                          {!editingSuratKeluar && canEditSuratKeluar && (
+                            <button 
+                              onClick={() => setEditingSuratKeluar(true)}
+                              className="flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-all"
+                            >
+                              <Edit3 className="size-3 text-emerald-600" /> Edit Link
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {editingSuratKeluar ? (
+                    <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200 space-y-3">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                        Tautan Google Drive / File Surat Keluar:
+                      </label>
+                      <input 
+                        type="url"
+                        value={inputLinkSuratKeluar}
+                        onChange={(e) => setInputLinkSuratKeluar(e.target.value)}
+                        placeholder="https://drive.google.com/file/d/..."
+                        className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setEditingSuratKeluar(false)}
+                          className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          onClick={handleSaveSuratKeluar}
+                          disabled={savingSuratKeluar}
+                          className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {savingSuratKeluar ? 'Menyimpan...' : 'Simpan Link'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (selectedSurat.linkSuratKeluar || selectedSurat.link_surat_keluar) ? (
+                    toGDriveEmbedUrl(selectedSurat.linkSuratKeluar || selectedSurat.link_surat_keluar || '') ? (
+                      <div className="rounded-xl overflow-hidden border border-emerald-200 shadow-sm" style={{ height: '320px' }}>
+                        <iframe
+                          src={toGDriveEmbedUrl(selectedSurat.linkSuratKeluar || selectedSurat.link_surat_keluar || '')!}
+                          className="w-full h-full bg-slate-100"
+                          title="Dokumen Surat Keluar"
+                          allow="autoplay"
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-800 truncate max-w-[350px]">
+                          {selectedSurat.linkSuratKeluar || selectedSurat.link_surat_keluar}
+                        </span>
+                        <a 
+                          href={selectedSurat.linkSuratKeluar || selectedSurat.link_surat_keluar} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg"
+                        >
+                          Buka Link
+                        </a>
+                      </div>
+                    )
+                  ) : canEditSuratKeluar ? (
+                    <button 
+                      onClick={() => setEditingSuratKeluar(true)}
+                      className="w-full py-2.5 px-4 bg-emerald-50/60 hover:bg-emerald-100/80 text-emerald-700 border border-emerald-200/80 border-dashed rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                    >
+                      <Send className="size-3.5 text-emerald-600" />
+                      + Tambah Surat Keluar
+                    </button>
+                  ) : (
+                    <div className="py-2 text-center text-xs font-medium text-slate-400 italic">
+                      Belum ada file Surat Keluar terlampir.
                     </div>
                   )}
                 </div>

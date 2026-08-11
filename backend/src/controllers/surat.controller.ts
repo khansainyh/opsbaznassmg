@@ -137,6 +137,10 @@ const buildCleanSuratPayload = (body: any, isUpdate = false) => {
     const val = body.file_gdrive_link ?? body.fileGdriveLink ?? body.link_scan;
     payload.file_gdrive_link = val ? String(val).trim() : null;
   }
+  if (body.link_surat_keluar !== undefined || body.linkSuratKeluar !== undefined || body.link_balasan !== undefined) {
+    const val = body.link_surat_keluar ?? body.linkSuratKeluar ?? body.link_balasan;
+    payload.link_surat_keluar = val ? String(val).trim() : null;
+  }
   if (body.catatanKepala !== undefined || body.catatan_kepala !== undefined) {
     const val = body.catatanKepala ?? body.catatan_kepala;
     payload.catatanKepala = val ? String(val).trim() : null;

@@ -50,6 +50,8 @@ export interface Surat {
   status: 'Registrasi' | 'Scan Surat' | 'Review Kabag Admin' | 'Review Kepala Pelaksana' | 'Review Pimpinan' | 'Penugasan Kepala Pelaksana' | 'Selesai' | 'Arsip' | 'Ditolak';
   fileGdriveId?: string;
   fileGdriveLink?: string;
+  linkSuratKeluar?: string;
+  link_surat_keluar?: string;
   catatanKepala?: string;
   catatanPimpinan?: string;
   kategori?: string;
