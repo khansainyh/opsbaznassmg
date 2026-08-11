@@ -720,6 +720,15 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
     );
   }, [proposals]);
 
+const getProposalAsnafKey = (p: ProposalMemo): string => {
+  if (p.asnaf) return String(p.asnaf).trim().toLowerCase();
+  const rek = String(p.rekomendasi_kabag || '').toLowerCase();
+  if (rek.includes('terikat') && !rek.includes('tidak')) return 'ist';
+  if (rek.includes('tidak terikat') || rek.includes('istt')) return 'istt';
+  if (rek.includes('ist')) return 'ist';
+  return 'miskin';
+};
+
 const getParentProgramCode = (code?: string): string => {
  if (!code) return"";
  return code.split('.')[0].trim();
@@ -733,12 +742,6 @@ const getParentProgramCode = (code?: string): string => {
       if (matchById) return matchById;
 
       // Match by 1-based numeric index in currentActivities table (e.g. No 1, No 2)
-      if (/^\d+$/.test(p.rkatActivityId)) {
-        const idx = Number(p.rkatActivityId) - 1;
-        if (idx >= 0 && idx < currentActivities.length) {
-          return currentActivities[idx];
-        }
-      }
     }
 
     // 1b. Check if jenisPermohonan is a numeric 1-based index
@@ -756,7 +759,7 @@ const getParentProgramCode = (code?: string): string => {
         if (!matchesCode) return false;
 
         if (act.asnaf) {
-          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          const pAsnaf = getProposalAsnafKey(p);
           return act.asnaf.toLowerCase() === pAsnaf;
         }
         return true;
@@ -771,7 +774,7 @@ const getParentProgramCode = (code?: string): string => {
         if (!matchesCode) return false;
 
         if (act.asnaf) {
-          const pAsnaf = (p.asnaf || 'Miskin').toLowerCase();
+          const pAsnaf = getProposalAsnafKey(p);
           return act.asnaf.toLowerCase() === pAsnaf;
         }
         return true;
@@ -779,69 +782,69 @@ const getParentProgramCode = (code?: string): string => {
       if (matchByParentCode) return matchByParentCode;
     }
 
- // 3. Fallback to name-based matching
- return currentActivities.find(act => {
- const matchesPilar = p.program === act.pilarName;
- if (!matchesPilar) return false;
- 
- const matchesProgram = p.jenisPermohonan === act.name;
- if (!matchesProgram) return false;
- 
- if (act.asnaf) {
- const pAsnaf = (p.asnaf ||'Miskin').toLowerCase();
- return act.asnaf.toLowerCase() === pAsnaf;
- }
- return true;
- }) || null;
- };
+    // 3. Fallback to name-based matching
+    return currentActivities.find(act => {
+      const matchesPilar = p.program === act.pilarName;
+      if (!matchesPilar) return false;
+      
+      const matchesProgram = p.jenisPermohonan === act.name;
+      if (!matchesProgram) return false;
+      
+      if (act.asnaf) {
+        const pAsnaf = getProposalAsnafKey(p);
+        return act.asnaf.toLowerCase() === pAsnaf;
+      }
+      return true;
+    }) || null;
+  };
 
- // Queries all proposals assigned/auto-assigned to a specific activity
- const getLinkedMemosForActivity = (act: any, proposalsList: ProposalMemo[]) => {
- return proposalsList.filter(p => {
- // 1. Prioritize matching by explicit rkatActivityId
- if (p.rkatActivityId) {
- return act.id === p.rkatActivityId || act.asnafTargetId === p.rkatActivityId;
- }
+  // Queries all proposals assigned/auto-assigned to a specific activity
+  const getLinkedMemosForActivity = (act: any, proposalsList: ProposalMemo[]) => {
+    return proposalsList.filter(p => {
+      // 1. Prioritize matching by explicit rkatActivityId
+      if (p.rkatActivityId) {
+        return act.id === p.rkatActivityId || act.asnafTargetId === p.rkatActivityId;
+      }
 
- // 2. Match by exact program code and asnaf
- if (p.programCode) {
- const matchesCode = p.programCode === act.programCode;
- if (matchesCode) {
- if (act.asnaf) {
- const pAsnaf = (p.asnaf ||'Miskin').toLowerCase();
- return act.asnaf.toLowerCase() === pAsnaf;
- }
- return true;
- }
- 
- // Fallback to parent program code match
- const parentP = getParentProgramCode(p.programCode);
- const parentAct = getParentProgramCode(act.programCode);
- const matchesParentCode = parentP === parentAct;
- if (matchesParentCode) {
- if (act.asnaf) {
- const pAsnaf = (p.asnaf ||'Miskin').toLowerCase();
- return act.asnaf.toLowerCase() === pAsnaf;
- }
- return true;
- }
- return false;
- }
+      // 2. Match by exact program code and asnaf
+      if (p.programCode) {
+        const matchesCode = p.programCode === act.programCode;
+        if (matchesCode) {
+          if (act.asnaf) {
+            const pAsnaf = getProposalAsnafKey(p);
+            return act.asnaf.toLowerCase() === pAsnaf;
+          }
+          return true;
+        }
+        
+        // Fallback to parent program code match
+        const parentP = getParentProgramCode(p.programCode);
+        const parentAct = getParentProgramCode(act.programCode);
+        const matchesParentCode = parentP === parentAct;
+        if (matchesParentCode) {
+          if (act.asnaf) {
+            const pAsnaf = getProposalAsnafKey(p);
+            return act.asnaf.toLowerCase() === pAsnaf;
+          }
+          return true;
+        }
+        return false;
+      }
 
- // 3. Fallback to name-based matching
- const matchesPilar = p.program === act.pilarName;
- if (!matchesPilar) return false;
- 
- const matchesProgram = p.jenisPermohonan === act.name;
- if (!matchesProgram) return false;
- 
- if (act.asnaf) {
- const pAsnaf = (p.asnaf ||'Miskin').toLowerCase();
- return act.asnaf.toLowerCase() === pAsnaf;
- }
- return true;
- });
- };
+      // 3. Fallback to name-based matching
+      const matchesPilar = p.program === act.pilarName;
+      if (!matchesPilar) return false;
+      
+      const matchesProgram = p.jenisPermohonan === act.name;
+      if (!matchesProgram) return false;
+      
+      if (act.asnaf) {
+        const pAsnaf = getProposalAsnafKey(p);
+        return act.asnaf.toLowerCase() === pAsnaf;
+      }
+      return true;
+    });
+  };
 
  // Helper to categorize Semarang Sehat/Cerdas into base Pilar names
  const getPilarCategory = useCallback((pilarName: string): string => {
@@ -2450,23 +2453,25 @@ const getParentProgramCode = (code?: string): string => {
  </div>
 
  <SearchableDropdownSingle
- label="Kategori Asnaf (8 Golongan)"
- selectedValue={formAsnaf}
- onChange={setFormAsnaf}
- options={[
- { value:"Fakir", label:"Fakir" },
- { value:"Miskin", label:"Miskin" },
- { value:"Amil", label:"Amil" },
- { value:"Mualaf", label:"Mualaf" },
- { value:"Riqab", label:"Riqab (Hamba Sahaya)" },
- { value:"Gharimin", label:"Gharimin (Orang Berhutang)" },
- { value:"Fisabilillah", label:"Fisabilillah" },
- { value:"Ibnu Sabil", label:"Ibnu Sabil" }
- ]}
- placeholder="Cari / Pilih Asnaf..."
- emptyLabel="-- Kosong (Umum / Non-Asnaf) --"
- allowEmpty={true}
- />
+  label="Kategori Asnaf / Sumber Dana (8 Golongan + IST / ISTT)"
+  selectedValue={formAsnaf}
+  onChange={setFormAsnaf}
+  options={[
+  { value:"Fakir", label:"Fakir" },
+  { value:"Miskin", label:"Miskin" },
+  { value:"Amil", label:"Amil" },
+  { value:"Mualaf", label:"Mualaf" },
+  { value:"Riqab", label:"Riqab (Hamba Sahaya)" },
+  { value:"Gharimin", label:"Gharimin (Orang Berhutang)" },
+  { value:"Fisabilillah", label:"Fisabilillah" },
+  { value:"Ibnu Sabil", label:"Ibnu Sabil" },
+  { value:"IST", label:"IST (Infak Sedekah Terikat)" },
+  { value:"ISTT", label:"ISTT (Infak Sedekah Tidak Terikat)" }
+  ]}
+  placeholder="Cari / Pilih Asnaf atau IST / ISTT..."
+  emptyLabel="-- Kosong (Umum / Non-Asnaf) --"
+  allowEmpty={true}
+  />
 
  <SearchableDropdownSingle
  label="Hubungkan Ke COA (Chart of Accounts) - Opsional"

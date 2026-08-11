@@ -345,13 +345,13 @@ export default function PenyaluranZis() {
     fetchData();
   }, []);
 
-  // Filter COA for Penyaluran (starts with 5 or contains Beban/Penyaluran)
+  // Filter COA for Penyaluran (starts with 5 or klasifikasi Beban/Penyaluran)
   const penyaluranCoaOptions = useMemo(() => {
     if (coaList.length === 0) return [];
     return coaList.filter((c: any) => {
-      const code = String(c.code || c.coa_code || '');
-      const name = (c.name || c.nama_akun || c.nama || '').toLowerCase();
-      return code.startsWith('5') || name.includes('penyaluran') || name.includes('beban') || name.includes('bantuan');
+      const code = String(c.code || c.coa_code || '').trim();
+      const klasifikasi = String(c.klasifikasi || '').toLowerCase().trim();
+      return code.startsWith('5') || klasifikasi.includes('penyaluran') || klasifikasi.includes('beban');
     });
   }, [coaList]);
 
@@ -750,8 +750,8 @@ export default function PenyaluranZis() {
         has_memo: formHasMemo,
         memo_source: formHasMemo ? formMemoSource : 'DIRECT_PENYALURAN',
         jenis_permohonan: formJenisPermohonan || null,
-        rkat_activity_id: formRkatId || null,
-        coa_code: formCoaCode || '519999999',
+        rkat_activity_id: formCoaCode || formRkatId || null,
+        coa_code: formCoaCode || null,
         asnaf: formAsnaf,
         nominal: parsedNominal,
         keterangan: formKeterangan.trim() || 'Penyaluran ZIS',
@@ -792,8 +792,8 @@ export default function PenyaluranZis() {
         has_memo: formHasMemo,
         memo_source: formHasMemo ? formMemoSource : null,
         jenis_permohonan: formJenisPermohonan || null,
-        rkat_activity_id: formRkatId || null,
-        coa_code: formCoaCode || '519999999',
+        rkat_activity_id: formCoaCode || formRkatId || null,
+        coa_code: formCoaCode || null,
         asnaf: formAsnaf,
         nominal: parsedNominal,
         keterangan: formKeterangan.trim(),
@@ -1401,7 +1401,7 @@ export default function PenyaluranZis() {
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="font-bold text-slate-700">2. Golongan Asnaf *</label>
                       <CustomSelect
-                        options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil'].map(a => ({ value: a, label: a }))}
+                        options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil', 'IST', 'ISTT'].map(a => ({ value: a, label: a }))}
                         value={formAsnaf}
                         onChange={val => setFormAsnaf(val)}
                         placeholder="-- Pilih Golongan Asnaf --"
@@ -1708,7 +1708,7 @@ export default function PenyaluranZis() {
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="font-bold text-slate-700">2. Golongan Asnaf *</label>
                       <CustomSelect
-                        options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil'].map(a => ({ value: a, label: a }))}
+                        options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil', 'IST', 'ISTT'].map(a => ({ value: a, label: a }))}
                         value={formAsnaf}
                         onChange={val => setFormAsnaf(val)}
                         placeholder="-- Pilih Golongan Asnaf --"

@@ -804,7 +804,22 @@ export const previewDisbursement = async (req: Request, res: Response) => {
         mappingRule = rules.find(r => r.asnaf_id && r.asnaf_id.toLowerCase().trim() === normAsnaf);
       }
 
-      if (!mappingRule) {
+      let debitCoaCode = null;
+
+      if (proposal.rkat_activity_id) {
+        const foundCoa = await prisma.chartOfAccounts.findUnique({
+          where: { coa_code: proposal.rkat_activity_id }
+        });
+        if (foundCoa) {
+          debitCoaCode = foundCoa.coa_code;
+        }
+      }
+
+      if (!debitCoaCode && mappingRule) {
+        debitCoaCode = mappingRule.debit_coa_code;
+      }
+
+      if (!debitCoaCode) {
         await prisma.chartOfAccounts.upsert({
           where: { coa_code: '519999999' } as any,
           update: {},
@@ -815,9 +830,9 @@ export const previewDisbursement = async (req: Request, res: Response) => {
             tipe_dana: 'ZAKAT'
           } as any
         });
+        debitCoaCode = '519999999';
       }
 
-      const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
       const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
 
       const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
@@ -961,7 +976,22 @@ export const executeDisbursement = async (req: Request, res: Response) => {
           mappingRule = rules.find(r => r.asnaf_id && r.asnaf_id.toLowerCase().trim() === normAsnaf);
         }
 
-        if (!mappingRule) {
+        let debitCoaCode = null;
+
+        if (proposal.rkat_activity_id) {
+          const foundCoa = await tx.chartOfAccounts.findUnique({
+            where: { coa_code: proposal.rkat_activity_id }
+          });
+          if (foundCoa) {
+            debitCoaCode = foundCoa.coa_code;
+          }
+        }
+
+        if (!debitCoaCode && mappingRule) {
+          debitCoaCode = mappingRule.debit_coa_code;
+        }
+
+        if (!debitCoaCode) {
           await tx.chartOfAccounts.upsert({
             where: { coa_code: '519999999' } as any,
             update: {},
@@ -972,9 +1002,8 @@ export const executeDisbursement = async (req: Request, res: Response) => {
               tipe_dana: 'ZAKAT'
             } as any
           });
+          debitCoaCode = '519999999';
         }
-
-        const debitCoaCode = mappingRule ? mappingRule.debit_coa_code : '519999999';
 
         const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
         const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${proposal.nama_pemohon}`;

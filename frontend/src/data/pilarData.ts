@@ -1,7 +1,7 @@
 export interface AsnafTarget {
   id: string;
   name?: string;
-  asnaf?: 'Fakir' | 'Miskin' | 'Amil' | 'Mualaf' | 'Riqab' | 'Gharim' | 'Fisabilillah' | 'Ibnu Sabil' | '';
+  asnaf?: 'Fakir' | 'Miskin' | 'Amil' | 'Mualaf' | 'Riqab' | 'Gharim' | 'Fisabilillah' | 'Ibnu Sabil' | 'IST' | 'ISTT' | '';
   frekuensi: number | string;
   nominal: number;
   mustahik: number;

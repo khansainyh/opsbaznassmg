@@ -781,13 +781,16 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
       if (changedProgramCode) {
         payload.jenis_permohonan = changedProgramCode;
       }
+      const computedAsnaf = rekomendasiKabag === 'Zakat' ? selectedAsnaf : (rekomendasiKabag === 'Infak/Sedekah Terikat' ? 'IST' : (rekomendasiKabag === 'Infak/Sedekah Tidak Terikat' ? 'ISTT' : selectedAsnaf));
+      payload.asnaf = computedAsnaf;
+
       await axios.put(`/api/proposals/${task.id}`, payload);
       
       const newProg = consumptivePrograms.find(p => p.code === changedProgramCode);
       const updatedData = data.map(item => item.id === task.id ? { 
         ...item, 
         status: 'Review Kepala Pelaksana',
-        asnaf: rekomendasiKabag === 'Zakat' ? selectedAsnaf : undefined,
+        asnaf: computedAsnaf,
         rekomendasi_kabag: rekomendasiKabag,
         hasil_identifikasi: hasilIdentifikasi,
         approval_kabag: true,
@@ -812,8 +815,9 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const handleViewDetail = (task: ProposalMemo) => {
     setSelectedTask(task);
     setHasilIdentifikasi(task.hasil_identifikasi || '');
-    setRekomendasiKabag((task.rekomendasi_kabag as any) || 'Zakat');
-    setSelectedAsnaf(task.asnaf || 'Fakir');
+    const currentRek = (task.rekomendasi_kabag as any) || 'Zakat';
+    setRekomendasiKabag(currentRek);
+    setSelectedAsnaf(task.asnaf && !['IST', 'ISTT'].includes(task.asnaf) ? task.asnaf : 'Fakir');
     setChangedProgramCode('');
     // Initialize disposisi state from task
     setIsBantuanBerulang(task.is_rutin ?? false);
