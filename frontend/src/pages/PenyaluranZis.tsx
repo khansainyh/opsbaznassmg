@@ -724,6 +724,7 @@ export default function PenyaluranZis() {
   // Submit Direct Input Form
   const handleSubmitDirect = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!formNik.trim() || formNik.trim().length < 16) {
       alert(`Mohon isi 16 digit NIK ${formKategori === 'Lembaga' ? 'Pimpinan / Penanggung Jawab' : 'Pemohon'}.`);
       return;

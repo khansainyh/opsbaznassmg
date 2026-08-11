@@ -203,6 +203,7 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
   };
 
   const handleApprove = async (id: string) => {
+    if (isSubmitting) return;
     const item = data.find(d => d.id === id);
     if (!item) return;
 

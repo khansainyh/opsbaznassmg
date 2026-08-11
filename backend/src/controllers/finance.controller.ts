@@ -909,6 +909,14 @@ export const executeDisbursement = async (req: Request, res: Response) => {
 
       // 2. Loop through each proposal to create separate Realisasi and journal entries (1 debit + 1 credit per proposal)
       for (const proposal of proposals) {
+        const existingRealisasi = await tx.realisasi.findFirst({
+          where: { proposal_id: proposal.id }
+        });
+        if (existingRealisasi) {
+          console.warn(`[DISBURSE SKIPPED] Proposal ${proposal.id} (Agenda ${proposal.agenda_no}) sudah memiliki Realisasi ${existingRealisasi.transaksi_id}`);
+          continue;
+        }
+
         const nominal = Number(proposal.nominal || 0);
 
         let fundSource = 'ZAKAT';

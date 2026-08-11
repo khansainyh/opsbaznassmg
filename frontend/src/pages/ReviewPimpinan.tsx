@@ -154,6 +154,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
   };
 
   const handleApprove = async () => {
+    if (isSubmitting) return;
     if (!catatanPimpinan.trim()) {
       alert('Catatan Pimpinan wajib diisi!');
       return;
@@ -187,6 +188,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
   };
 
   const handleBulkApprove = async () => {
+    if (isSubmitting) return;
     if (selectedIds.length === 0) return;
     const cat = window.prompt(`Masukkan catatan Pimpinan untuk menyetujui ${selectedIds.length} data:`);
     if (cat === null) return;
