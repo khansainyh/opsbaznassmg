@@ -4,10 +4,27 @@ import { Prisma, StatusPengajuan } from '@prisma/client';
 
 export const getPenyaluranZis = async (req: Request, res: Response): Promise<void> => {
   try {
+    const ALLOWED_STATUS_LIST = [
+      'ACC',
+      'Pencairan_Dana',
+      'Pencairan Dana',
+      'Antrean_Pencairan',
+      'Antrean Pencairan',
+      'Realisasi_Bantuan',
+      'Realisasi Bantuan',
+      'Antrean_SIMBA',
+      'Antrean SIMBA',
+      'Antrean_Arsip',
+      'Antrean Arsip',
+      'Selesai & Arsip',
+      'Selesai',
+      'CAIR'
+    ];
+
     const proposals = await prisma.proposal.findMany({
       where: {
         OR: [
-          { status: { in: ['ACC', 'Pencairan_Dana', 'Antrean_Pencairan', 'Realisasi Bantuan', 'Realisasi_Bantuan', 'Antrean SIMBA', 'Antrean_SIMBA', 'Selesai & Arsip', 'Antrean Arsip', 'Selesai', 'CAIR'] } },
+          { status: { in: ALLOWED_STATUS_LIST as any } },
           { memo_source: 'DIRECT_PENYALURAN' }
         ]
       },
@@ -18,13 +35,33 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
       orderBy: { created_at: 'desc' }
     });
 
-    const mapped = proposals.map(p => {
-      const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
-      return {
-        ...p,
-        asal_data: isDirect ? 'Jalur Direct' : 'Jalur Proposal'
-      };
-    });
+    const mapped = proposals
+      .filter(p => {
+        const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
+        const s = (p.status || '').toLowerCase();
+        const isDisbursement = s.includes('acc') || s.includes('pencairan') || s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
+        return isDirect || isDisbursement;
+      })
+      .map(p => {
+        const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
+        return {
+          ...p,
+          asal_data: isDirect ? 'Jalur Direct' : 'Jalur Proposal'
+        };
+      })
+      .sort((a, b) => {
+        const statusA = (a.status || '').toLowerCase();
+        const statusB = (b.status || '').toLowerCase();
+        const isArchivedA = statusA.includes('selesai') || statusA.includes('arsip') || statusA.includes('synced');
+        const isArchivedB = statusB.includes('selesai') || statusB.includes('arsip') || statusB.includes('synced');
+
+        if (!isArchivedA && isArchivedB) return -1;
+        if (isArchivedA && !isArchivedB) return 1;
+
+        const timeA = new Date(a.created_at || a.tanggal_masuk || 0).getTime();
+        const timeB = new Date(b.created_at || b.tanggal_masuk || 0).getTime();
+        return timeB - timeA;
+      });
 
     res.status(200).json({
       status: 'success',

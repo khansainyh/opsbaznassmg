@@ -570,6 +570,11 @@ export default function PenyaluranZis() {
   // Filtered data
   const filteredData = useMemo(() => {
     return data.filter(item => {
+      const isDirect = item.asal_data === 'Jalur Direct' || item.memo_source === 'DIRECT_PENYALURAN';
+      const statusStr = (item.status || '').toString().toLowerCase();
+      const isDisbursement = statusStr.includes('acc') || statusStr.includes('pencairan') || statusStr.includes('cair') || statusStr.includes('realisasi') || statusStr.includes('simba') || statusStr.includes('arsip') || statusStr.includes('selesai');
+      if (!isDirect && !isDisbursement) return false;
+
       const search = searchTerm.toLowerCase();
       const nama = (item.nama_pemohon || item.nama_instansi || '').toLowerCase();
       const ket = (item.keterangan || '').toLowerCase();
@@ -616,6 +621,18 @@ export default function PenyaluranZis() {
       }
 
       return matchesSearch && matchesAsal && matchesPilar && matchesStatus;
+    }).sort((a, b) => {
+      const statusA = (a.status || '').toString().toLowerCase();
+      const statusB = (b.status || '').toString().toLowerCase();
+      const isArchivedA = statusA.includes('selesai') || statusA.includes('arsip') || statusA.includes('synced');
+      const isArchivedB = statusB.includes('selesai') || statusB.includes('arsip') || statusB.includes('synced');
+
+      if (!isArchivedA && isArchivedB) return -1;
+      if (isArchivedA && !isArchivedB) return 1;
+
+      const timeA = new Date(a.created_at || a.tanggal_masuk || 0).getTime();
+      const timeB = new Date(b.created_at || b.tanggal_masuk || 0).getTime();
+      return timeB - timeA;
     });
   }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter]);
 
