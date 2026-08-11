@@ -65,7 +65,7 @@ const menuGroups = [
     title: "MASTER DATA",
     items: [
       { name: "Program & Kegiatan", icon: Network, roles: ["Super_Admin"] },
-      { name: "Database UPZ", icon: Building2, roles: ["Super_Admin", "Staf_Administrasi", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pengumpulan", "Staf_Pelaporan", "Kabag_Pelaporan"] },
+      { name: "Database UPZ", icon: Building2, roles: ["Super_Admin", "Staf_Administrasi", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pengumpulan", "Staf_Pelaporan", "Kabag_Pelaporan", "Staf_Keuangan", "Kabag_Keuangan"] },
       { name: "Data Mustahik", icon: Users, roles: ["Super_Admin", "Kabag_Administrasi", "Staf_Administrasi", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Pelaporan"] },
       { name: "Data Muzakki", icon: Users, roles: ["Super_Admin", "Staf_Pelaporan", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
     ]
@@ -111,7 +111,7 @@ const menuGroups = [
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
-      { name: "Antrean Arsip", icon: Archive, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
+      { name: "Antrean Arsip", icon: Archive, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pelaporan"] },
       { name: "Tim Survei", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
     ]
   },
@@ -119,7 +119,7 @@ const menuGroups = [
     title: "KEUANGAN",
     items: [
       { name: "Antrean Pencairan", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kepala_Pelaksana", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Staf_Pendistribusian", "Staf_Pendayagunaan"] },
-      { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
+      { name: "Simulator Pencairan", icon: ShieldCheck, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kepala_Pelaksana"] },
       { name: "Pemindahan Dana", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
       { name: "Pengeluaran Manual", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
       { name: "Catat Mutasi", icon: Upload, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 import { ProposalMemo } from '../data/proposalMemoData';
 
 interface AntreanArsipProps {
@@ -27,7 +28,11 @@ interface AntreanArsipProps {
 }
 
 export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
+  const { user } = useAuth();
+  const isReadOnly = user?.role === 'Staf_Pelaporan';
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [kuitansiFilter, setKuitansiFilter] = useState<'semua' | 'belum_kembali' | 'sudah_kembali'>('semua');
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -44,7 +49,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const kuitansiInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter proposals with 'Antrean Arsip' status
+  // Filter proposals with 'Antrean Arsip' status and kuitansi filter
   const filteredData = useMemo(() => {
     return data.filter(item => {
       const isAntreanArsip = item.status === 'Antrean Arsip';
@@ -52,9 +57,18 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                          (item.nik || '').includes(searchTerm);
-      return isAntreanArsip && searchMatch;
+
+      if (!isAntreanArsip || !searchMatch) return false;
+
+      const sData = item.survey_data as any;
+      const hasKuitansi = !!(sData && sData.kuitansi_ditandatangani);
+
+      if (kuitansiFilter === 'belum_kembali') return !hasKuitansi;
+      if (kuitansiFilter === 'sudah_kembali') return hasKuitansi;
+
+      return true;
     });
-  }, [data, searchTerm]);
+  }, [data, searchTerm, kuitansiFilter]);
 
   // Statistics helper
   const stats = useMemo(() => {
@@ -132,21 +146,23 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
     }
   };
 
-  // Save files & archive completely (sets status to 'Selesai')
-  const handleSaveArchive = async () => {
+  // Save files & archive completely (sets status to 'Selesai') or save draft (keeps 'Antrean Arsip')
+  const handleSaveArchive = async (markAsSelesai: boolean = true) => {
     if (!selectedProposal) return;
     
     setSaving(true);
     try {
       const formData = new FormData();
-      formData.append('status', 'Selesai');
+      const targetStatus = markAsSelesai ? 'Selesai' : 'Antrean Arsip';
+      formData.append('status', targetStatus);
 
       const currentSurveyData = (selectedProposal.survey_data as any) || {};
       const updatedSurveyData = {
         ...currentSurveyData,
-        bukti_foto_realisasi: fotoPreview && !fotoFile ? fotoPreview : '',
-        kuitansi_ditandatangani: kuitansiPreview && !kuitansiTtd ? kuitansiPreview : '',
-        archived_at: new Date().toISOString()
+        bukti_foto_realisasi: fotoPreview && !fotoFile ? fotoPreview : (currentSurveyData.bukti_foto_realisasi || ''),
+        kuitansi_ditandatangani: kuitansiPreview && !kuitansiTtd ? kuitansiPreview : (currentSurveyData.kuitansi_ditandatangani || ''),
+        updated_at: new Date().toISOString(),
+        ...(markAsSelesai ? { archived_at: new Date().toISOString() } : {})
       };
 
       if (fotoFile) {
@@ -158,21 +174,21 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
 
       formData.append('survey_data', JSON.stringify(updatedSurveyData));
 
-      // Call API to update status to 'Selesai' and persist survey_data with files
+      // Call API to update status and persist survey_data with files
       const response = await axios.put(`/api/proposals/${selectedProposal.id}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
-      const finalSurveyData = response.data.survey_data || updatedSurveyData;
+      const finalSurveyData = response.data?.data?.survey_data || response.data?.survey_data || updatedSurveyData;
 
       // Update local context
       const updatedData = data.map(item => 
         item.id === selectedProposal.id 
           ? { 
               ...item, 
-              status: 'Selesai' as any,
+              status: targetStatus as any,
               survey_data: finalSurveyData
             } 
           : item
@@ -180,6 +196,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
       
       onUpdate(updatedData);
       closeUploadModal();
+      alert(markAsSelesai ? 'Berhasil menyelesaikan & mengarsipkan proposal!' : 'Draf berkas dokumen berhasil disimpan!');
     } catch (e: any) {
       console.error(e);
       alert('Gagal menyimpan arsip: ' + (e.response?.data?.error || e.message));
@@ -226,9 +243,17 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
         </nav>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
-              Antrean Arsip
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-x-auto scrollbar-none py-1">
+                Antrean Arsip
+              </h2>
+              {isReadOnly && (
+                <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0">
+                  <Eye className="size-3.5" />
+                  Akses Pelaporan (View Only)
+                </span>
+              )}
+            </div>
             <p className="text-slate-500 font-medium">
               Layanan pengarsipan digital atas dokumen dan bukti penyaluran bantuan yang telah direalisasikan.
             </p>
@@ -284,7 +309,41 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
               )}
               Pilih Semua
             </button>
-            <div className="relative w-full sm:w-72">
+
+            {/* Filter Tabs for Kuitansi Status */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setKuitansiFilter('semua')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
+                  kuitansiFilter === 'semua' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                )}
+              >
+                Semua
+              </button>
+              <button
+                onClick={() => setKuitansiFilter('belum_kembali')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5",
+                  kuitansiFilter === 'belum_kembali' ? "bg-rose-500 text-white shadow-sm" : "text-rose-600 hover:bg-rose-50"
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                Belum Kuitansi ({stats.missingKuitansi})
+              </button>
+              <button
+                onClick={() => setKuitansiFilter('sudah_kembali')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5",
+                  kuitansiFilter === 'sudah_kembali' ? "bg-emerald-600 text-white shadow-sm" : "text-emerald-600 hover:bg-emerald-50"
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                Kuitansi Kembali
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input 
                 type="text"
@@ -329,7 +388,9 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredData.length > 0 ? filteredData.map((item) => {
-                const isUploaded = !!item.survey_data && (item.survey_data as any).bukti_foto_realisasi;
+                const sData = (item.survey_data as any) || {};
+                const hasFoto = !!sData.bukti_foto_realisasi;
+                const hasKuitansi = !!sData.kuitansi_ditandatangani;
                 
                 return (
                   <tr 
@@ -405,30 +466,40 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={cn(
-                        "px-2.5 py-1 rounded text-[10px] font-black uppercase w-fit border",
-                        isUploaded 
-                          ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                          : "bg-rose-50 text-rose-600 border-rose-100 animate-pulse"
-                      )}>
-                        {isUploaded ? 'DOKUMEN LENGKAP' : 'BELUM UPLOAD'}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded text-[10px] font-black uppercase w-fit border",
+                          hasKuitansi 
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                            : "bg-rose-50 text-rose-700 border-rose-200 animate-pulse"
+                        )}>
+                          {hasKuitansi ? '✓ Kuitansi Kembali' : '✕ Belum Kuitansi'}
+                        </span>
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded text-[10px] font-bold uppercase w-fit border",
+                          hasFoto 
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        )}>
+                          {hasFoto ? '✓ Foto Ada' : '✕ Belum Foto'}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1.5">
                         <button 
                           onClick={() => openUploadModal(item)}
-                          className="p-2 text-slate-450 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-                          title="Upload Dokumen Pengarsipan"
+                          className="p-2 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                          title={isReadOnly ? "Lihat Dokumen Pengarsipan" : "Upload Dokumen Pengarsipan"}
                         >
-                          <Upload className="size-4" />
+                          {isReadOnly ? <FileText className="size-4 text-emerald-600" /> : <Upload className="size-4" />}
                         </button>
                         <button 
                           onClick={() => {
                             setSelectedProposal(item);
                             setIsDetailModalOpen(true);
                           }}
-                          className="p-2 text-slate-455 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                          className="p-2 text-slate-500 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                           title="Lihat Detail"
                         >
                           <Eye className="size-4" />
@@ -578,7 +649,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
         </div>
       </motion.div>
 
-      {/* Upload Modal */}
+      {/* Upload / Preview Modal */}
       <AnimatePresence>
         {isUploadModalOpen && selectedProposal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -597,7 +668,9 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">Upload Dokumen Penyerahan</h3>
+                  <h3 className="text-xl font-black text-slate-900">
+                    {isReadOnly ? 'Pratinjau Dokumen Pengarsipan' : 'Upload Dokumen Penyerahan'}
+                  </h3>
                   <p className="text-xs text-slate-500 font-medium mt-1">Mustahik: {selectedProposal.namaPemohon} | Agenda: {selectedProposal.agendaNo}</p>
                 </div>
                 <button 
@@ -607,6 +680,13 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
+
+              {isReadOnly && (
+                <div className="bg-amber-50 border-b border-amber-100 px-6 py-2.5 flex items-center gap-2 text-xs font-bold text-amber-800">
+                  <Eye className="size-4 text-amber-600 shrink-0" />
+                  Mode Akses Pelaporan (View Only): Anda dapat membaca dan memeriksa dokumen kuitansi / bukti foto realisasi.
+                </div>
+              )}
               
               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -617,19 +697,22 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                       Bukti Foto Realisasi Bantuan
                     </label>
                     <div 
-                      onClick={() => fotoInputRef.current?.click()}
+                      onClick={() => !isReadOnly && fotoInputRef.current?.click()}
                       className={cn(
-                        "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-all aspect-video",
+                        "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 aspect-video transition-all",
+                        !isReadOnly && "cursor-pointer hover:bg-slate-50",
                         fotoPreview ? "border-emerald-250 bg-emerald-50/10" : "border-slate-200"
                       )}
                     >
-                      <input 
-                        type="file" 
-                        ref={fotoInputRef} 
-                        onChange={handleFotoChange} 
-                        accept="image/*" 
-                        className="hidden" 
-                      />
+                      {!isReadOnly && (
+                        <input 
+                          type="file" 
+                          ref={fotoInputRef} 
+                          onChange={handleFotoChange} 
+                          accept="image/*" 
+                          className="hidden" 
+                        />
+                      )}
                       {fotoPreview ? (
                         <div className="relative w-full h-full flex items-center justify-center">
                           <img 
@@ -637,23 +720,27 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                             alt="Bukti Foto" 
                             className="max-h-full rounded-lg object-contain shadow-sm"
                           />
-                          <button 
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFotoPreview(null);
-                            }}
-                            className="absolute -top-2 -right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-md"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
+                          {!isReadOnly && (
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFotoPreview(null);
+                              }}
+                              className="absolute -top-2 -right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-md"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <>
                           <Camera className="size-8 text-slate-400 animate-pulse" />
                           <div className="text-center">
-                            <p className="text-xs font-bold text-slate-700">Ambil/Pilih Foto Dokumentasi</p>
-                            <p className="text-[10px] text-slate-400 mt-1">Format JPG, PNG (Maks. 5MB)</p>
+                            <p className="text-xs font-bold text-slate-700">
+                              {isReadOnly ? 'Belum Ada Foto Realisasi' : 'Ambil/Pilih Foto Dokumentasi'}
+                            </p>
+                            {!isReadOnly && <p className="text-[10px] text-slate-400 mt-1">Format JPG, PNG (Maks. 5MB)</p>}
                           </div>
                         </>
                       )}
@@ -666,19 +753,22 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                       Kuitansi Bertanda Tangan (Kasir &amp; Penerima)
                     </label>
                     <div 
-                      onClick={() => kuitansiInputRef.current?.click()}
+                      onClick={() => !isReadOnly && kuitansiInputRef.current?.click()}
                       className={cn(
-                        "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-all aspect-video",
+                        "border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 aspect-video transition-all",
+                        !isReadOnly && "cursor-pointer hover:bg-slate-50",
                         kuitansiPreview ? "border-emerald-250 bg-emerald-50/10" : "border-slate-200"
                       )}
                     >
-                      <input 
-                        type="file" 
-                        ref={kuitansiInputRef} 
-                        onChange={handleKuitansiChange} 
-                        accept="image/*,application/pdf" 
-                        className="hidden" 
-                      />
+                      {!isReadOnly && (
+                        <input 
+                          type="file" 
+                          ref={kuitansiInputRef} 
+                          onChange={handleKuitansiChange} 
+                          accept="image/*,application/pdf" 
+                          className="hidden" 
+                        />
+                      )}
                       {kuitansiPreview ? (
                         <div className="relative w-full h-full flex flex-col items-center justify-center text-center">
                           {kuitansiTtd?.type === 'application/pdf' ? (
@@ -693,24 +783,28 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                               className="max-h-full rounded-lg object-contain shadow-sm"
                             />
                           )}
-                          <button 
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setKuitansiTtd(null);
-                              setKuitansiPreview(null);
-                            }}
-                            className="absolute -top-2 -right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-md"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
+                          {!isReadOnly && (
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setKuitansiTtd(null);
+                                setKuitansiPreview(null);
+                              }}
+                              className="absolute -top-2 -right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-md"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <>
                           <ImageIcon className="size-8 text-slate-400 animate-pulse" />
                           <div className="text-center">
-                            <p className="text-xs font-bold text-slate-700">Upload Kuitansi Hasil Scan</p>
-                            <p className="text-[10px] text-slate-400 mt-1">Format PDF, JPG, PNG (Maks. 5MB)</p>
+                            <p className="text-xs font-bold text-slate-700">
+                              {isReadOnly ? 'Belum Ada Kuitansi TTD' : 'Upload Kuitansi Hasil Scan'}
+                            </p>
+                            {!isReadOnly && <p className="text-[10px] text-slate-400 mt-1">Format PDF, JPG, PNG (Maks. 5MB)</p>}
                           </div>
                         </>
                       )}
@@ -720,21 +814,49 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
-                <button 
-                  onClick={handleSaveArchive}
-                  disabled={saving || (!fotoPreview && !kuitansiPreview)}
-                  className="w-full px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-250 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {saving ? (
-                    <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <CheckCircle2 className="size-4" />
-                      Simpan &amp; Arsipkan
-                    </>
-                  )}
-                </button>
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row gap-3 shrink-0">
+                {isReadOnly ? (
+                  <button 
+                    onClick={closeUploadModal}
+                    className="w-full px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-sm font-bold transition-all text-center"
+                  >
+                    Tutup Pratinjau
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => handleSaveArchive(false)}
+                      disabled={saving || (!fotoPreview && !kuitansiPreview)}
+                      className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      title="Simpan berkas (Kuitansi/Foto) tanpa mengeluarkan proposal dari Antrean Arsip"
+                    >
+                      {saving ? (
+                        <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <FileText className="size-4" />
+                          Simpan Draf (Tetap di Antrean)
+                        </>
+                      )}
+                    </button>
+
+                    <button 
+                      onClick={() => handleSaveArchive(true)}
+                      disabled={saving || (!fotoPreview && !kuitansiPreview)}
+                      className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      title="Simpan & tandai pengarsipan telah Selesai"
+                    >
+                      {saving ? (
+                        <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle2 className="size-4" />
+                          Simpan &amp; Selesaikan Arsip
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           </div>

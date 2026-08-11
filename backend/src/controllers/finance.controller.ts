@@ -883,8 +883,21 @@ export const executeDisbursement = async (req: Request, res: Response) => {
         if (!proposal) {
           throw new Error(`Proposal dengan ID ${id} tidak ditemukan`);
         }
+
+        const existingRealisasi = await tx.realisasi.findFirst({
+          where: { proposal_id: proposal.id }
+        });
+        if (existingRealisasi) {
+          console.warn(`[DISBURSE SKIPPED] Proposal ${proposal.id} (Agenda ${proposal.agenda_no}) sudah memiliki Realisasi ${existingRealisasi.transaksi_id}`);
+          continue;
+        }
+
         proposals.push(proposal);
         totalNominal += Number(proposal.nominal || 0);
+      }
+
+      if (proposals.length === 0) {
+        return { success: true, message: 'Seluruh proposal dalam daftat telah pernah dicairkan.' };
       }
 
       const account = await tx.bankAccount.findUnique({
@@ -899,7 +912,7 @@ export const executeDisbursement = async (req: Request, res: Response) => {
         throw new Error(`Saldo di ${account.nama_akun} tidak mencukupi! Tersedia: ${account.saldo}, Dibutuhkan: ${totalNominal}`);
       }
 
-      // 1. Decrement account balance by total nominal
+      // 1. Decrement account balance by total nominal of valid proposals
       await tx.bankAccount.update({
         where: { account_id: selectedAccountId } as any,
         data: {
@@ -909,14 +922,6 @@ export const executeDisbursement = async (req: Request, res: Response) => {
 
       // 2. Loop through each proposal to create separate Realisasi and journal entries (1 debit + 1 credit per proposal)
       for (const proposal of proposals) {
-        const existingRealisasi = await tx.realisasi.findFirst({
-          where: { proposal_id: proposal.id }
-        });
-        if (existingRealisasi) {
-          console.warn(`[DISBURSE SKIPPED] Proposal ${proposal.id} (Agenda ${proposal.agenda_no}) sudah memiliki Realisasi ${existingRealisasi.transaksi_id}`);
-          continue;
-        }
-
         const nominal = Number(proposal.nominal || 0);
 
         let fundSource = 'ZAKAT';
