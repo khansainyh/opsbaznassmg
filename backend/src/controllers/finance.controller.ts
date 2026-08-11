@@ -768,14 +768,11 @@ export const previewDisbursement = async (req: Request, res: Response) => {
       totalNominal += nominal;
 
       let fundSource = 'ZAKAT';
-      const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan];
+      const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan, proposal.asnaf];
       for (const src of possibleSources) {
         if (!src) continue;
-        const normalized = src.toUpperCase().trim();
-        if (normalized.includes('ZAKAT')) {
-          fundSource = 'ZAKAT';
-          break;
-        } else if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
+        const normalized = String(src).toUpperCase().trim();
+        if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
           fundSource = 'INFAK_TERIKAT';
           break;
         } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
@@ -787,21 +784,61 @@ export const previewDisbursement = async (req: Request, res: Response) => {
         } else if (normalized.includes('APBD')) {
           fundSource = 'APBD';
           break;
+        } else if (normalized.includes('ZAKAT')) {
+          fundSource = 'ZAKAT';
+          break;
         }
       }
 
       const rules = await prisma.coaMappingRule.findMany({
         where: {
-          program_code: proposal.jenis_permohonan || '',
           tipe_kas: account.tipe_kas,
           sumber_dana_tag: fundSource
         }
       });
 
       let mappingRule = null;
-      if (proposal.asnaf) {
-        const normAsnaf = proposal.asnaf.toLowerCase().trim();
-        mappingRule = rules.find(r => r.asnaf_id && r.asnaf_id.toLowerCase().trim() === normAsnaf);
+      const targetProg = String(proposal.jenis_permohonan || '').trim().toLowerCase();
+      const parentProg = targetProg.split('.')[0];
+      const targetAsnaf = String(proposal.asnaf || '').trim().toLowerCase();
+
+      // Step A: Match exact program_code AND exact asnaf_id (or IST/ISTT)
+      if (targetAsnaf) {
+        mappingRule = rules.find(r => 
+          r.program_code.trim().toLowerCase() === targetProg && 
+          r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf
+        );
+      }
+
+      // Step B: Match parent program_code AND exact asnaf_id
+      if (!mappingRule && targetAsnaf) {
+        mappingRule = rules.find(r => 
+          r.program_code.trim().toLowerCase() === parentProg && 
+          r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf
+        );
+      }
+
+      // Step C: Match exact program_code AND empty/global asnaf_id
+      if (!mappingRule) {
+        mappingRule = rules.find(r => 
+          r.program_code.trim().toLowerCase() === targetProg && 
+          (!r.asnaf_id || r.asnaf_id.trim() === '' || r.asnaf_id.trim().toLowerCase() === 'global' || (targetAsnaf && r.asnaf_id.trim().toLowerCase() === targetAsnaf))
+        );
+      }
+
+      // Step D: Match parent program_code AND empty/global asnaf_id
+      if (!mappingRule) {
+        mappingRule = rules.find(r => 
+          r.program_code.trim().toLowerCase() === parentProg && 
+          (!r.asnaf_id || r.asnaf_id.trim() === '')
+        );
+      }
+
+      // Step E: Fallback to any rule for this fundSource
+      if (!mappingRule) {
+        mappingRule = rules.find(r => 
+          (!r.asnaf_id || r.asnaf_id.trim() === '' || (targetAsnaf && r.asnaf_id.trim().toLowerCase() === targetAsnaf))
+        ) || rules[0] || null;
       }
 
       let debitCoaCode = null;
@@ -940,14 +977,11 @@ export const executeDisbursement = async (req: Request, res: Response) => {
         const nominal = Number(proposal.nominal || 0);
 
         let fundSource = 'ZAKAT';
-        const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan];
+        const possibleSources = [proposal.rekomendasi_kabag, proposal.tipe_bantuan, proposal.asnaf];
         for (const src of possibleSources) {
           if (!src) continue;
-          const normalized = src.toUpperCase().trim();
-          if (normalized.includes('ZAKAT')) {
-            fundSource = 'ZAKAT';
-            break;
-          } else if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
+          const normalized = String(src).toUpperCase().trim();
+          if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
             fundSource = 'INFAK_TERIKAT';
             break;
           } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
@@ -959,21 +993,61 @@ export const executeDisbursement = async (req: Request, res: Response) => {
           } else if (normalized.includes('APBD')) {
             fundSource = 'APBD';
             break;
+          } else if (normalized.includes('ZAKAT')) {
+            fundSource = 'ZAKAT';
+            break;
           }
         }
 
         const rules = await tx.coaMappingRule.findMany({
           where: {
-            program_code: proposal.jenis_permohonan || '',
             tipe_kas: account.tipe_kas,
             sumber_dana_tag: fundSource
           }
         });
 
         let mappingRule = null;
-        if (proposal.asnaf) {
-          const normAsnaf = proposal.asnaf.toLowerCase().trim();
-          mappingRule = rules.find(r => r.asnaf_id && r.asnaf_id.toLowerCase().trim() === normAsnaf);
+        const targetProg = String(proposal.jenis_permohonan || '').trim().toLowerCase();
+        const parentProg = targetProg.split('.')[0];
+        const targetAsnaf = String(proposal.asnaf || '').trim().toLowerCase();
+
+        // Step A: Match exact program_code AND exact asnaf_id (or IST/ISTT)
+        if (targetAsnaf) {
+          mappingRule = rules.find(r => 
+            r.program_code.trim().toLowerCase() === targetProg && 
+            r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf
+          );
+        }
+
+        // Step B: Match parent program_code AND exact asnaf_id
+        if (!mappingRule && targetAsnaf) {
+          mappingRule = rules.find(r => 
+            r.program_code.trim().toLowerCase() === parentProg && 
+            r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf
+          );
+        }
+
+        // Step C: Match exact program_code AND empty/global asnaf_id
+        if (!mappingRule) {
+          mappingRule = rules.find(r => 
+            r.program_code.trim().toLowerCase() === targetProg && 
+            (!r.asnaf_id || r.asnaf_id.trim() === '' || r.asnaf_id.trim().toLowerCase() === 'global' || (targetAsnaf && r.asnaf_id.trim().toLowerCase() === targetAsnaf))
+          );
+        }
+
+        // Step D: Match parent program_code AND empty/global asnaf_id
+        if (!mappingRule) {
+          mappingRule = rules.find(r => 
+            r.program_code.trim().toLowerCase() === parentProg && 
+            (!r.asnaf_id || r.asnaf_id.trim() === '')
+          );
+        }
+
+        // Step E: Fallback to any rule for this fundSource
+        if (!mappingRule) {
+          mappingRule = rules.find(r => 
+            (!r.asnaf_id || r.asnaf_id.trim() === '' || (targetAsnaf && r.asnaf_id.trim().toLowerCase() === targetAsnaf))
+          ) || rules[0] || null;
         }
 
         let debitCoaCode = null;
