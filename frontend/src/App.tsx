@@ -321,9 +321,12 @@ function App() {
           arsip: item.arsip || '',
           status: item.status.replace(/_/g, ' '),
           fileGdriveLink: item.file_gdrive_link || '',
+          catatanKepala: item.catatanKepala || item.catatan_kepala || undefined,
+          catatanPimpinan: item.catatanPimpinan || item.catatan_pimpinan || undefined,
           kategori: item.kategori || '',
           tanggalAcara: item.tanggal_acara || '',
-          jamAcara: item.jam_acara || ''
+          jamAcara: item.jam_acara || '',
+          assigned_staff: item.assigned_staff || []
         }));
         setSurats(mappedSurats);
       })

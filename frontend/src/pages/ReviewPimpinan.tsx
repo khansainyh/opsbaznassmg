@@ -791,7 +791,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                             <span className="text-xs font-black uppercase tracking-widest">Catatan Kepala Pelaksana</span>
                           </div>
                           <p className="text-sm text-slate-700 leading-relaxed italic">
-                            "{selectedSurat.catatanKepala || 'Tidak ada catatan.'}"
+                            "{selectedSurat.catatanKepala || selectedSurat.catatanPimpinan || 'Tidak ada catatan.'}"
                           </p>
                         </div>
                       </div>
