@@ -210,8 +210,8 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [users, setUsers] = useState<any[]>([]);
   const [signatories, setSignatories] = useState({
-    kepalaPelaksana: '',
-    kabagAdministrasi: '',
+    kepalaPelaksana: 'H. Muhammad Asyhar, S.Sos.I.',
+    kabagAdministrasi: 'H. Moch. Afif, S.H.I.',
     stafAdministrasi: ''
   });
 
@@ -231,11 +231,11 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
       const kabagUser = users.find(u => u.role === 'Kabag_Administrasi');
       const stafUser = users.find(u => u.role === 'Staf_Administrasi') || users.find(u => u.role.startsWith('Staf_'));
 
-      setSignatories({
-        kepalaPelaksana: kepalaPelaksanaUser ? kepalaPelaksanaUser.name : '',
-        kabagAdministrasi: kabagUser ? kabagUser.name : '',
-        stafAdministrasi: stafUser ? stafUser.name : ''
-      });
+      setSignatories(prev => ({
+        kepalaPelaksana: kepalaPelaksanaUser ? kepalaPelaksanaUser.name : (prev.kepalaPelaksana || 'H. Muhammad Asyhar, S.Sos.I.'),
+        kabagAdministrasi: kabagUser ? kabagUser.name : (prev.kabagAdministrasi || 'H. Moch. Afif, S.H.I.'),
+        stafAdministrasi: stafUser ? stafUser.name : prev.stafAdministrasi
+      }));
     }
   }, [users]);
 
@@ -304,22 +304,9 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
       </table>
     `;
 
-    const formatSignatureName = (name: string | undefined, maxLen = 35) => {
+    const formatSignatureName = (name: string | undefined) => {
       if (!name || !name.trim()) return '................................';
-      const clean = name.trim();
-      if (clean.length <= maxLen) return clean;
-
-      const words = clean.split(' ');
-      let line1 = '';
-      let line2 = '';
-      for (let i = 0; i < words.length; i++) {
-        if ((line1 + ' ' + words[i]).trim().length <= maxLen || i === 0) {
-          line1 += (line1 ? ' ' : '') + words[i];
-        } else {
-          line2 += (line2 ? ' ' : '') + words[i];
-        }
-      }
-      return line2 ? `${line1}<br>${line2}` : clean;
+      return name.trim();
     };
 
     const signatureHtml = `
