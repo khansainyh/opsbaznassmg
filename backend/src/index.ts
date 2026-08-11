@@ -26,6 +26,7 @@ import penerimaanMappingRoutes from './routes/penerimaan-mapping.route';
 import laporanKinerjaRoutes from './routes/laporan-kinerja.route';
 import kategoriBiayaRoutes from './routes/kategori-biaya.route';
 import executiveDashboardRoutes from './routes/executive-dashboard.route';
+import penyaluranZisRoutes from './routes/penyaluran-zis.route';
 
 
 dotenv.config();
@@ -75,6 +76,7 @@ app.use('/api/penerimaan-mapping', penerimaanMappingRoutes);
 app.use('/api/laporan-kinerja', laporanKinerjaRoutes);
 app.use('/api/kategori-biaya', kategoriBiayaRoutes);
 app.use('/api/executive-dashboard', executiveDashboardRoutes);
+app.use('/api/penyaluran-zis', penyaluranZisRoutes);
 
 
 

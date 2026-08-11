@@ -485,6 +485,11 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
     return data
       .filter(item => {
         if (item.jenisPengajuan === 'OBS') return false;
+        const isDirect = item.memoSource === 'DIRECT_PENYALURAN' || 
+          (item.keterangan || '').includes('[DIRECT PENYALURAN]') || 
+          (item as any).asal_data === 'Jalur Direct' || 
+          (item as any).asalData === 'Jalur Direct';
+        if (isDirect) return false;
 
         const date = new Date(item.tanggalMasuk);
         const yearOk = date.getFullYear().toString() === selectedYear;
@@ -492,9 +497,10 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
         const memoOk = selectedMemo === 'Semua' || (selectedMemo === 'Tanpa Memo' ? !item.hasMemo : item.memoSource === selectedMemo);
         const statusOk = matchesStatus(item.status, selectedStatus);
         const searchOk = !searchTerm ||
-          item.agendaNo.toString().includes(searchTerm) ||
-          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (item.agendaNo || '').toString().includes(searchTerm) ||
+          (item.namaPemohon || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (item.yangMengajukan?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
           (item.nik || '').includes(searchTerm);
 
         const kecOk = selectedKecamatan === 'Semua' || (item.kecamatan || '').toLowerCase() === selectedKecamatan.toLowerCase();
@@ -508,7 +514,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
 
         return yearOk && monthOk && memoOk && statusOk && searchOk && kecOk && kelOk && progOk;
       })
-      .sort((a, b) => Number(b.agendaNo) - Number(a.agendaNo));
+      .sort((a, b) => Number(b.agendaNo || 0) - Number(a.agendaNo || 0));
   }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus, selectedKecamatan, selectedKelurahan, selectedProgram]);
 
   React.useEffect(() => {
@@ -707,7 +713,14 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
               ) : paginatedItems.map(item => (
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-5 py-3 whitespace-nowrap">
-                    <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo}</span>
+                    {item.memoSource === 'DIRECT_PENYALURAN' || (item.keterangan || '').includes('[DIRECT PENYALURAN]') ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-mono font-medium text-slate-400">—</span>
+                        <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">Jalur Direct</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo || '-'}</span>
+                    )}
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
                     {item.namaAnak ? (

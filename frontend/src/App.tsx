@@ -38,6 +38,7 @@ import AntreanArsip from '@/src/pages/AntreanArsip';
 import RekonsiliasiMutasi from '@/src/pages/RekonsiliasiMutasi';
 import PengeluaranManual from '@/src/pages/PengeluaranManual';
 import PenerimaanZis from '@/src/pages/PenerimaanZis';
+import PenyaluranZis from '@/src/pages/PenyaluranZis';
 import IdentifikasiMutasi from '@/src/pages/IdentifikasiMutasi';
 import PenerimaanBankJateng from '@/src/pages/PenerimaanBankJateng';
 import CatatMutasi from '@/src/pages/CatatMutasi';
@@ -99,6 +100,7 @@ function App() {
         { name: "Persetujuan Ketua", roles: ["Super_Admin", "Ketua"] },
         { name: "Penentuan Nominal", roles: ["Super_Admin", "Wakil_Ketua_II"] },
         { name: "Penerimaan ZIS", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
+        { name: "Penyaluran ZIS", roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
         { name: "Penerimaan Bank Jateng", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
         { name: "Identifikasi Mutasi", roles: ["Super_Admin", "Staf_Pengumpulan", "Kabag_Pengumpulan"] },
         { name: "Monitoring Tugas", roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
@@ -478,6 +480,8 @@ function App() {
           <DataMuzakki onNavigate={setActiveMenu} />
         ) : activeMenu === 'Penerimaan ZIS' ? (
           <PenerimaanZis />
+        ) : activeMenu === 'Penyaluran ZIS' ? (
+          <PenyaluranZis />
         ) : activeMenu === 'Penerimaan Bank Jateng' ? (
           <PenerimaanBankJateng />
         ) : activeMenu === 'Identifikasi Mutasi' ? (

@@ -22,7 +22,8 @@ import {
   BookOpen,
   RefreshCw,
   Archive,
-  Upload
+  Upload,
+  HandHeart
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
@@ -106,6 +107,7 @@ const menuGroups = [
   {
     title: "PENDISTRIBUSIAN & PENDAYAGUNAAN",
     items: [
+      { name: "Penyaluran ZIS", icon: HandHeart, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Monitoring Tugas", icon: UserSearch, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Realisasi Bantuan", icon: Truck, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
       { name: "Antrean SIMBA", icon: RefreshCw, roles: ["Super_Admin", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan"] },
