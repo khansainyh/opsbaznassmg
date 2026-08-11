@@ -744,10 +744,14 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                             )}>
                               {tag === 'INFAK_TIDAK_TERIKAT' ? 'ISTT' : tag === 'INFAK_TERIKAT' ? 'IST' : 'ZAKAT'}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-medium">/</span>
-                            <span className="text-[10px] text-slate-600 font-bold uppercase">
-                              {item.asnaf || 'Miskin'}
-                            </span>
+                            {tag === 'ZAKAT' && !['IST', 'ISTT'].includes(item.asnaf || '') && (
+                              <>
+                                <span className="text-[10px] text-slate-400 font-medium">/</span>
+                                <span className="text-[10px] text-slate-600 font-bold uppercase">
+                                  {item.asnaf || 'Miskin'}
+                                </span>
+                              </>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-slate-600 truncate max-w-[150px]">
@@ -1211,7 +1215,14 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                         <DetailItem label="Program" value={selectedDetailProposal.program || 'Umum'} />
                         <DetailItem label="Jenis" value={selectedDetailProposal.jenisPermohonan} />
                         <DetailItem label="Tipe Bantuan" value={selectedDetailProposal.tipeBantuan || '-'} />
-                        <DetailItem label="Asnaf (Golongan Penerima)" value={selectedDetailProposal.asnaf || '—'} />
+                        <DetailItem 
+                          label="Asnaf / Sumber Dana" 
+                          value={
+                            selectedDetailProposal.asnaf === 'IST' ? 'IST (Infak Sedekah Terikat)' :
+                            selectedDetailProposal.asnaf === 'ISTT' ? 'ISTT (Infak Sedekah Tidak Terikat)' :
+                            (selectedDetailProposal.asnaf || '—')
+                          } 
+                        />
                       </div>
                     </div>
 

@@ -1954,7 +1954,9 @@ export default function PengaturanKeuangan() {
                               { value: 'Riqab', label: 'Riqab (Hamba Sahaya)' },
                               { value: 'Gharimin', label: 'Gharimin' },
                               { value: 'Fisabilillah', label: 'Fisabilillah' },
-                              { value: 'Ibnu Sabil', label: 'Ibnu Sabil' }
+                              { value: 'Ibnu Sabil', label: 'Ibnu Sabil' },
+                              { value: 'IST', label: 'IST (Infak Sedekah Terikat)' },
+                              { value: 'ISTT', label: 'ISTT (Infak Sedekah Tidak Terikat)' }
                             ].map((asn) => (
                               <button
                                 key={asn.value}
