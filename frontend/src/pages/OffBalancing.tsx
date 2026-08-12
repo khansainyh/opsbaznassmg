@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import * as XLSX from 'xlsx';
 import { 
   ClipboardList, 
   RefreshCw, 
@@ -16,11 +18,16 @@ import {
   ChevronDown,
   UserRound,
   Plus,
-  FileText
+  FileText,
+  Search,
+  Download,
+  RotateCcw,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
+import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 import axios from 'axios';
 
 const formatRupiah = (value: number | string | undefined | null) => {
@@ -77,6 +84,314 @@ interface OffBalanceUPZ {
 
 type SurveyStatus = 'Antrean Tugas' | 'Pending' | 'On Progress' | 'Laporan Selesai' | 'Disetujui';
 
+interface SearchableDropdownProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  placeholder?: string;
+  allOptionLabel: string;
+  disabled?: boolean;
+  widthClass?: string;
+}
+
+function SearchableDropdown({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  allOptionLabel,
+  disabled = false,
+  widthClass = "w-48 sm:w-56"
+}: SearchableDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateCoords = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 220)
+      });
+    }
+  }, []);
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (!isOpen) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 220)
+      });
+    }
+    setIsOpen(prev => !prev);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', updateCoords, true);
+      window.removeEventListener('resize', updateCoords);
+    };
+  }, [isOpen, updateCoords]);
+
+  const filteredOptions = useMemo(() => {
+    if (!query.trim()) return options;
+    const q = query.toLowerCase();
+    return options.filter(opt => opt.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const displayValue = value === 'Semua' ? allOptionLabel : value;
+
+  return (
+    <div className={`flex flex-col gap-1 relative ${widthClass}`} ref={dropdownRef}>
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>
+      
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={disabled}
+        onClick={handleToggle}
+        className={cn(
+          "w-full bg-white border border-slate-200 rounded-xl py-2 px-3 flex items-center justify-between text-xs font-semibold shadow-xs transition-all text-left outline-none",
+          disabled 
+            ? "bg-slate-100/80 text-slate-400 border-slate-200 cursor-not-allowed" 
+            : "hover:border-primary/40 focus:ring-2 focus:ring-primary/20 text-slate-700 cursor-pointer",
+          isOpen && "border-primary ring-2 ring-primary/20"
+        )}
+      >
+        <span className="truncate">
+          {displayValue}
+        </span>
+        <ChevronDown className={cn("size-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && !disabled && createPortal(
+        <div 
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            zIndex: 99999
+          }}
+          className="bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden text-xs min-w-[210px]"
+        >
+          <div className="p-2 border-b border-slate-100 relative bg-slate-50/50">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder={placeholder || `Cari ${label.toLowerCase()}...`}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-md pl-8 pr-7 py-1.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary font-medium"
+              autoFocus
+            />
+            {query && (
+              <button 
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-48 overflow-y-auto custom-scrollbar py-1">
+            <div
+              onClick={() => {
+                onChange('Semua');
+                setIsOpen(false);
+                setQuery('');
+              }}
+              className={cn(
+                "px-3 py-2 cursor-pointer font-medium transition-colors flex items-center justify-between hover:bg-slate-50",
+                value === 'Semua' ? "bg-primary/10 text-primary font-bold" : "text-slate-700"
+              )}
+            >
+              <span>{allOptionLabel}</span>
+              {value === 'Semua' && <CheckCircle2 className="size-3.5 text-primary" />}
+            </div>
+
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-4 text-center text-slate-400 text-[11px] italic">
+                Tidak ada hasil ditemukan
+              </div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt}
+                  onClick={() => {
+                    onChange(opt);
+                    setIsOpen(false);
+                    setQuery('');
+                  }}
+                  className={cn(
+                    "px-3 py-2 cursor-pointer transition-colors flex items-center justify-between hover:bg-slate-50",
+                    value === opt ? "bg-primary/10 text-primary font-bold" : "text-slate-700 font-medium"
+                  )}
+                >
+                  <span className="truncate">{opt}</span>
+                  {value === opt && <CheckCircle2 className="size-3.5 text-primary shrink-0" />}
+                </div>
+              ))
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function DownloadExcelDropdown({ onExport }: { onExport: (mode: 'all' | 'approved') => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateCoords = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 6,
+        left: Math.max(10, rect.right - 260)
+      });
+    }
+  }, []);
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isOpen) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 6,
+        left: Math.max(10, rect.right - 260)
+      });
+    }
+    setIsOpen(prev => !prev);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', updateCoords, true);
+      window.removeEventListener('resize', updateCoords);
+    };
+  }, [isOpen, updateCoords]);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleToggle}
+        className={cn(
+          "flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-xl font-bold text-xs transition-all shadow-xs active:scale-95 cursor-pointer",
+          isOpen && "ring-2 ring-emerald-400 border-emerald-400 bg-emerald-100/80"
+        )}
+        title="Download Laporan Excel"
+      >
+        <Download className="size-3.5 text-emerald-700" />
+        <span>Download Excel</span>
+        <ChevronDown className={cn("size-3 text-emerald-600 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: '260px',
+            zIndex: 99999
+          }}
+          className="bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-1.5 animate-in fade-in zoom-in-95 duration-150 text-left"
+        >
+          <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Pilihan Laporan Excel
+          </div>
+
+          <div className="py-1 space-y-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onExport('all');
+              }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-blue-50/80 flex items-start gap-3 transition-colors cursor-pointer group"
+            >
+              <div className="p-2 bg-blue-100 text-blue-700 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0 mt-0.5">
+                <Download className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800 group-hover:text-blue-900 leading-tight">Download Semua Tugas</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">Seluruh tugas OBS & akumulasi total</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onExport('approved');
+              }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-emerald-50/80 flex items-start gap-3 transition-colors cursor-pointer group"
+            >
+              <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0 mt-0.5">
+                <FileSpreadsheet className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800 group-hover:text-emerald-900 leading-tight">Download Disetujui</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">Hanya tugas yang berstatus Disetujui</p>
+              </div>
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 interface OffBalancingProps {
   data: ProposalMemo[];
   onUpdate: (data: ProposalMemo[]) => void;
@@ -85,6 +400,9 @@ interface OffBalancingProps {
 export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
   const [viewMode, setViewMode] = useState<'dashboard' | 'all-tasks'>('dashboard');
   const [statusFilter, setStatusFilter] = useState<SurveyStatus | 'Semua'>('Semua');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedKecamatan, setSelectedKecamatan] = useState<string>('Semua');
+  const [selectedKelurahan, setSelectedKelurahan] = useState<string>('Semua');
   const [selectedTask, setSelectedTask] = useState<ProposalMemo | null>(null);
   const [editingSurveyData, setEditingSurveyData] = useState<any>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -547,14 +865,240 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
     }
   };
 
+  // Options for Kecamatan & Kelurahan
+  const kecamatanOptions = useMemo(() => {
+    const fromData = (obsTasks || []).map(d => d.kecamatan).filter(Boolean);
+    const fromList = kecamatanKelurahanSemarang.map(k => k.kecamatan);
+    return Array.from(new Set([...fromList, ...fromData])).sort();
+  }, [obsTasks]);
+
+  const kelurahanOptions = useMemo(() => {
+    if (selectedKecamatan === 'Semua') {
+      return [];
+    }
+    const found = kecamatanKelurahanSemarang.find(k => k.kecamatan.toLowerCase() === selectedKecamatan.toLowerCase());
+    const fromList = found ? found.kelurahan : [];
+    const fromData = (obsTasks || [])
+      .filter(d => (d.kecamatan || '').toLowerCase() === selectedKecamatan.toLowerCase())
+      .map(d => d.kelurahan)
+      .filter(Boolean);
+    return Array.from(new Set([...fromList, ...fromData])).sort();
+  }, [obsTasks, selectedKecamatan]);
+
+  const activeFiltersCount = useMemo(() => {
+    let c = 0;
+    if (searchTerm.trim()) c++;
+    if (selectedKecamatan !== 'Semua') c++;
+    if (selectedKelurahan !== 'Semua') c++;
+    if (statusFilter !== 'Semua') c++;
+    return c;
+  }, [searchTerm, selectedKecamatan, selectedKelurahan, statusFilter]);
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedKecamatan('Semua');
+    setSelectedKelurahan('Semua');
+    setStatusFilter('Semua');
+  };
+
   const filteredTasks = useMemo(() => {
-    const list = obsTasks.filter(t => statusFilter === 'Semua' || getSurveyStatus(t) === statusFilter);
-    return [...list].sort((a, b) => {
+    return obsTasks.filter(t => {
+      // 1. Status Filter
+      if (statusFilter !== 'Semua' && getSurveyStatus(t) !== statusFilter) {
+        return false;
+      }
+
+      // 2. Search Term Filter
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        const nama = (t.namaPemohon || '').toLowerCase();
+        const agenda = String(t.agendaNo || '');
+        const alamat = (t.alamat || '').toLowerCase();
+        const ket = (t.keterangan || '').toLowerCase();
+        const pet = (t.surveyorName || '').toLowerCase();
+        const kec = (t.kecamatan || '').toLowerCase();
+        const kel = (t.kelurahan || '').toLowerCase();
+
+        const match = nama.includes(q) || agenda.includes(q) || alamat.includes(q) || ket.includes(q) || pet.includes(q) || kec.includes(q) || kel.includes(q);
+        if (!match) return false;
+      }
+
+      // 3. Kecamatan Filter
+      if (selectedKecamatan !== 'Semua') {
+        const kec = (t.kecamatan || '').toLowerCase();
+        if (kec !== selectedKecamatan.toLowerCase()) return false;
+      }
+
+      // 4. Kelurahan Filter
+      if (selectedKelurahan !== 'Semua') {
+        const kel = (t.kelurahan || '').toLowerCase();
+        if (kel !== selectedKelurahan.toLowerCase()) return false;
+      }
+
+      return true;
+    }).sort((a, b) => {
       const orderA = getSurveyStatus(a) === 'Laporan Selesai' ? 1 : 2;
       const orderB = getSurveyStatus(b) === 'Laporan Selesai' ? 1 : 2;
       return orderA - orderB;
     });
-  }, [obsTasks, statusFilter]);
+  }, [obsTasks, statusFilter, searchTerm, selectedKecamatan, selectedKelurahan]);
+
+  // Export to Excel with full OBS breakdown and accumulation total row
+  const handleExportExcel = (mode: 'all' | 'approved') => {
+    const sourceList = mode === 'approved' 
+      ? obsTasks.filter(t => getSurveyStatus(t) === 'Disetujui') 
+      : filteredTasks;
+
+    if (sourceList.length === 0) {
+      alert(mode === 'approved' 
+        ? 'Belum ada tugas OBS yang berstatus Disetujui untuk diexport.' 
+        : 'Tidak ada data tugas OBS untuk diexport.');
+      return;
+    }
+
+    let accSaldoAwal = 0;
+    let accZakatMaalIn = 0;
+    let accZakatFitrahIn = 0;
+    let accInfakIn = 0;
+    let accQurbanIn = 0;
+    let accFidyahIn = 0;
+    let accTotalPenerimaan = 0;
+    let accDonatur = 0;
+
+    let accZakatMaalOut = 0;
+    let accZakatFitrahOut = 0;
+    let accInfakOut = 0;
+    let accQurbanOut = 0;
+    let accFidyahOut = 0;
+    let accTotalPenyaluran = 0;
+    let accMustahik = 0;
+    let accSaldoAkhir = 0;
+
+    const exportRows: any[] = sourceList.map((task, idx) => {
+      const sd = task.survey_data || {};
+      const status = getSurveyStatus(task);
+
+      const saldoAwal = Number(sd.saldoAwal) || 0;
+      const zmIn = Number(sd.penerimaan_zakatMaal?.jumlahPenerimaan) || 0;
+      const zfIn = Number(sd.penerimaan_zakatFitrah?.jumlahPenerimaan) || 0;
+      const infIn = Number(sd.penerimaan_infakSedekah?.jumlahPenerimaan) || 0;
+      const qurIn = Number(sd.penerimaan_qurban?.jumlahPenerimaan) || 0;
+      const fidIn = Number(sd.penerimaan_fidyah?.jumlahPenerimaan) || 0;
+      const totIn = zmIn + zfIn + infIn + qurIn + fidIn;
+
+      const donatur = (Number(sd.penerimaan_zakatMaal?.jumlahDonatur) || 0) +
+        (Number(sd.penerimaan_zakatFitrah?.jumlahDonatur) || 0) +
+        (Number(sd.penerimaan_infakSedekah?.jumlahDonatur) || 0) +
+        (Number(sd.penerimaan_qurban?.jumlahDonatur) || 0) +
+        (Number(sd.penerimaan_fidyah?.jumlahDonatur) || 0);
+
+      const zmOut = Number(sd.penyaluran_zakatMaal?.jumlahPenyaluran) || 0;
+      const zfOut = Number(sd.penyaluran_zakatFitrah?.jumlahPenyaluran) || 0;
+      const infOut = Number(sd.penyaluran_infakSedekah?.jumlahPenyaluran) || 0;
+      const qurOut = Number(sd.penyaluran_qurban?.jumlahPenyaluran) || 0;
+      const fidOut = Number(sd.penyaluran_fidyah?.jumlahPenyaluran) || 0;
+      const totOut = zmOut + zfOut + infOut + qurOut + fidOut;
+
+      const mustahik = (Number(sd.penyaluran_zakatMaal?.jumlahMustahik) || 0) +
+        (Number(sd.penyaluran_zakatFitrah?.jumlahMustahik) || 0) +
+        (Number(sd.penyaluran_infakSedekah?.jumlahMustahik) || 0) +
+        (Number(sd.penyaluran_qurban?.jumlahMustahik) || 0) +
+        (Number(sd.penyaluran_fidyah?.jumlahMustahik) || 0);
+
+      const saldoAkhir = (saldoAwal + totIn) - totOut;
+
+      // Accumulate
+      accSaldoAwal += saldoAwal;
+      accZakatMaalIn += zmIn;
+      accZakatFitrahIn += zfIn;
+      accInfakIn += infIn;
+      accQurbanIn += qurIn;
+      accFidyahIn += fidIn;
+      accTotalPenerimaan += totIn;
+      accDonatur += donatur;
+
+      accZakatMaalOut += zmOut;
+      accZakatFitrahOut += zfOut;
+      accInfakOut += infOut;
+      accQurbanOut += qurOut;
+      accFidyahOut += fidOut;
+      accTotalPenyaluran += totOut;
+      accMustahik += mustahik;
+      accSaldoAkhir += saldoAkhir;
+
+      return {
+        'No.': idx + 1,
+        'No. Agenda': task.agendaNo ? String(task.agendaNo) : '-',
+        'Nama Lembaga / UPZ': task.namaPemohon,
+        'Kecamatan': task.kecamatan || '-',
+        'Kelurahan': task.kelurahan || '-',
+        'Alamat Lengkap': task.alamat || '-',
+        'No. WhatsApp / HP': task.noTelpon || '-',
+        'Periode / Keterangan': task.keterangan || '-',
+        'Petugas / Relawan': task.surveyorName || 'Belum Ditugaskan',
+        'Status OBS': status,
+        'Saldo Awal (Rp)': saldoAwal,
+        'Penerimaan Zakat Maal (Rp)': zmIn,
+        'Penerimaan Zakat Fitrah (Rp)': zfIn,
+        'Penerimaan Infak/Sedekah (Rp)': infIn,
+        'Penerimaan Qurban (Rp)': qurIn,
+        'Penerimaan Fidyah (Rp)': fidIn,
+        'Total Penerimaan (Rp)': totIn,
+        'Total Donatur (Orang)': donatur,
+        'Penyaluran Zakat Maal (Rp)': zmOut,
+        'Penyaluran Zakat Fitrah (Rp)': zfOut,
+        'Penyaluran Infak/Sedekah (Rp)': infOut,
+        'Penyaluran Qurban (Rp)': qurOut,
+        'Penyaluran Fidyah (Rp)': fidOut,
+        'Total Penyaluran (Rp)': totOut,
+        'Total Mustahik (Orang)': mustahik,
+        'Saldo Akhir Kumulatif (Rp)': saldoAkhir,
+        'Tanggal Masuk': task.tanggalMasuk || '-'
+      };
+    });
+
+    // Append Summary / Accumulation Row
+    exportRows.push({
+      'No.': 'TOTAL',
+      'No. Agenda': '',
+      'Nama Lembaga / UPZ': `AKUMULASI TOTAL (${sourceList.length} TUGAS OBS)`,
+      'Kecamatan': '',
+      'Kelurahan': '',
+      'Alamat Lengkap': '',
+      'No. WhatsApp / HP': '',
+      'Periode / Keterangan': '',
+      'Petugas / Relawan': '',
+      'Status OBS': mode === 'approved' ? 'DISETUJUI' : 'SEMUA STATUS',
+      'Saldo Awal (Rp)': accSaldoAwal,
+      'Penerimaan Zakat Maal (Rp)': accZakatMaalIn,
+      'Penerimaan Zakat Fitrah (Rp)': accZakatFitrahIn,
+      'Penerimaan Infak/Sedekah (Rp)': accInfakIn,
+      'Penerimaan Qurban (Rp)': accQurbanIn,
+      'Penerimaan Fidyah (Rp)': accFidyahIn,
+      'Total Penerimaan (Rp)': accTotalPenerimaan,
+      'Total Donatur (Orang)': accDonatur,
+      'Penyaluran Zakat Maal (Rp)': accZakatMaalOut,
+      'Penyaluran Zakat Fitrah (Rp)': accZakatFitrahOut,
+      'Penyaluran Infak/Sedekah (Rp)': accInfakOut,
+      'Penyaluran Qurban (Rp)': accQurbanOut,
+      'Penyaluran Fidyah (Rp)': accFidyahOut,
+      'Total Penyaluran (Rp)': accTotalPenyaluran,
+      'Total Mustahik (Orang)': accMustahik,
+      'Saldo Akhir Kumulatif (Rp)': accSaldoAkhir,
+      'Tanggal Masuk': new Date().toISOString().split('T')[0]
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    const sheetName = mode === 'approved' ? 'OBS Disetujui' : 'Laporan OBS';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    
+    const fileName = mode === 'approved'
+      ? `Laporan_OBS_Tugas_Disetujui_BAZNAS_${new Date().toISOString().split('T')[0]}.xlsx`
+      : `Laporan_OBS_Semua_Tugas_BAZNAS_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    XLSX.writeFile(wb, fileName);
+  };
 
 
 
@@ -670,23 +1214,94 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
             transition={{ delay: 0.5 }} 
             className="bg-white rounded-xl border border-primary/5 shadow-sm overflow-hidden"
           >
-            <div className="p-6 border-b border-primary/5 flex items-center justify-between">
-              <h3 className="font-bold text-slate-800">Daftar Tugas</h3>
-              <div className="flex items-center gap-4">
+            <div className="p-6 border-b border-primary/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-slate-800">Daftar Tugas</h3>
+                <p className="text-xs text-slate-400 font-semibold mt-0.5">{filteredTasks.length} data sesuai filter</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <DownloadExcelDropdown onExport={handleExportExcel} />
                 <button
                   onClick={() => { fetchOffBalanceUPZs(); setIsGenerateModalOpen(true); }}
-                  className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95"
+                  className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95 cursor-pointer"
                 >
                   <Zap className="size-3.5" /> Generate Tugas OBS
                 </button>
                 <button 
                   onClick={() => setViewMode('all-tasks')} 
-                  className="text-xs text-primary font-bold hover:underline"
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
                 >
                   Lihat Semua
                 </button>
               </div>
             </div>
+
+            {/* Filter Bar (Search, Kecamatan, Kelurahan) */}
+            <div className="p-4 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-end gap-3">
+              {/* Search Bar */}
+              <div className="flex flex-col gap-1 w-full sm:w-64">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cari Tugas / UPZ</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari nama, agenda, alamat..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 font-medium text-slate-800 shadow-xs"
+                  />
+                  {searchTerm && (
+                    <button 
+                      type="button" 
+                      onClick={() => setSearchTerm('')} 
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Kecamatan */}
+              <SearchableDropdown
+                label="Kecamatan"
+                value={selectedKecamatan}
+                onChange={(val) => {
+                  setSelectedKecamatan(val);
+                  setSelectedKelurahan('Semua');
+                }}
+                options={kecamatanOptions}
+                placeholder="Pilih Kecamatan..."
+                allOptionLabel="Semua Kecamatan"
+                widthClass="w-48 sm:w-56"
+              />
+
+              {/* Filter Kelurahan */}
+              <SearchableDropdown
+                label="Kelurahan"
+                value={selectedKelurahan}
+                onChange={(val) => setSelectedKelurahan(val)}
+                options={kelurahanOptions}
+                placeholder="Pilih Kelurahan..."
+                allOptionLabel="Semua Kelurahan"
+                disabled={selectedKecamatan === 'Semua'}
+                widthClass="w-48 sm:w-56"
+              />
+
+              {/* Reset Filter Button */}
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="mb-0.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  title="Reset Semua Filter"
+                >
+                  <RotateCcw className="size-3.5" />
+                  <span>Reset Filter</span>
+                </button>
+              )}
+            </div>
+
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
@@ -699,14 +1314,14 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                  {obsTasks.length === 0 ? (
+                  {filteredTasks.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">
-                        Belum ada tugas Off-Balancing (OBS).
+                        Tidak ada tugas Off-Balancing (OBS) yang cocok dengan filter.
                       </td>
                     </tr>
                   ) : (
-                    obsTasks.slice(0, 5).map((task) => {
+                    filteredTasks.slice(0, 5).map((task) => {
                       const status = getSurveyStatus(task);
                       return (
                         <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
@@ -872,44 +1487,112 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-800">Detail Daftar Tugas</h3>
-                <p className="text-xs text-slate-400 font-semibold mt-1">Total {obsTasks.length} data dalam antrean</p>
+                <p className="text-xs text-slate-400 font-semibold mt-1">Total {obsTasks.length} data dalam antrean ({filteredTasks.length} sesuai filter)</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <DownloadExcelDropdown onExport={handleExportExcel} />
               <button
                 onClick={() => { fetchOffBalanceUPZs(); setIsGenerateModalOpen(true); }}
-                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95"
+                className="hidden md:flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition shadow-sm active:scale-95 cursor-pointer"
               >
                 <Zap className="size-3.5" /> Generate Tugas OBS
               </button>
               <button
                 onClick={() => setViewMode('dashboard')}
-                className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition"
+                className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
               >
                 Kembali ke Dashboard
               </button>
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="p-6 border-b border-slate-100 bg-slate-50 flex flex-wrap gap-2 items-center justify-between">
-            <div className="flex flex-wrap gap-2">
-              {(['Semua', 'Antrean Tugas', 'On Progress', 'Laporan Selesai', 'Disetujui'] as const).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setStatusFilter(f)}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-xs font-bold transition border",
-                    statusFilter === f 
-                      ? "bg-primary text-white border-primary shadow-sm shadow-primary/20" 
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  )}
-                >
-                  {f}
-                </button>
-              ))}
+          {/* Filters Bar (Status Tabs, Search, Kecamatan, Kelurahan) */}
+          <div className="p-6 border-b border-slate-100 bg-slate-50 flex flex-col gap-4">
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+              <div className="flex flex-wrap gap-2">
+                {(['Semua', 'Antrean Tugas', 'On Progress', 'Laporan Selesai', 'Disetujui'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setStatusFilter(f)}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-xs font-bold transition border cursor-pointer",
+                      statusFilter === f 
+                        ? "bg-primary text-white border-primary shadow-sm shadow-primary/20" 
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    )}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{filteredTasks.length} Tugas Ditemukan</span>
             </div>
-            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{filteredTasks.length} Tugas Ditemukan</span>
+
+            <div className="flex flex-wrap items-end gap-3 pt-2 border-t border-slate-200/60">
+              {/* Search Bar */}
+              <div className="flex flex-col gap-1 w-full sm:w-64">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cari Tugas / UPZ</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari nama, agenda, alamat..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 font-medium text-slate-800 shadow-xs"
+                  />
+                  {searchTerm && (
+                    <button 
+                      type="button" 
+                      onClick={() => setSearchTerm('')} 
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Kecamatan */}
+              <SearchableDropdown
+                label="Kecamatan"
+                value={selectedKecamatan}
+                onChange={(val) => {
+                  setSelectedKecamatan(val);
+                  setSelectedKelurahan('Semua');
+                }}
+                options={kecamatanOptions}
+                placeholder="Pilih Kecamatan..."
+                allOptionLabel="Semua Kecamatan"
+                widthClass="w-48 sm:w-56"
+              />
+
+              {/* Filter Kelurahan */}
+              <SearchableDropdown
+                label="Kelurahan"
+                value={selectedKelurahan}
+                onChange={(val) => setSelectedKelurahan(val)}
+                options={kelurahanOptions}
+                placeholder="Pilih Kelurahan..."
+                allOptionLabel="Semua Kelurahan"
+                disabled={selectedKecamatan === 'Semua'}
+                widthClass="w-48 sm:w-56"
+              />
+
+              {/* Reset Filter Button */}
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="mb-0.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  title="Reset Semua Filter"
+                >
+                  <RotateCcw className="size-3.5" />
+                  <span>Reset Filter</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Table */}
