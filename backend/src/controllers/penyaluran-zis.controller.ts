@@ -50,13 +50,28 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
         };
       })
       .sort((a, b) => {
-        const statusA = (a.status || '').toLowerCase();
-        const statusB = (b.status || '').toLowerCase();
-        const isArchivedA = statusA.includes('selesai') || statusA.includes('arsip') || statusA.includes('synced');
-        const isArchivedB = statusB.includes('selesai') || statusB.includes('arsip') || statusB.includes('synced');
+        const getStatusRank = (statusStr: string | null | undefined): number => {
+          if (!statusStr) return 1;
+          const s = statusStr.trim().toLowerCase();
+          // 1. Antrean Pencairan (Paling Atas)
+          if (s.includes('pencairan') || s === 'acc' || s === 'cair') return 1;
+          // 2. Realisasi Bantuan
+          if (s.includes('realisasi')) return 2;
+          // 3. Antrean SIMBA
+          if (s.includes('simba') && !s.includes('arsip') && !s.includes('selesai')) return 3;
+          // 4. Antrean Arsip
+          if ((s.includes('arsip') && !s.includes('selesai')) || s === 'antrean arsip' || s === 'antrean_arsip') return 4;
+          // 5. Selesai (Paling Bawah)
+          if (s.includes('selesai') || s.includes('synced') || (s.includes('simba') && s.includes('arsip'))) return 5;
+          return 1;
+        };
 
-        if (!isArchivedA && isArchivedB) return -1;
-        if (isArchivedA && !isArchivedB) return 1;
+        const rankA = getStatusRank(a.status);
+        const rankB = getStatusRank(b.status);
+
+        if (rankA !== rankB) {
+          return rankA - rankB; // Lower rank (1 = Pencairan) comes first
+        }
 
         const timeA = new Date(a.created_at || a.tanggal_masuk || 0).getTime();
         const timeB = new Date(b.created_at || b.tanggal_masuk || 0).getTime();

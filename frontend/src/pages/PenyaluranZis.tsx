@@ -239,27 +239,34 @@ function SearchableSelect({
 
 // Status Color & Format Function (PLEK KETIPLEK from TrackingProposal.tsx)
 function getStatusColor(status: string) {
-  const s = (status || '').toString().replace(/_/g, ' ').toLowerCase();
-  if (s.includes('selesai') || s.includes('synced') || (s.includes('simba') && s.includes('arsip'))) {
-    return 'bg-emerald-100 text-emerald-700';
+  if (!status) return 'bg-teal-100 text-teal-700';
+  const s = status.toLowerCase();
+  if (s.includes('selesai') || s.includes('synced')) {
+    return 'bg-emerald-100 text-emerald-800';
+  }
+  if (s.includes('arsip')) {
+    return 'bg-purple-100 text-purple-700';
   }
   if (s.includes('simba')) {
-    return 'bg-amber-100 text-amber-700';
+    return 'bg-indigo-100 text-indigo-700';
   }
   if (s.includes('realisasi')) {
-    return 'bg-blue-100 text-blue-700';
+    return 'bg-amber-100 text-amber-700';
   }
   if (s.includes('pencairan') || s === 'acc' || s.includes('cair')) {
     return 'bg-teal-100 text-teal-700';
   }
-  return 'bg-teal-100 text-teal-700';
+  return 'bg-slate-100 text-slate-700';
 }
 
 function formatStatusDisplay(status: string) {
   if (!status) return 'ANTREAN PENCAIRAN';
   const s = status.replace(/_/g, ' ').toUpperCase();
-  if (s.includes('SELESAI') || s.includes('SYNCED') || (s.includes('SIMBA') && s.includes('ARSIP'))) {
-    return 'SELESAI & ARSIP';
+  if (s.includes('SELESAI') || s.includes('SYNCED')) {
+    return 'SELESAI';
+  }
+  if (s === 'ANTREAN ARSIP' || (s.includes('ARSIP') && !s.includes('SELESAI'))) {
+    return 'ANTREAN ARSIP';
   }
   if (s.includes('SIMBA')) {
     return 'ANTREAN SIMBA';
@@ -271,6 +278,22 @@ function formatStatusDisplay(status: string) {
     return 'ANTREAN PENCAIRAN';
   }
   return s;
+}
+
+function getStatusRank(statusStr: string | null | undefined): number {
+  if (!statusStr) return 1;
+  const s = statusStr.trim().toLowerCase();
+  // 1. Antrean Pencairan (Paling Atas)
+  if (s.includes('pencairan') || s === 'acc' || s === 'cair') return 1;
+  // 2. Realisasi Bantuan
+  if (s.includes('realisasi')) return 2;
+  // 3. Antrean SIMBA
+  if (s.includes('simba') && !s.includes('arsip') && !s.includes('selesai')) return 3;
+  // 4. Antrean Arsip
+  if ((s.includes('arsip') && !s.includes('selesai')) || s === 'antrean arsip' || s === 'antrean_arsip') return 4;
+  // 5. Selesai (Paling Bawah)
+  if (s.includes('selesai') || s.includes('synced') || (s.includes('simba') && s.includes('arsip'))) return 5;
+  return 1;
 }
 
 export default function PenyaluranZis() {
@@ -561,35 +584,59 @@ export default function PenyaluranZis() {
 
   // Helper to find RKAT No & Name for a proposal
   const getRkatInfo = (item: any) => {
-    if (!rkatList || rkatList.length === 0) return { rkatNo: null, rkatName: null, rkatKet: null };
+    if (!item) return { rkatNo: null, rkatName: null, rkatKet: null };
 
-    let found = rkatList.find((r: any) => r.id === item.rkat_activity_id || r.no === item.rkat_activity_id || String(r.no) === String(item.rkat_activity_id));
+    let found = (rkatList || []).find((r: any) => 
+      r.id === item.rkat_activity_id || 
+      r.no === item.rkat_activity_id || 
+      String(r.no) === String(item.rkat_activity_id) ||
+      (item.rkat_activity_id && String(r.id).toLowerCase() === String(item.rkat_activity_id).toLowerCase())
+    );
 
     if (!found && item.program?.rkat_details && Array.isArray(item.program.rkat_details)) {
       const details = item.program.rkat_details;
-      const detailMatch = details.find((d: any) => d.id === item.rkat_activity_id) || details[0];
+      const detailMatch = details.find((d: any) => d.id === item.rkat_activity_id || String(d.no) === String(item.rkat_activity_id)) || details[0];
       if (detailMatch) {
         return {
           rkatNo: detailMatch.no || '1',
           rkatName: detailMatch.name || detailMatch.nama || item.program?.name,
-          rkatKet: detailMatch.keterangan || detailMatch.spesifikasi || detailMatch.catatan || null
+          rkatKet: detailMatch.keterangan || detailMatch.spesifikasi || detailMatch.catatan || detailMatch.deskripsi || null
         };
       }
     }
 
     if (!found && item.program?.code) {
-      found = rkatList.find((r: any) => r.program_code === item.program.code || r.program?.code === item.program.code);
+      found = (rkatList || []).find((r: any) => r.program_code === item.program.code || r.program?.code === item.program.code);
+    }
+
+    if (!found && (pilars || []).length > 0) {
+      const targetProgCode = item.program?.code || item.program_code || item.jenis_permohonan;
+      for (const pilar of pilars) {
+        const pMatch = (pilar.programs || []).find((p: any) => p.code === targetProgCode || p.name === targetProgCode || (targetProgCode && targetProgCode.includes(p.code)));
+        if (pMatch) {
+          const detail = (pMatch.rkat_details && pMatch.rkat_details.length > 0) ? pMatch.rkat_details[0] : null;
+          return {
+            rkatNo: detail?.no || '1',
+            rkatName: detail?.name || detail?.nama || pMatch.name,
+            rkatKet: detail?.keterangan || detail?.spesifikasi || detail?.catatan || pMatch.keterangan || pMatch.spesifikasi || null
+          };
+        }
+      }
     }
 
     if (found) {
       return {
         rkatNo: found.no || found.id,
         rkatName: found.nama || found.name,
-        rkatKet: found.keterangan || found.spesifikasi || found.catatan || null
+        rkatKet: found.keterangan || found.spesifikasi || found.catatan || found.deskripsi || null
       };
     }
 
-    return { rkatNo: null, rkatName: null, rkatKet: null };
+    return { 
+      rkatNo: null, 
+      rkatName: item.program?.name || item.jenis_permohonan || 'Umum', 
+      rkatKet: item.program?.keterangan || item.program?.spesifikasi || null 
+    };
   };
 
   // Helper to find COA Accounting Code (Auto-mapping from Mapping COA Rules) for a proposal
@@ -676,21 +723,22 @@ export default function PenyaluranZis() {
         } else if (selectedStatusFilter === 'Realisasi Bantuan') {
           matchesStatus = s.includes('realisasi');
         } else if (selectedStatusFilter === 'Antrean SIMBA') {
-          matchesStatus = s.includes('simba') && !s.includes('selesai') && !s.includes('synced');
-        } else if (selectedStatusFilter === 'Selesai & Arsip') {
+          matchesStatus = s.includes('simba') && !s.includes('selesai') && !s.includes('synced') && !s.includes('arsip');
+        } else if (selectedStatusFilter === 'Antrean Arsip') {
+          matchesStatus = (s.includes('arsip') && !s.includes('selesai')) || s === 'antrean arsip' || s === 'antrean_arsip';
+        } else if (selectedStatusFilter === 'Selesai' || selectedStatusFilter === 'Selesai & Arsip') {
           matchesStatus = s.includes('selesai') || s.includes('synced') || (s.includes('simba') && s.includes('arsip'));
         }
       }
 
       return matchesSearch && matchesAsal && matchesPilar && matchesStatus;
     }).sort((a, b) => {
-      const statusA = (a.status || '').toString().toLowerCase();
-      const statusB = (b.status || '').toString().toLowerCase();
-      const isArchivedA = statusA.includes('selesai') || statusA.includes('arsip') || statusA.includes('synced');
-      const isArchivedB = statusB.includes('selesai') || statusB.includes('arsip') || statusB.includes('synced');
+      const rankA = getStatusRank(a.status);
+      const rankB = getStatusRank(b.status);
 
-      if (!isArchivedA && isArchivedB) return -1;
-      if (isArchivedA && !isArchivedB) return 1;
+      if (rankA !== rankB) {
+        return rankA - rankB; // Lower rank (1 = Antrean Pencairan) comes first at top
+      }
 
       const timeA = new Date(a.created_at || a.tanggal_masuk || 0).getTime();
       const timeB = new Date(b.created_at || b.tanggal_masuk || 0).getTime();
@@ -1013,7 +1061,8 @@ export default function PenyaluranZis() {
                 { value: 'Antrean Pencairan', label: 'Antrean Pencairan' },
                 { value: 'Realisasi Bantuan', label: 'Realisasi Bantuan' },
                 { value: 'Antrean SIMBA', label: 'Antrean SIMBA' },
-                { value: 'Selesai & Arsip', label: 'Selesai & Arsip' }
+                { value: 'Antrean Arsip', label: 'Antrean Arsip' },
+                { value: 'Selesai', label: 'Selesai' }
               ]}
               value={selectedStatusFilter}
               onChange={val => { setSelectedStatusFilter(val); setCurrentPage(1); }}
@@ -1088,7 +1137,7 @@ export default function PenyaluranZis() {
                   const isDirect = item.asal_data === 'Jalur Direct';
                   
                   // Extract RKAT & COA info cleanly
-                  const { rkatNo, rkatName } = getRkatInfo(item);
+                  const { rkatName } = getRkatInfo(item);
                   const { coaCode, coaName } = getCoaInfo(item);
                   const programDisplayName = rkatName || item.program?.name || item.jenis_permohonan || 'Umum';
                   const yangMengajukanVal = item.yang_mengajukan || item.yangMengajukan || 'Pimpinan BAZNAS';
@@ -1163,13 +1212,6 @@ export default function PenyaluranZis() {
                         <div className="max-w-xs space-y-1">
                           <p className="font-bold text-slate-900 text-xs line-clamp-1">{programDisplayName}</p>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {/* RKAT #No Badge */}
-                            {rkatNo && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono font-bold rounded bg-blue-50 text-blue-700 border border-blue-100" title={`Terhubung ke RKAT Program No. ${rkatNo}`}>
-                                <CheckCircle2 className="size-3 text-blue-600 shrink-0" />
-                                RKAT #{rkatNo}
-                              </span>
-                            )}
                             {/* COA Accounting Code Badge (starting with 5 for Buku Besar) */}
                             <span className="inline-block px-2 py-0.5 text-[9px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/60 rounded" title={`Kode COA Akuntansi: ${coaCode} - ${coaName}`}>
                               {coaCode}
@@ -1895,8 +1937,8 @@ export default function PenyaluranZis() {
         {isDetailModalOpen && selectedPenyaluran && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDetailModalOpen(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-white w-full max-w-lg max-h-[85vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto border border-slate-100">
+              <div className="p-5 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center shrink-0">
                 <div>
                   <h3 className="text-base font-black text-slate-900">Rincian Penyaluran ZIS</h3>
                   <p className="text-xs text-slate-500 font-medium">Asal Data: {selectedPenyaluran.asal_data}</p>
@@ -1906,7 +1948,7 @@ export default function PenyaluranZis() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-4 text-xs">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs custom-scrollbar">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">No. Agenda</p>
@@ -1924,21 +1966,30 @@ export default function PenyaluranZis() {
                   </div>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
                   <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                    {(selectedPenyaluran.jenis_pengajuan || '').toLowerCase().includes('lembaga') ? "Nama Lembaga / Instansi" : (selectedPenyaluran.nama_anak ? "Nama Anak / Penerima" : "Nama Pemohon")}
+                    {(selectedPenyaluran.jenis_pengajuan || selectedPenyaluran.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Lembaga / Instansi" : "Data Mustahik / Pemohon"}
                   </p>
                   {(() => {
-                    const { title, subtitle } = getMustahikDisplayName(selectedPenyaluran);
+                    const { title, subtitle, isLembaga } = getMustahikDisplayName(selectedPenyaluran);
                     return (
                       <div>
-                        <p className="font-bold text-slate-800 text-sm">{title}</p>
-                        {subtitle && <p className="text-xs text-slate-500 font-medium mt-0.5">{subtitle}</p>}
+                        <div className="flex items-center gap-2">
+                          <p className="font-black text-slate-900 text-base leading-tight">{title}</p>
+                          {isLembaga && (
+                            <span className="px-2 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                              Lembaga
+                            </span>
+                          )}
+                        </div>
+                        {subtitle && (
+                          <p className="text-xs text-slate-600 font-semibold mt-0.5">{subtitle}</p>
+                        )}
                       </div>
                     );
                   })()}
-                  <p className="text-[11px] text-slate-500 font-semibold">
-                    {selectedPenyaluran.jenis_pengajuan || 'Perorangan'}
+                  <p className="text-[11px] text-slate-500 font-semibold pt-0.5">
+                    {selectedPenyaluran.jenis_pengajuan || selectedPenyaluran.jenisPengajuan || 'Perorangan'}
                     {selectedPenyaluran.jenis_kelamin || selectedPenyaluran.mustahik?.jenis_kelamin ? ` (${selectedPenyaluran.jenis_kelamin || selectedPenyaluran.mustahik?.jenis_kelamin})` : ''}
                   </p>
                 </div>
@@ -1968,35 +2019,59 @@ export default function PenyaluranZis() {
                 </div>
 
                 {/* Full Program RKAT & COA Detail */}
-                <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">RKAT &amp; Program Kegiatan (COA)</p>
-                  <p className="font-bold text-slate-900 text-sm">
-                    {(() => {
-                      const { rkatNo, rkatName } = getRkatInfo(selectedPenyaluran);
-                      return rkatNo ? `[RKAT #${rkatNo}] ${rkatName}` : (selectedPenyaluran.program?.name || selectedPenyaluran.jenis_permohonan || 'Umum');
-                    })()}
+                <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                    RKAT &amp; Program Kegiatan (COA)
                   </p>
+                  
+                  {/* (Program RKAT) */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Program RKAT</p>
+                    <p className="font-black text-slate-900 text-sm mt-0.5">
+                      {(() => {
+                        const { rkatName } = getRkatInfo(selectedPenyaluran);
+                        return rkatName || selectedPenyaluran.program?.name || selectedPenyaluran.jenis_permohonan || 'Umum';
+                      })()}
+                    </p>
+                  </div>
 
-                  {/* Keterangan / Spesifikasi RKAT */}
+                  {/* (Keterangan Spesifikasi RKAT - ini jadi sub keterangan) */}
                   {(() => {
                     const { rkatKet } = getRkatInfo(selectedPenyaluran);
-                    if (rkatKet) {
+                    const ketText = rkatKet || selectedPenyaluran.program?.keterangan || selectedPenyaluran.program?.spesifikasi;
+                    if (ketText) {
                       return (
-                        <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 text-[11px] text-slate-700 space-y-0.5">
-                          <span className="font-bold text-blue-700 block text-[10px] uppercase tracking-wider">Spesifikasi / Keterangan RKAT:</span>
-                          <p className="font-semibold text-slate-800 leading-snug">{rkatKet}</p>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-0.5">
+                          <span className="font-bold text-blue-700 block text-[10px] uppercase tracking-wider">
+                            Keterangan Spesifikasi RKAT:
+                          </span>
+                          <p className="font-semibold text-slate-800 text-xs leading-snug">
+                            {ketText}
+                          </p>
                         </div>
                       );
                     }
                     return null;
                   })()}
 
-                  <p className="text-xs text-slate-600 font-mono pt-1 border-t border-slate-200/60">
-                    Kode COA Buku Besar: {(() => {
-                      const { coaCode, coaName } = getCoaInfo(selectedPenyaluran);
-                      return `[${coaCode}] ${coaName}`;
-                    })()}
-                  </p>
+                  {/* (Kode COA) */}
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">COA Akuntansi (Buku Besar)</span>
+                      <p className="text-xs font-bold text-slate-900 mt-0.5">
+                        {(() => {
+                          const { coaName } = getCoaInfo(selectedPenyaluran);
+                          return coaName;
+                        })()}
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 text-xs font-mono font-black bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg">
+                      {(() => {
+                        const { coaCode } = getCoaInfo(selectedPenyaluran);
+                        return coaCode;
+                      })()}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -2012,8 +2087,8 @@ export default function PenyaluranZis() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button onClick={() => setIsDetailModalOpen(false)} className="px-4 py-2 bg-slate-200 font-bold text-slate-700 rounded-xl text-xs cursor-pointer">
+              <div className="p-4 border-t border-slate-100 bg-slate-50/80 shrink-0 flex justify-end">
+                <button onClick={() => setIsDetailModalOpen(false)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 rounded-xl text-xs transition-colors cursor-pointer">
                   Tutup
                 </button>
               </div>

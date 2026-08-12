@@ -22,9 +22,31 @@ export function getMustahikDisplayName(item: any): MustahikDisplayInfo {
   ).toLowerCase().trim();
   const isLembaga = jenisPengajuan.includes('lembaga');
 
-  const namaAnak = String(item.nama_anak || item.namaAnak || '').trim();
-  const namaPemohon = String(item.nama_pemohon || item.namaPemohon || '').trim();
-  const namaInstansi = String(item.nama_instansi || item.namaInstansi || '').trim();
+  const namaAnak = String(
+    item.nama_anak || 
+    item.namaAnak || 
+    item.mustahik?.nama_anak || 
+    item.mustahik?.namaAnak || 
+    ''
+  ).trim();
+
+  const namaPemohon = String(
+    item.nama_pemohon || 
+    item.namaPemohon || 
+    item.mustahik?.nama || 
+    item.mustahik?.namaPemohon || 
+    item.mustahik?.nama_pemohon || 
+    ''
+  ).trim();
+
+  const namaInstansi = String(
+    item.nama_instansi || 
+    item.namaInstansi || 
+    item.mustahik?.nama_instansi || 
+    item.mustahik?.namaInstansi || 
+    item.mustahik?.instansi || 
+    ''
+  ).trim();
 
   const isGarbage = (s: string) => !s || s.toLowerCase().includes('tanpa nama') || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined' || s === '-';
 
