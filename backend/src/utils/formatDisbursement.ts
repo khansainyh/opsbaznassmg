@@ -99,11 +99,46 @@ export async function resolveDisbursementCoa(proposal: any, account: any, db: an
     }
   }
 
-  // 2. Query all rules from CoaMappingRule
+  // 2. Lookup Program from DB to get both code and name
+  let programCode = '';
+  let programName = '';
+  if (proposal.program) {
+    programCode = proposal.program.code || '';
+    programName = proposal.program.name || '';
+  }
+  
+  const rawTarget = String(proposal.jenis_permohonan || proposal.rkat_activity_id || '').trim();
+  if ((!programCode || !programName) && rawTarget) {
+    try {
+      const foundProg = await db.program.findFirst({
+        where: {
+          OR: [
+            { code: rawTarget },
+            { name: rawTarget },
+            { name: { contains: rawTarget } }
+          ]
+        }
+      });
+      if (foundProg) {
+        programCode = foundProg.code || programCode;
+        programName = foundProg.name || programName;
+      }
+    } catch (e) {
+      // ignore lookup error
+    }
+  }
+
+  // 3. Query all rules from CoaMappingRule
   const rules = await db.coaMappingRule.findMany();
 
-  const matchingTipeKasRules = rules.filter((r: any) => !r.tipe_kas || r.tipe_kas === account?.tipe_kas || r.tipe_kas === 'ALL');
-  const targetRules = matchingTipeKasRules.length > 0 ? matchingTipeKasRules : rules;
+  // Filter rules by fundSource
+  const fundRules = rules.filter((r: any) => {
+    if (!r.sumber_dana_tag || r.sumber_dana_tag === 'ALL') return true;
+    return r.sumber_dana_tag === fundSource;
+  });
+
+  const matchingTipeKasRules = fundRules.filter((r: any) => !r.tipe_kas || r.tipe_kas === account?.tipe_kas || r.tipe_kas === 'ALL');
+  const targetRules = matchingTipeKasRules.length > 0 ? matchingTipeKasRules : fundRules;
 
   let mappingRule = null;
   const targetAsnaf = String(proposal.asnaf || '').trim().toLowerCase();
@@ -114,17 +149,18 @@ export async function resolveDisbursementCoa(proposal: any, account: any, db: an
     const cleanRuleCode = cleanRule.split(' ')[0].split('-')[0].trim();
 
     const targets = [
+      programCode,
+      programName,
       proposal.jenis_permohonan,
       proposal.rkat_activity_id,
-      proposal.program?.name,
       proposal.program?.code,
-      proposal.program_id
+      proposal.program?.name
     ].filter(Boolean).map(s => String(s).trim().toLowerCase());
 
     for (const t of targets) {
-      const tCode = t.split(' ')[0].split('-')[0].trim();
       if (t === cleanRule || t.includes(cleanRule) || cleanRule.includes(t)) return true;
-      if (cleanRuleCode && (tCode === cleanRuleCode || tCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(tCode))) return true;
+      const tCode = t.split(' ')[0].split('-')[0].trim();
+      if (cleanRuleCode && tCode && (tCode === cleanRuleCode || tCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(tCode))) return true;
     }
     return false;
   };
@@ -150,8 +186,8 @@ export async function resolveDisbursementCoa(proposal: any, account: any, db: an
   }
 
   // Match D: Fallback to any rule for this fundSource
-  if (!mappingRule) {
-    mappingRule = targetRules[0] || null;
+  if (!mappingRule && targetRules.length > 0) {
+    mappingRule = targetRules[0];
   }
 
   let debitCoaCode = null;
@@ -161,13 +197,28 @@ export async function resolveDisbursementCoa(proposal: any, account: any, db: an
     debitCoaCode = mappingRule.debit_coa_code;
   }
 
-  // Secondary: Check if proposal.rkat_activity_id is an actual 5xxxx COA
+  // Secondary: Check if proposal.rkat_activity_id is an actual 5xxxx COA THAT MATCHES fundSource!
   if (!debitCoaCode && proposal.rkat_activity_id && proposal.rkat_activity_id !== '519999999' && !proposal.rkat_activity_id.startsWith('asnaf-')) {
-    const foundCoa = await db.chartOfAccounts.findUnique({
-      where: { coa_code: proposal.rkat_activity_id }
-    });
-    if (foundCoa && foundCoa.coa_code.startsWith('5')) {
-      debitCoaCode = foundCoa.coa_code;
+    const isCoaAllowed = (coa: string) => {
+      if (fundSource === 'INFAK_TIDAK_TERIKAT' || fundSource === 'INFAK_TERIKAT') {
+        return coa.startsWith('52');
+      } else if (fundSource === 'ZAKAT') {
+        return coa.startsWith('51');
+      } else if (fundSource === 'AMIL') {
+        return coa.startsWith('53');
+      } else if (fundSource === 'APBD') {
+        return coa.startsWith('54');
+      }
+      return true;
+    };
+
+    if (isCoaAllowed(proposal.rkat_activity_id)) {
+      const foundCoa = await db.chartOfAccounts.findUnique({
+        where: { coa_code: proposal.rkat_activity_id }
+      });
+      if (foundCoa && foundCoa.coa_code.startsWith('5')) {
+        debitCoaCode = foundCoa.coa_code;
+      }
     }
   }
 
