@@ -756,6 +756,13 @@ export default function PenerimaanZis() {
   // Laporan Bulanan Rekap ZIS State
   const [bulananReportMonth, setBulananReportMonth] = useState<number>(new Date().getMonth() + 1);
   const [bulananReportYear, setBulananReportYear] = useState<number>(new Date().getFullYear());
+  const [bulananReportSignDate, setBulananReportSignDate] = useState<string>(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [isFetchingRekap, setIsFetchingRekap] = useState(false);
   const [rekapBulananCategories, setRekapBulananCategories] = useState<Record<string, any[]>>({});
   const [rekapBulananUmumItems, setRekapBulananUmumItems] = useState<any[]>([]);
@@ -3860,7 +3867,7 @@ export default function PenerimaanZis() {
                       Cetak Rekapitulasi Penerimaan Zakat, Infak, Sedekah (ZIS) per UPZ sesuai format resmi BAZNAS Kota Semarang.
                     </p>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Bulan</label>
                         <select
@@ -3889,6 +3896,16 @@ export default function PenerimaanZis() {
                           type="number"
                           value={bulananReportYear}
                           onChange={(e) => setBulananReportYear(Number(e.target.value))}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tanggal Cetak</label>
+                        <input
+                          type="date"
+                          value={bulananReportSignDate}
+                          onChange={(e) => setBulananReportSignDate(e.target.value)}
                           className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-teal-500/20 outline-none transition-all font-bold text-slate-700"
                         />
                       </div>
@@ -4463,23 +4480,23 @@ export default function PenerimaanZis() {
       </div>
 
       {/* Print Layout for Laporan Bulanan Rekapitulasi ZIS per UPZ */}
-      <div className="print-only-container hidden print:block w-full text-black font-sans text-xs p-2 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
-        <div className="text-center font-bold text-xs uppercase tracking-wide mb-3">
-          <p className="text-sm font-black text-slate-900">REKAPITULASI PENERIMAAN ZAKAT, INFAK, SEDEKAH (ZIS)</p>
-          <p className="text-xs font-black text-slate-800">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</p>
-          <p className="text-xs font-bold mt-0.5 text-slate-600">
+      <div className="print-only-container hidden print:block w-full text-black font-sans text-xs p-1 [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
+        <div className="text-center font-bold uppercase tracking-wide mb-2">
+          <p className="text-[11px] font-black text-slate-900 leading-tight">REKAPITULASI PENERIMAAN ZAKAT, INFAK, SEDEKAH (ZIS)</p>
+          <p className="text-[10px] font-black text-slate-800 leading-tight">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</p>
+          <p className="text-[9px] font-bold text-slate-600 mt-0.5 leading-tight">
             PERIODE {['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'][bulananReportMonth - 1]} {bulananReportYear}
           </p>
         </div>
 
-        <table className="w-full border-collapse text-left [table-layout:fixed] text-[9px] border border-slate-400">
+        <table className="w-full border-collapse text-left [table-layout:fixed] text-[8px] border border-slate-400">
           <thead>
-            <tr className="bg-teal-800 text-white font-black text-[9.5px] border border-teal-900">
-              <th className="w-8 border border-teal-900 p-1.5 text-center">NO</th>
-              <th className="border border-teal-900 p-1.5">NAMA UPZ</th>
-              <th className="w-28 border border-teal-900 p-1.5 text-right">ZAKAT</th>
-              <th className="w-28 border border-teal-900 p-1.5 text-right">INFAK</th>
-              <th className="w-32 border border-teal-900 p-1.5 text-right">JUMLAH ZIS</th>
+            <tr className="bg-teal-800 text-white font-black text-[8.5px] border border-teal-900">
+              <th className="w-7 border border-teal-900 py-1 px-0.5 text-center">NO</th>
+              <th className="border border-teal-900 py-1 px-1">NAMA UPZ</th>
+              <th className="w-24 border border-teal-900 py-1 px-1 text-right">ZAKAT</th>
+              <th className="w-24 border border-teal-900 py-1 px-1 text-right">INFAK</th>
+              <th className="w-28 border border-teal-900 py-1 px-1 text-right">JUMLAH ZIS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-300 border border-slate-400">
@@ -4514,34 +4531,34 @@ export default function PenerimaanZis() {
                     return (
                       <React.Fragment key={catName}>
                         <tr className="bg-emerald-100 text-emerald-950 font-black border border-emerald-300 break-inside-avoid">
-                          <td colSpan={5} className="py-0.5 px-1.5 uppercase tracking-wide font-black text-[8.5px] bg-emerald-100">
+                          <td colSpan={5} className="py-[2px] px-1 uppercase tracking-wide font-black text-[7.5px] bg-emerald-100">
                             {catName}
                           </td>
                         </tr>
                         {items.map((it: any, idx: number) => (
                           <tr key={it.id || idx} className="border-b border-slate-200 break-inside-avoid">
-                            <td className="py-0.5 px-1 text-center font-mono text-[8px]">{idx + 1}</td>
-                            <td className="py-0.5 px-1 font-bold text-[8px]">{it.nama_upz}</td>
-                            <td className="py-0.5 px-1 text-right font-mono text-[8px]">
+                            <td className="py-[1px] px-0.5 text-center font-mono text-[7px] leading-tight">{idx + 1}</td>
+                            <td className="py-[1px] px-1 font-bold text-[7.5px] leading-tight">{it.nama_upz}</td>
+                            <td className="py-[1px] px-1 text-right font-mono text-[7.5px] leading-tight">
                               {it.zakat > 0 ? `Rp ${Number(it.zakat).toLocaleString('id-ID')}` : 'Rp -'}
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono text-[8px]">
+                            <td className="py-[1px] px-1 text-right font-mono text-[7.5px] leading-tight">
                               {it.infak > 0 ? `Rp ${Number(it.infak).toLocaleString('id-ID')}` : 'Rp -'}
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono font-bold text-[8px]">
+                            <td className="py-[1px] px-1 text-right font-mono font-bold text-[7.5px] leading-tight">
                               {it.total > 0 ? `Rp ${Number(it.total).toLocaleString('id-ID')}` : 'Rp -'}
                             </td>
                           </tr>
                         ))}
                         <tr className="font-black border border-emerald-200 bg-emerald-50 text-emerald-900 break-inside-avoid">
-                          <td colSpan={2} className="py-0.5 px-1 text-right font-black text-[8.5px]">JUMLAH</td>
-                          <td className="py-0.5 px-1 text-right font-mono font-black text-[8.5px]">
+                          <td colSpan={2} className="py-[2px] px-1 text-right font-black text-[7.5px] leading-tight">JUMLAH</td>
+                          <td className="py-[2px] px-1 text-right font-mono font-black text-[7.5px] leading-tight">
                             {catZakat > 0 ? `Rp ${catZakat.toLocaleString('id-ID')}` : 'Rp -'}
                           </td>
-                          <td className="py-0.5 px-1 text-right font-mono font-black text-[8.5px]">
+                          <td className="py-[2px] px-1 text-right font-mono font-black text-[7.5px] leading-tight">
                             {catInfak > 0 ? `Rp ${catInfak.toLocaleString('id-ID')}` : 'Rp -'}
                           </td>
-                          <td className="py-0.5 px-1 text-right font-mono font-black text-[8.5px]">
+                          <td className="py-[2px] px-1 text-right font-mono font-black text-[7.5px] leading-tight">
                             {catTotal > 0 ? `Rp ${catTotal.toLocaleString('id-ID')}` : 'Rp -'}
                           </td>
                         </tr>
@@ -4550,15 +4567,15 @@ export default function PenerimaanZis() {
                   })}
 
                   {/* TOTAL PENERIMAAN ZIS (UPZ KOTA) */}
-                  <tr className="font-black border-2 border-emerald-700 bg-teal-100 text-teal-950 text-[9px] break-inside-avoid">
-                    <td colSpan={2} className="py-1 px-1.5 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS (UPZ KOTA)</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-black">
+                  <tr className="font-black border-2 border-emerald-700 bg-teal-100 text-teal-950 text-[8px] break-inside-avoid">
+                    <td colSpan={2} className="py-1 px-1 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS (UPZ KOTA)</td>
+                    <td className="py-1 px-1 text-right font-mono font-black">
                       {upzKotaZakat > 0 ? `Rp ${upzKotaZakat.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
-                    <td className="py-1 px-1.5 text-right font-mono font-black">
+                    <td className="py-1 px-1 text-right font-mono font-black">
                       {upzKotaInfak > 0 ? `Rp ${upzKotaInfak.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
-                    <td className="py-1 px-1.5 text-right font-mono font-black">
+                    <td className="py-1 px-1 text-right font-mono font-black">
                       {upzKotaTotal > 0 ? `Rp ${upzKotaTotal.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
                   </tr>
@@ -4566,49 +4583,49 @@ export default function PenerimaanZis() {
                   {/* PENERIMAAN ZIS UMUM */}
                   <React.Fragment>
                     <tr className="bg-sky-100 text-sky-950 font-black border border-sky-300 break-inside-avoid">
-                      <td colSpan={5} className="py-0.5 px-1.5 uppercase tracking-wide font-black text-[8.5px] bg-sky-100">
+                      <td colSpan={5} className="py-[2px] px-1 uppercase tracking-wide font-black text-[7.5px] bg-sky-100">
                         PENERIMAAN ZIS UMUM
                       </td>
                     </tr>
                     {(rekapBulananUmumItems || []).map((it: any, idx: number) => (
                       <tr key={it.id || idx} className="border-b border-slate-200 break-inside-avoid">
-                        <td className="py-0.5 px-1 text-center font-mono text-[8px]">{idx + 1}</td>
-                        <td className="py-0.5 px-1 font-bold text-[8px]">{it.nama_upz}</td>
-                        <td className="py-0.5 px-1 text-right font-mono text-[8px]">
+                        <td className="py-[1px] px-0.5 text-center font-mono text-[7px] leading-tight">{idx + 1}</td>
+                        <td className="py-[1px] px-1 font-bold text-[7.5px] leading-tight">{it.nama_upz}</td>
+                        <td className="py-[1px] px-1 text-right font-mono text-[7.5px] leading-tight">
                           {it.zakat > 0 ? `Rp ${Number(it.zakat).toLocaleString('id-ID')}` : 'Rp -'}
                         </td>
-                        <td className="py-0.5 px-1 text-right font-mono text-[8px]">
+                        <td className="py-[1px] px-1 text-right font-mono text-[7.5px] leading-tight">
                           {it.infak > 0 ? `Rp ${Number(it.infak).toLocaleString('id-ID')}` : 'Rp -'}
                         </td>
-                        <td className="py-0.5 px-1 text-right font-mono font-bold text-[8px]">
+                        <td className="py-[1px] px-1 text-right font-mono font-bold text-[7.5px] leading-tight">
                           {it.total > 0 ? `Rp ${Number(it.total).toLocaleString('id-ID')}` : 'Rp -'}
                         </td>
                       </tr>
                     ))}
                     <tr className="font-black border border-sky-200 bg-sky-50 text-sky-900 break-inside-avoid">
-                      <td colSpan={2} className="py-0.5 px-1 text-right font-black text-[8.5px]">JUMLAH</td>
-                      <td className="py-0.5 px-1 text-right font-mono font-black text-[8.5px]">
+                      <td colSpan={2} className="py-[2px] px-1 text-right font-black text-[7.5px] leading-tight">JUMLAH</td>
+                      <td className="py-[2px] px-1 text-right font-mono font-black text-[7.5px] leading-tight">
                         {umumZakat > 0 ? `Rp ${umumZakat.toLocaleString('id-ID')}` : 'Rp -'}
                       </td>
-                      <td className="py-0.5 px-1 text-right font-mono font-black text-[8.5px]">
+                      <td className="py-[2px] px-1 text-right font-mono font-black text-[7.5px] leading-tight">
                         {umumInfak > 0 ? `Rp ${umumInfak.toLocaleString('id-ID')}` : 'Rp -'}
                       </td>
-                      <td className="py-0.5 px-1 text-right font-mono font-black text-[8.5px]">
+                      <td className="py-[2px] px-1 text-right font-mono font-black text-[7.5px] leading-tight">
                         {umumTotal > 0 ? `Rp ${umumTotal.toLocaleString('id-ID')}` : 'Rp -'}
                       </td>
                     </tr>
                   </React.Fragment>
 
                   {/* TOTAL PENERIMAAN ZIS */}
-                  <tr className="font-black border-2 border-emerald-900 bg-emerald-700 text-white text-[9px] break-inside-avoid">
-                    <td colSpan={2} className="py-1 px-1.5 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS</td>
-                    <td className="py-1 px-1.5 text-right font-mono font-black">
+                  <tr className="font-black border-2 border-emerald-900 bg-emerald-700 text-white text-[8.5px] break-inside-avoid">
+                    <td colSpan={2} className="py-1 px-1 text-left uppercase tracking-wide font-black">TOTAL PENERIMAAN ZIS</td>
+                    <td className="py-1 px-1 text-right font-mono font-black">
                       {grandZakat > 0 ? `Rp ${grandZakat.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
-                    <td className="py-1 px-1.5 text-right font-mono font-black">
+                    <td className="py-1 px-1 text-right font-mono font-black">
                       {grandInfak > 0 ? `Rp ${grandInfak.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
-                    <td className="py-1 px-1.5 text-right font-mono font-black">
+                    <td className="py-1 px-1 text-right font-mono font-black">
                       {grandTotal > 0 ? `Rp ${grandTotal.toLocaleString('id-ID')}` : 'Rp -'}
                     </td>
                   </tr>
@@ -4620,28 +4637,35 @@ export default function PenerimaanZis() {
 
         {/* Footer Tanda Tangan Resmi BAZNAS Kota Semarang (Unified Break-Inside Avoid Container) */}
         <div 
-          className="print-signatures mt-6 pt-2 text-[9px] font-bold break-inside-avoid page-break-inside-avoid"
+          className="print-signatures mt-3 pt-1 text-[8.5px] font-bold break-inside-avoid page-break-inside-avoid"
           style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
         >
           <div className="flex justify-between items-start">
             <div className="text-center w-1/3">
               <p>Kepala Pelaksana</p>
-              <div className="h-11" />
+              <div className="h-7" />
               <p className="underline font-black">{signatoriesBulanan.kepalaPelaksana}</p>
             </div>
 
             <div className="text-center w-1/3">
-              <p>Semarang, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p>
+                Semarang, {(() => {
+                  if (!bulananReportSignDate) return new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                  const [y, m, d] = bulananReportSignDate.split('-').map(Number);
+                  const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                  return `${d || ''} ${monthNames[(m || 1) - 1]} ${y || ''}`.trim();
+                })()}
+              </p>
               <p>Kepala Bagian Pengumpulan</p>
-              <div className="h-11" />
+              <div className="h-7" />
               <p className="underline font-black">{signatoriesBulanan.kabagPengumpulan}</p>
             </div>
           </div>
 
-          <div className="mt-3 text-center text-[9px] font-bold">
+          <div className="mt-1 text-center text-[8.5px] font-bold">
             <p>Mengetahui,</p>
             <p>Wakil Ketua I Bidang Pengumpulan</p>
-            <div className="h-11" />
+            <div className="h-7" />
             <p className="underline font-black">{signatoriesBulanan.waka1}</p>
           </div>
         </div>
