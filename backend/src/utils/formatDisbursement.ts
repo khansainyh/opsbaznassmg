@@ -27,24 +27,28 @@ export function formatDisbursementKeterangan(proposal: ProposalForDisbursementKe
   const isLembaga = proposal.jenis_pengajuan === 'Lembaga' || 
     (proposal.nama_instansi && (!proposal.nama_pemohon || proposal.nama_pemohon === proposal.nama_instansi));
 
-  const hasNamaAnak = Boolean(
-    proposal.nama_anak && 
-    proposal.nama_anak.trim() !== '' && 
-    proposal.nama_anak.trim() !== '-'
-  );
+  let effectiveAnak = proposal.nama_anak && proposal.nama_anak.trim() !== '' && proposal.nama_anak.trim() !== '-' ? proposal.nama_anak.trim() : null;
+  if (!effectiveAnak && (proposal as any).survey_data) {
+    try {
+      const s = typeof (proposal as any).survey_data === 'string' ? JSON.parse((proposal as any).survey_data) : (proposal as any).survey_data;
+      const fromSurvey = s?.namaAnak || s?.nama_anak || s?.namaSiswa || s?.nama_siswa || s?.anak;
+      if (fromSurvey && String(fromSurvey).trim() !== '' && String(fromSurvey).trim() !== '-') {
+        effectiveAnak = String(fromSurvey).trim();
+      }
+    } catch (e) {}
+  }
 
   let targetName = '';
 
-  if (isLembaga) {
-    // Format Lembaga: (nama instansi)
-    targetName = (proposal.nama_instansi && proposal.nama_instansi.trim() !== '-' ? proposal.nama_instansi.trim() : proposal.nama_pemohon?.trim()) || 'Lembaga Tanpa Nama';
-  } else if (hasNamaAnak) {
+  if (effectiveAnak) {
     // Format Nama Anak: (nama anak) (nama instansi)
-    const anak = proposal.nama_anak!.trim();
     const instansi = (proposal.nama_instansi && proposal.nama_instansi.trim() !== '-' && !proposal.nama_instansi.toLowerCase().startsWith('kel.')) 
       ? ` ${proposal.nama_instansi.trim()}` 
       : '';
-    targetName = `${anak}${instansi}`;
+    targetName = `${effectiveAnak}${instansi}`;
+  } else if (isLembaga) {
+    // Format Lembaga: (nama instansi)
+    targetName = (proposal.nama_instansi && proposal.nama_instansi.trim() !== '-' ? proposal.nama_instansi.trim() : proposal.nama_pemohon?.trim()) || 'Lembaga Tanpa Nama';
   } else {
     // Default Pemohon: (nama pemohon)
     targetName = (proposal.nama_pemohon && proposal.nama_pemohon.trim() !== '-' ? proposal.nama_pemohon.trim() : proposal.nama_instansi?.trim()) || 'Pemohon Tanpa Nama';
@@ -65,4 +69,113 @@ export function formatDisbursementKeterangan(proposal: ProposalForDisbursementKe
   const addressStr = addressParts.length > 0 ? `, ${addressParts.join(' ')}` : '';
 
   return `${cleanProgram} an. ${targetName}${addressStr}`;
+}
+
+/**
+ * Resolves the appropriate debit COA code based on CoaMappingRule, proposal RKAT activity, and fund source (IST/ISTT/Zakat)
+ */
+export async function resolveDisbursementCoa(proposal: any, account: any, db: any) {
+  // 1. Determine Fund Source (prioritize proposal.asnaf)
+  let fundSource = 'ZAKAT';
+  const possibleSources = [proposal.asnaf, proposal.rekomendasi_kabag, proposal.tipe_bantuan];
+  for (const src of possibleSources) {
+    if (!src) continue;
+    const normalized = String(src).toUpperCase().trim();
+    if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
+      fundSource = 'INFAK_TERIKAT';
+      break;
+    } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
+      fundSource = 'INFAK_TIDAK_TERIKAT';
+      break;
+    } else if (normalized.includes('AMIL')) {
+      fundSource = 'AMIL';
+      break;
+    } else if (normalized.includes('APBD')) {
+      fundSource = 'APBD';
+      break;
+    } else if (normalized.includes('ZAKAT')) {
+      fundSource = 'ZAKAT';
+      break;
+    }
+  }
+
+  // 2. Query rules matching fundSource
+  const rules = await db.coaMappingRule.findMany({
+    where: { sumber_dana_tag: fundSource }
+  });
+
+  const matchingTipeKasRules = rules.filter((r: any) => r.tipe_kas === account.tipe_kas || r.tipe_kas === 'ALL' || !r.tipe_kas);
+  const targetRules = matchingTipeKasRules.length > 0 ? matchingTipeKasRules : rules;
+
+  let mappingRule = null;
+  const rawProg = String(proposal.jenis_permohonan || proposal.rkat_activity_id || '').trim().toLowerCase();
+  const progCodeOnly = rawProg.split(' ')[0].trim();
+  const targetAsnaf = String(proposal.asnaf || '').trim().toLowerCase();
+
+  const matchProg = (ruleProg: string) => {
+    const cleanRuleProg = ruleProg.split(' ')[0].trim().toLowerCase();
+    if (!cleanRuleProg || !progCodeOnly) return false;
+    return progCodeOnly === cleanRuleProg || 
+           progCodeOnly.startsWith(cleanRuleProg) || 
+           cleanRuleProg.startsWith(progCodeOnly);
+  };
+
+  const matchAsnaf = (ruleAsnaf: string | null) => {
+    if (!ruleAsnaf || ruleAsnaf.trim() === '' || ruleAsnaf.trim().toLowerCase() === 'global') return true;
+    return ruleAsnaf.trim().toLowerCase() === targetAsnaf;
+  };
+
+  // Match A: Exact Program AND Exact Asnaf
+  if (targetAsnaf) {
+    mappingRule = targetRules.find((r: any) => matchProg(r.program_code) && r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf);
+  }
+
+  // Match B: Exact Program AND Global/Empty Asnaf
+  if (!mappingRule) {
+    mappingRule = targetRules.find((r: any) => matchProg(r.program_code) && matchAsnaf(r.asnaf_id));
+  }
+
+  // Match C: Any Program AND Exact Asnaf
+  if (!mappingRule && targetAsnaf) {
+    mappingRule = targetRules.find((r: any) => matchAsnaf(r.asnaf_id));
+  }
+
+  // Match D: Fallback to any rule for this fundSource
+  if (!mappingRule) {
+    mappingRule = targetRules[0] || null;
+  }
+
+  let debitCoaCode = null;
+
+  // Primary: CoaMappingRule
+  if (mappingRule && mappingRule.debit_coa_code) {
+    debitCoaCode = mappingRule.debit_coa_code;
+  }
+
+  // Secondary: Check if proposal.rkat_activity_id is an actual 5xxxx COA
+  if (!debitCoaCode && proposal.rkat_activity_id && proposal.rkat_activity_id !== '519999999' && !proposal.rkat_activity_id.startsWith('asnaf-')) {
+    const foundCoa = await db.chartOfAccounts.findUnique({
+      where: { coa_code: proposal.rkat_activity_id }
+    });
+    if (foundCoa && foundCoa.coa_code.startsWith('5')) {
+      debitCoaCode = foundCoa.coa_code;
+    }
+  }
+
+  // Emergency Fallback
+  if (!debitCoaCode) {
+    await db.chartOfAccounts.upsert({
+      where: { coa_code: '519999999' } as any,
+      update: {},
+      create: {
+        coa_code: '519999999',
+        nama_akun: 'Penyaluran Lain-lain (Emergency Fallback)',
+        klasifikasi: 'Beban',
+        tipe_dana: 'ZAKAT'
+      } as any
+    });
+    debitCoaCode = '519999999';
+  }
+
+  return { debitCoaCode, mappingRule, fundSource };
 }
