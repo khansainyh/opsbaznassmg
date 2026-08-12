@@ -19,6 +19,13 @@ export const getMuzakki = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+const cleanString = (val: any): string | null => {
+  if (val === null || val === undefined) return null;
+  const str = String(val).trim();
+  if (str === '' || str === 'null' || str === 'undefined') return null;
+  return str;
+};
+
 export const createMuzakki = async (req: Request, res: Response): Promise<void> => {
   try {
     const { 
@@ -54,7 +61,10 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       cp_email 
     } = req.body;
 
-    const currentKategori = kategori || 'Perorangan';
+    const currentKategori = cleanString(kategori) || 'Perorangan';
+    const finalNik = currentKategori === 'Perorangan' ? cleanString(nik) : null;
+    const finalNpwz = cleanString(req.body.npwz);
+    const finalNoRekening = cleanString(no_rekening);
 
     if (currentKategori === 'Perorangan') {
       if (!nama || !jenis_kelamin || !alamat || !handphone) {
@@ -66,9 +76,9 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       }
 
       // Check if NIK already exists
-      if (nik) {
+      if (finalNik) {
         const existingNik = await prisma.muzakki.findUnique({
-          where: { nik: String(nik) }
+          where: { nik: finalNik }
         });
         if (existingNik) {
           res.status(400).json({ status: 'error', message: 'NIK sudah terdaftar.' });
@@ -85,8 +95,6 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    const finalNpwz = req.body.npwz ? String(req.body.npwz).trim() : null;
-    
     // Check if NPWZ already exists
     if (finalNpwz) {
       const existingNpwz = await prisma.muzakki.findUnique({
@@ -99,9 +107,9 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
     }
 
     // Check if no_rekening already exists
-    if (no_rekening) {
+    if (finalNoRekening) {
       const existingNoRekening = await prisma.muzakki.findUnique({
-        where: { no_rekening: String(no_rekening) }
+        where: { no_rekening: finalNoRekening }
       });
       if (existingNoRekening) {
         res.status(400).json({ status: 'error', message: 'Nomor Rekening sudah terdaftar.' });
@@ -113,35 +121,35 @@ export const createMuzakki = async (req: Request, res: Response): Promise<void> 
       data: {
         npwz: finalNpwz,
         kategori: currentKategori,
-        nama: String(nama),
-        npwp: npwp ? String(npwp) : null,
+        nama: String(nama).trim(),
+        npwp: cleanString(npwp),
         zakat_per_bulan: zakat_per_bulan ? Number(zakat_per_bulan) : null,
-        keterangan: keterangan ? String(keterangan) : null,
-        alamat: String(alamat),
-        telepon: telepon ? String(telepon) : null,
-        email: email ? String(email) : null,
-        status: status ? String(status) : 'Aktif',
-        no_rekening: no_rekening ? String(no_rekening) : null,
+        keterangan: cleanString(keterangan),
+        alamat: String(alamat).trim(),
+        telepon: cleanString(telepon),
+        email: cleanString(email),
+        status: cleanString(status) || 'Aktif',
+        no_rekening: finalNoRekening,
 
         // Perorangan
-        nik: currentKategori === 'Perorangan' ? String(nik) : null,
-        tempat_lahir: currentKategori === 'Perorangan' && tempat_lahir ? String(tempat_lahir) : null,
-        tanggal_lahir: currentKategori === 'Perorangan' && tanggal_lahir ? String(tanggal_lahir) : null,
-        jenis_kelamin: currentKategori === 'Perorangan' && jenis_kelamin ? String(jenis_kelamin) : null,
-        pekerjaan: currentKategori === 'Perorangan' && pekerjaan ? String(pekerjaan) : null,
-        upz: upz ? String(upz) : null,
-        alamat_kantor: currentKategori === 'Perorangan' && alamat_kantor ? String(alamat_kantor) : null,
-        handphone: currentKategori === 'Perorangan' && handphone ? String(handphone) : null,
+        nik: finalNik,
+        tempat_lahir: currentKategori === 'Perorangan' ? cleanString(tempat_lahir) : null,
+        tanggal_lahir: currentKategori === 'Perorangan' ? cleanString(tanggal_lahir) : null,
+        jenis_kelamin: currentKategori === 'Perorangan' ? cleanString(jenis_kelamin) : null,
+        pekerjaan: currentKategori === 'Perorangan' ? cleanString(pekerjaan) : null,
+        upz: cleanString(upz),
+        alamat_kantor: currentKategori === 'Perorangan' ? cleanString(alamat_kantor) : null,
+        handphone: currentKategori === 'Perorangan' ? cleanString(handphone) : null,
 
         // Lembaga
-        no_pengukuhan: currentKategori === 'Lembaga' && no_pengukuhan ? String(no_pengukuhan) : null,
-        tanggal_pengukuhan: currentKategori === 'Lembaga' && tanggal_pengukuhan ? String(tanggal_pengukuhan) : null,
-        website: currentKategori === 'Lembaga' && website ? String(website) : null,
-        jenis_lembaga: currentKategori === 'Lembaga' && jenis_lembaga ? String(jenis_lembaga) : null,
-        fax: currentKategori === 'Lembaga' && fax ? String(fax) : null,
-        cp_nama: currentKategori === 'Lembaga' && cp_nama ? String(cp_nama) : null,
-        cp_telepon: currentKategori === 'Lembaga' && cp_telepon ? String(cp_telepon) : null,
-        cp_email: currentKategori === 'Lembaga' && cp_email ? String(cp_email) : null,
+        no_pengukuhan: currentKategori === 'Lembaga' ? cleanString(no_pengukuhan) : null,
+        tanggal_pengukuhan: currentKategori === 'Lembaga' ? cleanString(tanggal_pengukuhan) : null,
+        website: currentKategori === 'Lembaga' ? cleanString(website) : null,
+        jenis_lembaga: currentKategori === 'Lembaga' ? cleanString(jenis_lembaga) : null,
+        fax: currentKategori === 'Lembaga' ? cleanString(fax) : null,
+        cp_nama: currentKategori === 'Lembaga' ? cleanString(cp_nama) : null,
+        cp_telepon: currentKategori === 'Lembaga' ? cleanString(cp_telepon) : null,
+        cp_email: currentKategori === 'Lembaga' ? cleanString(cp_email) : null,
       }
     });
 
@@ -259,40 +267,46 @@ export const updateMuzakki = async (req: Request, res: Response): Promise<void> 
       }
     }
 
+    const finalNik = currentKategori === 'Perorangan'
+      ? (nik !== undefined ? cleanString(nik) : existing.nik)
+      : null;
+    const finalNpwz = req.body.npwz !== undefined ? cleanString(req.body.npwz) : existing.npwz;
+    const finalNoRek = req.body.no_rekening !== undefined ? cleanString(req.body.no_rekening) : existing.no_rekening;
+
     const updated = await prisma.muzakki.update({
       where: { id },
       data: {
-        npwz: req.body.npwz || existing.npwz,
+        npwz: finalNpwz,
         kategori: currentKategori,
-        nama: nama ? String(nama) : existing.nama,
-        npwp: npwp !== undefined ? (npwp ? String(npwp) : null) : existing.npwp,
+        nama: nama ? String(nama).trim() : existing.nama,
+        npwp: npwp !== undefined ? cleanString(npwp) : existing.npwp,
         zakat_per_bulan: zakat_per_bulan !== undefined ? (zakat_per_bulan ? Number(zakat_per_bulan) : null) : existing.zakat_per_bulan,
-        keterangan: keterangan !== undefined ? (keterangan ? String(keterangan) : null) : existing.keterangan,
-        alamat: alamat ? String(alamat) : existing.alamat,
-        telepon: telepon !== undefined ? (telepon ? String(telepon) : null) : existing.telepon,
-        email: email !== undefined ? (email ? String(email) : null) : existing.email,
-        status: status ? String(status) : existing.status,
-        no_rekening: req.body.no_rekening !== undefined ? (req.body.no_rekening ? String(req.body.no_rekening) : null) : existing.no_rekening,
+        keterangan: keterangan !== undefined ? cleanString(keterangan) : existing.keterangan,
+        alamat: alamat ? String(alamat).trim() : existing.alamat,
+        telepon: telepon !== undefined ? cleanString(telepon) : existing.telepon,
+        email: email !== undefined ? cleanString(email) : existing.email,
+        status: status ? cleanString(status) || 'Aktif' : existing.status,
+        no_rekening: finalNoRek,
 
         // Perorangan
-        nik: currentKategori === 'Perorangan' ? (nik !== undefined ? (nik ? String(nik) : null) : existing.nik) : null,
-        tempat_lahir: currentKategori === 'Perorangan' ? (tempat_lahir !== undefined ? (tempat_lahir ? String(tempat_lahir) : null) : existing.tempat_lahir) : null,
-        tanggal_lahir: currentKategori === 'Perorangan' ? (tanggal_lahir !== undefined ? (tanggal_lahir ? String(tanggal_lahir) : null) : existing.tanggal_lahir) : null,
-        jenis_kelamin: currentKategori === 'Perorangan' ? (jenis_kelamin !== undefined ? (jenis_kelamin ? String(jenis_kelamin) : null) : existing.jenis_kelamin) : null,
-        pekerjaan: currentKategori === 'Perorangan' ? (pekerjaan !== undefined ? (pekerjaan ? String(pekerjaan) : null) : existing.pekerjaan) : null,
-        upz: upz !== undefined ? (upz ? String(upz) : null) : existing.upz,
-        alamat_kantor: currentKategori === 'Perorangan' ? (alamat_kantor !== undefined ? (alamat_kantor ? String(alamat_kantor) : null) : existing.alamat_kantor) : null,
-        handphone: currentKategori === 'Perorangan' ? (handphone ? String(handphone) : existing.handphone) : null,
+        nik: finalNik,
+        tempat_lahir: currentKategori === 'Perorangan' ? (tempat_lahir !== undefined ? cleanString(tempat_lahir) : existing.tempat_lahir) : null,
+        tanggal_lahir: currentKategori === 'Perorangan' ? (tanggal_lahir !== undefined ? cleanString(tanggal_lahir) : existing.tanggal_lahir) : null,
+        jenis_kelamin: currentKategori === 'Perorangan' ? (jenis_kelamin !== undefined ? cleanString(jenis_kelamin) : existing.jenis_kelamin) : null,
+        pekerjaan: currentKategori === 'Perorangan' ? (pekerjaan !== undefined ? cleanString(pekerjaan) : existing.pekerjaan) : null,
+        upz: upz !== undefined ? cleanString(upz) : existing.upz,
+        alamat_kantor: currentKategori === 'Perorangan' ? (alamat_kantor !== undefined ? cleanString(alamat_kantor) : existing.alamat_kantor) : null,
+        handphone: currentKategori === 'Perorangan' ? (handphone !== undefined ? cleanString(handphone) : existing.handphone) : null,
 
         // Lembaga
-        no_pengukuhan: currentKategori === 'Lembaga' ? (no_pengukuhan !== undefined ? (no_pengukuhan ? String(no_pengukuhan) : null) : existing.no_pengukuhan) : null,
-        tanggal_pengukuhan: currentKategori === 'Lembaga' ? (tanggal_pengukuhan !== undefined ? (tanggal_pengukuhan ? String(tanggal_pengukuhan) : null) : existing.tanggal_pengukuhan) : null,
-        website: currentKategori === 'Lembaga' ? (website !== undefined ? (website ? String(website) : null) : existing.website) : null,
-        jenis_lembaga: currentKategori === 'Lembaga' ? (jenis_lembaga !== undefined ? (jenis_lembaga ? String(jenis_lembaga) : null) : existing.jenis_lembaga) : null,
-        fax: currentKategori === 'Lembaga' ? (fax !== undefined ? (fax ? String(fax) : null) : existing.fax) : null,
-        cp_nama: currentKategori === 'Lembaga' ? (cp_nama !== undefined ? (cp_nama ? String(cp_nama) : null) : existing.cp_nama) : null,
-        cp_telepon: currentKategori === 'Lembaga' ? (cp_telepon !== undefined ? (cp_telepon ? String(cp_telepon) : null) : existing.cp_telepon) : null,
-        cp_email: currentKategori === 'Lembaga' ? (cp_email !== undefined ? (cp_email ? String(cp_email) : null) : existing.cp_email) : null,
+        no_pengukuhan: currentKategori === 'Lembaga' ? (no_pengukuhan !== undefined ? cleanString(no_pengukuhan) : existing.no_pengukuhan) : null,
+        tanggal_pengukuhan: currentKategori === 'Lembaga' ? (tanggal_pengukuhan !== undefined ? cleanString(tanggal_pengukuhan) : existing.tanggal_pengukuhan) : null,
+        website: currentKategori === 'Lembaga' ? (website !== undefined ? cleanString(website) : existing.website) : null,
+        jenis_lembaga: currentKategori === 'Lembaga' ? (jenis_lembaga !== undefined ? cleanString(jenis_lembaga) : existing.jenis_lembaga) : null,
+        fax: currentKategori === 'Lembaga' ? (fax !== undefined ? cleanString(fax) : existing.fax) : null,
+        cp_nama: currentKategori === 'Lembaga' ? (cp_nama !== undefined ? cleanString(cp_nama) : existing.cp_nama) : null,
+        cp_telepon: currentKategori === 'Lembaga' ? (cp_telepon !== undefined ? cleanString(cp_telepon) : existing.cp_telepon) : null,
+        cp_email: currentKategori === 'Lembaga' ? (cp_email !== undefined ? cleanString(cp_email) : existing.cp_email) : null,
       }
     });
 
