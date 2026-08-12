@@ -22,7 +22,10 @@ import {
   BookOpen,
   DollarSign,
   FileCheck,
-  Send
+  Send,
+  ChevronDown,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
@@ -506,8 +509,20 @@ export default function PenyaluranZis() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAsalFilter, setSelectedAsalFilter] = useState<'Semua' | 'Jalur Proposal' | 'Jalur Direct'>('Semua');
-  const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('Semua Pilar');
+  const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('Semua Program');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('Semua');
+  const [selectedKategoriFilter, setSelectedKategoriFilter] = useState<string>('Semua');
+  const [selectedAsnafFilter, setSelectedAsnafFilter] = useState<string>('Semua');
+  const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
+
+  // Active Advanced Filters Count
+  const activeAdvancedFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedAsalFilter !== 'Semua') count++;
+    if (selectedKategoriFilter !== 'Semua') count++;
+    if (selectedAsnafFilter !== 'Semua') count++;
+    return count;
+  }, [selectedAsalFilter, selectedKategoriFilter, selectedAsnafFilter]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -898,9 +913,9 @@ export default function PenyaluranZis() {
 
       const matchesAsal = selectedAsalFilter === 'Semua' || item.asal_data === selectedAsalFilter;
 
-      // Pilar Filter
+      // Program / Pilar Filter
       let matchesPilar = true;
-      if (selectedPilarFilter !== 'Semua Pilar') {
+      if (selectedPilarFilter !== 'Semua' && selectedPilarFilter !== 'Semua Program' && selectedPilarFilter !== 'Semua Pilar') {
         const pilarCode = item.program?.pilar_code || '';
         const pilarNameFromCode = (pilarCode === '1100' || pilarCode === '2101') ? 'Semarang Peduli' :
                                   (pilarCode === '1200' || pilarCode === '2201') ? 'Semarang Sehat' :
@@ -912,23 +927,34 @@ export default function PenyaluranZis() {
         matchesPilar = fullPilarStr.includes(selectedPilarFilter.toLowerCase());
       }
 
+      // Status Filter: Belum Dicairkan vs Sudah Dicairkan
       let matchesStatus = true;
-      if (selectedStatusFilter !== 'Semua') {
+      if (selectedStatusFilter !== 'Semua' && selectedStatusFilter !== 'Semua Status') {
         const s = (item.status || '').toString().toLowerCase();
-        if (selectedStatusFilter === 'Antrean Pencairan') {
-          matchesStatus = s.includes('pencairan') || s === 'acc' || s.includes('cair');
-        } else if (selectedStatusFilter === 'Realisasi Bantuan') {
-          matchesStatus = s.includes('realisasi');
-        } else if (selectedStatusFilter === 'Antrean SIMBA') {
-          matchesStatus = s.includes('simba') && !s.includes('selesai') && !s.includes('synced') && !s.includes('arsip');
-        } else if (selectedStatusFilter === 'Antrean Arsip') {
-          matchesStatus = (s.includes('arsip') && !s.includes('selesai')) || s === 'antrean arsip' || s === 'antrean_arsip';
-        } else if (selectedStatusFilter === 'Selesai' || selectedStatusFilter === 'Selesai & Arsip') {
-          matchesStatus = s.includes('selesai') || s.includes('synced') || (s.includes('simba') && s.includes('arsip'));
+        const isBelumCair = s.includes('pencairan') || s === 'acc' || (s.includes('cair') && !s.includes('realisasi') && !s.includes('simba') && !s.includes('arsip') && !s.includes('selesai'));
+        
+        if (selectedStatusFilter === 'Belum Dicairkan') {
+          matchesStatus = isBelumCair;
+        } else if (selectedStatusFilter === 'Sudah Dicairkan') {
+          matchesStatus = !isBelumCair;
         }
       }
 
-      return matchesSearch && matchesAsal && matchesPilar && matchesStatus;
+      // Kategori Filter (Perorangan / Lembaga)
+      let matchesKategori = true;
+      if (selectedKategoriFilter !== 'Semua' && selectedKategoriFilter !== 'Semua Kategori') {
+        const kat = (item.jenis_pengajuan || (item.nama_instansi ? 'Lembaga' : 'Perorangan')).toLowerCase();
+        matchesKategori = kat === selectedKategoriFilter.toLowerCase();
+      }
+
+      // Asnaf Filter
+      let matchesAsnaf = true;
+      if (selectedAsnafFilter !== 'Semua' && selectedAsnafFilter !== 'Semua Asnaf') {
+        const asnafItem = (item.asnaf || '').toLowerCase();
+        matchesAsnaf = asnafItem === selectedAsnafFilter.toLowerCase();
+      }
+
+      return matchesSearch && matchesAsal && matchesPilar && matchesStatus && matchesKategori && matchesAsnaf;
     }).sort((a, b) => {
       const rankA = getStatusRank(a.status);
       const rankB = getStatusRank(b.status);
@@ -941,7 +967,7 @@ export default function PenyaluranZis() {
       const timeB = new Date(b.created_at || b.tanggal_masuk || 0).getTime();
       return timeB - timeA;
     });
-  }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter]);
+  }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter, selectedKategoriFilter, selectedAsnafFilter]);
 
   // Dynamic Metrics based on active filtered data (Instant, 0ms latency, reactive to all filters)
   const metrics = useMemo(() => {
@@ -1321,72 +1347,125 @@ export default function PenyaluranZis() {
       </motion.div>
 
       {/* Primary Toolbar & Master Table Container */}
-      <div className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden flex flex-col">
-        {/* Toolbar Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden"
+      >
+        {/* Tab Switcher (Identical to Penerimaan ZIS & Input Proposal) */}
+        <div className="flex border-b border-slate-100 bg-slate-50/50">
+          <button
+            onClick={() => { setSelectedAsalFilter('Semua'); setCurrentPage(1); }}
+            className={cn(
+              "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 active:scale-95 cursor-pointer",
+              selectedAsalFilter === 'Semua'
+                ? "border-primary text-primary bg-white"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Semua Penyaluran
+            <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {data.length}
+            </span>
+          </button>
+          <button
+            onClick={() => { setSelectedAsalFilter('Jalur Proposal'); setCurrentPage(1); }}
+            className={cn(
+              "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 active:scale-95 cursor-pointer",
+              selectedAsalFilter === 'Jalur Proposal'
+                ? "border-primary text-primary bg-white"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Jalur Proposal
+            <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {data.filter(d => d.asal_data === 'Jalur Proposal').length}
+            </span>
+          </button>
+          <button
+            onClick={() => { setSelectedAsalFilter('Jalur Direct'); setCurrentPage(1); }}
+            className={cn(
+              "px-6 py-3.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 active:scale-95 cursor-pointer",
+              selectedAsalFilter === 'Jalur Direct'
+                ? "border-primary text-primary bg-white"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Jalur Direct
+            <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {data.filter(d => d.asal_data === 'Jalur Direct').length}
+            </span>
+          </button>
+        </div>
+
+        {/* Primary Toolbar */}
         <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 flex-1">
-            {/* Search Input (Meliputi Nama Yang Mengajukan, Mustahik, NIK, Agenda, Ket) */}
-            <div className="relative w-full sm:w-72">
+          {/* Left: Search & Essential Primary Filters */}
+          <div className="flex flex-wrap items-center gap-2.5 flex-1">
+            {/* Search */}
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-              <input
+              <input 
                 type="text"
                 placeholder="Cari mustahik, pengaju, agenda, NIK..."
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary/50 outline-none transition-all font-medium text-slate-800"
                 value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none font-medium text-slate-800 transition-all"
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               />
             </div>
 
-            {/* Filter Asal Data Tabs */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
-              {(['Semua', 'Jalur Proposal', 'Jalur Direct'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => { setSelectedAsalFilter(tab); setCurrentPage(1); }}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg transition-all cursor-pointer",
-                    selectedAsalFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            {/* Filter Pilar / Program Utama (Custom Styled Dropdown) */}
-            <CustomSelect
-              options={[
-                { value: 'Semua Pilar', label: 'Semua Pilar Program' },
-                { value: 'Semarang Peduli', label: 'Semarang Peduli (Kemanusiaan)' },
-                { value: 'Semarang Sehat', label: 'Semarang Sehat (Kesehatan)' },
-                { value: 'Semarang Cerdas', label: 'Semarang Cerdas (Pendidikan)' },
-                { value: 'Semarang Taqwa', label: 'Semarang Taqwa (Dakwah)' },
-                { value: 'Semarang Makmur', label: 'Semarang Makmur (Ekonomi)' }
-              ]}
-              value={selectedPilarFilter}
-              onChange={val => { setSelectedPilarFilter(val); setCurrentPage(1); }}
-              className="w-48 sm:w-56"
-            />
-
-            {/* Filter Status (Custom Styled Dropdown) */}
-            <CustomSelect
-              options={[
-                { value: 'Semua', label: 'Semua Status' },
-                { value: 'Antrean Pencairan', label: 'Antrean Pencairan' },
-                { value: 'Realisasi Bantuan', label: 'Realisasi Bantuan' },
-                { value: 'Antrean SIMBA', label: 'Antrean SIMBA' },
-                { value: 'Antrean Arsip', label: 'Antrean Arsip' },
-                { value: 'Selesai', label: 'Selesai' }
-              ]}
+            {/* Filter Status: Belum Dicairkan vs Sudah Dicairkan */}
+            <select 
+              className="text-xs bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 focus:ring-2 focus:ring-primary/20 focus:border-primary/50 outline-none cursor-pointer font-semibold text-slate-700"
               value={selectedStatusFilter}
-              onChange={val => { setSelectedStatusFilter(val); setCurrentPage(1); }}
-              className="w-44 sm:w-48"
-            />
+              onChange={(e) => { setSelectedStatusFilter(e.target.value); setCurrentPage(1); }}
+            >
+              <option value="Semua">Status: Semua</option>
+              <option value="Belum Dicairkan">Belum Dicairkan</option>
+              <option value="Sudah Dicairkan">Sudah Dicairkan</option>
+            </select>
+
+            {/* Filter Program */}
+            <select 
+              className="text-xs bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 focus:ring-2 focus:ring-primary/20 focus:border-primary/50 outline-none cursor-pointer font-semibold text-slate-700"
+              value={selectedPilarFilter}
+              onChange={(e) => { setSelectedPilarFilter(e.target.value); setCurrentPage(1); }}
+            >
+              <option value="Semua Program">Program: Semua Program</option>
+              <option value="Semarang Peduli">Semarang Peduli</option>
+              <option value="Semarang Sehat">Semarang Sehat</option>
+              <option value="Semarang Cerdas">Semarang Cerdas</option>
+              <option value="Semarang Taqwa">Semarang Taqwa</option>
+              <option value="Semarang Makmur">Semarang Makmur</option>
+            </select>
+
+            {/* Filter Lanjutan Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+              className={cn(
+                "px-3 py-2.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer",
+                isFilterExpanded || activeAdvancedFiltersCount > 0
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+              )}
+            >
+              <Filter className="size-3.5" />
+              <span>Filter Lanjutan</span>
+              {activeAdvancedFiltersCount > 0 && (
+                <span className="bg-primary text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  {activeAdvancedFiltersCount}
+                </span>
+              )}
+              <ChevronDown className={cn("size-3.5 transition-transform duration-200", isFilterExpanded && "rotate-180")} />
+            </button>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
+          {/* Right: Grouped Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Main Primary Action */}
+            <button 
               onClick={handleOpenInputModal}
               className="bg-primary hover:bg-primary/95 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-primary/20 active:scale-95 cursor-pointer"
             >
@@ -1394,17 +1473,81 @@ export default function PenyaluranZis() {
               <span>Tambah Penyaluran</span>
             </button>
 
-            <button
-              onClick={handleExportExcel}
-              className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Download className="size-3.5 text-emerald-600" />
-              <span>Export Excel</span>
-            </button>
+            {/* Utilities Buttons */}
+            <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+              <button 
+                onClick={handleExportExcel}
+                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Export Excel"
+              >
+                <Download className="size-3.5 text-emerald-600" />
+                <span className="hidden sm:inline">Export Excel</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Master Table Header Bar */}
+        {/* Collapsible Advanced Filters Drawer */}
+        <AnimatePresence>
+          {isFilterExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden bg-slate-50/80 border-b border-slate-200/80"
+            >
+              <div className="p-4 flex flex-wrap items-center gap-3 text-xs">
+                <span className="font-bold text-slate-400 uppercase text-[10px] tracking-wider mr-1">Filter Tambahan:</span>
+
+                {/* Kategori Filter */}
+                <select 
+                  className="bg-white border border-slate-200 rounded-xl py-2 px-3 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-semibold text-slate-700 shadow-xs"
+                  value={selectedKategoriFilter}
+                  onChange={(e) => { setSelectedKategoriFilter(e.target.value); setCurrentPage(1); }}
+                >
+                  <option value="Semua">Kategori: Semua</option>
+                  <option value="Perorangan">Perorangan</option>
+                  <option value="Lembaga">Lembaga / Organisasi</option>
+                </select>
+
+                {/* Golongan Asnaf */}
+                <select 
+                  className="bg-white border border-slate-200 rounded-xl py-2 px-3 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-semibold text-slate-700 shadow-xs"
+                  value={selectedAsnafFilter}
+                  onChange={(e) => { setSelectedAsnafFilter(e.target.value); setCurrentPage(1); }}
+                >
+                  <option value="Semua">Asnaf: Semua</option>
+                  {['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil', 'IST', 'ISTT'].map(a => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+
+                {/* Reset Filters Button */}
+                {(activeAdvancedFiltersCount > 0 || selectedStatusFilter !== 'Semua' || selectedPilarFilter !== 'Semua Program' || searchTerm) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSelectedAsalFilter('Semua');
+                      setSelectedPilarFilter('Semua Program');
+                      setSelectedStatusFilter('Semua');
+                      setSelectedKategoriFilter('Semua');
+                      setSelectedAsnafFilter('Semua');
+                      setCurrentPage(1);
+                    }}
+                    className="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer bg-white shadow-xs ml-auto"
+                  >
+                    <RotateCcw className="size-3.5" />
+                    <span>Reset Filter</span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Master Table Header Sub-bar */}
         <div className="px-4 py-3 bg-slate-50/60 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
             Master Data Penyaluran ZIS
@@ -1596,7 +1739,7 @@ export default function PenyaluranZis() {
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Modal Input Penyaluran ZIS */}
       <AnimatePresence>
