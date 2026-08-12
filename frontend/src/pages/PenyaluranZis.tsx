@@ -667,15 +667,6 @@ export default function PenyaluranZis() {
     };
   };
 
-  // Metrics
-  const metrics = useMemo(() => {
-    const totalPenyaluran = data.reduce((acc, curr) => acc + (Number(curr.nominal) || 0), 0);
-    const totalProposal = data.filter(d => d.asal_data === 'Jalur Proposal').length;
-    const totalDirect = data.filter(d => d.asal_data === 'Jalur Direct').length;
-
-    return { totalPenyaluran, totalProposal, totalDirect };
-  }, [data]);
-
   // Filtered data
   const filteredData = useMemo(() => {
     return data.filter(item => {
@@ -745,6 +736,37 @@ export default function PenyaluranZis() {
       return timeB - timeA;
     });
   }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter]);
+
+  // Dynamic Metrics based on active filtered data (Instant, 0ms latency, reactive to all filters)
+  const metrics = useMemo(() => {
+    let totalPenyaluran = 0;
+    let totalProposal = 0;
+    let totalDirect = 0;
+    let totalProposalNominal = 0;
+    let totalDirectNominal = 0;
+
+    filteredData.forEach(d => {
+      const nom = Number(d.nominal) || 0;
+      totalPenyaluran += nom;
+
+      if (d.asal_data === 'Jalur Proposal') {
+        totalProposal += 1;
+        totalProposalNominal += nom;
+      } else {
+        totalDirect += 1;
+        totalDirectNominal += nom;
+      }
+    });
+
+    return { 
+      totalPenyaluran, 
+      totalProposal, 
+      totalDirect, 
+      totalProposalNominal,
+      totalDirectNominal,
+      totalTransactions: filteredData.length
+    };
+  }, [filteredData]);
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
@@ -986,21 +1008,21 @@ export default function PenyaluranZis() {
         <SummaryCard
           title="Total Penyaluran ZIS"
           value={formatCurrency(metrics.totalPenyaluran)}
-          subtext={`${filteredData.length} Transaksi Penyaluran`}
+          subtext={`${metrics.totalTransactions} Transaksi Terfilter`}
           icon={<HandHeart className="size-5 text-primary" />}
           colorClass="bg-primary/10 text-primary"
         />
         <SummaryCard
           title="Penyaluran Proposal"
-          value={`${metrics.totalProposal} Proposal`}
-          subtext="Hasil ACC & Disposisi Pimpinan"
+          value={formatCurrency(metrics.totalProposalNominal)}
+          subtext={`${metrics.totalProposal} Transaksi Proposal`}
           icon={<Layers className="size-5 text-blue-600" />}
           colorClass="bg-blue-50 text-blue-600"
         />
         <SummaryCard
           title="Penyaluran Direct"
-          value={`${metrics.totalDirect} Transaksi`}
-          subtext="Penyaluran Langsung Pencairan"
+          value={formatCurrency(metrics.totalDirectNominal)}
+          subtext={`${metrics.totalDirect} Transaksi Direct`}
           icon={<Sparkles className="size-5 text-purple-600" />}
           colorClass="bg-purple-50 text-purple-600"
         />
