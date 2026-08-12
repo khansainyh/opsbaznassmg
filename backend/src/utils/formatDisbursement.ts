@@ -99,25 +99,34 @@ export async function resolveDisbursementCoa(proposal: any, account: any, db: an
     }
   }
 
-  // 2. Query rules matching fundSource
-  const rules = await db.coaMappingRule.findMany({
-    where: { sumber_dana_tag: fundSource }
-  });
+  // 2. Query all rules from CoaMappingRule
+  const rules = await db.coaMappingRule.findMany();
 
-  const matchingTipeKasRules = rules.filter((r: any) => r.tipe_kas === account.tipe_kas || r.tipe_kas === 'ALL' || !r.tipe_kas);
+  const matchingTipeKasRules = rules.filter((r: any) => !r.tipe_kas || r.tipe_kas === account?.tipe_kas || r.tipe_kas === 'ALL');
   const targetRules = matchingTipeKasRules.length > 0 ? matchingTipeKasRules : rules;
 
   let mappingRule = null;
-  const rawProg = String(proposal.jenis_permohonan || proposal.rkat_activity_id || '').trim().toLowerCase();
-  const progCodeOnly = rawProg.split(' ')[0].trim();
   const targetAsnaf = String(proposal.asnaf || '').trim().toLowerCase();
 
   const matchProg = (ruleProg: string) => {
-    const cleanRuleProg = ruleProg.split(' ')[0].trim().toLowerCase();
-    if (!cleanRuleProg || !progCodeOnly) return false;
-    return progCodeOnly === cleanRuleProg || 
-           progCodeOnly.startsWith(cleanRuleProg) || 
-           cleanRuleProg.startsWith(progCodeOnly);
+    if (!ruleProg) return false;
+    const cleanRule = ruleProg.trim().toLowerCase();
+    const cleanRuleCode = cleanRule.split(' ')[0].split('-')[0].trim();
+
+    const targets = [
+      proposal.jenis_permohonan,
+      proposal.rkat_activity_id,
+      proposal.program?.name,
+      proposal.program?.code,
+      proposal.program_id
+    ].filter(Boolean).map(s => String(s).trim().toLowerCase());
+
+    for (const t of targets) {
+      const tCode = t.split(' ')[0].split('-')[0].trim();
+      if (t === cleanRule || t.includes(cleanRule) || cleanRule.includes(t)) return true;
+      if (cleanRuleCode && (tCode === cleanRuleCode || tCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(tCode))) return true;
+    }
+    return false;
   };
 
   const matchAsnaf = (ruleAsnaf: string | null) => {
@@ -162,7 +171,7 @@ export async function resolveDisbursementCoa(proposal: any, account: any, db: an
     }
   }
 
-  // Emergency Fallback
+  // Emergency Fallback: 519999999 if no rule is matched
   if (!debitCoaCode) {
     await db.chartOfAccounts.upsert({
       where: { coa_code: '519999999' } as any,

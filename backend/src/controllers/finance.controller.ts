@@ -338,10 +338,15 @@ export const updateMappingRule = async (req: Request, res: Response) => {
 
 export const deleteMappingRule = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    await prisma.coaMappingRule.delete({ where: { rule_id: id } as any });
-    res.status(204).send();
+    const id = req.params.id || (req.params as any).rule_id;
+    if (id) {
+      await prisma.coaMappingRule.deleteMany({
+        where: { rule_id: String(id) }
+      });
+    }
+    res.status(200).json({ status: 'success', message: 'Aturan berhasil dihapus' });
   } catch (error) {
+    console.error('[DELETE MAPPING RULE ERROR]', error);
     res.status(500).json({ error: String(error) });
   }
 };
