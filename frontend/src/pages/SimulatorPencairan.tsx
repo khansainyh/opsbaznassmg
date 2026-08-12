@@ -83,9 +83,12 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
     );
   }, [accounts]);
 
-  // Filter only proposals in 'Pencairan Dana' or 'Antrean Bantuan' status
+  // Filter only proposals in 'Pencairan Dana', 'Antrean Bantuan', 'ACC', 'Antrean Pencairan' status
   const validProposals = useMemo(() => {
-    return data.filter(p => p.status === 'Pencairan Dana' || p.status === 'Antrean Bantuan');
+    return data.filter(p => {
+      const s = (p.status || '').toLowerCase().replace(/_/g, ' ').trim();
+      return s === 'pencairan dana' || s === 'antrean bantuan' || s === 'antrean pencairan' || s === 'acc';
+    });
   }, [data]);
 
   const uniquePrograms = useMemo(() => {
@@ -137,15 +140,18 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
       .catch(console.error);
   }, [selectedDetailProposal, programTipeMap]);
 
-  // Helper to map proposal category to Tag
+  // Helper to map proposal category to Tag (ISTT -> INFAK_TIDAK_TERIKAT, IST -> INFAK_TERIKAT, else -> ZAKAT)
   const getProposalTag = (proposal: ProposalMemo) => {
-    const rawTag = proposal.rekomendasi_kabag || proposal.tipeBantuan || 'Zakat';
-    const tagUpper = String(rawTag).toUpperCase();
-    if (tagUpper.includes('ISTT') || tagUpper.includes('TIDAK TERIKAT') || tagUpper.includes('TIDAK_TERIKAT') || tagUpper.includes('INFAK_TIDAK_TERIKAT')) {
-      return 'INFAK_TIDAK_TERIKAT';
-    }
-    if (tagUpper.includes('IST') || tagUpper.includes('TERIKAT') || tagUpper.includes('INFAK_TERIKAT')) {
-      return 'INFAK_TERIKAT';
+    const sources = [proposal.asnaf, proposal.rekomendasi_kabag, proposal.tipeBantuan];
+    for (const src of sources) {
+      if (!src) continue;
+      const tagUpper = String(src).toUpperCase().trim();
+      if (tagUpper === 'ISTT' || tagUpper.includes('TIDAK TERIKAT') || tagUpper.includes('TIDAK_TERIKAT') || tagUpper.includes('INFAK_TIDAK_TERIKAT')) {
+        return 'INFAK_TIDAK_TERIKAT';
+      }
+      if (tagUpper === 'IST' || tagUpper.includes('INFAK_TERIKAT') || (tagUpper.includes('TERIKAT') && !tagUpper.includes('TIDAK'))) {
+        return 'INFAK_TERIKAT';
+      }
     }
     return 'ZAKAT';
   };

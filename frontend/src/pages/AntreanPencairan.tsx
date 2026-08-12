@@ -187,10 +187,11 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
       });
   }, [selectedProposal]);
 
-  // Filter only proposals with 'Pencairan Dana' or 'Antrean Bantuan' status
+  // Filter only proposals with 'Pencairan Dana', 'Antrean Bantuan', 'ACC', 'Antrean Pencairan' status
   const filteredData = useMemo(() => {
     const res = data.filter(item => {
-      const isPencairan = item.status === 'Pencairan Dana' || item.status === 'Antrean Bantuan';
+      const s = (item.status || '').toLowerCase().replace(/_/g, ' ').trim();
+      const isPencairan = s === 'pencairan dana' || s === 'antrean bantuan' || s === 'antrean pencairan' || s === 'acc';
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -237,7 +238,10 @@ export default function AntreanPencairan({ data }: AntreanPencairanProps) {
   }, [data, searchTerm, selectedPilarFilter, selectedProgramFilter]);
 
   const stats = useMemo(() => {
-    const pencairanData = data.filter(d => d.status === 'Pencairan Dana' || d.status === 'Antrean Bantuan');
+    const pencairanData = data.filter(d => {
+      const s = (d.status || '').toLowerCase().replace(/_/g, ' ').trim();
+      return s === 'pencairan dana' || s === 'antrean bantuan' || s === 'antrean pencairan' || s === 'acc';
+    });
     const totalNominal = pencairanData.reduce((acc, curr) => acc + (curr.nominal || 0), 0);
     
     // Accumulate cash balance for Zakat, ISTT, IST

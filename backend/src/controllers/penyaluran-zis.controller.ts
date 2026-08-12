@@ -126,6 +126,13 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
     }
 
     const parsedNominal = Math.round(Number(nominal));
+    const asnafUpper = String(asnaf || '').toUpperCase().trim();
+    let computedDana = 'Zakat';
+    if (asnafUpper === 'ISTT' || asnafUpper.includes('TIDAK TERIKAT')) {
+      computedDana = 'Infak Tidak Terikat';
+    } else if (asnafUpper === 'IST' || asnafUpper.includes('TERIKAT')) {
+      computedDana = 'Infak Terikat';
+    }
 
     // Create Proposal Record directly in 'ACC' / 'Pencairan_Dana' status
     const newProposal = await prisma.proposal.create({
@@ -138,10 +145,11 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
         alamat: String(alamat || 'Kota Semarang'),
         no_telpon: String(no_telpon || '080000000000'),
         jenis_permohonan: jenis_permohonan ? String(jenis_permohonan) : null,
-        rkat_activity_id: req.body.coa_code ? String(req.body.coa_code) : (rkat_activity_id ? String(rkat_activity_id) : null),
+        rkat_activity_id: rkat_activity_id ? String(rkat_activity_id) : null,
         nominal: parsedNominal,
         tipe_bantuan: String(tipe_bantuan || 'Konsumtif'),
         asnaf: String(asnaf || 'Miskin'),
+        rekomendasi_kabag: computedDana,
         keterangan: `[DIRECT PENYALURAN] ${keterangan}`,
         jenis_pengajuan: kategori === 'Lembaga' ? 'Lembaga' : 'Perorangan',
         yang_mengajukan: String(yang_mengajukan || 'Direct Penyaluran'),
@@ -168,7 +176,7 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
         keterangan: `[DIRECT PENYALURAN] ${nama_pemohon} - ${keterangan}`,
         nominal: new Prisma.Decimal(parsedNominal),
         status: StatusPengajuan.CAIR,
-        sumber_dana: 'Zakat'
+        sumber_dana: computedDana
       }
     });
 
@@ -213,6 +221,18 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
       return;
     }
 
+    let computedDana = existing.rekomendasi_kabag;
+    if (asnaf !== undefined) {
+      const asnafUpper = String(asnaf).toUpperCase().trim();
+      if (asnafUpper === 'ISTT' || asnafUpper.includes('TIDAK TERIKAT')) {
+        computedDana = 'Infak Tidak Terikat';
+      } else if (asnafUpper === 'IST' || asnafUpper.includes('TERIKAT')) {
+        computedDana = 'Infak Terikat';
+      } else {
+        computedDana = 'Zakat';
+      }
+    }
+
     const updated = await prisma.proposal.update({
       where: { id: targetId },
       data: {
@@ -222,8 +242,8 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
         ...(alamat !== undefined && { alamat: String(alamat) }),
         ...(no_telpon !== undefined && { no_telpon: String(no_telpon) }),
         ...(jenis_permohonan !== undefined && { jenis_permohonan: jenis_permohonan ? String(jenis_permohonan) : null }),
-        ...((req.body.coa_code || rkat_activity_id) !== undefined && { rkat_activity_id: req.body.coa_code ? String(req.body.coa_code) : (rkat_activity_id ? String(rkat_activity_id) : null) }),
-        ...(asnaf !== undefined && { asnaf: String(asnaf) }),
+        ...(rkat_activity_id !== undefined && { rkat_activity_id: rkat_activity_id ? String(rkat_activity_id) : null }),
+        ...(asnaf !== undefined && { asnaf: String(asnaf), rekomendasi_kabag: computedDana }),
         ...(nominal !== undefined && { nominal: Math.round(Number(nominal)) }),
         ...(keterangan !== undefined && { keterangan: String(keterangan) }),
         ...(tipe_bantuan !== undefined && { tipe_bantuan: String(tipe_bantuan) }),

@@ -369,30 +369,33 @@ export const checkAvailability = async (req: Request, res: Response) => {
     }
 
     const rawProgramCode = proposal.jenis_permohonan || '';
-    let activeProgramCode = rawProgramCode;
-    if (rawProgramCode.includes('.')) {
-      activeProgramCode = rawProgramCode.split('.')[0];
-    }
     const proposalAsnaf = proposal.asnaf || 'Miskin';
     const amount = Number(proposal.nominal || 0);
 
     let targetProgram = proposal.program;
-    if (!targetProgram || targetProgram.code !== activeProgramCode) {
-      targetProgram = await prisma.program.findUnique({
-        where: { code: activeProgramCode }
+    if (!targetProgram) {
+      targetProgram = await prisma.program.findFirst({
+        where: {
+          OR: [
+            { code: rawProgramCode },
+            { name: rawProgramCode },
+            { name: { contains: rawProgramCode } }
+          ]
+        }
       });
     }
 
     // Robust variation-friendly tag logic
     let tag = 'ZAKAT';
-    const rawTag = proposal.tipe_bantuan || proposal.rekomendasi_kabag || 'Zakat';
-    if (rawTag === 'IST' || rawTag === 'Infak Terikat' || rawTag === 'INFAK_TERIKAT' || rawTag === 'Infak/Sedekah Terikat') {
+    const rawTag = proposal.asnaf || proposal.rekomendasi_kabag || proposal.tipe_bantuan || 'Zakat';
+    const rawTagUpper = String(rawTag).toUpperCase().trim();
+    if (rawTagUpper === 'IST' || rawTagUpper.includes('INFAK_TERIKAT') || (rawTagUpper.includes('TERIKAT') && !rawTagUpper.includes('TIDAK'))) {
       tag = 'INFAK_TERIKAT';
-    } else if (rawTag === 'ISTT' || rawTag === 'Infak Tidak Terikat' || rawTag === 'INFAK_TIDAK_TERIKAT' || rawTag === 'Infak/Sedekah Tidak Terikat') {
+    } else if (rawTagUpper === 'ISTT' || rawTagUpper.includes('TIDAK TERIKAT') || rawTagUpper.includes('INFAK_TIDAK_TERIKAT')) {
       tag = 'INFAK_TIDAK_TERIKAT';
-    } else if (rawTag === 'APBD') {
+    } else if (rawTagUpper.includes('APBD')) {
       tag = 'APBD';
-    } else if (rawTag === 'AMIL') {
+    } else if (rawTagUpper.includes('AMIL')) {
       tag = 'AMIL';
     } else {
       tag = 'ZAKAT';
@@ -448,23 +451,20 @@ export const checkAvailability = async (req: Request, res: Response) => {
             activitiesStatus.push({
               id: act.id,
               name: act.name,
-              keterangan: act.keterangan || '',
               asnaf: act.asnaf,
-              nominal: Number(act.nominal || 0),
-              mustahik: Number(act.mustahik || 0),
-              frekuensi: Number(act.frekuensi || 1),
               total_pagu: total,
-              terpakai_saat_ini: terpakai,
+              terpakai: terpakai,
               sisa_pagu: sisa,
-              status: sisa >= amount ? 'CUKUP' : 'OVER_BUDGET'
+              status: amount <= sisa ? 'AVAILABLE' : 'OVER_BUDGET'
             });
           }
 
-          // 1. Specific matching asnaf activity
+          // 1. Check exact match by rkat_activity_id OR asnaf
           const matchedAct = details.find(
-            d => d.id === proposal.rkat_activity_id ||
+            d => String(d.id) === String(proposal.rkat_activity_id) ||
+              String(d.no) === String(proposal.rkat_activity_id) ||
               (d.asnaf && d.asnaf.toLowerCase() === proposalAsnaf.toLowerCase())
-          );
+          ) || details[0];
 
           if (matchedAct) {
             const total = Number(matchedAct.mustahik || 0) * Number(matchedAct.frekuensi || 1) * Number(matchedAct.nominal || 0);
@@ -477,7 +477,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
               _sum: { debit: true },
               where: {
                 coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: matchedAct.id || activeProgramCode || '' }
+                realisasi: { rkat_id: matchedAct.id || targetProgram?.code || rawProgramCode || '' }
               }
             });
             const realisasiSpesifik = Number(journalSumSpesifik._sum.debit || 0);
@@ -489,7 +489,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
               _sum: { debit: true },
               where: {
                 coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: activeProgramCode || '' }
+                realisasi: { rkat_id: targetProgram?.code || rawProgramCode || '' }
               }
             });
             const realisasiSpesifik = Number(journalSumSpesifik._sum.debit || 0);
@@ -510,7 +510,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
               _sum: { debit: true },
               where: {
                 coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: altAct.id || activeProgramCode || '' }
+                realisasi: { rkat_id: altAct.id || targetProgram?.code || rawProgramCode || '' }
               }
             });
             const realisasiAlt = Number(journalSumAlt._sum.debit || 0);
@@ -522,7 +522,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
               _sum: { debit: true },
               where: {
                 coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: activeProgramCode || '' }
+                realisasi: { rkat_id: targetProgram?.code || rawProgramCode || '' }
               }
             });
             const realisasiAlt = Number(journalSumAlt._sum.debit || 0);
@@ -607,14 +607,15 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
       totalAmount += amount;
 
       let tag = 'ZAKAT';
-      const rawTag = proposal.tipe_bantuan || proposal.rekomendasi_kabag || 'Zakat';
-      if (rawTag === 'IST' || rawTag === 'Infak Terikat' || rawTag === 'INFAK_TERIKAT' || rawTag === 'Infak/Sedekah Terikat') {
+      const rawTag = proposal.asnaf || proposal.rekomendasi_kabag || proposal.tipe_bantuan || 'Zakat';
+      const rawTagUpper = String(rawTag).toUpperCase().trim();
+      if (rawTagUpper === 'IST' || rawTagUpper.includes('INFAK_TERIKAT') || (rawTagUpper.includes('TERIKAT') && !rawTagUpper.includes('TIDAK'))) {
         tag = 'INFAK_TERIKAT';
-      } else if (rawTag === 'ISTT' || rawTag === 'Infak Tidak Terikat' || rawTag === 'INFAK_TIDAK_TERIKAT' || rawTag === 'Infak/Sedekah Tidak Terikat') {
+      } else if (rawTagUpper === 'ISTT' || rawTagUpper.includes('TIDAK TERIKAT') || rawTagUpper.includes('INFAK_TIDAK_TERIKAT')) {
         tag = 'INFAK_TIDAK_TERIKAT';
-      } else if (rawTag === 'APBD') {
+      } else if (rawTagUpper.includes('APBD')) {
         tag = 'APBD';
-      } else if (rawTag === 'AMIL') {
+      } else if (rawTagUpper.includes('AMIL')) {
         tag = 'AMIL';
       } else {
         tag = 'ZAKAT';
@@ -623,15 +624,16 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
       detectedTag = tag;
 
       const rawProgramCode = proposal.jenis_permohonan || '';
-      let activeProgramCode = rawProgramCode;
-      if (rawProgramCode.includes('.')) {
-        activeProgramCode = rawProgramCode.split('.')[0];
-      }
-
       let targetProgram = proposal.program;
-      if (!targetProgram || targetProgram.code !== activeProgramCode) {
-        targetProgram = await prisma.program.findUnique({
-          where: { code: activeProgramCode }
+      if (!targetProgram) {
+        targetProgram = await prisma.program.findFirst({
+          where: {
+            OR: [
+              { code: rawProgramCode },
+              { name: rawProgramCode },
+              { name: { contains: rawProgramCode } }
+            ]
+          }
         });
       }
 
@@ -642,11 +644,12 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
             ? JSON.parse(rkatDetailsStr)
             : rkatDetailsStr;
 
-          if (Array.isArray(details)) {
+          if (Array.isArray(details) && details.length > 0) {
             const matchedAct = details.find(
-              d => d.id === proposal.rkat_activity_id ||
+              d => String(d.id) === String(proposal.rkat_activity_id) ||
+                String(d.no) === String(proposal.rkat_activity_id) ||
                 (d.asnaf && d.asnaf.toLowerCase() === (proposal.asnaf || 'miskin').toLowerCase())
-            );
+            ) || details[0];
 
             if (matchedAct) {
               const actId = matchedAct.id;

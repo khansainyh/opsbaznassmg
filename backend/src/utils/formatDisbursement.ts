@@ -180,49 +180,14 @@ export async function resolveDisbursementCoa(proposal: any, account: any, db: an
     mappingRule = targetRules.find((r: any) => matchProg(r.program_code) && matchAsnaf(r.asnaf_id));
   }
 
-  // Match C: Any Program AND Exact Asnaf
-  if (!mappingRule && targetAsnaf) {
-    mappingRule = targetRules.find((r: any) => matchAsnaf(r.asnaf_id));
-  }
-
-  // Match D: Fallback to any rule for this fundSource
-  if (!mappingRule && targetRules.length > 0) {
-    mappingRule = targetRules[0];
-  }
-
   let debitCoaCode = null;
 
-  // Primary: CoaMappingRule
+  // Primary: Debit COA from Matched CoaMappingRule
   if (mappingRule && mappingRule.debit_coa_code) {
     debitCoaCode = mappingRule.debit_coa_code;
   }
 
-  // Secondary: Check if proposal.rkat_activity_id is an actual 5xxxx COA THAT MATCHES fundSource!
-  if (!debitCoaCode && proposal.rkat_activity_id && proposal.rkat_activity_id !== '519999999' && !proposal.rkat_activity_id.startsWith('asnaf-')) {
-    const isCoaAllowed = (coa: string) => {
-      if (fundSource === 'INFAK_TIDAK_TERIKAT' || fundSource === 'INFAK_TERIKAT') {
-        return coa.startsWith('52');
-      } else if (fundSource === 'ZAKAT') {
-        return coa.startsWith('51');
-      } else if (fundSource === 'AMIL') {
-        return coa.startsWith('53');
-      } else if (fundSource === 'APBD') {
-        return coa.startsWith('54');
-      }
-      return true;
-    };
-
-    if (isCoaAllowed(proposal.rkat_activity_id)) {
-      const foundCoa = await db.chartOfAccounts.findUnique({
-        where: { coa_code: proposal.rkat_activity_id }
-      });
-      if (foundCoa && foundCoa.coa_code.startsWith('5')) {
-        debitCoaCode = foundCoa.coa_code;
-      }
-    }
-  }
-
-  // Emergency Fallback: 519999999 if no rule is matched
+  // Emergency Fallback: 519999999 if no mapping rule is configured
   if (!debitCoaCode) {
     await db.chartOfAccounts.upsert({
       where: { coa_code: '519999999' } as any,

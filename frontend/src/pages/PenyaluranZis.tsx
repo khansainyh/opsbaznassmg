@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   ChevronRight, 
   Search, 
@@ -278,6 +278,7 @@ export default function PenyaluranZis() {
   const [pilars, setPilars] = useState<any[]>([]);
   const [rkatList, setRkatList] = useState<any[]>([]);
   const [coaList, setCoaList] = useState<any[]>([]);
+  const [mappingRules, setMappingRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -323,17 +324,19 @@ export default function PenyaluranZis() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [penyaluranRes, pilarsRes, rkatRes, coaRes] = await Promise.all([
+      const [penyaluranRes, pilarsRes, rkatRes, coaRes, mappingRes] = await Promise.all([
         axios.get('/api/penyaluran-zis').catch(() => ({ data: { data: [] } })),
         axios.get('/api/pilars').catch(() => ({ data: [] })),
         axios.get('/api/rkat-operasional').catch(() => ({ data: [] })),
-        axios.get('/api/finance/coa').catch(() => ({ data: [] }))
+        axios.get('/api/finance/coa').catch(() => ({ data: [] })),
+        axios.get('/api/finance/mapping-rules').catch(() => ({ data: [] }))
       ]);
 
       setData(penyaluranRes.data?.data || []);
       setPilars(Array.isArray(pilarsRes.data) ? pilarsRes.data : []);
       setRkatList(Array.isArray(rkatRes.data) ? rkatRes.data : []);
       setCoaList(Array.isArray(coaRes.data) ? coaRes.data : []);
+      setMappingRules(Array.isArray(mappingRes.data) ? mappingRes.data : []);
     } catch (e) {
       console.error('Error loading Penyaluran ZIS:', e);
     } finally {
@@ -471,22 +474,71 @@ export default function PenyaluranZis() {
     }));
   }, [penyaluranCoaOptions]);
 
+  // Resolve COA based on CoaMappingRule from Pengaturan Keuangan
+  const resolveMappingCoa = useCallback((programVal: string, asnafVal: string) => {
+    if (!programVal) return '519999999';
+    const targetProg = String(programVal).trim().toLowerCase();
+    const targetProgCode = targetProg.split(' ')[0].split('-')[0].trim();
+    const targetAsnaf = String(asnafVal || '').trim().toLowerCase();
+
+    // Determine fund source
+    let fundSource = 'ZAKAT';
+    if (targetAsnaf === 'istt' || targetAsnaf.includes('tidak terikat')) fundSource = 'INFAK_TIDAK_TERIKAT';
+    else if (targetAsnaf === 'ist' || targetAsnaf.includes('terikat')) fundSource = 'INFAK_TERIKAT';
+
+    const matchProg = (ruleProg: string) => {
+      if (!ruleProg) return false;
+      const cleanRule = ruleProg.trim().toLowerCase();
+      const cleanRuleCode = cleanRule.split(' ')[0].split('-')[0].trim();
+      if (cleanRule === targetProg || targetProg.includes(cleanRule) || cleanRule.includes(targetProg)) return true;
+      if (cleanRuleCode && targetProgCode && (targetProgCode === cleanRuleCode || targetProgCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(targetProgCode))) return true;
+      return false;
+    };
+
+    const matchAsnaf = (ruleAsnaf: string | null) => {
+      if (!ruleAsnaf || ruleAsnaf.trim() === '' || ruleAsnaf.trim().toLowerCase() === 'global') return true;
+      return ruleAsnaf.trim().toLowerCase() === targetAsnaf;
+    };
+
+    // Filter rules by fundSource
+    const fundRules = mappingRules.filter((r: any) => {
+      if (!r.sumber_dana_tag || r.sumber_dana_tag === 'ALL') return true;
+      return r.sumber_dana_tag === fundSource;
+    });
+
+    // 1. Match Exact Program AND Exact Asnaf
+    let matched = fundRules.find((r: any) => matchProg(r.program_code) && r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf);
+
+    // 2. Match Exact Program AND Global/Empty Asnaf
+    if (!matched) {
+      matched = fundRules.find((r: any) => matchProg(r.program_code) && matchAsnaf(r.asnaf_id));
+    }
+
+    if (matched && matched.debit_coa_code) {
+      return matched.debit_coa_code;
+    }
+
+    // Secondary: Check program.coa_code from programOptions
+    const prog = programOptions.find(p => p.code === programVal || p.name === programVal);
+    if (prog && prog.coa_code) {
+      return prog.coa_code;
+    }
+
+    return '519999999';
+  }, [mappingRules, programOptions]);
+
   // Auto-cascade COA Code when Program changes (Matching Proposal COA Mapping)
   const handleProgramSelect = (programCodeVal: string) => {
     setFormJenisPermohonan(programCodeVal);
     setFormRkatId('');
+    const mapped = resolveMappingCoa(programCodeVal, formAsnaf);
+    setFormCoaCode(mapped);
+  };
 
-    // Locate program object to auto-select mapping COA
-    const prog = programOptions.find(p => p.code === programCodeVal || p.name === programCodeVal);
-    if (prog && prog.coa_code) {
-      setFormCoaCode(prog.coa_code);
-    } else {
-      // Fallback matching in coaList
-      const matchCoa = coaList.find((c: any) => String(c.code).startsWith('5') && c.name?.toLowerCase().includes(programCodeVal.toLowerCase()));
-      if (matchCoa) {
-        setFormCoaCode(matchCoa.code || matchCoa.coa_code);
-      }
-    }
+  const handleAsnafSelect = (asnafVal: string) => {
+    setFormAsnaf(asnafVal);
+    const mapped = resolveMappingCoa(formJenisPermohonan, asnafVal);
+    setFormCoaCode(mapped);
   };
 
   // Formatters
@@ -540,15 +592,25 @@ export default function PenyaluranZis() {
     return { rkatNo: null, rkatName: null, rkatKet: null };
   };
 
-  // Helper to find COA Accounting Code (e.g. 519999999 or 5.1.01.01) for a proposal
+  // Helper to find COA Accounting Code (Auto-mapping from Mapping COA Rules) for a proposal
   const getCoaInfo = (item: any) => {
-    const targetCode = item.coa_code || item.program?.coa_code || '519999999';
+    const progVal = item.jenis_permohonan || item.program?.code || item.program?.name || '';
+    const asnafVal = item.asnaf || 'Miskin';
+    const targetCode = item.coa_code || resolveMappingCoa(progVal, asnafVal);
+
     const foundCoa = coaList.find((c: any) => (c.code || c.coa_code) === targetCode || c.id === targetCode);
 
     if (foundCoa) {
       return {
         coaCode: foundCoa.code || foundCoa.coa_code || targetCode,
         coaName: foundCoa.name || foundCoa.nama_akun || foundCoa.nama || 'Beban Penyaluran ZIS'
+      };
+    }
+
+    if (targetCode === '519999999') {
+      return {
+        coaCode: '519999999',
+        coaName: 'Penyaluran Lain-lain (Emergency Fallback)'
       };
     }
 
@@ -710,11 +772,13 @@ export default function PenyaluranZis() {
     setFormTelepon(item.no_telpon || '');
     setFormYangMengajukan(item.yang_mengajukan || item.yangMengajukan || '');
     setFormHasMemo(item.has_memo || item.hasMemo || Boolean(item.memo_source));
-    setFormMemoSource(item.memo_source || item.memoSource || 'Memo Ketua BAZNAS');
-    setFormJenisPermohonan(item.jenis_permohonan || item.program?.code || '');
-    setFormAsnaf(item.asnaf || 'Miskin');
+    const progCode = item.jenis_permohonan || item.program?.code || '';
+    const asnafVal = item.asnaf || 'Miskin';
+    setFormJenisPermohonan(progCode);
+    setFormAsnaf(asnafVal);
     setFormRkatId(item.rkat_activity_id || '');
-    setFormCoaCode(item.coa_code || '519999999');
+    const mappedCoa = item.coa_code || resolveMappingCoa(progCode, asnafVal);
+    setFormCoaCode(mappedCoa);
     setFormNominal(String(item.nominal || ''));
     setFormKeterangan(item.keterangan || '');
     setNikFoundStatus(null);
@@ -750,7 +814,7 @@ export default function PenyaluranZis() {
         has_memo: formHasMemo,
         memo_source: formHasMemo ? formMemoSource : 'DIRECT_PENYALURAN',
         jenis_permohonan: formJenisPermohonan || null,
-        rkat_activity_id: formCoaCode || formRkatId || null,
+        rkat_activity_id: formRkatId || null,
         coa_code: formCoaCode || null,
         asnaf: formAsnaf,
         nominal: parsedNominal,
@@ -792,7 +856,7 @@ export default function PenyaluranZis() {
         has_memo: formHasMemo,
         memo_source: formHasMemo ? formMemoSource : null,
         jenis_permohonan: formJenisPermohonan || null,
-        rkat_activity_id: formCoaCode || formRkatId || null,
+        rkat_activity_id: formRkatId || null,
         coa_code: formCoaCode || null,
         asnaf: formAsnaf,
         nominal: parsedNominal,
@@ -1403,7 +1467,7 @@ export default function PenyaluranZis() {
                       <CustomSelect
                         options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil', 'IST', 'ISTT'].map(a => ({ value: a, label: a }))}
                         value={formAsnaf}
-                        onChange={val => setFormAsnaf(val)}
+                        onChange={val => handleAsnafSelect(val)}
                         placeholder="-- Pilih Golongan Asnaf --"
                       />
                     </div>
@@ -1710,7 +1774,7 @@ export default function PenyaluranZis() {
                       <CustomSelect
                         options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil', 'IST', 'ISTT'].map(a => ({ value: a, label: a }))}
                         value={formAsnaf}
-                        onChange={val => setFormAsnaf(val)}
+                        onChange={val => handleAsnafSelect(val)}
                         placeholder="-- Pilih Golongan Asnaf --"
                       />
                     </div>
