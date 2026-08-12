@@ -3,6 +3,7 @@ import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
+import { formatDisbursementKeterangan } from '../utils/formatDisbursement';
 
 // ==========================================
 // 1. Chart of Accounts (COA) Controllers
@@ -872,8 +873,7 @@ export const previewDisbursement = async (req: Request, res: Response) => {
 
       const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
 
-      const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
-      const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${proposal.nama_pemohon}`;
+      const formattedKeterangan = formatDisbursementKeterangan(proposal);
 
       debitEntries.push({
         coa_code: debitCoaCode,
@@ -1079,8 +1079,7 @@ export const executeDisbursement = async (req: Request, res: Response) => {
           debitCoaCode = '519999999';
         }
 
-        const programName = proposal.program?.name || proposal.jenis_permohonan || 'Bantuan';
-        const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${proposal.nama_pemohon}`;
+        const formattedKeterangan = formatDisbursementKeterangan(proposal);
 
         let initialNrm = proposal.mustahik?.nrm || null;
         const isByName = proposal.jenis_pengajuan === 'Lembaga' && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;

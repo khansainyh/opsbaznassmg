@@ -2,6 +2,7 @@ import { Request, Response, RequestHandler } from 'express';
 import prisma from '../utils/prisma';
 import { uploadToDrive, formatScanFileName, createFolderInDrive } from '../utils/gdrive';
 import path from 'path';
+import { formatDisbursementKeterangan } from '../utils/formatDisbursement';
 
 export const getProposals = async (req: Request, res: Response) => {
   try {
@@ -550,8 +551,7 @@ async function syncRealisasiFromProposal(proposalId: string) {
           }
         }
 
-        const programName = updatedProposal.program?.name || updatedProposal.jenis_permohonan || 'Bantuan';
-        const formattedKeterangan = `Bantuan ${programName.replace(/^Bantuan\s+/i, '')} an. ${updatedProposal.nama_pemohon}`;
+        const formattedKeterangan = formatDisbursementKeterangan(updatedProposal);
 
         await prisma.realisasi.update({
           where: { transaksi_id: associatedRealisasi.transaksi_id },
