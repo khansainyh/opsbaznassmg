@@ -147,10 +147,24 @@ export const importMustahik = async (req: Request, res: Response): Promise<void>
 
 export const getMustahik = async (req: Request, res: Response): Promise<void> => {
   try {
+    const isCompact = req.query.compact === 'true';
     const data = await prisma.mustahik.findMany({
+      select: isCompact ? {
+        id: true,
+        nama: true,
+        nik: true,
+        nrm: true,
+        kategori: true,
+        alamat: true,
+        handphone: true,
+        telepon: true,
+        jenis_kelamin: true,
+        nama_pimpinan: true,
+        jenis_lembaga: true
+      } : undefined,
       orderBy: { created_at: 'desc' }
     });
-    const lastMigrationParam = await prisma.systemParameter.findUnique({
+    const lastMigrationParam = isCompact ? null : await prisma.systemParameter.findUnique({
       where: { key: 'last_mustahik_migration_date' }
     });
     res.status(200).json({ 

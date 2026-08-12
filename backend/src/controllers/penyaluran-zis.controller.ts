@@ -28,9 +28,73 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
           { memo_source: 'DIRECT_PENYALURAN' }
         ]
       },
-      include: {
-        program: true,
-        mustahik: true
+      select: {
+        id: true,
+        agenda_no: true,
+        tanggal_masuk: true,
+        nama_instansi: true,
+        pimpinan_organisasi: true,
+        nama_pemohon: true,
+        nama_anak: true,
+        nik: true,
+        tempat_lahir: true,
+        tanggal_lahir: true,
+        jenis_kelamin: true,
+        alamat: true,
+        kelurahan: true,
+        kecamatan: true,
+        pekerjaan: true,
+        jenis_permohonan: true,
+        no_telpon: true,
+        email: true,
+        jam_pengajuan: true,
+        yang_mengajukan: true,
+        has_memo: true,
+        memo_source: true,
+        jenis_pengajuan: true,
+        rekomendasi: true,
+        keterangan: true,
+        status: true,
+        mustahik_id: true,
+        created_at: true,
+        updated_at: true,
+        nominal: true,
+        tipe_bantuan: true,
+        asnaf: true,
+        rekomendasi_kabag: true,
+        rkat_activity_id: true,
+        frekuensi_berulang: true,
+        is_rutin: true,
+        program: {
+          select: {
+            code: true,
+            name: true,
+            pilar_code: true,
+            budget_rkat: true,
+            rkat_details: true,
+            pilar: {
+              select: {
+                code: true,
+                name: true
+              }
+            }
+          }
+        },
+        mustahik: {
+          select: {
+            id: true,
+            nama: true,
+            nik: true,
+            nrm: true,
+            alamat: true,
+            handphone: true,
+            telepon: true,
+            kategori: true,
+            jenis_kelamin: true,
+            nama_pimpinan: true,
+            jenis_lembaga: true
+          }
+        }
       },
       orderBy: { created_at: 'desc' }
     });

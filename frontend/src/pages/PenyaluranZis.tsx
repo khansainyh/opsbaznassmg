@@ -572,28 +572,35 @@ export default function PenyaluranZis() {
   const [nikFoundStatus, setNikFoundStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch initial data
+  // Fetch initial data (Optimized for instant page load & zero lag)
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [penyaluranRes, pilarsRes, rkatRes, coaRes, mappingRes, mustahikRes] = await Promise.all([
+      // 1. Fetch primary data needed for Master Table & Summary Cards immediately
+      const [penyaluranRes, pilarsRes] = await Promise.all([
         axios.get('/api/penyaluran-zis').catch(() => ({ data: { data: [] } })),
-        axios.get('/api/pilars').catch(() => ({ data: [] })),
-        axios.get('/api/rkat-operasional').catch(() => ({ data: [] })),
-        axios.get('/api/finance/coa').catch(() => ({ data: [] })),
-        axios.get('/api/finance/mapping-rules').catch(() => ({ data: [] })),
-        axios.get('/api/mustahik').catch(() => ({ data: { data: [] } }))
+        axios.get('/api/pilars').catch(() => ({ data: [] }))
       ]);
 
       setData(penyaluranRes.data?.data || []);
       setPilars(Array.isArray(pilarsRes.data) ? pilarsRes.data : []);
-      setRkatList(Array.isArray(rkatRes.data) ? rkatRes.data : []);
-      setCoaList(Array.isArray(coaRes.data) ? coaRes.data : []);
-      setMappingRules(Array.isArray(mappingRes.data) ? mappingRes.data : []);
-      setMustahikList(mustahikRes.data?.data || []);
+      setLoading(false); // Instantly display the table & summary cards to the user!
+
+      // 2. Fetch modal & form metadata in the background concurrently
+      Promise.all([
+        axios.get('/api/rkat-operasional').catch(() => ({ data: [] })),
+        axios.get('/api/finance/coa').catch(() => ({ data: [] })),
+        axios.get('/api/finance/mapping-rules').catch(() => ({ data: [] })),
+        axios.get('/api/mustahik?compact=true').catch(() => ({ data: { data: [] } }))
+      ]).then(([rkatRes, coaRes, mappingRes, mustahikRes]) => {
+        setRkatList(Array.isArray(rkatRes.data) ? rkatRes.data : []);
+        setCoaList(Array.isArray(coaRes.data) ? coaRes.data : []);
+        setMappingRules(Array.isArray(mappingRes.data) ? mappingRes.data : []);
+        setMustahikList(mustahikRes.data?.data || []);
+      }).catch(err => console.warn('Background metadata fetch error:', err));
+
     } catch (e) {
       console.error('Error loading Penyaluran ZIS:', e);
-    } finally {
       setLoading(false);
     }
   };
@@ -1127,6 +1134,9 @@ export default function PenyaluranZis() {
 
   // Open Direct Input Modal
   const handleOpenInputModal = () => {
+    if (mustahikList.length === 0) {
+      axios.get('/api/mustahik?compact=true').then(res => setMustahikList(res.data?.data || [])).catch(() => {});
+    }
     setSelectedMustahikId(null);
     setMustahikSearch('');
     setShowMustahikDropdown(false);
@@ -1153,6 +1163,9 @@ export default function PenyaluranZis() {
 
   // Open Edit Modal
   const handleOpenEditModal = (item: any) => {
+    if (mustahikList.length === 0) {
+      axios.get('/api/mustahik?compact=true').then(res => setMustahikList(res.data?.data || [])).catch(() => {});
+    }
     setSelectedPenyaluran(item);
     setFormKategori(item.jenis_pengajuan === 'Lembaga' || item.nama_instansi ? 'Lembaga' : 'Perorangan');
     setFormJenisKelamin(item.jenis_kelamin || item.mustahik?.jenis_kelamin || 'Pria');
