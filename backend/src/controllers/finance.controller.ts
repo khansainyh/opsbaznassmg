@@ -1857,4 +1857,110 @@ export const getTransitEntries = async (req: Request, res: Response): Promise<vo
   }
 };
 
+export const getProposalJournalDetail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { proposalId } = req.params;
+
+    const proposal = await prisma.proposal.findUnique({
+      where: { id: proposalId } as any,
+      include: { program: true, mustahik: true } as any
+    }) as any;
+
+    if (!proposal) {
+      res.status(404).json({ error: 'Proposal tidak ditemukan' });
+      return;
+    }
+
+    // 1. Find existing Realisasi & Journal Entries
+    const realisasi = await prisma.realisasi.findFirst({
+      where: {
+        OR: [
+          { proposal_id: proposal.id },
+          ...(proposal.nama_pemohon ? [{ keterangan: { contains: proposal.nama_pemohon } }] : [])
+        ]
+      },
+      include: {
+        journalEntries: {
+          include: {
+            coa: true,
+            account: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // 2. Resolve Debit & Kredit info
+    let debitEntry: any = null;
+    let kreditEntry: any = null;
+
+    if (realisasi && realisasi.journalEntries && realisasi.journalEntries.length > 0) {
+      const debit = realisasi.journalEntries.find(j => Number(j.debit) > 0);
+      const kredit = realisasi.journalEntries.find(j => Number(j.kredit) > 0);
+
+      if (debit) {
+        debitEntry = {
+          coa_code: debit.coa_code,
+          coa_name: debit.coa?.nama_akun || 'Beban Penyaluran ZIS',
+          nominal: Number(debit.debit),
+          type: 'DEBIT'
+        };
+      }
+
+      if (kredit) {
+        kreditEntry = {
+          coa_code: kredit.coa_code,
+          coa_name: kredit.coa?.nama_akun || (kredit.account?.nama_akun ? `Kas/Bank - ${kredit.account.nama_akun}` : 'Kas & Setara Kas'),
+          account_id: kredit.account_id,
+          nama_akun: kredit.account?.nama_akun || null,
+          no_rekening: kredit.account?.no_rekening || null,
+          nominal: Number(kredit.kredit),
+          type: 'KREDIT'
+        };
+      }
+    }
+
+    // Fallback: If no journal entry yet or missing debit info, resolve from CoaMappingRule
+    if (!debitEntry) {
+      const resolved = await resolveDisbursementCoa(proposal, null, prisma);
+      const coaRec = await prisma.chartOfAccounts.findFirst({
+        where: { coa_code: resolved.debitCoaCode }
+      });
+
+      debitEntry = {
+        coa_code: resolved.debitCoaCode,
+        coa_name: coaRec?.nama_akun || 'Beban Penyaluran ZIS (Mapping Otomatis)',
+        nominal: Number(proposal.nominal || 0),
+        type: 'DEBIT',
+        is_estimated: true
+      };
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        proposal_id: proposal.id,
+        agenda_no: proposal.agenda_no,
+        nama_pemohon: proposal.nama_pemohon,
+        asnaf: proposal.asnaf,
+        nominal: Number(proposal.nominal || 0),
+        realisasi: realisasi ? {
+          transaksi_id: realisasi.transaksi_id,
+          tanggal: realisasi.tanggal,
+          createdAt: realisasi.createdAt,
+          keterangan: realisasi.keterangan,
+          nrm: realisasi.nrm
+        } : null,
+        debit: debitEntry,
+        kredit: kreditEntry,
+        journal_entries: realisasi?.journalEntries || []
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching proposal journal detail:', error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+
 

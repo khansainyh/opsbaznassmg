@@ -15,7 +15,9 @@ import {
   Calendar,
   MessageCircle,
   CheckSquare,
-  Square
+  Square,
+  BookOpen,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -34,6 +36,9 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState('');
   
+  const [journalDetail, setJournalDetail] = useState<any | null>(null);
+  const [loadingJournal, setLoadingJournal] = useState(false);
+
   const [pilars, setPilars] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'Semua' | 'Konsumtif' | 'Produktif'>('Semua');
   const [selectedProgramFilter, setSelectedProgramFilter] = useState<string>('');
@@ -53,6 +58,21 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
       .then(res => setPilars(res.data))
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (isDetailModalOpen && selectedProposal) {
+      setLoadingJournal(true);
+      axios.get(`/api/finance/proposal-journal/${selectedProposal.id}`)
+        .then(res => setJournalDetail(res.data?.data || null))
+        .catch(err => {
+          console.error('Error fetching proposal journal detail:', err);
+          setJournalDetail(null);
+        })
+        .finally(() => setLoadingJournal(false));
+    } else {
+      setJournalDetail(null);
+    }
+  }, [isDetailModalOpen, selectedProposal]);
 
   const programTipeMap = useMemo(() => {
     const map: { [code: string]: string } = {};
@@ -1016,6 +1036,91 @@ BAZNAS Kota Semarang.`;
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Section 3: Informasi Akuntansi & Jurnal BKO (COA Debit & Kredit) */}
+                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/80 space-y-4 md:col-span-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                        <BookOpen className="size-4 text-emerald-600" />
+                        Informasi Akuntansi &amp; Jurnal BKO
+                      </h4>
+                      {loadingJournal ? (
+                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                          <RefreshCw className="size-3 animate-spin text-primary" /> Memuat data jurnal...
+                        </span>
+                      ) : journalDetail?.realisasi ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1 w-fit">
+                          <CheckCircle2 className="size-3 text-emerald-600" /> Terbukukan di BKO
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 w-fit">
+                          Mapping COA Otomatis
+                        </span>
+                      )}
+                    </div>
+
+                    {loadingJournal ? (
+                      <div className="py-6 text-center text-xs text-slate-400 font-medium animate-pulse">
+                        Menghubungkan entri buku besar &amp; COA...
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {/* COA Debit (Beban Penyaluran) */}
+                          <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase text-slate-400">Akun Beban (Debit)</span>
+                              <span className="px-2 py-0.5 text-[10px] font-mono font-black bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md">
+                                {journalDetail?.debit?.coa_code || '519999999'}
+                              </span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-900 leading-snug">
+                              {journalDetail?.debit?.coa_name || 'Beban Penyaluran ZIS'}
+                            </p>
+                            <p className="text-xs font-black text-emerald-600 font-mono pt-1">
+                              {formatCurrency(journalDetail?.debit?.nominal || selectedProposal.nominal || 0)}
+                            </p>
+                          </div>
+
+                          {/* COA Kredit (Kas / Bank) */}
+                          <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase text-slate-400">Kas / Bank Pembayar (Kredit)</span>
+                              <span className="px-2 py-0.5 text-[10px] font-mono font-black bg-blue-50 text-blue-800 border border-blue-200 rounded-md">
+                                {journalDetail?.kredit?.coa_code || '-'}
+                              </span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-900 leading-snug">
+                              {journalDetail?.kredit?.coa_name || 'Kas & Bank Pembayar'}
+                            </p>
+                            <p className="text-xs font-black text-blue-600 font-mono pt-1">
+                              {formatCurrency(journalDetail?.kredit?.nominal || selectedProposal.nominal || 0)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Tanggal & Informasi Tambahan */}
+                        {journalDetail?.realisasi && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 bg-white p-3 rounded-xl border border-slate-200">
+                            <div>
+                              <span className="font-semibold text-slate-400">Tgl Transaksi Realisasi:</span>{' '}
+                              <span className="font-bold text-slate-800">
+                                {new Date(journalDetail.realisasi.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </span>
+                            </div>
+                            {journalDetail.realisasi.nrm && (
+                              <div>
+                                <span className="font-semibold text-slate-400">NRM:</span>{' '}
+                                <span className="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                                  {journalDetail.realisasi.nrm}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

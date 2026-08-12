@@ -24,7 +24,8 @@ import {
    syncBankBalances,
    getReplenishments,
    migrateBukuBesar,
-   getTransitEntries
+   getTransitEntries,
+   getProposalJournalDetail
  } from '../controllers/finance.controller';
 
 const router = Router();
@@ -52,6 +53,7 @@ router.get('/check-availability/:proposalId', checkAvailability);
 router.post('/check-availability-batch', checkAvailabilityBatch);
 router.post('/disburse/preview', previewDisbursement);
 router.post('/disburse/execute', executeDisbursement);
+router.get('/proposal-journal/:proposalId', getProposalJournalDetail);
 router.get('/replenish', getReplenishments);
 router.post('/replenish', executeReplenishment);
 router.post('/manual-expense', createManualExpense);
