@@ -15,12 +15,54 @@ import {
   Trash2,
   ChevronDown,
   UserRound,
-  Plus
+  Plus,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
+
+const formatRupiah = (value: number | string | undefined | null) => {
+  if (value === undefined || value === null || value === '') return '';
+  const numberString = String(value).replace(/[^0-9]/g, '');
+  if (!numberString) return '';
+  const sisa = numberString.length % 3;
+  let rupiah = numberString.substr(0, sisa);
+  const ribuan = numberString.substr(sisa).match(/\d{3}/g);
+  if (ribuan) {
+    const separator = sisa ? '.' : '';
+    rupiah += separator + ribuan.join('.');
+  }
+  return rupiah;
+};
+
+const parseRupiah = (str: string): number => {
+  if (!str) return 0;
+  const clean = str.replace(/[^0-9]/g, '');
+  return clean ? parseInt(clean, 10) : 0;
+};
+
+const penerimaanRowsAtas = [
+  { key: 'penerimaan_zakatMaal', label: '1. Zakat Maal' },
+  { key: 'penerimaan_zakatFitrah', label: '2. Zakat Fitrah' },
+  { key: 'penerimaan_infakSedekah', label: '3. Infak/ Sedekah (Kotak Infak, Infak Jumat, Qris, Sedekah Subuh, Dll)' },
+] as const;
+
+const penerimaanRowsBawah = [
+  { key: 'penerimaan_qurban', label: '5. Qurban' },
+  { key: 'penerimaan_fidyah', label: '6. Fidyah' }
+] as const;
+
+const penerimaanRows = [...penerimaanRowsAtas, ...penerimaanRowsBawah] as const;
+
+const penyaluranRows = [
+  { key: 'penyaluran_zakatMaal', label: '1. Zakat Maal' },
+  { key: 'penyaluran_zakatFitrah', label: '2. Zakat Fitrah' },
+  { key: 'penyaluran_infakSedekah', label: '3. Infak/ Sedekah (Kotak Infak, Infak Jumat, Qris, Sedekah Subuh, Dll)' },
+  { key: 'penyaluran_qurban', label: '4. Qurban' },
+  { key: 'penyaluran_fidyah', label: '5. Fidyah' }
+] as const;
 
 interface OffBalanceUPZ {
   id: string;
@@ -49,6 +91,25 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 
+  // Form OBS Modal State
+  const [isObsFormModalOpen, setIsObsFormModalOpen] = useState(false);
+  const [obsTaskForForm, setObsTaskForForm] = useState<ProposalMemo | null>(null);
+  const [savingObsForm, setSavingObsForm] = useState(false);
+  const [obsForm, setObsForm] = useState<Record<string, any>>({
+    namaUpz: '', namaKetuaUpz: '', noWa: '', alamat: '', kecamatan: '', saldoAwal: 0,
+    penerimaan_zakatMaal: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_zakatFitrah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
+    penerimaan_infakSedekah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+    penerimaan_infakBarangJasa: { items: [] },
+    penerimaan_qurban: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+    penerimaan_fidyah: { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
+    penyaluran_zakatMaal: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_zakatFitrah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
+    penyaluran_infakSedekah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+    penyaluran_qurban: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+    penyaluran_fidyah: { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
+  });
+
   // UPZ Off-Balance state
   const [offBalanceUPZs, setOffBalanceUPZs] = useState<OffBalanceUPZ[]>([]);
   const [loadingUPZs, setLoadingUPZs] = useState(false);
@@ -69,6 +130,118 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
   const [surveyors, setSurveyors] = useState<any[]>([]);
   const [searchSurveyorQuery, setSearchSurveyorQuery] = useState('');
   const [isSurveyorDropdownOpen, setIsSurveyorDropdownOpen] = useState(false);
+
+  const handleOpenObsForm = (task: ProposalMemo) => {
+    setObsTaskForForm(task);
+    const sd = task.survey_data || {};
+    setObsForm({
+      namaUpz: sd.namaUpz || task.namaPemohon || '',
+      namaKetuaUpz: sd.namaKetuaUpz || task.pimpinanOrganisasi || '',
+      noWa: sd.noWa || task.noTelpon || '',
+      alamat: sd.alamat || task.alamat || '',
+      kecamatan: sd.kecamatan || task.kecamatan || '',
+      saldoAwal: sd.saldoAwal || 0,
+      penerimaan_zakatMaal: sd.penerimaan_zakatMaal || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_zakatFitrah: sd.penerimaan_zakatFitrah || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
+      penerimaan_infakSedekah: sd.penerimaan_infakSedekah || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' },
+      penerimaan_infakBarangJasa: sd.penerimaan_infakBarangJasa || { items: [] },
+      penerimaan_qurban: sd.penerimaan_qurban || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+      penerimaan_fidyah: sd.penerimaan_fidyah || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '', beras: 0 },
+      penyaluran_zakatMaal: sd.penyaluran_zakatMaal || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_zakatFitrah: sd.penyaluran_zakatFitrah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
+      penyaluran_infakSedekah: sd.penyaluran_infakSedekah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' },
+      penyaluran_qurban: sd.penyaluran_qurban || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', kambingDomba: 0, sapiKerbau: 0 },
+      penyaluran_fidyah: sd.penyaluran_fidyah || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '', beras: 0 },
+    });
+    setIsObsFormModalOpen(true);
+  };
+
+  const handleSaveObsForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!obsTaskForForm) return;
+    setSavingObsForm(true);
+    try {
+      const updatedStatus = (obsTaskForForm.status === 'Monitoring Tugas' || obsTaskForForm.status === 'Pending') ? 'Survei Assessment' : obsTaskForForm.status;
+      await axios.put(`/api/proposals/${obsTaskForForm.id}`, {
+        survey_data: obsForm,
+        status: updatedStatus
+      });
+      const updatedData = data.map(item => item.id === obsTaskForForm.id ? { ...item, survey_data: obsForm, status: updatedStatus } : item);
+      onUpdate(updatedData);
+      if (selectedTask && selectedTask.id === obsTaskForForm.id) {
+        setSelectedTask(prev => prev ? { ...prev, survey_data: obsForm, status: updatedStatus } : null);
+      }
+      setIsObsFormModalOpen(false);
+      setGenerateToast('Form Laporan OBS berhasil disimpan!');
+      setTimeout(() => setGenerateToast(null), 4000);
+    } catch (err) {
+      console.error('Failed to save OBS form', err);
+      alert('Gagal menyimpan Form Laporan OBS');
+    } finally {
+      setSavingObsForm(false);
+    }
+  };
+
+  const handlePenerimaanObsChange = (key: string, field: string, value: any) => {
+    setObsForm(prev => {
+      const current = prev[key] || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' };
+      return {
+        ...prev,
+        [key]: { ...current, [field]: value }
+      };
+    });
+  };
+
+  const handlePenyaluranObsChange = (key: string, field: string, value: any) => {
+    setObsForm(prev => {
+      const current = prev[key] || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' };
+      return {
+        ...prev,
+        [key]: { ...current, [field]: value }
+      };
+    });
+  };
+
+  const totalObsPenerimaan = useMemo(() => {
+    let sum = 0;
+    penerimaanRows.forEach(row => {
+      const rowData = obsForm[row.key] || { jumlahPenerimaan: 0 };
+      sum += Number(rowData.jumlahPenerimaan) || 0;
+    });
+    return sum;
+  }, [obsForm]);
+
+  const totalObsDonatur = useMemo(() => {
+    let sum = 0;
+    penerimaanRows.forEach(row => {
+      const rowData = obsForm[row.key] || { jumlahDonatur: 0 };
+      sum += Number(rowData.jumlahDonatur) || 0;
+    });
+    return sum;
+  }, [obsForm]);
+
+  const totalObsPenyaluran = useMemo(() => {
+    let sum = 0;
+    penyaluranRows.forEach(row => {
+      const rowData = obsForm[row.key] || { jumlahPenyaluran: 0 };
+      sum += Number(rowData.jumlahPenyaluran) || 0;
+    });
+    return sum;
+  }, [obsForm]);
+
+  const totalObsMustahik = useMemo(() => {
+    let sum = 0;
+    penyaluranRows.forEach(row => {
+      const rowData = obsForm[row.key] || { jumlahMustahik: 0 };
+      sum += Number(rowData.jumlahMustahik) || 0;
+    });
+    return sum;
+  }, [obsForm]);
+
+  const obsSaldoAkhirKumulatif = useMemo(() => {
+    const saldoAwal = Number(obsForm.saldoAwal) || 0;
+    return (saldoAwal + totalObsPenerimaan) - totalObsPenyaluran;
+  }, [obsForm.saldoAwal, totalObsPenerimaan, totalObsPenyaluran]);
 
   const kecamatans = [
     "Semarang Tengah", "Semarang Utara", "Semarang Timur", "Semarang Selatan",
@@ -585,6 +758,14 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                                 </button>
                               )}
                               <button 
+                                type="button"
+                                onClick={() => handleOpenObsForm(task)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all"
+                                title="Lihat / Edit Form OBS"
+                              >
+                                <FileText className="size-3.5" /> Form OBS
+                              </button>
+                              <button 
                                 onClick={() => handleViewDetail(task)} 
                                 className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
                                 title="Detail"
@@ -804,6 +985,14 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                                 <CheckCircle2 className="size-3.5" /> Setujui
                               </button>
                             )}
+                            <button 
+                              type="button"
+                              onClick={() => handleOpenObsForm(task)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all"
+                              title="Lihat / Edit Form OBS"
+                            >
+                              <FileText className="size-3.5" /> Form OBS
+                            </button>
                             <button 
                               onClick={() => handleViewDetail(task)}
                               className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
@@ -1369,15 +1558,25 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                 <div className="border-t border-slate-100 pt-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider">Laporan Assessment OBS</h4>
-                    {editingSurveyData && editingSurveyData.saldoAkhir !== undefined ? (
-                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-black uppercase border border-emerald-100">
-                        Terisi
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-black uppercase border border-slate-200">
-                        Kosong
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenObsForm(selectedTask)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-sm transition-all active:scale-95"
+                      >
+                        <FileText className="size-3.5" />
+                        Lihat / Edit Form OBS
+                      </button>
+                      {editingSurveyData && editingSurveyData.saldoAkhir !== undefined ? (
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-black uppercase border border-emerald-100">
+                          Terisi
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-black uppercase border border-slate-200">
+                          Kosong
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {editingSurveyData && editingSurveyData.saldoAkhir !== undefined ? (
@@ -1597,6 +1796,541 @@ export default function OffBalancing({ data, onUpdate }: OffBalancingProps) {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* FORM OBS MODAL */}
+      <AnimatePresence>
+        {isObsFormModalOpen && obsTaskForForm && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsObsFormModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden relative z-10 border border-slate-200 flex flex-col max-h-[92vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded font-black text-xs border border-emerald-200 uppercase">
+                    FORM OBS
+                  </span>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800">Form Laporan Off-Balancing Sheet (OBS)</h3>
+                    <p className="text-[11px] text-slate-500 font-semibold">{obsTaskForForm.namaPemohon} &bull; Agenda #{obsTaskForForm.agendaNo}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsObsFormModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <form onSubmit={handleSaveObsForm} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50/50">
+                
+                {/* 1. Informasi UPZ Masjid/Musholla */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <h4 className="text-xs font-black text-slate-700 border-b border-slate-100 pb-2.5 uppercase tracking-wider flex items-center gap-2">
+                    <Building className="size-4 text-emerald-600" /> Informasi UPZ Masjid / Musholla
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Nama UPZ</label>
+                      <input
+                        type="text"
+                        value={obsForm.namaUpz || ''}
+                        onChange={e => setObsForm(prev => ({ ...prev, namaUpz: e.target.value }))}
+                        placeholder="Nama UPZ..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 transition"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Nama Ketua UPZ / Takmir</label>
+                      <input
+                        type="text"
+                        value={obsForm.namaKetuaUpz || ''}
+                        onChange={e => setObsForm(prev => ({ ...prev, namaKetuaUpz: e.target.value }))}
+                        placeholder="Nama Ketua UPZ / Takmir..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 transition"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">No. WA Ketua</label>
+                      <input
+                        type="text"
+                        value={obsForm.noWa || ''}
+                        onChange={e => setObsForm(prev => ({ ...prev, noWa: e.target.value }))}
+                        placeholder="08..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 transition"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Kecamatan</label>
+                      <input
+                        type="text"
+                        value={obsForm.kecamatan || ''}
+                        onChange={e => setObsForm(prev => ({ ...prev, kecamatan: e.target.value }))}
+                        placeholder="Kecamatan..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 transition"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Alamat Masjid</label>
+                      <textarea
+                        rows={2}
+                        value={obsForm.alamat || ''}
+                        onChange={e => setObsForm(prev => ({ ...prev, alamat: e.target.value }))}
+                        placeholder="Alamat masjid..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 transition resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 space-y-1">
+                    <label className="text-[10px] font-black text-emerald-700 uppercase tracking-widest block">
+                      Saldo Awal Periode (Keseluruhan)
+                    </label>
+                    <div className="relative flex items-center max-w-md">
+                      <span className="absolute left-3.5 text-xs font-extrabold text-slate-400">Rp</span>
+                      <input
+                        type="text"
+                        placeholder="0"
+                        value={formatRupiah(obsForm.saldoAwal)}
+                        onChange={e => setObsForm(prev => ({ ...prev, saldoAwal: parseRupiah(e.target.value) }))}
+                        className="w-full bg-emerald-50 border border-emerald-200 focus:bg-white rounded-xl pl-10 pr-4 py-2.5 text-xs font-black text-slate-800 outline-none focus:ring-1 focus:ring-emerald-500 transition"
+                      />
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-semibold mt-1">Saldo kas awal periode (Jan) sebelum penerimaan berjalan.</p>
+                  </div>
+                </div>
+
+                {/* 2. A. Laporan Penerimaan (Jan - Juni) */}
+                <div className="space-y-4">
+                  <div className="bg-emerald-600 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
+                    <h4 className="text-xs font-black uppercase tracking-wider">A. Laporan Penerimaan (Jan - Juni)</h4>
+                    <span className="text-[10px] font-black bg-white/20 px-2.5 py-1 rounded-lg">Penerimaan</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {penerimaanRowsAtas.map(row => {
+                      const rowData = obsForm[row.key] || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' };
+                      return (
+                        <div key={row.key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                            <span className="font-extrabold text-slate-800 text-xs">{row.label}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Penerimaan (Rp)</label>
+                              <div className="relative flex items-center">
+                                <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
+                                <input
+                                  type="text"
+                                  placeholder="0"
+                                  value={formatRupiah(rowData.jumlahPenerimaan)}
+                                  onChange={e => handlePenerimaanObsChange(row.key, 'jumlahPenerimaan', parseRupiah(e.target.value))}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Donatur (Orang)</label>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={rowData.jumlahDonatur || ''}
+                                onChange={e => handlePenerimaanObsChange(row.key, 'jumlahDonatur', Number(e.target.value))}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keterangan</label>
+                            <input
+                              type="text"
+                              placeholder="Keterangan..."
+                              value={rowData.keterangan || ''}
+                              onChange={e => handlePenerimaanObsChange(row.key, 'keterangan', e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                          {row.key === 'penerimaan_zakatFitrah' && (
+                            <div className="space-y-1 border-t border-slate-100 pt-2">
+                              <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Beras (kg)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                placeholder="0"
+                                value={rowData.beras || ''}
+                                onChange={e => handlePenerimaanObsChange(row.key, 'beras', Number(e.target.value))}
+                                className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Infak / Sedekah Barang & Jasa */}
+                    {(() => {
+                      const items: { jenisBarang: string; merekSpesifikasi: string; jumlah: string; keterangan: string }[] =
+                        obsForm.penerimaan_infakBarangJasa?.items || [];
+                      const setItems = (newItems: typeof items) =>
+                        setObsForm(prev => ({ ...prev, penerimaan_infakBarangJasa: { items: newItems } }));
+                      return (
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 md:col-span-2">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 bg-amber-500 rounded-full" />
+                              <span className="font-extrabold text-slate-800 text-xs">4. Infak/ Sedekah Barang &amp; Jasa</span>
+                            </div>
+                            <span className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">{items.length} item</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-semibold italic">Penerimaan yang berupa barang/jasa untuk keperluan Masjid/Musholla.</p>
+                          {items.length === 0 && (
+                            <p className="text-[10px] text-slate-400 text-center py-3 bg-slate-50 rounded-xl border border-dashed border-slate-200 font-bold">Belum ada item. Klik tombol di bawah untuk menambah.</p>
+                          )}
+                          {items.map((item, idx) => (
+                            <div key={idx} className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Item #{idx + 1}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                                  className="text-rose-500 hover:text-rose-700 text-[10px] font-black uppercase"
+                                >✕ Hapus</button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Jenis Barang/Jasa</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Contoh: Karpet, AC..."
+                                    value={item.jenisBarang}
+                                    onChange={e => { const n = [...items]; n[idx] = { ...n[idx], jenisBarang: e.target.value }; setItems(n); }}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-amber-400"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Merek / Spesifikasi</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Merek atau spesifikasi..."
+                                    value={item.merekSpesifikasi}
+                                    onChange={e => { const n = [...items]; n[idx] = { ...n[idx], merekSpesifikasi: e.target.value }; setItems(n); }}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-amber-400"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Jumlah</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Contoh: 2 unit..."
+                                    value={item.jumlah}
+                                    onChange={e => { const n = [...items]; n[idx] = { ...n[idx], jumlah: e.target.value }; setItems(n); }}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-amber-400"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keterangan</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Keterangan..."
+                                    value={item.keterangan}
+                                    onChange={e => { const n = [...items]; n[idx] = { ...n[idx], keterangan: e.target.value }; setItems(n); }}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-amber-400"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setItems([...items, { jenisBarang: '', merekSpesifikasi: '', jumlah: '', keterangan: '' }])}
+                            className="w-full py-2.5 border-2 border-dashed border-amber-300 text-amber-600 rounded-xl text-xs font-black hover:bg-amber-50 transition flex items-center justify-center gap-1.5"
+                          >+ Tambah Barang/Jasa</button>
+                        </div>
+                      );
+                    })()}
+
+                    {penerimaanRowsBawah.map(row => {
+                      const rowData = obsForm[row.key] || { jumlahPenerimaan: 0, jumlahDonatur: 0, keterangan: '' };
+                      return (
+                        <div key={row.key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                            <span className="font-extrabold text-slate-800 text-xs">{row.label}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Penerimaan (Rp)</label>
+                              <div className="relative flex items-center">
+                                <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
+                                <input
+                                  type="text"
+                                  placeholder="0"
+                                  value={formatRupiah(rowData.jumlahPenerimaan)}
+                                  onChange={e => handlePenerimaanObsChange(row.key, 'jumlahPenerimaan', parseRupiah(e.target.value))}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Donatur (Orang)</label>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={rowData.jumlahDonatur || ''}
+                                onChange={e => handlePenerimaanObsChange(row.key, 'jumlahDonatur', Number(e.target.value))}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keterangan</label>
+                            <input
+                              type="text"
+                              placeholder="Keterangan..."
+                              value={rowData.keterangan || ''}
+                              onChange={e => handlePenerimaanObsChange(row.key, 'keterangan', e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                          {row.key === 'penerimaan_qurban' && (
+                            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Kambing/Domba (ekor)</label>
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={rowData.kambingDomba || ''}
+                                  onChange={e => handlePenerimaanObsChange(row.key, 'kambingDomba', Number(e.target.value))}
+                                  className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Sapi/Kerbau (ekor)</label>
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={rowData.sapiKerbau || ''}
+                                  onChange={e => handlePenerimaanObsChange(row.key, 'sapiKerbau', Number(e.target.value))}
+                                  className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {row.key === 'penerimaan_fidyah' && (
+                            <div className="space-y-1 border-t border-slate-100 pt-2">
+                              <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Beras (kg)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                placeholder="0"
+                                value={rowData.beras || ''}
+                                onChange={e => handlePenerimaanObsChange(row.key, 'beras', Number(e.target.value))}
+                                className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Summary Box Penerimaan */}
+                  <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-extrabold text-emerald-950">
+                    <div>
+                      <span className="text-[9px] text-emerald-700 font-black block uppercase tracking-widest">Saldo Awal</span>
+                      <span>Rp {formatRupiah(obsForm.saldoAwal)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-emerald-700 font-black block uppercase tracking-widest">Total Penerimaan</span>
+                      <span>Rp {formatRupiah(totalObsPenerimaan)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-emerald-700 font-black block uppercase tracking-widest">Penerimaan + Saldo Awal</span>
+                      <span className="text-emerald-700 font-black">Rp {formatRupiah((Number(obsForm.saldoAwal) || 0) + totalObsPenerimaan)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-emerald-700 font-black block uppercase tracking-widest">Total Donatur</span>
+                      <span>{totalObsDonatur} Orang</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. B. Laporan Penyaluran (Jan - Juni) */}
+                <div className="space-y-4">
+                  <div className="bg-blue-600 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
+                    <h4 className="text-xs font-black uppercase tracking-wider">B. Laporan Penyaluran (Jan - Juni)</h4>
+                    <span className="text-[10px] font-black bg-white/20 px-2.5 py-1 rounded-lg">Penyaluran</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {penyaluranRows.map(row => {
+                      const rowData = obsForm[row.key] || { jumlahPenyaluran: 0, jumlahMustahik: 0, keterangan: '' };
+                      return (
+                        <div key={row.key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full" />
+                            <span className="font-extrabold text-slate-800 text-xs">{row.label}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Penyaluran (Rp)</label>
+                              <div className="relative flex items-center">
+                                <span className="absolute left-2.5 text-[10px] font-extrabold text-slate-400">Rp</span>
+                                <input
+                                  type="text"
+                                  placeholder="0"
+                                  value={formatRupiah(rowData.jumlahPenyaluran)}
+                                  onChange={e => handlePenyaluranObsChange(row.key, 'jumlahPenyaluran', parseRupiah(e.target.value))}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Mustahik (Orang)</label>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={rowData.jumlahMustahik || ''}
+                                onChange={e => handlePenyaluranObsChange(row.key, 'jumlahMustahik', Number(e.target.value))}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keterangan</label>
+                            <input
+                              type="text"
+                              placeholder="Keterangan..."
+                              value={rowData.keterangan || ''}
+                              onChange={e => handlePenyaluranObsChange(row.key, 'keterangan', e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          {row.key === 'penyaluran_zakatFitrah' && (
+                            <div className="space-y-1 border-t border-slate-100 pt-2">
+                              <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Beras (kg)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                placeholder="0"
+                                value={rowData.beras || ''}
+                                onChange={e => handlePenyaluranObsChange(row.key, 'beras', Number(e.target.value))}
+                                className="w-full bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none"
+                              />
+                            </div>
+                          )}
+                          {row.key === 'penyaluran_qurban' && (
+                            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Kambing/Domba (ekor)</label>
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={rowData.kambingDomba || ''}
+                                  onChange={e => handlePenyaluranObsChange(row.key, 'kambingDomba', Number(e.target.value))}
+                                  className="w-full bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Sapi/Kerbau (ekor)</label>
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={rowData.sapiKerbau || ''}
+                                  onChange={e => handlePenyaluranObsChange(row.key, 'sapiKerbau', Number(e.target.value))}
+                                  className="w-full bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {row.key === 'penyaluran_fidyah' && (
+                            <div className="space-y-1 border-t border-slate-100 pt-2">
+                              <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Beras (kg)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                placeholder="0"
+                                value={rowData.beras || ''}
+                                onChange={e => handlePenyaluranObsChange(row.key, 'beras', Number(e.target.value))}
+                                className="w-full bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white outline-none"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Summary Box Penyaluran */}
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 grid grid-cols-2 gap-3 text-xs font-extrabold text-blue-950">
+                    <div>
+                      <span className="text-[9px] text-blue-700 font-black block uppercase tracking-widest">Total Penyaluran</span>
+                      <span>Rp {formatRupiah(totalObsPenyaluran)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-blue-700 font-black block uppercase tracking-widest">Total Mustahik</span>
+                      <span>{totalObsMustahik} Orang</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. C. Saldo Akhir Laporan */}
+                <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md space-y-2">
+                  <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block">C. Saldo Akhir Laporan</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300">Saldo Akhir Kumulatif:</span>
+                    <span className="text-xl font-black text-emerald-400">Rp {formatRupiah(obsSaldoAkhirKumulatif)}</span>
+                  </div>
+                </div>
+
+                {/* Submit Action */}
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsObsFormModalOpen(false)}
+                    className="px-5 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingObsForm}
+                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {savingObsForm ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                    {savingObsForm ? 'Memproses...' : 'SIMPAN FORM OBS'}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
