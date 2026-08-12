@@ -97,9 +97,15 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
       data.mustahik_id = null;
     }
 
-    // Hitung agenda_no otomatis mulai dari 922 per Agustus (922, 923, 924...)
-    if (!data.agenda_no) {
+    // Hitung agenda_no otomatis mulai dari 922 per Agustus (922, 923, 924...) hanya untuk proposal biasa (bukan OBS)
+    const isObs = data.jenis_pengajuan === 'OBS' || String(data.jenis_pengajuan).toUpperCase() === 'OBS';
+    if (isObs) {
+      data.agenda_no = null;
+    } else if (!data.agenda_no) {
       const maxProposal = await prisma.proposal.findFirst({
+        where: {
+          NOT: [{ jenis_pengajuan: 'OBS' }, { agenda_no: null as any }]
+        },
         orderBy: { agenda_no: 'desc' },
         select: { agenda_no: true }
       });
