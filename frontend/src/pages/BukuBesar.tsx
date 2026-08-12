@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
   Search,
@@ -19,7 +20,11 @@ import {
   Upload,
   Download,
   FileSpreadsheet,
-  AlertTriangle
+  AlertTriangle,
+  Plus,
+  PenLine,
+  FileText,
+  CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -69,6 +74,13 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const formatRupiahInput = (value: string | number) => {
+  if (!value) return '';
+  const clean = String(value).replace(/[^0-9]/g, '');
+  if (!clean) return '';
+  return new Intl.NumberFormat('id-ID').format(Number(clean));
+};
+
 const KAS_SETARA_KAS_CODES = [
   '11010101', '11010102', '11010103', '11010104', '11010105',
   '11010201', '11010202', '11010203', '11010204', '11010205',
@@ -76,6 +88,330 @@ const KAS_SETARA_KAS_CODES = [
   '11010301', '11010302', '11010303', '11010304', '11010305',
   '11010501', '11010502', '11011501', '11011201'
 ];
+
+interface SearchableCoaSelectProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  coas: COAItem[];
+  placeholder?: string;
+  badgeType: 'debit' | 'kredit';
+}
+
+function SearchableCoaSelect({
+  label,
+  value,
+  onChange,
+  coas,
+  placeholder = "Pilih Akun COA...",
+  badgeType
+}: SearchableCoaSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateCoords = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 320)
+      });
+    }
+  }, []);
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isOpen) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 320)
+      });
+    }
+    setIsOpen(prev => !prev);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', updateCoords, true);
+      window.removeEventListener('resize', updateCoords);
+    };
+  }, [isOpen, updateCoords]);
+
+  const selectedCoa = useMemo(() => {
+    return coas.find(c => c.coa_code === value);
+  }, [coas, value]);
+
+  const filteredCoas = useMemo(() => {
+    if (!query.trim()) return coas;
+    const q = query.toLowerCase();
+    return coas.filter(c => 
+      c.coa_code.toLowerCase().includes(q) || 
+      (c.nama_akun || '').toLowerCase().includes(q) ||
+      (c.klasifikasi || '').toLowerCase().includes(q)
+    );
+  }, [coas, query]);
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+          <span className={cn(
+            "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider",
+            badgeType === 'debit' ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+          )}>
+            {badgeType === 'debit' ? 'Akun Debit (Dr)' : 'Akun Kredit (Cr)'}
+          </span>
+          <span>{label}</span>
+        </label>
+        {selectedCoa && (
+          <span className="text-[10px] font-bold text-slate-400">
+            {selectedCoa.klasifikasi || 'COA'}
+          </span>
+        )}
+      </div>
+
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleToggle}
+        className={cn(
+          "w-full bg-white border rounded-xl py-2.5 px-3 flex items-center justify-between text-xs font-semibold shadow-xs transition-all text-left outline-none cursor-pointer",
+          isOpen ? "border-primary ring-2 ring-primary/20" : "border-slate-200 hover:border-slate-300",
+          selectedCoa ? "text-slate-900 font-bold" : "text-slate-400"
+        )}
+      >
+        <span className="truncate">
+          {selectedCoa ? (
+            <span className="flex items-center gap-2">
+              <span className="font-mono text-primary font-black bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">{selectedCoa.coa_code}</span>
+              <span className="text-slate-800 font-semibold">{selectedCoa.nama_akun}</span>
+            </span>
+          ) : placeholder}
+        </span>
+        <ChevronDown className={cn("size-4 text-slate-400 shrink-0 ml-1 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            zIndex: 99999
+          }}
+          className="bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden text-xs max-h-72 flex flex-col animate-in fade-in zoom-in-95 duration-150 text-left"
+        >
+          <div className="p-2.5 border-b border-slate-100 relative bg-slate-50/70">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Cari kode atau nama akun..."
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-7 py-2 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 font-medium"
+              autoFocus
+            />
+            {query && (
+              <button 
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+
+          <div className="overflow-y-auto custom-scrollbar p-1.5 divide-y divide-slate-100/60 max-h-56">
+            {filteredCoas.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 text-xs italic">
+                Tidak ada akun COA yang cocok
+              </div>
+            ) : (
+              filteredCoas.map(coa => (
+                <div
+                  key={coa.coa_code}
+                  onClick={() => {
+                    onChange(coa.coa_code);
+                    setIsOpen(false);
+                    setQuery('');
+                  }}
+                  className={cn(
+                    "p-2.5 rounded-xl cursor-pointer transition-colors flex items-center justify-between gap-2 hover:bg-slate-50",
+                    value === coa.coa_code ? "bg-primary/10 text-primary font-bold" : "text-slate-700 font-medium"
+                  )}
+                >
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] font-black text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">{coa.coa_code}</span>
+                      <span className="font-bold text-slate-800 truncate">{coa.nama_akun}</span>
+                    </div>
+                    {coa.klasifikasi && (
+                      <span className="text-[10px] text-slate-400 font-semibold">{coa.klasifikasi}</span>
+                    )}
+                  </div>
+                  {value === coa.coa_code && (
+                    <Check className="size-4 text-primary shrink-0" />
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function InputJurnalDropdown({
+  onSelectManual,
+  onSelectMigration
+}: {
+  onSelectManual: () => void;
+  onSelectMigration: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateCoords = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 6,
+        left: Math.max(10, rect.right - 280)
+      });
+    }
+  }, []);
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isOpen) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 6,
+        left: Math.max(10, rect.right - 280)
+      });
+    }
+    setIsOpen(prev => !prev);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', updateCoords, true);
+      window.removeEventListener('resize', updateCoords);
+    };
+  }, [isOpen, updateCoords]);
+
+  return (
+    <div className="relative inline-block w-full">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleToggle}
+        className={cn(
+          "w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-emerald-600/15 cursor-pointer",
+          isOpen && "ring-2 ring-emerald-400 bg-emerald-700"
+        )}
+      >
+        <Plus className="size-4" />
+        <span>Input Jurnal</span>
+        <ChevronDown className={cn("size-3.5 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: '280px',
+            zIndex: 99999
+          }}
+          className="bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-1.5 animate-in fade-in zoom-in-95 duration-150 text-left no-print"
+        >
+          <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Pilihan Pencatatan Jurnal
+          </div>
+
+          <div className="py-1 space-y-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onSelectManual();
+              }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-emerald-50/80 flex items-start gap-3 transition-colors cursor-pointer group"
+            >
+              <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0 mt-0.5">
+                <PenLine className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800 group-hover:text-emerald-900 leading-tight">Input Jurnal Manual (Satuan)</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">Catat satuan / jurnal koreksi & penyesuaian</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onSelectMigration();
+              }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-blue-50/80 flex items-start gap-3 transition-colors cursor-pointer group"
+            >
+              <div className="p-2 bg-blue-100 text-blue-700 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0 mt-0.5">
+                <Upload className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800 group-hover:text-blue-900 leading-tight">Migrasi Jurnal (Excel)</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">Unggah file Excel migrasi jurnal massal</p>
+              </div>
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
 
 export default function BukuBesar() {
   const [ledger, setLedger] = useState<LedgerEntryItem[]>([]);
@@ -94,6 +430,17 @@ export default function BukuBesar() {
   const [healthData, setHealthData] = useState<any>(null);
   const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [submittingManual, setSubmittingManual] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    tanggal: new Date().toISOString().split('T')[0],
+    nominal: '',
+    coa_debit: '',
+    coa_kredit: '',
+    keterangan: ''
+  });
+  const [manualToast, setManualToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   const [migrating, setMigrating] = useState(false);
   const [migrationProgress, setMigrationProgress] = useState('');
   const [selectedMigrationCoa, setSelectedMigrationCoa] = useState<string>('');
@@ -563,8 +910,28 @@ export default function BukuBesar() {
     );
   }, [coas, coaSearchTerm]);
 
-  // Server-side paginated ledger entries directly from API
-  const paginatedLedger = ledger;
+  // Server-side paginated ledger entries with reliable sorting (newest on top)
+  const paginatedLedger = useMemo(() => {
+    return [...ledger].sort((a, b) => {
+      // 1. Sort by calendar date YYYY-MM-DD (DESC)
+      const strA = a.realisasi?.tanggal ? new Date(a.realisasi.tanggal).toISOString().split('T')[0] : '';
+      const strB = b.realisasi?.tanggal ? new Date(b.realisasi.tanggal).toISOString().split('T')[0] : '';
+
+      if (strA !== strB) {
+        return strB.localeCompare(strA);
+      }
+
+      // 2. If on the same calendar date, sort by realisasi.createdAt (DESC - newest first)
+      const createdA = new Date(a.realisasi?.createdAt || a.realisasi?.tanggal || 0).getTime();
+      const createdB = new Date(b.realisasi?.createdAt || b.realisasi?.tanggal || 0).getTime();
+      if (createdA !== createdB) {
+        return createdB - createdA;
+      }
+
+      // 3. Within the same transaction, Debit first, then Kredit
+      return Number(b.debit || 0) - Number(a.debit || 0);
+    });
+  }, [ledger]);
 
   const totalDebit = summaryTotals.totalDebit;
   const totalKredit = summaryTotals.totalKredit;
@@ -1276,16 +1643,12 @@ export default function BukuBesar() {
                 </button>
               </div>
 
-              {/* Migrasi Buku Besar Button */}
+              {/* Input Jurnal Dropdown (Manual & Migrasi) */}
               <div className="space-y-1.5 self-end no-print">
-                <button
-                  type="button"
-                  onClick={() => setIsMigrationModalOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-xs font-black transition-all active:scale-95 shadow-lg shadow-emerald-600/10"
-                >
-                  <Upload className="size-4" />
-                  Migrasi Jurnal
-                </button>
+                <InputJurnalDropdown
+                  onSelectManual={() => setIsManualModalOpen(true)}
+                  onSelectMigration={() => setIsMigrationModalOpen(true)}
+                />
               </div>
 
               {/* Refresh Button */}
@@ -1899,6 +2262,311 @@ export default function BukuBesar() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Toast Notifikasi Manual Jurnal */}
+      <AnimatePresence>
+        {manualToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={cn(
+              "fixed top-6 right-6 z-[100] px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 text-white",
+              manualToast.type === 'success' ? "bg-emerald-600 shadow-emerald-600/20" : "bg-rose-600 shadow-rose-600/20"
+            )}
+          >
+            {manualToast.type === 'success' ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
+            <span>{manualToast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Input Jurnal Manual / Koreksi */}
+      {isManualModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <PenLine className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 font-sans">Input Jurnal Manual / Koreksi</h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-0.5">Pencatatan jurnal double-entry satuan ke Buku Besar</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManualModalOpen(false);
+                  setManualForm({
+                    tanggal: new Date().toISOString().split('T')[0],
+                    nominal: '',
+                    coa_debit: '',
+                    coa_kredit: '',
+                    keterangan: ''
+                  });
+                }}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="size-5 text-slate-400" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!manualForm.tanggal || !manualForm.nominal || !manualForm.coa_debit || !manualForm.coa_kredit || !manualForm.keterangan.trim()) {
+                  alert('Mohon lengkapi seluruh field (Tanggal, Nominal, COA Debit, COA Kredit, dan Redaksi/Keterangan).');
+                  return;
+                }
+
+                const cleanNominal = Number(String(manualForm.nominal).replace(/[^0-9]/g, ''));
+                if (cleanNominal <= 0) {
+                  alert('Nominal harus lebih besar dari Rp 0.');
+                  return;
+                }
+
+                if (manualForm.coa_debit === manualForm.coa_kredit) {
+                  alert('Akun COA Debit dan Akun COA Kredit tidak boleh sama!');
+                  return;
+                }
+
+                setSubmittingManual(true);
+                try {
+                  const res = await axios.post('/api/finance/ledger/manual', {
+                    tanggal: manualForm.tanggal,
+                    nominal: cleanNominal,
+                    coa_debit: manualForm.coa_debit,
+                    coa_kredit: manualForm.coa_kredit,
+                    keterangan: manualForm.keterangan.trim()
+                  });
+
+                  if (res.data?.status === 'success') {
+                    setIsManualModalOpen(false);
+                    setManualForm({
+                      tanggal: new Date().toISOString().split('T')[0],
+                      nominal: '',
+                      coa_debit: '',
+                      coa_kredit: '',
+                      keterangan: ''
+                    });
+                    setManualToast({ message: 'Jurnal transaksi / koreksi berhasil dicatat!', type: 'success' });
+                    setTimeout(() => setManualToast(null), 4000);
+                    fetchData();
+                  }
+                } catch (err: any) {
+                  console.error('Failed to create manual journal:', err);
+                  const errMsg = err.response?.data?.error || 'Gagal menyimpan jurnal manual.';
+                  alert(errMsg);
+                } finally {
+                  setSubmittingManual(false);
+                }
+              }}
+              className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1"
+            >
+              {/* Row 1: Tanggal & Nominal */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Calendar className="size-3.5 text-slate-400" />
+                    <span>Tanggal Transaksi <span className="text-rose-500">*</span></span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={manualForm.tanggal}
+                    onChange={e => setManualForm(prev => ({ ...prev, tanggal: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 shadow-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <TrendingUp className="size-3.5 text-slate-400" />
+                    <span>Nominal (Rp) <span className="text-rose-500">*</span></span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="0"
+                      value={formatRupiahInput(manualForm.nominal)}
+                      onChange={e => setManualForm(prev => ({ ...prev, nominal: e.target.value.replace(/[^0-9]/g, '') }))}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-black text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 shadow-xs font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: COA Debit & COA Kredit */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <SearchableCoaSelect
+                  label="COA Debit"
+                  value={manualForm.coa_debit}
+                  onChange={val => setManualForm(prev => ({ ...prev, coa_debit: val }))}
+                  coas={coas}
+                  placeholder="Pilih Akun Debit (Dr)..."
+                  badgeType="debit"
+                />
+
+                <SearchableCoaSelect
+                  label="COA Kredit"
+                  value={manualForm.coa_kredit}
+                  onChange={val => setManualForm(prev => ({ ...prev, coa_kredit: val }))}
+                  coas={coas}
+                  placeholder="Pilih Akun Kredit (Cr)..."
+                  badgeType="kredit"
+                />
+              </div>
+
+              {/* Validation Warning if Debit === Kredit */}
+              {manualForm.coa_debit && manualForm.coa_kredit && manualForm.coa_debit === manualForm.coa_kredit && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-bold">
+                  <AlertTriangle className="size-4 shrink-0 text-rose-600" />
+                  <span>Perhatian: Akun COA Debit dan Akun COA Kredit tidak boleh sama!</span>
+                </div>
+              )}
+
+              {/* Row 3: Keterangan Jurnal (Realisasi) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <FileText className="size-3.5 text-slate-400" />
+                  <span>Keterangan Jurnal (Realisasi) <span className="text-rose-500">*</span></span>
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Contoh: Bantuan Renovasi/Operasional pada Masjid/Mushola/Yayasan/Lembaga an. Khansa Inayah, Sekaran..."
+                  value={manualForm.keterangan}
+                  onChange={e => setManualForm(prev => ({ ...prev, keterangan: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 shadow-xs resize-none"
+                />
+              </div>
+
+              {/* Accounting Journal Entry Preview (BKO Style) */}
+              <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-sm space-y-4">
+                <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-300 flex items-center gap-2 tracking-wide uppercase">
+                    <FileText className="size-3.5 text-primary" />
+                    PREVIEW ENTRI JURNAL BUKU BESAR (BKO)
+                  </h4>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 uppercase text-[9px] tracking-wider font-black">
+                        <th className="py-2 w-28">Kode Akun</th>
+                        <th className="py-2">Buku Besar Akun</th>
+                        <th className="py-2 text-right w-32">Debit</th>
+                        <th className="py-2 text-right w-32">Kredit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80 font-mono text-xs">
+                      {/* Row Debit */}
+                      <tr>
+                        <td className="py-2.5 text-emerald-400 font-bold">{manualForm.coa_debit || '—'}</td>
+                        <td className="py-2.5 text-slate-200 font-medium font-sans">
+                          <span className="font-semibold">{coas.find(c => c.coa_code === manualForm.coa_debit)?.nama_akun || '(Pilih Akun Debit)'}</span>
+                          {manualForm.keterangan ? (
+                            <span className="text-slate-400 text-[11px] block mt-0.5 font-normal">
+                              ({manualForm.keterangan})
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="py-2.5 text-right text-emerald-400 font-bold">
+                          {Number(manualForm.nominal) > 0 ? formatCurrency(Number(manualForm.nominal)) : '—'}
+                        </td>
+                        <td className="py-2.5 text-right text-slate-600 font-bold">-</td>
+                      </tr>
+                      {/* Row Kredit */}
+                      <tr>
+                        <td className="py-2.5 text-blue-400 font-bold">{manualForm.coa_kredit || '—'}</td>
+                        <td className="py-2.5 text-slate-200 font-medium font-sans">
+                          <span className="font-semibold">{coas.find(c => c.coa_code === manualForm.coa_kredit)?.nama_akun || '(Pilih Akun Kredit)'}</span>
+                          {manualForm.keterangan ? (
+                            <span className="text-slate-400 text-[11px] block mt-0.5 font-normal">
+                              ({manualForm.keterangan})
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="py-2.5 text-right text-slate-600 font-bold">-</td>
+                        <td className="py-2.5 text-right text-blue-400 font-bold">
+                          {Number(manualForm.nominal) > 0 ? formatCurrency(Number(manualForm.nominal)) : '—'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-400">
+                  <span>Keseimbangan Jurnal:</span>
+                  {manualForm.coa_debit && manualForm.coa_kredit && manualForm.coa_debit !== manualForm.coa_kredit && Number(manualForm.nominal) > 0 ? (
+                    <span className="text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20 uppercase tracking-widest font-black text-[10px] flex items-center gap-1.5">
+                      <Check className="size-3" />
+                      Balanced / Seimbang
+                    </span>
+                  ) : manualForm.coa_debit && manualForm.coa_kredit && manualForm.coa_debit === manualForm.coa_kredit ? (
+                    <span className="text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded-lg border border-rose-500/20 uppercase tracking-widest font-black text-[10px]">
+                      Akun Debit & Kredit Sama
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/20 uppercase tracking-widest font-black text-[10px]">
+                      Belum Lengkap
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsManualModalOpen(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    submittingManual ||
+                    !manualForm.tanggal ||
+                    !manualForm.nominal ||
+                    Number(manualForm.nominal) <= 0 ||
+                    !manualForm.coa_debit ||
+                    !manualForm.coa_kredit ||
+                    manualForm.coa_debit === manualForm.coa_kredit ||
+                    !manualForm.keterangan.trim()
+                  }
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/15 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {submittingManual ? (
+                    <>
+                      <RefreshCw className="size-3.5 animate-spin" />
+                      <span>Menyimpan Jurnal...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="size-3.5" />
+                      <span>Simpan Jurnal</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
 
       {/* Migrasi Buku Besar Modal (No-Print) */}
       {isMigrationModalOpen && (

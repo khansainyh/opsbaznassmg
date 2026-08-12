@@ -1129,7 +1129,7 @@ export const getJournalEntries = async (req: Request, res: Response) => {
             }
           },
           {
-            entry_id: 'desc'
+            debit: 'desc'
           }
         ],
         skip,
@@ -1718,6 +1718,121 @@ export const migrateBukuBesar = async (req: Request, res: Response): Promise<voi
     });
   } catch (error) {
     console.error('Error migrating Buku Besar:', error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const createManualJournalEntry = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { tanggal, nominal, coa_debit, coa_kredit, keterangan, nrm } = req.body;
+
+    if (!tanggal || !nominal || Number(nominal) <= 0 || !coa_debit || !coa_kredit || !keterangan) {
+      res.status(400).json({ error: 'Tanggal, nominal (> 0), COA Debit, COA Kredit, dan Redaksi/Keterangan wajib diisi.' });
+      return;
+    }
+
+    const coaDebitStr = String(coa_debit).trim();
+    const coaKreditStr = String(coa_kredit).trim();
+
+    if (coaDebitStr === coaKreditStr) {
+      res.status(400).json({ error: 'Akun COA Debit dan Akun COA Kredit tidak boleh sama.' });
+      return;
+    }
+
+    // Verify both COA exist
+    const [foundDebitCoa, foundKreditCoa] = await Promise.all([
+      prisma.chartOfAccounts.findUnique({ where: { coa_code: coaDebitStr } }),
+      prisma.chartOfAccounts.findUnique({ where: { coa_code: coaKreditStr } })
+    ]);
+
+    if (!foundDebitCoa) {
+      res.status(400).json({ error: `Akun COA Debit (${coaDebitStr}) tidak ditemukan dalam database.` });
+      return;
+    }
+
+    if (!foundKreditCoa) {
+      res.status(400).json({ error: `Akun COA Kredit (${coaKreditStr}) tidak ditemukan dalam database.` });
+      return;
+    }
+
+    const bankAccounts = await prisma.bankAccount.findMany();
+    const bankAccountMap = new Map(bankAccounts.map(b => [String(b.coa_code).trim(), b.account_id]));
+
+    const debitAccountId = bankAccountMap.get(coaDebitStr) || null;
+    const kreditAccountId = bankAccountMap.get(coaKreditStr) || null;
+    const nominalDecimal = new Prisma.Decimal(nominal);
+
+    // Ensure transaction timestamp preserves current time for accurate intra-day sorting
+    let trxDate: Date;
+    if (tanggal) {
+      const now = new Date();
+      const parts = String(tanggal).split('-');
+      if (parts.length === 3) {
+        const [y, m, d] = parts.map(Number);
+        trxDate = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      } else {
+        trxDate = new Date(tanggal);
+      }
+    } else {
+      trxDate = new Date();
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const realisasi = await tx.realisasi.create({
+        data: {
+          tanggal: trxDate,
+          keterangan: String(keterangan).trim(),
+          nrm: nrm || null,
+        }
+      });
+
+      const entryDebit = await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasi.transaksi_id,
+          coa_code: coaDebitStr,
+          debit: nominalDecimal,
+          kredit: new Prisma.Decimal(0.00),
+          account_id: debitAccountId
+        }
+      });
+
+      const entryKredit = await tx.journalEntry.create({
+        data: {
+          transaksi_id: realisasi.transaksi_id,
+          coa_code: coaKreditStr,
+          debit: new Prisma.Decimal(0.00),
+          kredit: nominalDecimal,
+          account_id: kreditAccountId
+        }
+      });
+
+      if (debitAccountId) {
+        await tx.bankAccount.update({
+          where: { account_id: debitAccountId } as any,
+          data: {
+            saldo: { increment: nominalDecimal }
+          }
+        });
+      }
+      if (kreditAccountId) {
+        await tx.bankAccount.update({
+          where: { account_id: kreditAccountId } as any,
+          data: {
+            saldo: { decrement: nominalDecimal }
+          }
+        });
+      }
+
+      return { realisasi, entryDebit, entryKredit };
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Jurnal transaksi berhasil dicatat ke Buku Besar.',
+      data: result
+    });
+  } catch (error) {
+    console.error('Error in createManualJournalEntry:', error);
     res.status(500).json({ error: String(error) });
   }
 };

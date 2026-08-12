@@ -243,6 +243,7 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         ).trim();
 
         const pimpinanOrganisasiVal = String(row.Pimpinan_Organisasi || row['Pimpinan Organisasi'] || row.Nama_Pimpinan || row['Nama Pimpinan'] || row.Pimpinan || '').trim() || null;
+        const namaAnakVal = String(row.Nama_Anak || row['Nama Anak'] || row.Nama_Siswa || row['Nama Siswa'] || row.Anak || '').trim() || null;
 
         // Determine final jenis_pengajuan
         let finalJenisPengajuan = 'Perorangan';
@@ -252,6 +253,9 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
           } else {
             finalJenisPengajuan = 'Perorangan';
           }
+        } else if (namaAnakVal) {
+          // Jika ada nama anak, pengajuan otomatis adalah Perorangan (bukan Lembaga)
+          finalJenisPengajuan = 'Perorangan';
         } else if (rawInstansi && rawInstansi.toLowerCase() !== rawPemohon.toLowerCase() && rawInstansi !== 'Lembaga Tanpa Nama') {
           finalJenisPengajuan = 'Lembaga';
         } else if (linkedDetails.length > 1) {
@@ -287,7 +291,6 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
           }];
         }
 
-        const namaAnakVal = String(row.Nama_Anak || row['Nama Anak'] || row.Nama_Siswa || row['Nama Siswa'] || row.Anak || '').trim() || null;
         const nikVal = String(row.NIK || row['No NIK'] || row.nik || row['NIK Pemohon'] || '').trim() || null;
         const noKkVal = String(row.No_KK || row['No KK'] || row.no_kk || '').trim() || null;
         const alamatVal = String(row.Alamat || row['Alamat Lengkap'] || row.alamat || '').trim() || null;

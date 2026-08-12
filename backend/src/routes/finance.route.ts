@@ -24,6 +24,7 @@ import {
    syncBankBalances,
    getReplenishments,
    migrateBukuBesar,
+   createManualJournalEntry,
    getTransitEntries,
    getProposalJournalDetail
  } from '../controllers/finance.controller';
@@ -64,6 +65,7 @@ router.get('/ledger/rekap', getCoaSummaries);
 router.get('/ledger/health-check', checkLedgerHealth);
 router.post('/ledger/sync-bank-balances', syncBankBalances);
 router.post('/ledger/migrate', migrateBukuBesar);
+router.post('/ledger/manual', createManualJournalEntry);
 router.get('/transit-entries', getTransitEntries);
 
 export default router;
