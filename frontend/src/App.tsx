@@ -59,29 +59,39 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [proposals, setProposals] = useState<ProposalMemo[]>([]);
   const [surats, setSurats] = useState<Surat[]>([]);
-  const [obsMenuEnabled, setObsMenuEnabled] = useState(false);
+  const [obsMenuEnabled, setObsMenuEnabled] = useState(() => {
+    return localStorage.getItem('obsMenuEnabled') === 'true';
+  });
+  const [obsParamLoaded, setObsParamLoaded] = useState(false);
 
   // Fetch obs_menu_enabled parameter — only on login/mount, NOT on menu change
   useEffect(() => {
     if (isAuthenticated) {
       axios.get('/api/parameters/obs_menu_enabled')
         .then(res => {
-          setObsMenuEnabled(res.data?.value === 'true');
+          const isEnabled = res.data?.value === 'true';
+          setObsMenuEnabled(isEnabled);
+          localStorage.setItem('obsMenuEnabled', String(isEnabled));
         })
         .catch(() => {
           // Fallback: fetch all params if single key endpoint fails
           axios.get('/api/parameters')
             .then(res => {
               const obsParam = res.data?.find((p: any) => p.key === 'obs_menu_enabled');
-              setObsMenuEnabled(obsParam?.value === 'true');
+              const isEnabled = obsParam?.value === 'true';
+              setObsMenuEnabled(isEnabled);
+              localStorage.setItem('obsMenuEnabled', String(isEnabled));
             })
             .catch(console.error);
+        })
+        .finally(() => {
+          setObsParamLoaded(true);
         });
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && obsParamLoaded) {
       const role = user.role;
       const allItems = [
         { name: "Dashboard", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Keuangan", "Kabag_Keuangan", "Staf_Pengumpulan", "Staf_Pelaporan", "Humas"] },
@@ -144,7 +154,7 @@ function App() {
         }
       }
     }
-  }, [isAuthenticated, user, activeMenu, obsMenuEnabled]);
+  }, [isAuthenticated, user, activeMenu, obsMenuEnabled, obsParamLoaded]);
 
   useEffect(() => {
     axios.get('/api/pilars')
