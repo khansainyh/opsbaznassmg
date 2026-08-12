@@ -160,27 +160,46 @@ export default function LaporanKinerja() {
   // Years option
   const yearOptions = [2026, 2025, 2024, 2023];
 
+  // In-memory client cache by year
+  const yearDataCacheRef = React.useRef<Record<number, { rkat: any[]; muzakki: any[]; penyaluran: any[]; mustahik: any[] }>>({});
+
   // Fetch report data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh && yearDataCacheRef.current[selectedYear]) {
+      const cached = yearDataCacheRef.current[selectedYear];
+      setRkatPengumpulanList(cached.rkat);
+      setMuzakkiMunfiqList(cached.muzakki);
+      setRkatPenyaluranList(cached.penyaluran);
+      setMustahikGrowthList(cached.mustahik);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
+      const refreshParam = forceRefresh ? '&refresh=true' : '';
       const [resRkat, resMuzakki, resPenyaluran] = await Promise.all([
-        axios.get(`/api/laporan-kinerja/pengumpulan?year=${selectedYear}`),
-        axios.get(`/api/laporan-kinerja/muzakki-munfiq?year=${selectedYear}`),
-        axios.get(`/api/laporan-kinerja/penyaluran?year=${selectedYear}`)
+        axios.get(`/api/laporan-kinerja/pengumpulan?year=${selectedYear}${refreshParam}`),
+        axios.get(`/api/laporan-kinerja/muzakki-munfiq?year=${selectedYear}${refreshParam}`),
+        axios.get(`/api/laporan-kinerja/penyaluran?year=${selectedYear}${refreshParam}`)
       ]);
 
-      if (resRkat.data.status === 'success') {
-        setRkatPengumpulanList(resRkat.data.data);
-      }
-      if (resMuzakki.data.status === 'success') {
-        setMuzakkiMunfiqList(resMuzakki.data.data);
-      }
-      if (resPenyaluran.data.status === 'success') {
-        setRkatPenyaluranList(resPenyaluran.data.rkatPenyaluranList);
-        setMustahikGrowthList(resPenyaluran.data.mustahikGrowthList);
-      }
+      const rkatData = resRkat.data.status === 'success' ? resRkat.data.data : [];
+      const muzakkiData = resMuzakki.data.status === 'success' ? resMuzakki.data.data : [];
+      const penyaluranData = resPenyaluran.data.status === 'success' ? resPenyaluran.data.rkatPenyaluranList : [];
+      const mustahikData = resPenyaluran.data.status === 'success' ? resPenyaluran.data.mustahikGrowthList : [];
+
+      setRkatPengumpulanList(rkatData);
+      setMuzakkiMunfiqList(muzakkiData);
+      setRkatPenyaluranList(penyaluranData);
+      setMustahikGrowthList(mustahikData);
+
+      yearDataCacheRef.current[selectedYear] = {
+        rkat: rkatData,
+        muzakki: muzakkiData,
+        penyaluran: penyaluranData,
+        mustahik: mustahikData
+      };
     } catch (err: any) {
       console.error('Gagal mengambil data Laporan Kinerja:', err);
       setError(
@@ -197,7 +216,7 @@ export default function LaporanKinerja() {
   }, [fetchData]);
 
   // Auto-refetch when window/tab regains focus
-  useWindowFocusRefetch(fetchData);
+  useWindowFocusRefetch(() => fetchData(false));
 
   // Months map helper
   const months = [
@@ -738,6 +757,17 @@ export default function LaporanKinerja() {
             </select>
           </div>
 
+          {/* Segarkan Button */}
+          <button
+            onClick={() => fetchData(true)}
+            disabled={loading}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-sm sm:text-xs rounded-xl shadow-sm hover:shadow transition-all min-h-[38px] active:scale-95 cursor-pointer"
+            title="Segarkan / Muat Ulang Data Terbaru"
+          >
+            <RefreshCw className={cn("size-3.5 shrink-0", loading && "animate-spin text-primary")} />
+            <span>Segarkan</span>
+          </button>
+
           {/* Unduh Excel Button */}
           <button
             onClick={exportToExcel}
@@ -782,7 +812,7 @@ export default function LaporanKinerja() {
             <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">{error}</p>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
           >
             <RefreshCw className="size-4 animate-spin-reverse" />

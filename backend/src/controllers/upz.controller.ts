@@ -4,8 +4,25 @@ import { Prisma } from '@prisma/client';
 import path from 'path';
 import { uploadToDrive } from '../utils/gdrive';
 
+// In-memory cache for high-traffic read performance
+let UPZ_CACHE: { data: any[]; timestamp: number } | null = null;
+const UPZ_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+export const invalidateUpzCache = () => {
+  UPZ_CACHE = null;
+};
+
 export const getUpz = async (req: Request, res: Response): Promise<void> => {
   try {
+    const isRefresh = req.query.refresh === 'true';
+
+    if (!isRefresh && UPZ_CACHE && (Date.now() - UPZ_CACHE.timestamp < UPZ_CACHE_TTL_MS)) {
+      res.setHeader('X-Cache', 'HIT');
+      res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+      res.status(200).json({ status: 'success', data: UPZ_CACHE.data });
+      return;
+    }
+
     const records = await prisma.upz.findMany({
       orderBy: { created_at: 'desc' }
     });
@@ -49,6 +66,13 @@ export const getUpz = async (req: Request, res: Response): Promise<void> => {
       };
     });
 
+    UPZ_CACHE = {
+      data,
+      timestamp: Date.now()
+    };
+
+    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     res.status(200).json({ status: 'success', data });
   } catch (error) {
     console.error('Error getting UPZ:', error);
@@ -80,6 +104,8 @@ export const createUpz = async (req: Request, res: Response): Promise<void> => {
         metadata: upzData as any
       }
     });
+
+    invalidateUpzCache();
 
     res.status(201).json({ status: 'success', data: newRecord });
   } catch (error) {
@@ -117,6 +143,8 @@ export const updateUpz = async (req: Request, res: Response): Promise<void> => {
       }
     });
 
+    invalidateUpzCache();
+
     res.status(200).json({ status: 'success', data: updated });
   } catch (error) {
     console.error('Error updating UPZ:', error);
@@ -130,6 +158,9 @@ export const deleteUpz = async (req: Request, res: Response): Promise<void> => {
     await prisma.upz.delete({
       where: { id }
     });
+
+    invalidateUpzCache();
+
     res.status(200).json({ status: 'success', message: 'UPZ deleted successfully.' });
   } catch (error) {
     console.error('Error deleting UPZ:', error);
@@ -150,6 +181,8 @@ export const uploadSkUpz = async (req: Request, res: Response) => {
     if (!existing) {
       return res.status(404).json({ error: 'UPZ tidak ditemukan.' });
     }
+
+    invalidateUpzCache();
 
     // Format nama file: "SK_UPZ_[NamaUPZ]_[Timestamp].ext"
     const ext = path.extname(file.originalname) || '';

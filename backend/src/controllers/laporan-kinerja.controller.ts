@@ -108,7 +108,7 @@ export const getLaporanKinerjaMappings = async (req: Request, res: Response) => 
 };
 
 const reportCache = new Map<string, { timestamp: number; data: any }>();
-const CACHE_TTL_MS = 30 * 1000;
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 
 export const invalidateReportCache = () => {
   reportCache.clear();
@@ -148,10 +148,13 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
   try {
     const yearStr = req.query.year as string;
     const year = yearStr ? parseInt(yearStr) : new Date().getFullYear();
+    const isRefresh = req.query.refresh === 'true';
 
     const cacheKey = `muzakki_munfiq_${year}`;
     const cached = reportCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (!isRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      res.setHeader('X-Cache', 'HIT');
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=180');
       return res.status(200).json(cached.data);
     }
 
@@ -334,11 +337,16 @@ export const getMuzakkiMunfiqLaporan = async (req: Request, res: Response) => {
       total: result[c.key].monthly.reduce((sum, val) => sum + val, 0)
     }));
 
-    res.status(200).json({
+    const responsePayload = {
       status: 'success',
       year,
       data: dataArray
-    });
+    };
+
+    reportCache.set(cacheKey, { timestamp: Date.now(), data: responsePayload });
+    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=180');
+    res.status(200).json(responsePayload);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: String(error) });
@@ -372,10 +380,13 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
   try {
     const yearStr = req.query.year as string;
     const year = yearStr ? parseInt(yearStr) : new Date().getFullYear();
+    const isRefresh = req.query.refresh === 'true';
 
     const cacheKey = `penyaluran_${year}`;
     const cached = reportCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (!isRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      res.setHeader('X-Cache', 'HIT');
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=180');
       return res.status(200).json(cached.data);
     }
 
@@ -914,6 +925,8 @@ export const getPenyaluranLaporan = async (req: Request, res: Response) => {
       mustahikGrowthList: finalMustahikList
     };
     reportCache.set(cacheKey, { timestamp: Date.now(), data: responsePayload });
+    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=180');
     res.status(200).json(responsePayload);
   } catch (error) {
     console.error(error);
@@ -925,10 +938,13 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
   try {
     const yearStr = req.query.year as string;
     const year = yearStr ? parseInt(yearStr) : new Date().getFullYear();
+    const isRefresh = req.query.refresh === 'true';
 
     const cacheKey = `pengumpulan_${year}`;
     const cached = reportCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (!isRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      res.setHeader('X-Cache', 'HIT');
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=180');
       return res.status(200).json(cached.data);
     }
 
@@ -1170,6 +1186,8 @@ export const getPengumpulanLaporan = async (req: Request, res: Response) => {
       data: finalRkatList
     };
     reportCache.set(cacheKey, { timestamp: Date.now(), data: responsePayload });
+    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=180');
     res.status(200).json(responsePayload);
   } catch (error) {
     console.error(error);

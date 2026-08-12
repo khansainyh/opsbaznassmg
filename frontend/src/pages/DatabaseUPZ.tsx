@@ -54,8 +54,21 @@ export default function DatabaseUPZ() {
   const { user } = useAuth();
   const canEdit = user?.role === 'Super_Admin' || user?.role === 'Staf_Administrasi';
 
-  const [data, setData] = useState<UPZ[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Instant SWR state initialization from session cache
+  const [data, setData] = useState<UPZ[]>(() => {
+    try {
+      const cached = sessionStorage.getItem('upz_list_cache');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('upz_list_cache');
+      return !cached;
+    } catch (e) {}
+    return true;
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [messages, setMessages] = useState<{type: 'success'|'error'|'warning', text: string}[]>([]);
@@ -67,8 +80,8 @@ export default function DatabaseUPZ() {
     }
   }, [messages]);
 
-  const fetchUPZList = async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
+  const fetchUPZList = async (showLoading = false) => {
+    if (showLoading && data.length === 0) setIsLoading(true);
     try {
       const res = await axios.get('/api/upz');
       if (res.data.status === 'success') {
@@ -79,6 +92,9 @@ export default function DatabaseUPZ() {
           return u;
         });
         setData(fetchedData);
+        try {
+          sessionStorage.setItem('upz_list_cache', JSON.stringify(fetchedData));
+        } catch (e) {}
         
         // Extract and sync skHistory from database
         const dbHistories: SKHistory[] = [];

@@ -1,6 +1,7 @@
 console.log("Starting index.ts");
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import prisma from './utils/prisma';
 
@@ -34,6 +35,10 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 4000;
 
+app.use(compression({
+  threshold: 1024, // compress responses above 1KB
+  level: 6
+}));
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
