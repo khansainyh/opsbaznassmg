@@ -717,22 +717,23 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                           {String(item.agendaNo).padStart(3, '0')}
                         </td>
                         <td className="py-3 px-4 text-slate-800 font-bold">
-                          {item.namaAnak ? (
-                            <div>
-                              <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
-                              <p className="text-[10px] text-slate-500 font-normal">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
-                            </div>
-                          ) : (item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
-                            <div>
-                              <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
-                              <p className="text-[10px] text-slate-500 font-normal">{item.namaPemohon}</p>
-                            </div>
-                          ) : (
-                            <div>
-                              <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                              {item.namaInstansi && <p className="text-[10px] text-slate-500 font-normal">{item.namaInstansi}</p>}
-                            </div>
-                          )}
+                          {(() => {
+                            const isLembaga = (item.jenisPengajuan || '').toLowerCase().includes('lembaga') || (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama'));
+                            const title = item.namaAnak || (isLembaga ? (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? item.namaInstansi : item.namaPemohon) : (item.namaPemohon && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? item.namaPemohon : (item.namaInstansi || 'Mustahik')));
+
+                            return (
+                              <div>
+                                <p className="text-sm font-bold text-slate-900">{title || 'Mustahik'}</p>
+                                {item.namaAnak ? (
+                                  <p className="text-[10px] text-slate-500 font-normal">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
+                                ) : isLembaga ? (
+                                  item.namaPemohon && item.namaPemohon !== title && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? <p className="text-[10px] text-slate-500 font-normal">Pemohon: {item.namaPemohon}</p> : null
+                                ) : (
+                                  item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? <p className="text-[10px] text-slate-500 font-normal">Instansi: {item.namaInstansi}</p> : null
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">

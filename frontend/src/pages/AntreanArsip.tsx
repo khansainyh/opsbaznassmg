@@ -417,22 +417,19 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        {item.namaAnak ? (
-                          <>
-                            <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
-                            <p className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
-                          </>
-                        ) : item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (
-                          <>
-                            <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
-                            <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                            <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.nik}</p>
-                          </>
-                        )}
+                        {(() => {
+                          const isLembaga = (item.jenisPengajuan || '').toLowerCase().includes('lembaga') || (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama'));
+                          const title = item.namaAnak || (isLembaga ? (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? item.namaInstansi : item.namaPemohon) : (item.namaPemohon && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? item.namaPemohon : (item.namaInstansi || 'Mustahik')));
+
+                          return (
+                            <>
+                              <p className="text-sm font-bold text-slate-900">{title || 'Mustahik'}</p>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                {item.namaAnak ? (item.namaInstansi || item.namaPemohon || 'Anak / Siswa') : isLembaga ? (item.namaPemohon && item.namaPemohon !== title && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? `Pemohon: ${item.namaPemohon}` : 'Lembaga / Instansi') : (item.nik ? `NIK: ${item.nik}` : 'Perorangan')}
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4">

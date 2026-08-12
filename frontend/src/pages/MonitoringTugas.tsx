@@ -968,18 +968,25 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                   </span>
                 </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <p className="font-bold text-slate-900">
-                        {task.namaAnak ? task.namaAnak : ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (task.namaInstansi || task.namaPemohon) : task.namaPemohon)}
-                      </p>
-                    </div>
-                    {task.namaAnak ? (
-                      <p className="text-xs text-slate-500">Sekolah/Instansi: {task.namaInstansi || task.namaPemohon} · {task.alamat}</p>
-                    ) : (task.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
-                      <p className="text-xs text-slate-500">Pemohon: {task.namaPemohon} · {task.alamat}</p>
-                    ) : (
-                      <p className="text-xs text-slate-500">{task.namaInstansi ? `Instansi: ${task.namaInstansi} · ` : ''}{task.alamat}</p>
-                    )}
+                    {(() => {
+                      const isLembaga = (task.jenisPengajuan || '').toLowerCase().includes('lembaga') || (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama'));
+                      const title = task.namaAnak || (isLembaga ? (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') ? task.namaInstansi : task.namaPemohon) : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : task.namaInstansi));
+
+                      return (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <p className="font-bold text-slate-900">{title || 'Mustahik'}</p>
+                          </div>
+                          {task.namaAnak ? (
+                            <p className="text-xs text-slate-500">Sekolah/Instansi: {task.namaInstansi || task.namaPemohon} · {task.alamat}</p>
+                          ) : isLembaga ? (
+                            <p className="text-xs text-slate-500">{task.namaPemohon && task.namaPemohon !== title && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? `Pemohon: ${task.namaPemohon} · ` : ''}{task.alamat}</p>
+                          ) : (
+                            <p className="text-xs text-slate-500">{task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') ? `Instansi: ${task.namaInstansi} · ` : ''}{task.alamat}</p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1">
@@ -1126,7 +1133,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
                 {/* Body: Mustahik & Alamat */}
                 <div className="space-y-1">
-                  <p className="font-bold text-slate-955 text-sm">{task.namaPemohon}</p>
+                  <p className="font-bold text-slate-955 text-sm">{task.namaAnak || ( (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') && ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') || !task.namaPemohon || task.namaPemohon.toLowerCase().includes('tanpa nama'))) ? task.namaInstansi : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : (task.namaInstansi || 'Mustahik')) )}</p>
                   <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
                 </div>
 
@@ -1575,7 +1582,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <p className="font-semibold text-slate-900">{task.namaPemohon}</p>
+                              <p className="font-semibold text-slate-900">{task.namaAnak || ( (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') && ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') || !task.namaPemohon || task.namaPemohon.toLowerCase().includes('tanpa nama'))) ? task.namaInstansi : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : (task.namaInstansi || 'Mustahik')) )}</p>
                             </div>
                             <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{task.alamat}</p>
                           </td>
@@ -1672,7 +1679,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
                       {/* Body: Mustahik & Alamat */}
                       <div className="space-y-1">
-                        <p className="font-semibold text-slate-900 text-sm">{task.namaPemohon}</p>
+                        <p className="font-semibold text-slate-900 text-sm">{task.namaAnak || ( (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') && ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') || !task.namaPemohon || task.namaPemohon.toLowerCase().includes('tanpa nama'))) ? task.namaInstansi : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : (task.namaInstansi || 'Mustahik')) )}</p>
                         <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
                       </div>
 
@@ -1874,7 +1881,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                       <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Mustahik</p>
-                        <p className="text-sm font-bold text-slate-900">{selectedTask.namaPemohon}</p>
+                        <p className="text-sm font-bold text-slate-900">{selectedTask.namaAnak || ( ((selectedTask.jenisPengajuan || '').toLowerCase().includes('lembaga') || (selectedTask.namaInstansi && !selectedTask.namaInstansi.toLowerCase().includes('tanpa nama'))) ? (selectedTask.namaInstansi && !selectedTask.namaInstansi.toLowerCase().includes('tanpa nama') ? selectedTask.namaInstansi : selectedTask.namaPemohon) : (selectedTask.namaPemohon && !selectedTask.namaPemohon.toLowerCase().includes('tanpa nama') ? selectedTask.namaPemohon : (selectedTask.namaInstansi || 'Mustahik')) )}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase">Program Bantuan</p>

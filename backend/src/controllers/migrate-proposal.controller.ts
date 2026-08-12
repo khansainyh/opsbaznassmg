@@ -258,8 +258,8 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
           finalJenisPengajuan = 'Lembaga';
         }
 
-        const finalNamaPemohon = rawPemohon || (finalJenisPengajuan === 'Lembaga' ? (pimpinanOrganisasiVal || rawInstansi || 'Pemohon Tanpa Nama') : 'Pemohon Tanpa Nama');
-        const finalNamaInstansi = rawInstansi || (finalJenisPengajuan === 'Lembaga' ? rawPemohon : null);
+        const finalNamaInstansi = rawInstansi && !rawInstansi.toLowerCase().includes('tanpa nama') ? rawInstansi : (finalJenisPengajuan === 'Lembaga' ? (rawPemohon && !rawPemohon.toLowerCase().includes('tanpa nama') ? rawPemohon : null) : null);
+        const finalNamaPemohon = rawPemohon && !rawPemohon.toLowerCase().includes('tanpa nama') ? rawPemohon : (pimpinanOrganisasiVal || finalNamaInstansi || 'Mustahik');
         const namaLembaga = finalNamaInstansi || finalNamaPemohon;
         const keterangan = String(row.Keterangan || row.Peruntukan || `Migrasi Proposal: ${namaLembaga}`).trim();
 

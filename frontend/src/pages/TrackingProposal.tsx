@@ -723,28 +723,24 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     )}
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
-                    {item.namaAnak ? (
-                      <>
-                        <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                          <span className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</span>
-                        </div>
-                      </>
-                    ) : (item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
-                      <>
-                        <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                          <span className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                          <span className="text-[10px] text-slate-400 font-medium uppercase">{item.namaInstansi || 'Perorangan'}</span>
-                        </div>
-                      </>
-                    )}
+                    {(() => {
+                      const title = item.namaAnak || ( (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') && ((item.jenisPengajuan || '').toLowerCase().includes('lembaga') || !item.namaPemohon || item.namaPemohon.toLowerCase().includes('tanpa nama'))) ? item.namaInstansi : (item.namaPemohon && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? item.namaPemohon : (item.namaInstansi || 'Mustahik')) );
+                      
+                      const sub = item.namaAnak 
+                        ? (item.namaInstansi || item.namaPemohon || 'Anak / Siswa')
+                        : ((item.jenisPengajuan || '').toLowerCase().includes('lembaga') || (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama')))
+                        ? (item.namaPemohon && item.namaPemohon !== title && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? `Pemohon: ${item.namaPemohon}` : 'Lembaga / Instansi')
+                        : (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? `Instansi: ${item.namaInstansi}` : 'Perorangan');
+
+                      return (
+                        <>
+                          <p className="text-sm font-bold text-slate-900">{title}</p>
+                          <div className="flex flex-col gap-0.5 mt-0.5">
+                            <span className="text-[10px] text-slate-500 font-medium">{sub}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-0.5 py-1">
@@ -999,34 +995,23 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                     {/* Mustahik & Bantuan Info Card */}
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                       <div>
-                        {selectedProposal.namaAnak ? (
-                          <>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Anak / Siswa</p>
-                            <p className="text-sm font-bold text-slate-900">{selectedProposal.namaAnak}</p>
-                            {selectedProposal.namaInstansi && (
-                              <p className="text-xs text-slate-500 font-semibold mt-0.5">Instansi / Sekolah: {selectedProposal.namaInstansi}</p>
-                            )}
-                            {selectedProposal.namaPemohon && (
-                              <p className="text-xs text-slate-400 font-medium mt-0.5">Pemohon: {selectedProposal.namaPemohon}</p>
-                            )}
-                          </>
-                        ) : (selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
-                          <>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Instansi / Lembaga</p>
-                            <p className="text-sm font-bold text-slate-900">{selectedProposal.namaInstansi || selectedProposal.namaPemohon}</p>
-                            {selectedProposal.namaPemohon && (
-                              <p className="text-xs text-slate-500 font-semibold mt-0.5">Pemohon: {selectedProposal.namaPemohon}</p>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Mustahik / Pemohon</p>
-                            <p className="text-sm font-bold text-slate-900">{selectedProposal.namaPemohon}</p>
-                            {selectedProposal.namaInstansi && (
-                              <p className="text-xs text-slate-500 font-semibold mt-0.5">Instansi / Sekolah: {selectedProposal.namaInstansi}</p>
-                            )}
-                          </>
-                        )}
+                        {(() => {
+                          const isLembaga = (selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') || (selectedProposal.namaInstansi && !selectedProposal.namaInstansi.toLowerCase().includes('tanpa nama'));
+                          const mainName = selectedProposal.namaAnak || (isLembaga ? (selectedProposal.namaInstansi && !selectedProposal.namaInstansi.toLowerCase().includes('tanpa nama') ? selectedProposal.namaInstansi : selectedProposal.namaPemohon) : (selectedProposal.namaPemohon && !selectedProposal.namaPemohon.toLowerCase().includes('tanpa nama') ? selectedProposal.namaPemohon : selectedProposal.namaInstansi));
+
+                          return (
+                            <>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedProposal.namaAnak ? 'Nama Anak / Siswa' : (isLembaga ? 'Nama Instansi / Lembaga' : 'Nama Mustahik / Pemohon')}</p>
+                              <p className="text-sm font-bold text-slate-900">{mainName || 'Mustahik'}</p>
+                              {selectedProposal.namaInstansi && selectedProposal.namaInstansi !== mainName && !selectedProposal.namaInstansi.toLowerCase().includes('tanpa nama') && (
+                                <p className="text-xs text-slate-500 font-semibold mt-0.5">Instansi / Sekolah: {selectedProposal.namaInstansi}</p>
+                              )}
+                              {selectedProposal.namaPemohon && selectedProposal.namaPemohon !== mainName && !selectedProposal.namaPemohon.toLowerCase().includes('tanpa nama') && (
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">Pemohon: {selectedProposal.namaPemohon}</p>
+                              )}
+                            </>
+                          );
+                        })()}
                         {selectedProposal.nik && (
                           <p className="text-[10px] text-slate-400 font-medium mt-1">NIK: {selectedProposal.nik}</p>
                         )}
