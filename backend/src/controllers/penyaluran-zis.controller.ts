@@ -91,6 +91,7 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
 export const createDirectPenyaluran = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
+      mustahik_id,
       nama_pemohon,
       nama_instansi,
       nik,
@@ -121,14 +122,21 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
     }
 
     // Auto-register or locate Mustahik
-    const finalNik = String(nik || `3374${Date.now().toString().slice(-12)}`).trim();
-    let mustahikRecord = await prisma.mustahik.findUnique({ where: { nik: finalNik } });
+    let mustahikRecord: any = null;
+    if (mustahik_id) {
+      mustahikRecord = await prisma.mustahik.findUnique({ where: { id: String(mustahik_id) } });
+    }
+
+    const cleanNik = nik && String(nik).trim() ? String(nik).trim() : null;
+    if (!mustahikRecord && cleanNik) {
+      mustahikRecord = await prisma.mustahik.findUnique({ where: { nik: cleanNik } });
+    }
 
     if (!mustahikRecord) {
       mustahikRecord = await prisma.mustahik.create({
         data: {
           kategori: kategori === 'Lembaga' ? 'Lembaga' : 'Perorangan',
-          nik: finalNik,
+          nik: cleanNik,
           nama: String(nama_pemohon),
           nama_pimpinan: kategori === 'Lembaga' ? String(nama_instansi || nama_pemohon) : null,
           jenis_lembaga: kategori === 'Lembaga' ? 'Lembaga' : null,
@@ -155,7 +163,7 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
         tanggal_masuk: new Date(),
         nama_pemohon: String(nama_pemohon),
         nama_instansi: nama_instansi ? String(nama_instansi) : null,
-        nik: finalNik,
+        nik: cleanNik || (mustahikRecord.nik || '-'),
         jenis_kelamin: String(jenis_kelamin || 'Pria'),
         alamat: String(alamat || 'Kota Semarang'),
         no_telpon: String(no_telpon || '080000000000'),

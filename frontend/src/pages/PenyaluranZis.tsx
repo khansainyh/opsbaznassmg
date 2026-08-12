@@ -18,6 +18,7 @@ import {
   UserCheck,
   Building2,
   User,
+  UserPlus,
   BookOpen,
   DollarSign,
   FileCheck,
@@ -27,6 +28,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import { pilarData } from '../data/pilarData';
 
 // SummaryCard Component (Matched 100% with PenerimaanZis.tsx)
 function SummaryCard({ title, value, subtext, icon, colorClass }: any) {
@@ -237,6 +239,203 @@ function SearchableSelect({
   );
 }
 
+// Pilar Program Search Select Component (Grouped and ordered by Pilar like InputProposalMemo)
+function PilarProgramSearchSelect({
+  pilars,
+  value,
+  onSelect,
+  placeholder = "-- Pilih Jenis Permohonan / Program Penyaluran --",
+  className
+}: {
+  pilars: any[];
+  value: string;
+  onSelect: (progCode: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Merge pilars with standard pilarData if empty
+  const activePilars = useMemo(() => {
+    const source = (pilars && pilars.length > 0) ? pilars : pilarData;
+    return source;
+  }, [pilars]);
+
+  // Find selected program info
+  const selectedInfo = useMemo(() => {
+    if (!value) return null;
+    for (const pilar of activePilars) {
+      const prog = (pilar.programs || []).find((p: any) => p.code === value || p.name === value);
+      if (prog) {
+        return {
+          code: prog.code,
+          name: prog.name,
+          pilarName: pilar.name,
+          pilarCode: pilar.code
+        };
+      }
+    }
+    return { code: value, name: value, pilarName: 'Umum / Lainnya', pilarCode: '' };
+  }, [activePilars, value]);
+
+  // Filtered and grouped by Pilar
+  const filteredPilars = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return activePilars.map(pilar => {
+      const pilarMatch = (pilar.name || '').toLowerCase().includes(q) || String(pilar.code || '').includes(q);
+      const matchingProgs = (pilar.programs || []).filter((prog: any) =>
+        pilarMatch ||
+        (prog.code || '').toLowerCase().includes(q) ||
+        (prog.name || '').toLowerCase().includes(q)
+      );
+      return {
+        ...pilar,
+        programs: matchingProgs
+      };
+    }).filter(pilar => pilar.programs && pilar.programs.length > 0);
+  }, [activePilars, search]);
+
+  // Styling helper for Pilar badges
+  const getPilarStyle = (pilarName: string) => {
+    const n = (pilarName || '').toLowerCase();
+    if (n.includes('peduli')) return { bg: 'bg-rose-50 text-rose-800 border-rose-200', tag: 'bg-rose-100 text-rose-800' };
+    if (n.includes('sehat')) return { bg: 'bg-emerald-50 text-emerald-800 border-emerald-200', tag: 'bg-emerald-100 text-emerald-800' };
+    if (n.includes('cerdas')) return { bg: 'bg-blue-50 text-blue-800 border-blue-200', tag: 'bg-blue-100 text-blue-800' };
+    if (n.includes('taqwa')) return { bg: 'bg-amber-50 text-amber-800 border-amber-200', tag: 'bg-amber-100 text-amber-800' };
+    if (n.includes('makmur')) return { bg: 'bg-purple-50 text-purple-800 border-purple-200', tag: 'bg-purple-100 text-purple-800' };
+    return { bg: 'bg-slate-50 text-slate-800 border-slate-200', tag: 'bg-slate-100 text-slate-800' };
+  };
+
+  return (
+    <div className="relative font-sans w-full" ref={ref}>
+      <button
+        type="button"
+        onClick={() => { setIsOpen(!isOpen); setSearch(''); }}
+        className={cn(
+          "w-full text-left text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none transition-all font-semibold flex items-center justify-between gap-2 shadow-sm hover:border-slate-300 cursor-pointer",
+          selectedInfo ? "text-slate-900 bg-white border-slate-300" : "text-slate-400 font-medium",
+          className
+        )}
+      >
+        <span className="truncate flex-1">
+          {selectedInfo ? (
+            <span className="flex items-center gap-2 truncate">
+              <span className="px-2 py-0.5 text-[9px] font-mono font-bold bg-primary/10 text-primary rounded-md shrink-0 border border-primary/20">
+                {selectedInfo.code}
+              </span>
+              <span className="font-bold text-slate-900 truncate">{selectedInfo.name}</span>
+              <span className={cn("hidden sm:inline-block px-1.5 py-0.5 text-[8.5px] font-bold rounded shrink-0", getPilarStyle(selectedInfo.pilarName).tag)}>
+                {selectedInfo.pilarName}
+              </span>
+            </span>
+          ) : (
+            placeholder
+          )}
+        </span>
+        <ChevronRight className={cn("size-4 text-slate-400 shrink-0 transition-transform duration-200", isOpen ? "-rotate-90" : "rotate-90")} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-[140] left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2.5 space-y-2 max-h-80 overflow-hidden flex flex-col">
+          <div className="relative shrink-0">
+            <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari jenis permohonan / program / pilar..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/20 font-medium text-slate-800"
+            />
+          </div>
+
+          <div className="space-y-3 overflow-y-auto custom-scrollbar max-h-60 p-0.5">
+            {value && (
+              <button
+                type="button"
+                onClick={() => { onSelect(''); setIsOpen(false); setSearch(''); }}
+                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-rose-50 text-[11px] text-rose-600 font-bold transition-colors cursor-pointer"
+              >
+                -- Hapus Pilihan Program --
+              </button>
+            )}
+
+            {filteredPilars.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-400 italic">
+                Tidak ada program yang cocok dengan kata kunci "{search}".
+              </div>
+            ) : (
+              filteredPilars.map((pilar) => {
+                const style = getPilarStyle(pilar.name);
+                return (
+                  <div key={pilar.code || pilar.name} className="space-y-1 bg-slate-50/60 p-2 rounded-xl border border-slate-100">
+                    {/* Pilar Header Group */}
+                    <div className={cn("flex items-center justify-between px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border", style.bg)}>
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="size-3" />
+                        {pilar.name}
+                      </span>
+                      <span className="font-mono text-[9px] opacity-80">Kode {pilar.code}</span>
+                    </div>
+
+                    {/* Program list inside this Pilar */}
+                    <div className="space-y-0.5 pt-0.5">
+                      {(pilar.programs || []).map((prog: any) => {
+                        const isSelected = value === prog.code || value === prog.name;
+                        return (
+                          <button
+                            key={prog.code}
+                            type="button"
+                            onClick={() => {
+                              onSelect(prog.code);
+                              setIsOpen(false);
+                              setSearch('');
+                            }}
+                            className={cn(
+                              "w-full text-left px-3 py-2 rounded-lg text-xs transition-all flex items-center justify-between cursor-pointer group",
+                              isSelected 
+                                ? "bg-primary text-white font-bold shadow-sm" 
+                                : "hover:bg-white hover:shadow-xs text-slate-700 font-medium border border-transparent hover:border-slate-200"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className={cn(
+                                "px-1.5 py-0.5 text-[9px] font-mono font-bold rounded shrink-0",
+                                isSelected ? "bg-white/20 text-white" : "bg-slate-200/80 text-slate-700 group-hover:bg-primary/10 group-hover:text-primary"
+                              )}>
+                                {prog.code}
+                              </span>
+                              <span className="truncate">{prog.name}</span>
+                            </div>
+                            {isSelected && <CheckCircle2 className="size-3.5 text-white shrink-0 ml-2" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Status Color & Format Function (PLEK KETIPLEK from TrackingProposal.tsx)
 function getStatusColor(status: string) {
   if (!status) return 'bg-teal-100 text-teal-700';
@@ -320,6 +519,21 @@ export default function PenyaluranZis() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedPenyaluran, setSelectedPenyaluran] = useState<any | null>(null);
 
+  // Mustahik Autocomplete & Quick Register State
+  const [mustahikList, setMustahikList] = useState<any[]>([]);
+  const [selectedMustahikId, setSelectedMustahikId] = useState<string | null>(null);
+  const [mustahikSearch, setMustahikSearch] = useState('');
+  const [showMustahikDropdown, setShowMustahikDropdown] = useState(false);
+  const [showQuickRegisterMustahik, setShowQuickRegisterMustahik] = useState(false);
+  
+  // Quick Register Mustahik fields
+  const [quickMustahikKategori, setQuickMustahikKategori] = useState<'Perorangan' | 'Lembaga'>('Perorangan');
+  const [quickMustahikNama, setQuickMustahikNama] = useState('');
+  const [quickMustahikNik, setQuickMustahikNik] = useState('');
+  const [quickMustahikJenisKelamin, setQuickMustahikJenisKelamin] = useState<'Laki-laki' | 'Perempuan'>('Laki-laki');
+  const [quickMustahikTelepon, setQuickMustahikTelepon] = useState('');
+  const [quickMustahikAlamat, setQuickMustahikAlamat] = useState('');
+
   // Form State for Direct Input / Edit
   const [formKategori, setFormKategori] = useState<'Perorangan' | 'Lembaga'>('Perorangan');
   const [formJenisKelamin, setFormJenisKelamin] = useState<'Pria' | 'Wanita'>('Pria');
@@ -347,12 +561,13 @@ export default function PenyaluranZis() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [penyaluranRes, pilarsRes, rkatRes, coaRes, mappingRes] = await Promise.all([
+      const [penyaluranRes, pilarsRes, rkatRes, coaRes, mappingRes, mustahikRes] = await Promise.all([
         axios.get('/api/penyaluran-zis').catch(() => ({ data: { data: [] } })),
         axios.get('/api/pilars').catch(() => ({ data: [] })),
         axios.get('/api/rkat-operasional').catch(() => ({ data: [] })),
         axios.get('/api/finance/coa').catch(() => ({ data: [] })),
-        axios.get('/api/finance/mapping-rules').catch(() => ({ data: [] }))
+        axios.get('/api/finance/mapping-rules').catch(() => ({ data: [] })),
+        axios.get('/api/mustahik').catch(() => ({ data: { data: [] } }))
       ]);
 
       setData(penyaluranRes.data?.data || []);
@@ -360,6 +575,7 @@ export default function PenyaluranZis() {
       setRkatList(Array.isArray(rkatRes.data) ? rkatRes.data : []);
       setCoaList(Array.isArray(coaRes.data) ? coaRes.data : []);
       setMappingRules(Array.isArray(mappingRes.data) ? mappingRes.data : []);
+      setMustahikList(mustahikRes.data?.data || []);
     } catch (e) {
       console.error('Error loading Penyaluran ZIS:', e);
     } finally {
@@ -397,16 +613,6 @@ export default function PenyaluranZis() {
     });
     return progs;
   }, [pilars]);
-
-  // Searchable Select Options for Program Kegiatan
-  const programSelectOptions = useMemo(() => {
-    return programOptions.map(p => ({
-      value: p.code,
-      label: p.name,
-      sublabel: `Pilar: ${p.pilarName}`,
-      badge: `Kode ${p.code}`
-    }));
-  }, [programOptions]);
 
   // Cascading RKAT Penyaluran Options for Selected Program & Asnaf in Modal
   const filteredRkatOptions = useMemo(() => {
@@ -808,8 +1014,97 @@ export default function PenyaluranZis() {
     }
   };
 
+  // Filtered Mustahik for Dropdown Autocomplete
+  const filteredMustahikForDropdown = useMemo(() => {
+    const q = mustahikSearch.toLowerCase().trim();
+    if (!q) return mustahikList.slice(0, 30);
+    return mustahikList.filter((m: any) => {
+      const nama = String(m.nama || '').toLowerCase();
+      const nik = String(m.nik || '').toLowerCase();
+      const nrm = String(m.nrm || '').toLowerCase();
+      const pimpinan = String(m.nama_pimpinan || '').toLowerCase();
+      const telp = String(m.telepon || m.handphone || '').toLowerCase();
+      return nama.includes(q) || nik.includes(q) || nrm.includes(q) || pimpinan.includes(q) || telp.includes(q);
+    }).slice(0, 30);
+  }, [mustahikList, mustahikSearch]);
+
+  // Select Mustahik from Autocomplete Dropdown
+  const handleSelectMustahik = (m: any) => {
+    setSelectedMustahikId(m.id);
+    setMustahikSearch(m.nama);
+    setShowMustahikDropdown(false);
+    
+    const isLembaga = m.kategori === 'Lembaga' || Boolean(m.nama_pimpinan || m.jenis_lembaga);
+    setFormKategori(isLembaga ? 'Lembaga' : 'Perorangan');
+    setFormNama(m.nama);
+    setFormNik(m.nik || '');
+    if (isLembaga) {
+      setFormNamaInstansi(m.nama_pimpinan || m.nama);
+    } else {
+      const jk = m.jenis_kelamin || '';
+      setFormJenisKelamin(jk === 'Perempuan' || jk === 'Wanita' ? 'Wanita' : 'Pria');
+    }
+    setFormTelepon(m.handphone || m.telepon || '');
+    setFormAlamat(m.alamat || '');
+    
+    if (m.nik && m.nik.length >= 16) {
+      handleCheckNik(m.nik);
+    } else {
+      setNikFoundStatus(`Terpilih dari Data Mustahik: ${m.nama} (NRM: ${m.nrm || '-'})`);
+    }
+  };
+
+  // Handle Quick Register Mustahik (Instant Registration without mandatory NIK)
+  const handleQuickRegisterMustahik = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!quickMustahikNama || !quickMustahikNama.trim()) {
+      alert('Nama Mustahik / Lembaga wajib diisi.');
+      return;
+    }
+
+    try {
+      const payload: any = {
+        kategori: quickMustahikKategori,
+        nama: quickMustahikNama.trim(),
+        nik: quickMustahikNik && quickMustahikNik.trim() ? quickMustahikNik.trim() : null,
+        alamat: quickMustahikAlamat.trim() || 'Kota Semarang',
+        telepon: quickMustahikTelepon.trim() || null,
+        handphone: quickMustahikTelepon.trim() || null,
+        catatan: 'Registrasi Cepat Mustahik Penyaluran ZIS'
+      };
+
+      if (quickMustahikKategori === 'Perorangan') {
+        payload.jenis_kelamin = quickMustahikJenisKelamin;
+      } else {
+        payload.nama_pimpinan = quickMustahikNama.trim();
+        payload.jenis_lembaga = 'Lembaga';
+      }
+
+      const res = await axios.post('/api/mustahik', payload);
+      if (res.data?.status === 'success' || res.data?.data) {
+        const newMustahik = res.data.data;
+        setMustahikList(prev => [newMustahik, ...prev]);
+        handleSelectMustahik(newMustahik);
+        setShowQuickRegisterMustahik(false);
+        setQuickMustahikNama('');
+        setQuickMustahikNik('');
+        setQuickMustahikTelepon('');
+        setQuickMustahikAlamat('');
+        setQuickMustahikJenisKelamin('Laki-laki');
+        alert(`Mustahik ${newMustahik.nama} berhasil didaftarkan secara cepat!`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || err.response?.data?.error || 'Gagal meregistrasi Mustahik baru');
+    }
+  };
+
   // Open Direct Input Modal
   const handleOpenInputModal = () => {
+    setSelectedMustahikId(null);
+    setMustahikSearch('');
+    setShowMustahikDropdown(false);
+    setShowQuickRegisterMustahik(false);
     setFormKategori('Perorangan');
     setFormJenisKelamin('Pria');
     setFormNama('');
@@ -855,27 +1150,24 @@ export default function PenyaluranZis() {
     setIsEditModalOpen(true);
   };
 
-  // Submit Direct Input Form
+  // Submit Direct Input Form (NIK is optional)
   const handleSubmitDirect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    if (!formNik.trim() || formNik.trim().length < 16) {
-      alert(`Mohon isi 16 digit NIK ${formKategori === 'Lembaga' ? 'Pimpinan / Penanggung Jawab' : 'Pemohon'}.`);
-      return;
-    }
     
     const parsedNominal = Number(formNominal.replace(/\D/g, ''));
     if (!formNama.trim() || !parsedNominal || parsedNominal <= 0) {
-      alert('Mohon lengkapi Nama Penerima dan Nominal Bantuan.');
+      alert('Mohon lengkapi Nama Penerima / Mustahik dan Nominal Bantuan.');
       return;
     }
 
     setSubmitting(true);
     try {
       const payload = {
+        mustahik_id: selectedMustahikId || null,
         nama_pemohon: formNama.trim(),
         nama_instansi: formKategori === 'Lembaga' ? formNamaInstansi.trim() : null,
-        nik: formNik.trim(),
+        nik: formNik.trim() || null,
         kategori: formKategori,
         jenis_kelamin: formKategori === 'Perorangan' ? formJenisKelamin : null,
         alamat: formAlamat.trim() || 'Kota Semarang',
@@ -1335,7 +1627,152 @@ export default function PenyaluranZis() {
                     <User className="size-4 text-primary" /> 1. Informasi Data Mustahik / Penerima Bantuan
                   </h4>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Autocomplete Mustahik (Matched with Penerimaan ZIS Muzakki Autocomplete) */}
+                  <div className="space-y-1 relative">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mustahik *</label>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowQuickRegisterMustahik(!showQuickRegisterMustahik)}
+                        className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <UserPlus className="size-3" />
+                        {showQuickRegisterMustahik ? "Batal Register" : "+ Registrasi Cepat Mustahik"}
+                      </button>
+                    </div>
+
+                    {showQuickRegisterMustahik ? (
+                      <div className="bg-white p-4 rounded-xl border border-primary/20 shadow-sm space-y-3 mt-1">
+                        <p className="text-[9px] font-black text-primary uppercase tracking-widest">Registrasi Mustahik Instan</p>
+                        <div className="flex gap-2">
+                          <button 
+                            type="button" 
+                            onClick={() => setQuickMustahikKategori('Perorangan')}
+                            className={cn("flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer", quickMustahikKategori === 'Perorangan' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}
+                          >
+                            Perorangan
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => setQuickMustahikKategori('Lembaga')}
+                            className={cn("flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer", quickMustahikKategori === 'Lembaga' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}
+                          >
+                            Lembaga
+                          </button>
+                        </div>
+                        <input 
+                          type="text" 
+                          placeholder="Nama Lengkap / Lembaga *" 
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none focus:border-primary font-medium" 
+                          value={quickMustahikNama} 
+                          onChange={(e) => setQuickMustahikNama(e.target.value)} 
+                        />
+                        {quickMustahikKategori === 'Perorangan' && (
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              placeholder="NIK (KTP) - Opsional" 
+                              className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none focus:border-primary font-mono" 
+                              value={quickMustahikNik} 
+                              onChange={(e) => setQuickMustahikNik(e.target.value)} 
+                            />
+                            <select
+                              className="bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none text-slate-600 focus:border-primary cursor-pointer"
+                              value={quickMustahikJenisKelamin}
+                              onChange={(e) => setQuickMustahikJenisKelamin(e.target.value as 'Laki-laki' | 'Perempuan')}
+                            >
+                              <option value="Laki-laki">Laki-laki</option>
+                              <option value="Perempuan">Perempuan</option>
+                            </select>
+                          </div>
+                        )}
+                        <input 
+                          type="text" 
+                          placeholder="No Handphone / Telepon (Opsional)" 
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none focus:border-primary" 
+                          value={quickMustahikTelepon} 
+                          onChange={(e) => setQuickMustahikTelepon(e.target.value)} 
+                        />
+                        <textarea 
+                          placeholder="Alamat Lengkap (Opsional)" 
+                          rows={2} 
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs outline-none focus:border-primary" 
+                          value={quickMustahikAlamat} 
+                          onChange={(e) => setQuickMustahikAlamat(e.target.value)} 
+                        />
+                        <button 
+                          type="button" 
+                          onClick={handleQuickRegisterMustahik} 
+                          className="w-full bg-primary hover:bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg transition-colors cursor-pointer shadow-sm"
+                        >
+                          Daftarkan &amp; Pilih Mustahik
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            placeholder="Ketik nama, NIK, atau NRM Mustahik..." 
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-medium text-slate-800 shadow-sm"
+                            value={mustahikSearch}
+                            onChange={(e) => {
+                              setMustahikSearch(e.target.value);
+                              setFormNama(e.target.value);
+                              setShowMustahikDropdown(true);
+                            }}
+                            onFocus={() => setShowMustahikDropdown(true)}
+                          />
+                          {mustahikSearch && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMustahikSearch('');
+                                setSelectedMustahikId(null);
+                                setNikFoundStatus(null);
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {showMustahikDropdown && (
+                          <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
+                            {filteredMustahikForDropdown.length === 0 ? (
+                              <div className="p-3.5 text-xs text-slate-400 italic">
+                                Mustahik tidak ditemukan. Anda dapat menggunakan tombol <span className="font-bold text-primary">+ Registrasi Cepat Mustahik</span> di atas.
+                              </div>
+                            ) : (
+                              filteredMustahikForDropdown.map((mustahik) => (
+                                <button
+                                  key={mustahik.id}
+                                  type="button"
+                                  className="w-full text-left p-3 hover:bg-emerald-50/50 border-b border-slate-100 flex justify-between items-center text-xs transition-colors cursor-pointer group"
+                                  onClick={() => handleSelectMustahik(mustahik)}
+                                >
+                                  <div>
+                                    <p className="font-bold text-slate-800 group-hover:text-primary transition-colors">{mustahik.nama}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">
+                                      NIK: {mustahik.nik || '-'} {mustahik.nrm ? `| NRM: ${mustahik.nrm}` : ''}
+                                    </p>
+                                    {mustahik.alamat && <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{mustahik.alamat}</p>}
+                                  </div>
+                                  <span className="text-[10px] bg-slate-100 group-hover:bg-primary/10 group-hover:text-primary px-2 py-0.5 rounded text-slate-500 uppercase font-bold shrink-0">
+                                    {mustahik.kategori || 'Perorangan'}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Details Breakdown / Manual Form Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-200/50">
                     {/* Kategori Mustahik */}
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="font-bold text-slate-700">Kategori Mustahik *</label>
@@ -1359,16 +1796,16 @@ export default function PenyaluranZis() {
                       </div>
                     </div>
 
-                    {/* NIK Field with Auto-Cek */}
+                    {/* NIK Field with Auto-Cek (Optional NIK) */}
                     <div className="space-y-1.5 md:col-span-2">
                       <div className="flex justify-between items-center">
                         <label className="font-bold text-slate-700">
-                          {formKategori === 'Lembaga' ? 'NIK Pimpinan / Penanggung Jawab *' : 'NIK Pemohon (Wajib 16 Digit) *'}
+                          {formKategori === 'Lembaga' ? 'NIK Pimpinan / Penanggung Jawab (Opsional)' : 'NIK Pemohon (Opsional)'}
                         </label>
                         {nikFoundStatus && (
                           <span className={cn(
                             "text-[10px] font-bold px-2.5 py-0.5 rounded-full",
-                            nikFoundStatus.includes('terdaftar') ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"
+                            nikFoundStatus.includes('terdaftar') || nikFoundStatus.includes('Terpilih') ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"
                           )}>
                             {nikFoundStatus}
                           </span>
@@ -1377,9 +1814,8 @@ export default function PenyaluranZis() {
                       <div className="flex gap-2">
                         <input
                           type="text"
-                          required
                           maxLength={16}
-                          placeholder="Masukkan 16 digit NIK..."
+                          placeholder="Masukkan 16 digit NIK (jika ada)..."
                           value={formNik}
                           onChange={e => setFormNik(e.target.value)}
                           onBlur={() => formNik.length >= 16 && handleCheckNik()}
@@ -1405,7 +1841,10 @@ export default function PenyaluranZis() {
                         required
                         placeholder="Nama lengkap perorangan / kontak"
                         value={formNama}
-                        onChange={e => setFormNama(e.target.value)}
+                        onChange={e => {
+                          setFormNama(e.target.value);
+                          setMustahikSearch(e.target.value);
+                        }}
                         className="w-full p-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-medium text-slate-800 shadow-sm"
                       />
                     </div>
@@ -1440,7 +1879,7 @@ export default function PenyaluranZis() {
 
                     {formKategori === 'Perorangan' && (
                       <div className="space-y-1.5">
-                        <label className="font-bold text-slate-700">No. HP / WhatsApp</label>
+                        <label className="font-bold text-slate-700">No. HP / WhatsApp (Opsional)</label>
                         <input
                           type="text"
                           placeholder="08xxxxxxxxxx"
@@ -1452,7 +1891,7 @@ export default function PenyaluranZis() {
                     )}
 
                     <div className="space-y-1.5 md:col-span-2">
-                      <label className="font-bold text-slate-700">Alamat Lengkap</label>
+                      <label className="font-bold text-slate-700">Alamat Lengkap (Opsional)</label>
                       <input
                         type="text"
                         placeholder="Alamat domisili lengkap penerima"
@@ -1533,15 +1972,14 @@ export default function PenyaluranZis() {
                   </h4>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* a. Search Dropdown: Program / Kegiatan Penyaluran */}
+                    {/* a. Search Dropdown: Program / Kegiatan Penyaluran (Grouped by Pilar) */}
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="font-bold text-slate-700">1. Jenis Permohonan / Program Penyaluran *</label>
-                      <SearchableSelect
-                        options={programSelectOptions}
+                      <PilarProgramSearchSelect
+                        pilars={pilars}
                         value={formJenisPermohonan}
                         onSelect={handleProgramSelect}
-                        placeholder="-- Cari & Pilih Program / Kegiatan Penyaluran --"
-                        searchPlaceholder="Ketik nama / kode kegiatan..."
+                        placeholder="-- Cari & Pilih Program Penyaluran (Per Pilar BAZNAS) --"
                       />
                     </div>
 
@@ -1840,15 +2278,14 @@ export default function PenyaluranZis() {
                   </h4>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* a. Search Dropdown: Program / Kegiatan Penyaluran */}
+                    {/* a. Search Dropdown: Program / Kegiatan Penyaluran (Grouped by Pilar) */}
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="font-bold text-slate-700">1. Jenis Permohonan / Program Penyaluran *</label>
-                      <SearchableSelect
-                        options={programSelectOptions}
+                      <PilarProgramSearchSelect
+                        pilars={pilars}
                         value={formJenisPermohonan}
                         onSelect={handleProgramSelect}
-                        placeholder="-- Cari & Pilih Program / Kegiatan Penyaluran --"
-                        searchPlaceholder="Ketik nama / kode kegiatan..."
+                        placeholder="-- Cari & Pilih Program Penyaluran (Per Pilar BAZNAS) --"
                       />
                     </div>
 

@@ -314,28 +314,23 @@ export const createMustahik = async (req: Request, res: Response): Promise<void>
 
     const isLembaga = kategori === 'Lembaga';
 
-    if (isLembaga) {
-      if (!nama || !nik || !nama_pimpinan || !jenis_lembaga || !alamat || !telepon) {
-        res.status(400).json({ status: 'error', message: 'Field Nama Lembaga, NIK Pimpinan, Nama Pimpinan, Jenis Lembaga, Alamat, dan Telepon wajib diisi.' });
-        return;
-      }
-    } else {
-      if (!nama || !nik || !jenis_kelamin || !alamat || !telepon) {
-        res.status(400).json({ status: 'error', message: 'Field Nama, NIK, Jenis Kelamin, Alamat, dan Telepon wajib diisi.' });
-        return;
-      }
+    if (!nama || !String(nama).trim()) {
+      res.status(400).json({ status: 'error', message: 'Field Nama Mustahik / Lembaga wajib diisi.' });
+      return;
     }
 
-    if (nik) {
-      const existingNik = await prisma.mustahik.findUnique({ where: { nik: String(nik) } });
+    const cleanNik = nik && String(nik).trim() ? String(nik).trim() : null;
+    if (cleanNik) {
+      const existingNik = await prisma.mustahik.findUnique({ where: { nik: cleanNik } });
       if (existingNik) {
         res.status(400).json({ status: 'error', message: isLembaga ? 'NIK Pimpinan sudah terdaftar.' : 'NIK sudah terdaftar.' });
         return;
       }
     }
     
-    if (nrm) {
-      const existingNrm = await prisma.mustahik.findUnique({ where: { nrm: String(nrm) } });
+    const cleanNrm = nrm && String(nrm).trim() ? String(nrm).trim() : null;
+    if (cleanNrm) {
+      const existingNrm = await prisma.mustahik.findUnique({ where: { nrm: cleanNrm } });
       if (existingNrm) {
         res.status(400).json({ status: 'error', message: 'NRM sudah terdaftar.' });
         return;
