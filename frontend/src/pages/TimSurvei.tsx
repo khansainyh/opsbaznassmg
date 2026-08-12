@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ProposalMemo } from '../data/proposalMemoData';
+import { getMustahikDisplayName } from '../lib/utils';
 import axios from 'axios';
 
 function toGDriveEmbedUrl(link: string): string | null {
@@ -1496,16 +1497,26 @@ export default function TimSurvei({ data, onUpdate }: TimSurveiProps) {
                       <CheckCircle2 className="size-3" /> Survei Selesai
                     </span>
                   </div>
-                  <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight">
-                    {task.namaAnak ? task.namaAnak : ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (task.namaInstansi || task.namaPemohon) : task.namaPemohon)}
-                  </h3>
-                  {task.namaAnak ? (
-                    <p className="text-xs text-slate-500 font-medium mb-1">Sekolah/Instansi: {task.namaInstansi || task.namaPemohon}</p>
-                  ) : (task.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
-                    <p className="text-xs text-slate-500 font-medium mb-1">Pemohon: {task.namaPemohon}</p>
-                  ) : task.namaInstansi ? (
-                    <p className="text-xs text-slate-500 font-medium mb-1">Sekolah/Instansi: {task.namaInstansi}</p>
-                  ) : null}
+                  {(() => {
+                    const { title, subtitle, isLembaga } = getMustahikDisplayName(task);
+                    return (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-xl font-black text-slate-900 leading-tight">
+                            {title}
+                          </h3>
+                          {isLembaga && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                              Lembaga
+                            </span>
+                          )}
+                        </div>
+                        {subtitle && (
+                          <p className="text-xs text-slate-500 font-medium mb-1">{subtitle}</p>
+                        )}
+                      </>
+                    );
+                  })()}
                   <div className="flex items-center gap-1.5 text-slate-400 mb-4">
                     <MapPin className="size-3" />
                     <span className="text-xs font-semibold">Kec. {task.kecamatan}</span>

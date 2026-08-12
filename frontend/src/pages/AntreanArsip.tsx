@@ -18,7 +18,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { ProposalMemo } from '../data/proposalMemoData';
 
@@ -418,14 +418,19 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         {(() => {
-                          const isLembaga = (item.jenisPengajuan || '').toLowerCase().includes('lembaga') || (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama'));
-                          const title = item.namaAnak || (isLembaga ? (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? item.namaInstansi : item.namaPemohon) : (item.namaPemohon && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? item.namaPemohon : (item.namaInstansi || 'Mustahik')));
-
+                          const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
                           return (
                             <>
-                              <p className="text-sm font-bold text-slate-900">{title || 'Mustahik'}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-bold text-slate-900">{title}</p>
+                                {isLembaga && (
+                                  <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                    Lembaga
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-slate-500 font-medium">
-                                {item.namaAnak ? (item.namaInstansi || item.namaPemohon || 'Anak / Siswa') : isLembaga ? (item.namaPemohon && item.namaPemohon !== title && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? `Pemohon: ${item.namaPemohon}` : 'Lembaga / Instansi') : (item.nik ? `NIK: ${item.nik}` : 'Perorangan')}
+                                {subtitle || (item.nik ? `NIK: ${item.nik}` : 'Perorangan')}
                               </p>
                             </>
                           );

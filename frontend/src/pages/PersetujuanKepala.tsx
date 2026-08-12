@@ -7,7 +7,7 @@ import {
   MapPin, Briefcase, Calendar, Home, ChevronDown, Check, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import { Surat } from './InputSurat';
 
@@ -380,14 +380,19 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                     </td>
                     <td className="px-6 py-4">
                       {(() => {
-                        const isLembaga = (item.jenisPengajuan || '').toLowerCase().includes('lembaga') || (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama'));
-                        const title = item.namaAnak || (isLembaga ? (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? item.namaInstansi : item.namaPemohon) : (item.namaPemohon && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? item.namaPemohon : (item.namaInstansi || 'Mustahik')));
-
+                        const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
                         return (
                           <>
-                            <p className="text-sm font-bold text-slate-900">{title || 'Mustahik'}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-bold text-slate-900">{title}</p>
+                              {isLembaga && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                  Lembaga
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-500 font-medium">
-                              {item.namaAnak ? (item.namaInstansi || item.namaPemohon || 'Anak / Siswa') : isLembaga ? (item.namaPemohon && item.namaPemohon !== title && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? `Pemohon: ${item.namaPemohon}` : 'Lembaga / Instansi') : `Relawan: ${item.surveyorName || '-'}`}
+                              {subtitle || `Relawan: ${item.surveyorName || '-'}`}
                             </p>
                           </>
                         );
@@ -518,8 +523,8 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           </h4>
                           <div className="space-y-3">
                             <DetailItem 
-                              label={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : "Nama Lengkap"} 
-                              value={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
+                              label={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : (selectedProposal.namaAnak ? "Nama Anak / Penerima" : "Nama Lengkap")} 
+                              value={getMustahikDisplayName(selectedProposal).title} 
                             />
                             <DetailItem label="NIK" value={selectedProposal.nik || '-'} />
                             <DetailItem label="Alamat" value={selectedProposal.alamat || '-'} />

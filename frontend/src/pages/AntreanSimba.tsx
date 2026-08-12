@@ -19,7 +19,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import * as XLSX from 'xlsx';
 
@@ -1083,24 +1083,27 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                       
                       {/* 3. Nama Mustahik */}
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-2">
-                            <div className="font-bold text-slate-900 text-sm">
-                              {item.namaAnak ? item.namaAnak : (item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon)}
+                        {(() => {
+                          const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2">
+                                <div className="font-bold text-slate-900 text-sm">
+                                  {title}
+                                </div>
+                                {isLembaga && (
+                                  <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                    Lembaga
+                                  </span>
+                                )}
+                              </div>
+                              {subtitle && (
+                                <span className="text-[10px] text-slate-500 font-medium">{subtitle}</span>
+                              )}
+                              <div className="text-[10px] text-slate-400 mt-0.5 font-semibold">NIK: {item.nik || '-'}</div>
                             </div>
-                            {item.jenisPengajuan === 'Lembaga' && (
-                              <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
-                                Lembaga
-                              </span>
-                            )}
-                          </div>
-                          {item.namaAnak ? (
-                            <span className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</span>
-                          ) : (item.jenisPengajuan === 'Lembaga' || item.namaInstansi) ? (
-                            <span className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</span>
-                          ) : null}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 font-semibold">NIK: {item.nik}</div>
+                          );
+                        })()}
                         
                         {/* By Name Toggle Option */}
                         <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
@@ -1741,11 +1744,16 @@ export default function AntreanSimba({ data, onUpdate }: AntreanSimbaProps) {
                     <div className="space-y-3">
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          {(detailModalProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi / Lembaga" : "Nama Lengkap"}
+                          {(detailModalProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi / Lembaga" : (detailModalProposal.namaAnak ? "Nama Anak / Penerima" : "Nama Lengkap")}
                         </p>
                         <p className="text-sm font-bold text-slate-800 mt-0.5">
-                          {(detailModalProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (detailModalProposal.namaInstansi || detailModalProposal.namaPemohon) : detailModalProposal.namaPemohon}
+                          {getMustahikDisplayName(detailModalProposal).title}
                         </p>
+                        {getMustahikDisplayName(detailModalProposal).subtitle && (
+                          <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            {getMustahikDisplayName(detailModalProposal).subtitle}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NIK</p>

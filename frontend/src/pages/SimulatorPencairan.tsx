@@ -22,7 +22,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 
 interface SimulatorPencairanProps {
@@ -724,18 +724,19 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                         </td>
                         <td className="py-3 px-4 text-slate-800 font-bold">
                           {(() => {
-                            const isLembaga = (item.jenisPengajuan || '').toLowerCase().includes('lembaga') || (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama'));
-                            const title = item.namaAnak || (isLembaga ? (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? item.namaInstansi : item.namaPemohon) : (item.namaPemohon && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? item.namaPemohon : (item.namaInstansi || 'Mustahik')));
-
+                            const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
                             return (
                               <div>
-                                <p className="text-sm font-bold text-slate-900">{title || 'Mustahik'}</p>
-                                {item.namaAnak ? (
-                                  <p className="text-[10px] text-slate-500 font-normal">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
-                                ) : isLembaga ? (
-                                  item.namaPemohon && item.namaPemohon !== title && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? <p className="text-[10px] text-slate-500 font-normal">Pemohon: {item.namaPemohon}</p> : null
-                                ) : (
-                                  item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? <p className="text-[10px] text-slate-500 font-normal">Instansi: {item.namaInstansi}</p> : null
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm font-bold text-slate-900">{title}</p>
+                                  {isLembaga && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                      Lembaga
+                                    </span>
+                                  )}
+                                </div>
+                                {subtitle && (
+                                  <p className="text-[10px] text-slate-500 font-normal mt-0.5">{subtitle}</p>
                                 )}
                               </div>
                             );
@@ -1207,8 +1208,8 @@ export default function SimulatorPencairan({ data, onUpdate }: SimulatorPencaira
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
                           <DetailItem 
-                            label={(selectedDetailProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : "Nama Lengkap"} 
-                            value={(selectedDetailProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (selectedDetailProposal.namaInstansi || selectedDetailProposal.namaPemohon) : selectedDetailProposal.namaPemohon} 
+                            label={(selectedDetailProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : (selectedDetailProposal.namaAnak ? "Nama Anak / Penerima" : "Nama Lengkap")} 
+                            value={getMustahikDisplayName(selectedDetailProposal).title} 
                           />
                         </div>
                         <DetailItem label="NIK" value={selectedDetailProposal.nik} />

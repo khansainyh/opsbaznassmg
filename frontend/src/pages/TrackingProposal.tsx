@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 
@@ -724,20 +724,22 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
                     {(() => {
-                      const title = item.namaAnak || ( (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') && ((item.jenisPengajuan || '').toLowerCase().includes('lembaga') || !item.namaPemohon || item.namaPemohon.toLowerCase().includes('tanpa nama'))) ? item.namaInstansi : (item.namaPemohon && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? item.namaPemohon : (item.namaInstansi || 'Mustahik')) );
-                      
-                      const sub = item.namaAnak 
-                        ? (item.namaInstansi || item.namaPemohon || 'Anak / Siswa')
-                        : ((item.jenisPengajuan || '').toLowerCase().includes('lembaga') || (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama')))
-                        ? (item.namaPemohon && item.namaPemohon !== title && !item.namaPemohon.toLowerCase().includes('tanpa nama') ? `Pemohon: ${item.namaPemohon}` : 'Lembaga / Instansi')
-                        : (item.namaInstansi && !item.namaInstansi.toLowerCase().includes('tanpa nama') ? `Instansi: ${item.namaInstansi}` : 'Perorangan');
-
+                      const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
                       return (
                         <>
-                          <p className="text-sm font-bold text-slate-900">{title}</p>
-                          <div className="flex flex-col gap-0.5 mt-0.5">
-                            <span className="text-[10px] text-slate-500 font-medium">{sub}</span>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-bold text-slate-900">{title}</p>
+                            {isLembaga && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                Lembaga
+                              </span>
+                            )}
                           </div>
+                          {subtitle && (
+                            <div className="flex flex-col gap-0.5 mt-0.5">
+                              <span className="text-[10px] text-slate-500 font-medium">{subtitle}</span>
+                            </div>
+                          )}
                         </>
                       );
                     })()}

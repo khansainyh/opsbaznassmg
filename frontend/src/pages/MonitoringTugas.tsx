@@ -25,7 +25,7 @@ import {
   Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -969,20 +969,21 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                 </td>
                   <td className="px-6 py-4">
                     {(() => {
-                      const isLembaga = (task.jenisPengajuan || '').toLowerCase().includes('lembaga') || (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama'));
-                      const title = task.namaAnak || (isLembaga ? (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') ? task.namaInstansi : task.namaPemohon) : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : task.namaInstansi));
-
+                      const { title, subtitle, isLembaga } = getMustahikDisplayName(task);
                       return (
                         <>
                           <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <p className="font-bold text-slate-900">{title || 'Mustahik'}</p>
+                            <p className="font-bold text-slate-900">{title}</p>
+                            {isLembaga && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                Lembaga
+                              </span>
+                            )}
                           </div>
-                          {task.namaAnak ? (
-                            <p className="text-xs text-slate-500">Sekolah/Instansi: {task.namaInstansi || task.namaPemohon} · {task.alamat}</p>
-                          ) : isLembaga ? (
-                            <p className="text-xs text-slate-500">{task.namaPemohon && task.namaPemohon !== title && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? `Pemohon: ${task.namaPemohon} · ` : ''}{task.alamat}</p>
+                          {subtitle ? (
+                            <p className="text-xs text-slate-500">{subtitle} · {task.alamat}</p>
                           ) : (
-                            <p className="text-xs text-slate-500">{task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') ? `Instansi: ${task.namaInstansi} · ` : ''}{task.alamat}</p>
+                            <p className="text-xs text-slate-500">{task.alamat}</p>
                           )}
                         </>
                       );
@@ -1133,8 +1134,23 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
                 {/* Body: Mustahik & Alamat */}
                 <div className="space-y-1">
-                  <p className="font-bold text-slate-955 text-sm">{task.namaAnak || ( (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') && ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') || !task.namaPemohon || task.namaPemohon.toLowerCase().includes('tanpa nama'))) ? task.namaInstansi : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : (task.namaInstansi || 'Mustahik')) )}</p>
-                  <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
+                  {(() => {
+                    const { title, subtitle, isLembaga } = getMustahikDisplayName(task);
+                    return (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-slate-900 text-sm">{title}</p>
+                          {isLembaga && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                              Lembaga
+                            </span>
+                          )}
+                        </div>
+                        {subtitle && <p className="text-[11px] text-slate-500 font-medium">{subtitle}</p>}
+                        <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Surveyor info & Actions */}
@@ -1581,10 +1597,23 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <p className="font-semibold text-slate-900">{task.namaAnak || ( (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') && ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') || !task.namaPemohon || task.namaPemohon.toLowerCase().includes('tanpa nama'))) ? task.namaInstansi : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : (task.namaInstansi || 'Mustahik')) )}</p>
-                            </div>
-                            <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{task.alamat}</p>
+                            {(() => {
+                              const { title, subtitle, isLembaga } = getMustahikDisplayName(task);
+                              return (
+                                <>
+                                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <p className="font-semibold text-slate-900">{title}</p>
+                                    {isLembaga && (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                        Lembaga
+                                      </span>
+                                    )}
+                                  </div>
+                                  {subtitle && <p className="text-[10px] text-slate-500 font-medium">{subtitle}</p>}
+                                  <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{task.alamat}</p>
+                                </>
+                              );
+                            })()}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1">
@@ -1679,8 +1708,23 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
                       {/* Body: Mustahik & Alamat */}
                       <div className="space-y-1">
-                        <p className="font-semibold text-slate-900 text-sm">{task.namaAnak || ( (task.namaInstansi && !task.namaInstansi.toLowerCase().includes('tanpa nama') && ((task.jenisPengajuan || '').toLowerCase().includes('lembaga') || !task.namaPemohon || task.namaPemohon.toLowerCase().includes('tanpa nama'))) ? task.namaInstansi : (task.namaPemohon && !task.namaPemohon.toLowerCase().includes('tanpa nama') ? task.namaPemohon : (task.namaInstansi || 'Mustahik')) )}</p>
-                        <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
+                        {(() => {
+                          const { title, subtitle, isLembaga } = getMustahikDisplayName(task);
+                          return (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-semibold text-slate-900 text-sm">{title}</p>
+                                {isLembaga && (
+                                  <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                    Lembaga
+                                  </span>
+                                )}
+                              </div>
+                              {subtitle && <p className="text-[11px] text-slate-500 font-medium">{subtitle}</p>}
+                              <p className="text-xs text-slate-500 leading-relaxed">{task.alamat}</p>
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {/* Petugas & Actions */}
@@ -1880,8 +1924,18 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
 
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                       <div>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">Nama Mustahik</p>
-                        <p className="text-sm font-bold text-slate-900">{selectedTask.namaAnak || ( ((selectedTask.jenisPengajuan || '').toLowerCase().includes('lembaga') || (selectedTask.namaInstansi && !selectedTask.namaInstansi.toLowerCase().includes('tanpa nama'))) ? (selectedTask.namaInstansi && !selectedTask.namaInstansi.toLowerCase().includes('tanpa nama') ? selectedTask.namaInstansi : selectedTask.namaPemohon) : (selectedTask.namaPemohon && !selectedTask.namaPemohon.toLowerCase().includes('tanpa nama') ? selectedTask.namaPemohon : (selectedTask.namaInstansi || 'Mustahik')) )}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">
+                          {(selectedTask.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Lembaga / Instansi" : (selectedTask.namaAnak ? "Nama Anak / Penerima" : "Nama Pemohon")}
+                        </p>
+                        {(() => {
+                          const { title, subtitle } = getMustahikDisplayName(selectedTask);
+                          return (
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{title}</p>
+                              {subtitle && <p className="text-xs text-slate-500 font-medium mt-0.5">{subtitle}</p>}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase">Program Bantuan</p>

@@ -20,7 +20,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 
 interface RealisasiBantuanProps {
@@ -609,22 +609,25 @@ BAZNAS Kota Semarang.`;
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        {item.namaAnak ? (
-                          <>
-                            <p className="text-sm font-bold text-slate-900">{item.namaAnak}</p>
-                            <p className="text-[10px] text-slate-500 font-medium">{item.namaInstansi || item.namaPemohon || 'Anak / Siswa'}</p>
-                          </>
-                        ) : (item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
-                          <>
-                            <p className="text-sm font-bold text-slate-900">{item.namaInstansi || item.namaPemohon}</p>
-                            <p className="text-[10px] text-slate-500 font-medium">{item.namaPemohon || 'Lembaga'}</p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm font-bold text-slate-900">{item.namaPemohon}</p>
-                            <p className="text-[10px] text-slate-400 font-medium tracking-wider">{item.nik}</p>
-                          </>
-                        )}
+                        {(() => {
+                          const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
+                          return (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-bold text-slate-900">{title}</p>
+                                {isLembaga && (
+                                  <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                    Lembaga
+                                  </span>
+                                )}
+                              </div>
+                              {subtitle && (
+                                <p className="text-[10px] text-slate-500 font-medium">{subtitle}</p>
+                              )}
+                              <p className="text-[10px] text-slate-400 font-medium tracking-wider">NIK: {item.nik || '-'}</p>
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -787,18 +790,17 @@ BAZNAS Kota Semarang.`;
                     <div className="space-y-2.5 text-xs">
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                          {(item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? 'Instansi / Lembaga' : 'Mustahik'}
+                          {(item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? 'Instansi / Lembaga' : (item.namaAnak ? 'Nama Anak / Penerima' : 'Mustahik')}
                         </p>
                         <p className="text-sm font-bold text-slate-900 mt-0.5">
-                          {(item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon}
+                          {getMustahikDisplayName(item).title}
                         </p>
-                        {(item.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (
-                          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Pemohon: {item.namaPemohon}</p>
-                        ) : (
-                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                            {item.namaInstansi ? `Instansi: ${item.namaInstansi} · ` : ''}NIK: {item.nik}
-                          </p>
+                        {getMustahikDisplayName(item).subtitle && (
+                          <p className="text-[10px] text-slate-500 font-medium mt-0.5">{getMustahikDisplayName(item).subtitle}</p>
                         )}
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          NIK: {item.nik || '-'}
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
@@ -1010,8 +1012,8 @@ BAZNAS Kota Semarang.`;
                       <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2 mb-4">Data Pemohon</h4>
                       <div className="space-y-4">
                         <DetailItem 
-                          label={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : "Nama Lengkap"} 
-                          value={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? (selectedProposal.namaInstansi || selectedProposal.namaPemohon) : selectedProposal.namaPemohon} 
+                          label={(selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') ? "Nama Instansi" : (selectedProposal.namaAnak ? "Nama Anak / Penerima" : "Nama Lengkap")} 
+                          value={getMustahikDisplayName(selectedProposal).title} 
                         />
                         <DetailItem label="NIK" value={selectedProposal.nik} />
                         <DetailItem label="No. Telepon" value={selectedProposal.noTelpon || '-'} />

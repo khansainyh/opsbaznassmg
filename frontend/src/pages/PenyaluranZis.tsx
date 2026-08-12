@@ -24,7 +24,7 @@ import {
   Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, getMustahikDisplayName } from '../lib/utils';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 
@@ -884,11 +884,12 @@ export default function PenyaluranZis() {
     const exportRows = filteredData.map((item, idx) => {
       const { rkatNo, rkatName } = getRkatInfo(item);
       const { coaCode, coaName } = getCoaInfo(item);
+      const { title: namaMustahik } = getMustahikDisplayName(item);
       return {
         No: idx + 1,
         'No. Agenda': item.asal_data === 'Jalur Direct' ? '-' : (item.agenda_no ? String(item.agenda_no) : '-'),
         'Asal Data': item.asal_data,
-        'Nama Pemohon / Lembaga': item.nama_instansi || item.nama_pemohon || '-',
+        'Nama Pemohon / Lembaga': namaMustahik || '-',
         'Kategori': item.jenis_pengajuan || 'Perorangan',
         'Jenis Kelamin': item.jenis_kelamin || item.mustahik?.jenis_kelamin || '-',
         'Yang Mengajukan': item.yang_mengajukan || item.yangMengajukan || 'Pimpinan BAZNAS',
@@ -1115,16 +1116,35 @@ export default function PenyaluranZis() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-bold text-slate-900 leading-tight">
-                          {item.nama_instansi || item.nama_pemohon || 'Mustahik'}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                          <span className="text-[10px] text-slate-400">
-                            {item.jenis_pengajuan || 'Perorangan'}
-                            {item.jenis_kelamin || item.mustahik?.jenis_kelamin ? ` (${item.jenis_kelamin || item.mustahik?.jenis_kelamin})` : ''}
-                            {` | NIK: ${item.nik || '-'}`}
-                          </span>
-                        </div>
+                        {(() => {
+                          const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
+                          return (
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-slate-900 leading-tight">
+                                  {title}
+                                </p>
+                                {isLembaga && (
+                                  <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                    Lembaga
+                                  </span>
+                                )}
+                              </div>
+                              {subtitle && (
+                                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                  {subtitle}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-slate-400">
+                                  {item.jenis_pengajuan || 'Perorangan'}
+                                  {item.jenis_kelamin || item.mustahik?.jenis_kelamin ? ` (${item.jenis_kelamin || item.mustahik?.jenis_kelamin})` : ''}
+                                  {` | NIK: ${item.nik || '-'}`}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {/* Yang Mengajukan & Memo Badge */}
                         <div className="flex flex-wrap items-center gap-1 mt-1">
                           <span className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-600 rounded flex items-center gap-1" title="Yang Mengajukan">
@@ -1905,8 +1925,18 @@ export default function PenyaluranZis() {
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Nama Pemohon / Lembaga</p>
-                  <p className="font-bold text-slate-800 text-sm">{selectedPenyaluran.nama_instansi || selectedPenyaluran.nama_pemohon}</p>
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                    {(selectedPenyaluran.jenis_pengajuan || '').toLowerCase().includes('lembaga') ? "Nama Lembaga / Instansi" : (selectedPenyaluran.nama_anak ? "Nama Anak / Penerima" : "Nama Pemohon")}
+                  </p>
+                  {(() => {
+                    const { title, subtitle } = getMustahikDisplayName(selectedPenyaluran);
+                    return (
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">{title}</p>
+                        {subtitle && <p className="text-xs text-slate-500 font-medium mt-0.5">{subtitle}</p>}
+                      </div>
+                    );
+                  })()}
                   <p className="text-[11px] text-slate-500 font-semibold">
                     {selectedPenyaluran.jenis_pengajuan || 'Perorangan'}
                     {selectedPenyaluran.jenis_kelamin || selectedPenyaluran.mustahik?.jenis_kelamin ? ` (${selectedPenyaluran.jenis_kelamin || selectedPenyaluran.mustahik?.jenis_kelamin})` : ''}
