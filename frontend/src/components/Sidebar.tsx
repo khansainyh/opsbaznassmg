@@ -130,7 +130,7 @@ const menuGroups = [
     title: "PELAPORAN",
     items: [
       { name: "Target RKAT", icon: Target, roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Keuangan", "Kabag_Keuangan", "Staf_Pengumpulan", "Staf_Pelaporan", "Humas"] },
-      { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan"] },
+      { name: "Jurnal Buku Besar", icon: BookOpen, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Kabag_Keuangan", "Staf_Keuangan"] },
       { name: "Rekonsiliasi Mutasi", icon: ArrowRightLeft, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan"] },
       { name: "Off-Balancing", icon: Target, roles: ["Super_Admin", "Kabag_Pelaporan", "Staf_Pelaporan", "Kabag_Pendistribusian"], requiresObs: true },
       { name: "Pelaporan OBS", icon: ClipboardCheck, roles: ["Super_Admin", "Relawan", "Relawan_Sementara", "Tim_Monev", "Kabag_Pendistribusian", "Kabag_Pelaporan", "Staf_Pelaporan"], requiresObs: true },
