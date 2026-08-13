@@ -247,8 +247,30 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     }
   }, [users]);
 
+  // Helper to identify and filter out Direct Penyaluran (Jalur Direct)
+  const isDirectProposal = (item: any) => {
+    if (!item) return false;
+    const memoSource = String(item.memoSource || item.memo_source || '');
+    const keterangan = String(item.keterangan || '');
+    const catatan = String(item.catatan || '');
+    const yangMengajukan = String(item.yangMengajukan || item.yang_mengajukan || '');
+    const asalData = String(item.asal_data || item.asalData || '');
+
+    return (
+      memoSource === 'DIRECT_PENYALURAN' ||
+      memoSource.toLowerCase().includes('direct') ||
+      keterangan.includes('[DIRECT PENYALURAN]') ||
+      catatan.includes('Direct Penyaluran') ||
+      catatan.includes('Didaftarkan via Direct Penyaluran') ||
+      yangMengajukan.toLowerCase().includes('direct') ||
+      asalData === 'Jalur Direct'
+    );
+  };
+
   const handlePrintReport = () => {
     const filtered = allData.filter(item => {
+      // Data Jalur Direct BUKAN tupoksi Administrasi -> Jangan dimasukkan ke laporan
+      if (isDirectProposal(item)) return false;
       if (!item.tanggalMasuk) return false;
       const [y, m, d] = item.tanggalMasuk.split('-').map(Number);
       if (reportType === 'harian_pilar' || reportType === 'harian_detail') {
@@ -718,9 +740,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
     return selectedProgramCode;
   })();
 
-  // Sorted: terbaru di atas
+  // Sorted: terbaru di atas (hanya Jalur Proposal, bukan Jalur Direct)
   const filteredData = data
     .filter(item => {
+      if (isDirectProposal(item)) return false;
       if (user?.role === 'Humas') {
         const itemStatus = item.status.toLowerCase().replace(/_/g, ' ');
         if (itemStatus !== 'scan proposal') return false;
@@ -738,14 +761,16 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       return Number(b.agendaNo) - Number(a.agendaNo);
     });
 
-  // Stat values
+  // Stat values (hanya Jalur Proposal)
   const now = new Date();
   const proposalBulanIni = allData.filter(d => {
+    if (isDirectProposal(d)) return false;
     const dt = new Date(d.tanggalMasuk);
     return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear();
   }).length;
-  const menungguScan = data.length; // data = hanya Registrasi
-  const memoPimpinan = data.filter(d => d.hasMemo).length;
+  const nonDirectRegistrasiData = data.filter(d => !isDirectProposal(d));
+  const menungguScan = nonDirectRegistrasiData.length;
+  const memoPimpinan = nonDirectRegistrasiData.filter(d => d.hasMemo).length;
 
   const handleAddData = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
