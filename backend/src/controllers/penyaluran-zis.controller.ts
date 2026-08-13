@@ -24,6 +24,9 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
 
     const proposals = await prisma.proposal.findMany({
       where: {
+        NOT: {
+          jenis_pengajuan: 'OBS'
+        },
         OR: [
           { status: { in: ALLOWED_STATUS_LIST as any } },
           { memo_source: 'DIRECT_PENYALURAN' }
@@ -131,6 +134,11 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
 
     const mapped = proposals
       .filter(p => {
+        // STRICT: Exclude OBS tasks from Penyaluran ZIS completely
+        if (p.jenis_pengajuan === 'OBS' || String(p.jenis_pengajuan).toUpperCase() === 'OBS') {
+          return false;
+        }
+
         const isDirect = Boolean(
           (p.agenda_no && p.agenda_no >= 90000) ||
           p.memo_source === 'DIRECT_PENYALURAN' || 

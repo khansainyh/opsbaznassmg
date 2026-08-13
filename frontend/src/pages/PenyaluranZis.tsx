@@ -1072,7 +1072,12 @@ export default function PenyaluranZis() {
   // Filtered data
   const filteredData = useMemo(() => {
     return data.filter(item => {
-      const isDirect = item.asal_data === 'Jalur Direct' || item.memo_source === 'DIRECT_PENYALURAN';
+      // STRICT: Exclude OBS records completely from Penyaluran ZIS
+      if (item.jenis_pengajuan === 'OBS' || item.jenisPengajuan === 'OBS' || String(item.jenis_pengajuan).toUpperCase() === 'OBS') {
+        return false;
+      }
+
+      const isDirect = item.asal_data === 'Jalur Direct' || item.memo_source === 'DIRECT_PENYALURAN' || (item.agenda_no && Number(item.agenda_no) >= 90000);
       const statusStr = (item.status || '').toString().toLowerCase();
       const isDisbursement = statusStr.includes('acc') || statusStr.includes('pencairan') || statusStr.includes('cair') || statusStr.includes('realisasi') || statusStr.includes('simba') || statusStr.includes('arsip') || statusStr.includes('selesai');
       if (!isDirect && !isDisbursement) return false;
@@ -1092,7 +1097,7 @@ export default function PenyaluranZis() {
         nikStr.includes(search) ||
         yangMengajukanStr.includes(search);
 
-      const matchesAsal = selectedAsalFilter === 'Semua' || item.asal_data === selectedAsalFilter;
+      const matchesAsal = selectedAsalFilter === 'Semua' || (isDirect ? 'Jalur Direct' : 'Jalur Proposal') === selectedAsalFilter;
 
       // Program / Pilar Filter
       let matchesPilar = true;
@@ -2026,7 +2031,7 @@ export default function PenyaluranZis() {
               ) : (
                 paginatedData.map((item, idx) => {
                   const itemIndex = (currentPage - 1) * itemsPerPage + idx + 1;
-                  const isDirect = item.asal_data === 'Jalur Direct';
+                  const isDirect = item.asal_data === 'Jalur Direct' || item.memo_source === 'DIRECT_PENYALURAN' || (item.agenda_no && Number(item.agenda_no) >= 90000);
                   
                   // Extract RKAT & COA info cleanly
                   const { rkatName } = getRkatInfo(item);
@@ -2037,16 +2042,16 @@ export default function PenyaluranZis() {
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
                       <td className="px-4 py-3 text-center text-slate-400 font-bold">{itemIndex}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span className={cn(
                           "px-2.5 py-1 rounded-lg text-[10px] font-bold border inline-flex items-center gap-1",
                           isDirect ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"
                         )}>
                           <Tag className="size-3" />
-                          {item.asal_data}
+                          {isDirect ? 'Jalur Direct' : 'Jalur Proposal'}
                         </span>
                       </td>
-                      {/* No. Agenda Badge (Only for Jalur Proposal) */}
+                      {/* No. Agenda (Dash for Jalur Direct, Number for Jalur Proposal) */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {isDirect ? (
                           <span className="text-xs font-medium text-slate-400 font-mono">—</span>
