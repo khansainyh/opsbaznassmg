@@ -171,7 +171,9 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
       jenis_kelamin = 'Pria',
       yang_mengajukan = 'Direct Penyaluran',
       has_memo = false,
-      memo_source = 'DIRECT_PENYALURAN'
+      memo_source = 'DIRECT_PENYALURAN',
+      volume = 1,
+      rekomendasi_unit_cost
     } = req.body;
 
     if (!nama_pemohon || Number(nominal) <= 0) {
@@ -242,6 +244,8 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
         yang_mengajukan: String(yang_mengajukan || 'Direct Penyaluran'),
         has_memo: Boolean(has_memo || memo_source),
         memo_source: memo_source ? String(memo_source) : 'DIRECT_PENYALURAN',
+        volume: Number(volume) || 1,
+        rekomendasi_unit_cost: rekomendasi_unit_cost ? Number(rekomendasi_unit_cost) : parsedNominal,
         status: 'ACC',
         mustahik_id: mustahikRecord.id
       },
@@ -299,7 +303,9 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
       jenis_kelamin,
       yang_mengajukan,
       has_memo,
-      memo_source
+      memo_source,
+      volume,
+      rekomendasi_unit_cost
     } = req.body;
 
     const existing = await prisma.proposal.findUnique({ where: { id: targetId } });
@@ -338,7 +344,9 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
         ...(jenis_kelamin !== undefined && { jenis_kelamin: String(jenis_kelamin) }),
         ...(yang_mengajukan !== undefined && { yang_mengajukan: String(yang_mengajukan) }),
         ...(has_memo !== undefined && { has_memo: Boolean(has_memo) }),
-        ...(memo_source !== undefined && { memo_source: memo_source ? String(memo_source) : null })
+        ...(memo_source !== undefined && { memo_source: memo_source ? String(memo_source) : null }),
+        ...(volume !== undefined && { volume: Math.max(1, Number(volume) || 1) }),
+        ...(rekomendasi_unit_cost !== undefined && { rekomendasi_unit_cost: Number(rekomendasi_unit_cost) || null })
       },
       include: {
         program: true,

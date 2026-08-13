@@ -567,10 +567,39 @@ export default function PenyaluranZis() {
   const [formCoaCode, setFormCoaCode] = useState('519999999');
   const [formNominal, setFormNominal] = useState('');
   const [formKeterangan, setFormKeterangan] = useState('');
+  const [formTipeRealisasiLembaga, setFormTipeRealisasiLembaga] = useState<'Lembaga' | 'Perorangan'>('Lembaga');
+  const [formVolumeReal, setFormVolumeReal] = useState<number>(1);
+  const [formUnitCost, setFormUnitCost] = useState<number>(0);
   
   const [nikChecking, setNikChecking] = useState(false);
   const [nikFoundStatus, setNikFoundStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleVolumeChange = (newVol: number) => {
+    const vol = Math.max(1, newVol);
+    setFormVolumeReal(vol);
+    if (formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan') {
+      setFormNominal(String(vol * formUnitCost));
+    }
+  };
+
+  const handleUnitCostChange = (newCost: number) => {
+    const cost = Math.max(0, newCost);
+    setFormUnitCost(cost);
+    if (formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan') {
+      setFormNominal(String(formVolumeReal * cost));
+    }
+  };
+
+  const handleTipeRealisasiChange = (tipe: 'Lembaga' | 'Perorangan') => {
+    setTipeRealisasiLembaga(tipe);
+    if (tipe === 'Perorangan') {
+      const currentNom = Number(formNominal.replace(/\D/g, '')) || 0;
+      const cost = formUnitCost > 0 ? formUnitCost : currentNom;
+      setFormUnitCost(cost);
+      setFormNominal(String(formVolumeReal * cost));
+    }
+  };
 
   // Fetch initial data (Optimized for instant page load & zero lag)
   const fetchData = async () => {
@@ -1157,6 +1186,9 @@ export default function PenyaluranZis() {
     setFormCoaCode('519999999');
     setFormNominal('');
     setFormKeterangan('');
+    setFormTipeRealisasiLembaga('Lembaga');
+    setFormVolumeReal(1);
+    setFormUnitCost(0);
     setNikFoundStatus(null);
     setIsInputModalOpen(true);
   };
@@ -1167,7 +1199,8 @@ export default function PenyaluranZis() {
       axios.get('/api/mustahik?compact=true').then(res => setMustahikList(res.data?.data || [])).catch(() => {});
     }
     setSelectedPenyaluran(item);
-    setFormKategori(item.jenis_pengajuan === 'Lembaga' || item.nama_instansi ? 'Lembaga' : 'Perorangan');
+    const isLembaga = item.jenis_pengajuan === 'Lembaga' || Boolean(item.nama_instansi);
+    setFormKategori(isLembaga ? 'Lembaga' : 'Perorangan');
     setFormJenisKelamin(item.jenis_kelamin || item.mustahik?.jenis_kelamin || 'Pria');
     setFormNama(item.nama_pemohon || '');
     setFormNamaInstansi(item.nama_instansi || '');
@@ -1185,6 +1218,13 @@ export default function PenyaluranZis() {
     setFormCoaCode(mappedCoa);
     setFormNominal(String(item.nominal || ''));
     setFormKeterangan(item.keterangan || '');
+
+    const initialTipe = isLembaga && ((item.volume && item.volume > 1) || (item.rekomendasi_unit_cost && item.rekomendasi_unit_cost !== item.nominal)) ? 'Perorangan' : 'Lembaga';
+    setTipeRealisasiLembaga(initialTipe);
+    setFormVolumeReal(item.volume || 1);
+    const initialUnitCost = item.rekomendasi_unit_cost || (item.volume ? Math.round(Number(item.nominal) / item.volume) : Number(item.nominal) || 0);
+    setFormUnitCost(initialUnitCost);
+
     setNikFoundStatus(null);
     setIsEditModalOpen(true);
   };
@@ -1202,6 +1242,7 @@ export default function PenyaluranZis() {
 
     setSubmitting(true);
     try {
+      const isLembagaPerorangan = formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan';
       const payload = {
         mustahik_id: selectedMustahikId || null,
         nama_pemohon: formNama.trim(),
@@ -1220,7 +1261,9 @@ export default function PenyaluranZis() {
         asnaf: formAsnaf,
         nominal: parsedNominal,
         keterangan: formKeterangan.trim() || 'Penyaluran ZIS',
-        tipe_bantuan: 'Konsumtif'
+        tipe_bantuan: 'Konsumtif',
+        volume: isLembagaPerorangan ? formVolumeReal : 1,
+        rekomendasi_unit_cost: isLembagaPerorangan ? formUnitCost : parsedNominal
       };
 
       const res = await axios.post('/api/penyaluran-zis/direct', payload);
@@ -1246,6 +1289,7 @@ export default function PenyaluranZis() {
 
     setSubmitting(true);
     try {
+      const isLembagaPerorangan = formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan';
       const payload = {
         nama_pemohon: formNama.trim(),
         nama_instansi: formKategori === 'Lembaga' ? formNamaInstansi.trim() : null,
@@ -1263,7 +1307,9 @@ export default function PenyaluranZis() {
         nominal: parsedNominal,
         keterangan: formKeterangan.trim(),
         tipe_bantuan: 'Konsumtif',
-        jenis_pengajuan: formKategori
+        jenis_pengajuan: formKategori,
+        volume: isLembagaPerorangan ? formVolumeReal : 1,
+        rekomendasi_unit_cost: isLembagaPerorangan ? formUnitCost : parsedNominal
       };
 
       const res = await axios.put(`/api/penyaluran-zis/${selectedPenyaluran.id}`, payload);
@@ -2193,17 +2239,109 @@ export default function PenyaluranZis() {
                   </h4>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Tipe Realisasi Bantuan untuk Lembaga */}
+                    {formKategori === 'Lembaga' && (
+                      <div className="space-y-3 md:col-span-2 border-b border-slate-200/60 pb-3">
+                        <label className="font-bold text-slate-700 block text-xs">
+                          Tipe Realisasi Bantuan Lembaga:
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label className={cn(
+                            "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                            formTipeRealisasiLembaga === 'Lembaga'
+                              ? "bg-primary/5 border-primary text-primary shadow-xs"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                          )}>
+                            <input
+                              type="radio"
+                              name="inputTipeRealisasiLembaga"
+                              checked={formTipeRealisasiLembaga === 'Lembaga'}
+                              onChange={() => handleTipeRealisasiChange('Lembaga')}
+                              className="accent-primary"
+                            />
+                            <span>Realisasi Lembaga (Bantuan Lembaga)</span>
+                          </label>
+
+                          <label className={cn(
+                            "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                            formTipeRealisasiLembaga === 'Perorangan'
+                              ? "bg-primary/5 border-primary text-primary shadow-xs"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                          )}>
+                            <input
+                              type="radio"
+                              name="inputTipeRealisasiLembaga"
+                              checked={formTipeRealisasiLembaga === 'Perorangan'}
+                              onChange={() => handleTipeRealisasiChange('Perorangan')}
+                              className="accent-primary"
+                            />
+                            <span>Realisasi Perorangan (Bantuan ke Perorangan)</span>
+                          </label>
+                        </div>
+
+                        {formTipeRealisasiLembaga === 'Perorangan' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-bold text-slate-600 block">
+                                Volume (Jumlah Penerima Bantuan):
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={formVolumeReal}
+                                onChange={e => handleVolumeChange(parseInt(e.target.value) || 1)}
+                                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-bold text-slate-800 shadow-sm"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-bold text-slate-600 block">
+                                Unit Cost (Nominal Per Orang):
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                                <input
+                                  type="text"
+                                  placeholder="Contoh: 200.000"
+                                  value={formUnitCost ? Number(formUnitCost).toLocaleString('id-ID') : ''}
+                                  onChange={e => {
+                                    const rawVal = e.target.value.replace(/[^0-9]/g, '');
+                                    handleUnitCostChange(parseInt(rawVal) || 0);
+                                  }}
+                                  className="w-full p-2.5 pl-9 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-bold text-slate-800 shadow-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Nominal Penyaluran (Pemisah ribuan titik) */}
                     <div className="space-y-1.5 md:col-span-2">
-                      <label className="font-bold text-slate-700">Nominal Penyaluran (Rp) *</label>
+                      <label className="font-bold text-slate-700">
+                        {formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan'
+                          ? 'Total Nominal Penyaluran (Volume x Unit Cost) *'
+                          : 'Nominal Penyaluran (Rp) *'}
+                      </label>
                       <input
                         type="text"
                         required
+                        readOnly={formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan'}
                         placeholder="Contoh: 500.000"
                         value={formatNumberWithDots(formNominal)}
                         onChange={e => setFormNominal(e.target.value.replace(/\D/g, ''))}
-                        className="w-full p-2.5 text-sm font-black text-slate-900 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none shadow-sm"
+                        className={cn(
+                          "w-full p-2.5 text-sm font-black rounded-xl border outline-none shadow-sm",
+                          formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan'
+                            ? "bg-primary/5 border-primary/20 text-primary"
+                            : "bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary/20"
+                        )}
                       />
+                      {formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan' && (
+                        <p className="text-[10px] text-slate-500 italic">
+                          *Total nominal otomatis terhitung dari Volume ({formVolumeReal} orang) x Rp {Number(formUnitCost || 0).toLocaleString('id-ID')}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5 md:col-span-2">
@@ -2499,17 +2637,109 @@ export default function PenyaluranZis() {
                   </h4>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Tipe Realisasi Bantuan untuk Lembaga */}
+                    {formKategori === 'Lembaga' && (
+                      <div className="space-y-3 md:col-span-2 border-b border-slate-200/60 pb-3">
+                        <label className="font-bold text-slate-700 block text-xs">
+                          Tipe Realisasi Bantuan Lembaga:
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label className={cn(
+                            "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                            formTipeRealisasiLembaga === 'Lembaga'
+                              ? "bg-primary/5 border-primary text-primary shadow-xs"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                          )}>
+                            <input
+                              type="radio"
+                              name="editTipeRealisasiLembaga"
+                              checked={formTipeRealisasiLembaga === 'Lembaga'}
+                              onChange={() => handleTipeRealisasiChange('Lembaga')}
+                              className="accent-primary"
+                            />
+                            <span>Realisasi Lembaga (Bantuan Lembaga)</span>
+                          </label>
+
+                          <label className={cn(
+                            "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                            formTipeRealisasiLembaga === 'Perorangan'
+                              ? "bg-primary/5 border-primary text-primary shadow-xs"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                          )}>
+                            <input
+                              type="radio"
+                              name="editTipeRealisasiLembaga"
+                              checked={formTipeRealisasiLembaga === 'Perorangan'}
+                              onChange={() => handleTipeRealisasiChange('Perorangan')}
+                              className="accent-primary"
+                            />
+                            <span>Realisasi Perorangan (Bantuan ke Perorangan)</span>
+                          </label>
+                        </div>
+
+                        {formTipeRealisasiLembaga === 'Perorangan' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-bold text-slate-600 block">
+                                Volume (Jumlah Penerima Bantuan):
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={formVolumeReal}
+                                onChange={e => handleVolumeChange(parseInt(e.target.value) || 1)}
+                                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-bold text-slate-800 shadow-sm"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-bold text-slate-600 block">
+                                Unit Cost (Nominal Per Orang):
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                                <input
+                                  type="text"
+                                  placeholder="Contoh: 200.000"
+                                  value={formUnitCost ? Number(formUnitCost).toLocaleString('id-ID') : ''}
+                                  onChange={e => {
+                                    const rawVal = e.target.value.replace(/[^0-9]/g, '');
+                                    handleUnitCostChange(parseInt(rawVal) || 0);
+                                  }}
+                                  className="w-full p-2.5 pl-9 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-bold text-slate-800 shadow-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Nominal Penyaluran (Pemisah ribuan titik) */}
                     <div className="space-y-1.5 md:col-span-2">
-                      <label className="font-bold text-slate-700">Nominal Penyaluran (Rp) *</label>
+                      <label className="font-bold text-slate-700">
+                        {formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan'
+                          ? 'Total Nominal Penyaluran (Volume x Unit Cost) *'
+                          : 'Nominal Penyaluran (Rp) *'}
+                      </label>
                       <input
                         type="text"
                         required
+                        readOnly={formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan'}
                         placeholder="Contoh: 500.000"
                         value={formatNumberWithDots(formNominal)}
                         onChange={e => setFormNominal(e.target.value.replace(/\D/g, ''))}
-                        className="w-full p-2.5 text-sm font-black text-slate-900 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none shadow-sm"
+                        className={cn(
+                          "w-full p-2.5 text-sm font-black rounded-xl border outline-none shadow-sm",
+                          formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan'
+                            ? "bg-primary/5 border-primary/20 text-primary"
+                            : "bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary/20"
+                        )}
                       />
+                      {formKategori === 'Lembaga' && formTipeRealisasiLembaga === 'Perorangan' && (
+                        <p className="text-[10px] text-slate-500 italic">
+                          *Total nominal otomatis terhitung dari Volume ({formVolumeReal} orang) x Rp {Number(formUnitCost || 0).toLocaleString('id-ID')}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5 md:col-span-2">
@@ -2607,6 +2837,16 @@ export default function PenyaluranZis() {
                     {selectedPenyaluran.jenis_pengajuan || selectedPenyaluran.jenisPengajuan || 'Perorangan'}
                     {selectedPenyaluran.jenis_kelamin || selectedPenyaluran.mustahik?.jenis_kelamin ? ` (${selectedPenyaluran.jenis_kelamin || selectedPenyaluran.mustahik?.jenis_kelamin})` : ''}
                   </p>
+                  {(selectedPenyaluran.jenis_pengajuan === 'Lembaga' || (selectedPenyaluran.jenisPengajuan && selectedPenyaluran.jenisPengajuan.includes('Lembaga'))) && (
+                    <div className="mt-2 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-slate-600">Tipe Realisasi:</span>
+                      <span className="font-extrabold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
+                        {selectedPenyaluran.volume && selectedPenyaluran.volume > 1
+                          ? `Realisasi Perorangan (${selectedPenyaluran.volume} Penerima @ Rp ${(Number(selectedPenyaluran.rekomendasi_unit_cost) || Math.round((Number(selectedPenyaluran.nominal) || 0) / selectedPenyaluran.volume)).toLocaleString('id-ID')})`
+                          : 'Realisasi Lembaga'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
