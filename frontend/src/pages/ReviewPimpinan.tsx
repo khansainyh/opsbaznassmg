@@ -745,7 +745,10 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
 
                               return (
                                 <div className="space-y-1">
-                                  <p className="text-xs font-bold text-slate-800 line-clamp-1">"{act.name}"</p>
+                                  <p className="text-xs font-bold text-slate-800 line-clamp-1">"{act.keterangan || act.name}"</p>
+                                  {act.name && act.keterangan && act.name !== act.keterangan && (
+                                    <p className="text-[10px] text-slate-400 font-medium truncate">Program: {act.name}</p>
+                                  )}
                                   <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-50">
                                     <span className="text-slate-400">Sisa Pagu:</span>
                                     <span className={cn("font-extrabold", isEnough ? "text-emerald-600" : "text-rose-600")}>

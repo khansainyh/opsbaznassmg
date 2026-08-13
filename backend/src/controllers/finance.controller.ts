@@ -451,6 +451,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
             activitiesStatus.push({
               id: act.id,
               name: act.name,
+              keterangan: act.keterangan || act.spesifikasi || act.name,
               asnaf: act.asnaf,
               nominal: Number(act.nominal || 0),
               total_pagu: total,
@@ -591,7 +592,7 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
     }
 
     let totalAmount = 0;
-    const rkatStatusMap = new Map<string, { total_pagu: number; terpakai_saat_ini: number; sisa_pagu: number; name: string }>();
+    const rkatStatusMap = new Map<string, { total_pagu: number; terpakai_saat_ini: number; sisa_pagu: number; name: string; keterangan?: string }>();
     const proposalDetails = [];
 
     let detectedTag = 'ZAKAT';
@@ -669,7 +670,8 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
                   total_pagu: total,
                   terpakai_saat_ini: terpakai,
                   sisa_pagu: total - terpakai,
-                  name: matchedAct.name || targetProgram.name
+                  name: matchedAct.name || targetProgram.name,
+                  keterangan: matchedAct.keterangan || matchedAct.spesifikasi || matchedAct.name || targetProgram.name
                 });
               }
             }
@@ -690,6 +692,7 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
       return {
         id,
         name: val.name,
+        keterangan: val.keterangan || val.name,
         total_pagu: val.total_pagu,
         terpakai_saat_ini: val.terpakai_saat_ini,
         sisa_pagu: val.sisa_pagu,
