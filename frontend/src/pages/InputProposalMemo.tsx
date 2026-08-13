@@ -54,11 +54,11 @@ function toGDriveEmbedUrl(link: string): string | null {
 
 interface InputProposalMemoProps {
   data: ProposalMemo[];          // Hanya proposal status Registrasi
-  allData: ProposalMemo[];       // Semua proposal (untuk stat cards)
+  allData?: ProposalMemo[];      // Semua proposal
   onUpdate: (data: ProposalMemo[]) => void;
 }
 
-export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }: InputProposalMemoProps) {
+export default function InputProposalMemo({ data, allData: _allData, onUpdate: _onUpdate }: InputProposalMemoProps) {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
