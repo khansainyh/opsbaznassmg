@@ -592,7 +592,7 @@ export default function PenyaluranZis() {
   };
 
   const handleTipeRealisasiChange = (tipe: 'Lembaga' | 'Perorangan') => {
-    setTipeRealisasiLembaga(tipe);
+    setFormTipeRealisasiLembaga(tipe);
     if (tipe === 'Perorangan') {
       const currentNom = Number(formNominal.replace(/\D/g, '')) || 0;
       const cost = formUnitCost > 0 ? formUnitCost : currentNom;
@@ -1220,7 +1220,7 @@ export default function PenyaluranZis() {
     setFormKeterangan(item.keterangan || '');
 
     const initialTipe = isLembaga && ((item.volume && item.volume > 1) || (item.rekomendasi_unit_cost && item.rekomendasi_unit_cost !== item.nominal)) ? 'Perorangan' : 'Lembaga';
-    setTipeRealisasiLembaga(initialTipe);
+    setFormTipeRealisasiLembaga(initialTipe);
     setFormVolumeReal(item.volume || 1);
     const initialUnitCost = item.rekomendasi_unit_cost || (item.volume ? Math.round(Number(item.nominal) / item.volume) : Number(item.nominal) || 0);
     setFormUnitCost(initialUnitCost);
