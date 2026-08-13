@@ -452,6 +452,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
               id: act.id,
               name: act.name,
               asnaf: act.asnaf,
+              nominal: Number(act.nominal || 0),
               total_pagu: total,
               terpakai: terpakai,
               sisa_pagu: sisa,

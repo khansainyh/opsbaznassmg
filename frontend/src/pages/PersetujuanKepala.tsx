@@ -166,12 +166,13 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     setAvailability(null);
     setSelectedRkatId('');
     setSelectedSumberKas('Zakat');
-    setRekomendasiNominal(item.nominal || 0);
+    const initialNominal = Number(item.nominal) || 0;
+    setRekomendasiNominal(initialNominal);
 
     const initialTipe = (item.volume && item.volume > 1) || (item.penerima_detail && item.penerima_detail.length > 0) ? 'Perorangan' : 'Lembaga';
     setTipeRealisasiLembaga(initialTipe);
     setVolumeReal(item.volume || 1);
-    setRekomendasiUnitCost(item.rekomendasi_unit_cost || (item.nominal || 0));
+    setRekomendasiUnitCost(Number(item.rekomendasi_unit_cost) || initialNominal);
 
     setIsModalOpen(true);
     setLoadingAvailability(true);
@@ -179,7 +180,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
     axios.get(`/api/finance/check-availability/${item.id}`)
       .then(res => {
         setAvailability(res.data);
-        const acts = res.data.rkat_activities || [];
+        const acts = res.data?.rkat_activities || [];
         
         // Match chosen activity or fallback
         const currentAsnaf = (item.asnaf || 'Miskin').toLowerCase();
@@ -190,18 +191,18 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
         setSelectedRkatId(matched ? matched.id : '');
         
         const initialSumber = item.tipeBantuan || (
-          res.data.sumber_dana_yang_dipakai === 'INFAK_TERIKAT' ? 'Infak/Sedekah Terikat' :
-          res.data.sumber_dana_yang_dipakai === 'INFAK_TIDAK_TERIKAT' ? 'Infak/Sedekah Tidak Terikat' :
+          res.data?.sumber_dana_yang_dipakai === 'INFAK_TERIKAT' ? 'Infak/Sedekah Terikat' :
+          res.data?.sumber_dana_yang_dipakai === 'INFAK_TIDAK_TERIKAT' ? 'Infak/Sedekah Tidak Terikat' :
           'Zakat'
         );
         setSelectedSumberKas(initialSumber);
         setInitialSumberKas(initialSumber);
         setSelectedAsnaf(item.asnaf || '');
         setAlasanPerubahanDana(item.alasan_perubahan_dana || '');
-        const initialNominal = item.nominal || (matched ? matched.nominal : 0);
-        setRekomendasiNominal(initialNominal);
+        const chosenNominal = Number(item.nominal) || (matched ? Number(matched.nominal) : 0) || 0;
+        setRekomendasiNominal(chosenNominal);
         if (!item.rekomendasi_unit_cost) {
-          setRekomendasiUnitCost(initialNominal);
+          setRekomendasiUnitCost(chosenNominal);
         }
       })
       .catch(err => console.error('Gagal fetch availability:', err))
@@ -605,7 +606,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                 </span>
                               </div>
                             )}
-                            {selectedProposal.surveySubmittedAt && (
+                            {selectedProposal.surveySubmittedAt && !isNaN(new Date(selectedProposal.surveySubmittedAt).getTime()) && (
                               <DetailItem label="Tanggal Survei" value={new Date(selectedProposal.surveySubmittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} />
                             )}
                           </div>
@@ -628,22 +629,23 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           
                            <div className="grid grid-cols-1 gap-3">
                             {(() => {
-                              const sectionCodes = Array.from(new Set(dynamicQuestions.map(q => q.section))).sort();
+                              const questions = Array.isArray(dynamicQuestions) ? dynamicQuestions : [];
+                              const sectionCodes = Array.from(new Set(questions.map(q => q?.section))).filter(Boolean).sort();
                               if (sectionCodes.length === 0) {
                                 return (
-                                  <div className="text-xs font-semibold text-slate-405 italic py-2">
+                                  <div className="text-xs font-semibold text-slate-400 italic py-2">
                                     Memuat data rincian...
                                   </div>
                                 );
                               }
                               return sectionCodes.map(secCode => {
-                                const sectionQuestions = dynamicQuestions.filter(q => q.section === secCode);
+                                const sectionQuestions = questions.filter(q => q && q.section === secCode);
                                 if (sectionQuestions.length === 0) return null;
                                 
                                 const sectionTitle = sectionQuestions[0].sectionTitle || `Bagian ${secCode}`;
                                 const items = sectionQuestions.map(q => ({
                                   label: q.label,
-                                  value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], dynamicQuestions)
+                                  value: getLabelForScore(q.id, (selectedProposal.survey_data as any)?.[q.id], questions)
                                 }));
                                 
                                 return (
@@ -708,21 +710,21 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                               selectedSumberKas === 'Zakat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
                             )}>
                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana Zakat</p>
-                              <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.zakat || 0).toLocaleString('id-ID')}</p>
+                              <p className="font-extrabold text-slate-800 text-sm">Rp {(Number(availability?.kas_riil?.detail?.zakat) || 0).toLocaleString('id-ID')}</p>
                             </div>
                             <div className={cn(
                               "p-3 bg-white border rounded-xl shadow-sm space-y-1 text-center transition-all",
                               selectedSumberKas === 'Infak/Sedekah Tidak Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
                             )}>
                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana ISTT (Tidak Terikat)</p>
-                              <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.istt || 0).toLocaleString('id-ID')}</p>
+                              <p className="font-extrabold text-slate-800 text-sm">Rp {(Number(availability?.kas_riil?.detail?.istt) || 0).toLocaleString('id-ID')}</p>
                             </div>
                             <div className={cn(
                               "p-3 bg-white border rounded-xl shadow-sm space-y-1 text-center transition-all",
                               selectedSumberKas === 'Infak/Sedekah Terikat' ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200'
                             )}>
                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dana IST (Terikat)</p>
-                              <p className="font-extrabold text-slate-800 text-sm">Rp {(availability.kas_riil?.detail?.ist || 0).toLocaleString('id-ID')}</p>
+                              <p className="font-extrabold text-slate-800 text-sm">Rp {(Number(availability?.kas_riil?.detail?.ist) || 0).toLocaleString('id-ID')}</p>
                             </div>
                           </div>
                         </div>
@@ -749,7 +751,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                     ? (() => {
                                         const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedRkatId);
                                         return act 
-                                          ? `${act.name} (Asnaf: ${act.asnaf || 'Semua'}, Sisa: Rp ${act.sisa_pagu.toLocaleString('id-ID')})`
+                                          ? `${act.name} (Asnaf: ${act.asnaf || 'Semua'}, Sisa: Rp ${(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')})`
                                           : selectedRkatId;
                                       })()
                                     : '-- Pilih Kegiatan RKAT --'
@@ -811,7 +813,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                             )}
                                           >
                                             <span className="truncate">
-                                              {act.name} (Asnaf: {act.asnaf || 'Semua'}, Sisa: Rp {act.sisa_pagu.toLocaleString('id-ID')})
+                                              {act.name} (Asnaf: {act.asnaf || 'Semua'}, Sisa: Rp {(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')})
                                             </span>
                                             {selectedRkatId === act.id && <Check className="size-4 text-primary shrink-0" />}
                                           </button>
@@ -865,17 +867,17 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                   </div>
                                   <div>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase">Target RKAT 1 Tahun</p>
-                                    <p className="font-extrabold text-slate-700">Rp {act.total_pagu.toLocaleString('id-ID')}</p>
+                                    <p className="font-extrabold text-slate-700">Rp {(Number(act.total_pagu) || 0).toLocaleString('id-ID')}</p>
                                   </div>
                                   <div>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase">Sisa Anggaran</p>
                                     <p className={cn("font-black", isEnough ? "text-emerald-600" : "text-rose-600")}>
-                                      Rp {act.sisa_pagu.toLocaleString('id-ID')}
+                                      Rp {(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')}
                                     </p>
                                   </div>
                                   <div>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase">Estimasi Unit Cost</p>
-                                    <p className="font-bold text-slate-600">Rp {(act.nominal || rekomendasiNominal).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
+                                    <p className="font-bold text-slate-600">Rp {(Number(act.nominal || rekomendasiNominal) || 0).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
                                   </div>
                                 </div>
                               </div>
@@ -1077,7 +1079,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
                                               <input
                                                 type="text"
-                                                value={rekomendasiUnitCost ? rekomendasiUnitCost.toLocaleString('id-ID') : ''}
+                                                value={rekomendasiUnitCost ? Number(rekomendasiUnitCost).toLocaleString('id-ID') : ''}
                                                 onChange={(e) => {
                                                   const rawVal = e.target.value.replace(/[^0-9]/g, '');
                                                   setRekomendasiUnitCost(Math.max(0, parseInt(rawVal) || 0));
@@ -1099,7 +1101,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
                                       <input
                                         type="text"
-                                        value={rekomendasiNominal.toLocaleString('id-ID')}
+                                        value={(Number(rekomendasiNominal) || 0).toLocaleString('id-ID')}
                                         readOnly
                                         disabled
                                         className={cn(

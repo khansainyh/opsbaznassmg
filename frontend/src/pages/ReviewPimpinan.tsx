@@ -749,7 +749,7 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                                   <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-50">
                                     <span className="text-slate-400">Sisa Pagu:</span>
                                     <span className={cn("font-extrabold", isEnough ? "text-emerald-600" : "text-rose-600")}>
-                                      Rp {act.sisa_pagu.toLocaleString('id-ID')}
+                                      Rp {(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')}
                                     </span>
                                   </div>
                                 </div>

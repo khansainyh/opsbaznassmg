@@ -97,20 +97,43 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
       data.mustahik_id = null;
     }
 
-    // Hitung agenda_no otomatis mulai dari 922 per Agustus (922, 923, 924...) hanya untuk proposal biasa (bukan OBS)
     const isObs = data.jenis_pengajuan === 'OBS' || String(data.jenis_pengajuan).toUpperCase() === 'OBS';
+
     if (isObs) {
-      data.agenda_no = null;
-    } else if (!data.agenda_no) {
-      const maxProposal = await prisma.proposal.findFirst({
-        where: {
-          NOT: [{ jenis_pengajuan: 'OBS' }, { agenda_no: null as any }]
-        },
-        orderBy: { agenda_no: 'desc' },
-        select: { agenda_no: true }
-      });
-      const maxAgenda = maxProposal?.agenda_no || 0;
-      data.agenda_no = maxAgenda >= 922 ? maxAgenda + 1 : 922;
+      // Penomoran khusus OBS: Terpisah dari proposal biasa
+      if (!data.agenda_no) {
+        const maxObs = await prisma.proposal.findFirst({
+          where: { jenis_pengajuan: 'OBS' },
+          orderBy: { agenda_no: 'desc' },
+          select: { agenda_no: true }
+        });
+        let nextObsAgenda = (maxObs?.agenda_no || 0) + 1;
+        while (await prisma.proposal.findUnique({ where: { agenda_no: nextObsAgenda } })) {
+          nextObsAgenda++;
+        }
+        data.agenda_no = nextObsAgenda;
+      } else {
+        data.agenda_no = Number(data.agenda_no);
+      }
+    } else {
+      // Penomoran Proposal Biasa: Terpisah dari OBS, mulai dari 922 (922, 923, 924...)
+      if (!data.agenda_no) {
+        const maxProposal = await prisma.proposal.findFirst({
+          where: {
+            NOT: { jenis_pengajuan: 'OBS' }
+          },
+          orderBy: { agenda_no: 'desc' },
+          select: { agenda_no: true }
+        });
+        const maxAgenda = maxProposal?.agenda_no || 0;
+        let nextAgenda = maxAgenda >= 922 ? maxAgenda + 1 : 922;
+        while (await prisma.proposal.findUnique({ where: { agenda_no: nextAgenda } })) {
+          nextAgenda++;
+        }
+        data.agenda_no = nextAgenda;
+      } else {
+        data.agenda_no = Number(data.agenda_no);
+      }
     }
 
     let gdriveLink = null;
