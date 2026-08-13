@@ -103,15 +103,31 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
     const proposalIds = proposals.map(p => p.id);
     const realisasiList = await prisma.realisasi.findMany({
       where: { proposal_id: { in: proposalIds } },
-      select: { proposal_id: true, tanggal: true },
+      include: {
+        journalEntries: {
+          where: { debit: { gt: 0 } },
+          include: { coa: true }
+        }
+      },
       orderBy: { tanggal: 'desc' }
     });
-    const realisasiMap = new Map<string, Date>();
+    const realisasiMap = new Map<string, { tanggal: Date; coa_code?: string; coa_name?: string }>();
     for (const r of realisasiList) {
       if (r.proposal_id && !realisasiMap.has(r.proposal_id)) {
-        realisasiMap.set(r.proposal_id, r.tanggal);
+        const debitEntry = r.journalEntries && r.journalEntries.length > 0 ? r.journalEntries[0] : null;
+        realisasiMap.set(r.proposal_id, {
+          tanggal: r.tanggal,
+          coa_code: debitEntry?.coa_code,
+          coa_name: debitEntry?.coa?.nama_akun
+        });
       }
     }
+
+    const mappingRules = await prisma.coaMappingRule.findMany({
+      include: { debitCoa: true }
+    });
+    const allCoa = await prisma.chartOfAccounts.findMany();
+    const coaNameMap = new Map(allCoa.map(c => [c.coa_code, c.nama_akun]));
 
     const mapped = proposals
       .filter(p => {
@@ -122,12 +138,81 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
       })
       .map(p => {
         const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
-        const tglCair = realisasiMap.get(p.id) || (p.status && (p.status.toLowerCase().includes('cair') || p.status.toLowerCase().includes('realisasi') || p.status.toLowerCase().includes('simba') || p.status.toLowerCase().includes('arsip') || p.status.toLowerCase().includes('selesai')) ? p.updated_at : null);
+        const relData = realisasiMap.get(p.id);
+        const tglCair = relData?.tanggal || (p.status && (p.status.toLowerCase().includes('cair') || p.status.toLowerCase().includes('realisasi') || p.status.toLowerCase().includes('simba') || p.status.toLowerCase().includes('arsip') || p.status.toLowerCase().includes('selesai')) ? p.updated_at : null);
+
+        // Determine COA code & name
+        let resolvedCoaCode = relData?.coa_code || null;
+        let resolvedCoaName = relData?.coa_name || null;
+
+        if (!resolvedCoaCode) {
+          // Resolve fundSource
+          let fundSource = 'ZAKAT';
+          const possibleSources = [p.asnaf, p.rekomendasi_kabag, p.tipe_bantuan];
+          for (const src of possibleSources) {
+            if (!src) continue;
+            const normalized = String(src).toUpperCase().trim();
+            if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
+              fundSource = 'INFAK_TERIKAT';
+              break;
+            } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
+              fundSource = 'INFAK_TIDAK_TERIKAT';
+              break;
+            } else if (normalized.includes('AMIL')) {
+              fundSource = 'AMIL';
+              break;
+            } else if (normalized.includes('APBD')) {
+              fundSource = 'APBD';
+              break;
+            } else if (normalized.includes('ZAKAT')) {
+              fundSource = 'ZAKAT';
+              break;
+            }
+          }
+
+          const targetAsnaf = String(p.asnaf || '').trim().toLowerCase();
+          const pCode = String(p.program?.code || p.jenis_permohonan || '').trim().toLowerCase();
+          const pName = String(p.program?.name || '').trim().toLowerCase();
+
+          const matchProg = (ruleProg: string) => {
+            if (!ruleProg) return false;
+            const cleanRule = ruleProg.trim().toLowerCase();
+            const cleanRuleCode = cleanRule.split(' ')[0].split('-')[0].trim();
+            if (pCode && (pCode === cleanRule || pCode.includes(cleanRule) || cleanRule.includes(pCode))) return true;
+            if (pName && (pName === cleanRule || pName.includes(cleanRule) || cleanRule.includes(pName))) return true;
+            if (cleanRuleCode && pCode && (pCode === cleanRuleCode || pCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(pCode))) return true;
+            return false;
+          };
+
+          const matchAsnaf = (ruleAsnaf: string | null) => {
+            if (!ruleAsnaf || ruleAsnaf.trim() === '' || ruleAsnaf.trim().toLowerCase() === 'global') return true;
+            return ruleAsnaf.trim().toLowerCase() === targetAsnaf;
+          };
+
+          const fundRules = mappingRules.filter(r => !r.sumber_dana_tag || r.sumber_dana_tag === 'ALL' || r.sumber_dana_tag === fundSource);
+          let matchedRule = fundRules.find(r => matchProg(r.program_code) && r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf);
+          if (!matchedRule) {
+            matchedRule = fundRules.find(r => matchProg(r.program_code) && matchAsnaf(r.asnaf_id));
+          }
+
+          if (matchedRule) {
+            resolvedCoaCode = matchedRule.debit_coa_code;
+            resolvedCoaName = matchedRule.debitCoa?.nama_akun || coaNameMap.get(resolvedCoaCode) || null;
+          }
+        }
+
+        if (!resolvedCoaCode) {
+          resolvedCoaCode = p.program?.code || '519999999';
+          resolvedCoaName = coaNameMap.get(resolvedCoaCode) || p.program?.name || p.jenis_permohonan || 'Beban Penyaluran ZIS';
+        }
+
         return {
           ...p,
           asal_data: isDirect ? 'Jalur Direct' : 'Jalur Proposal',
           tanggal_pencairan_real: tglCair,
-          tanggal_realisasi: tglCair
+          tanggal_realisasi: tglCair,
+          coa_code: resolvedCoaCode,
+          coa_name: resolvedCoaName || coaNameMap.get(resolvedCoaCode) || p.program?.name || 'Beban Penyaluran ZIS'
         };
       })
       .sort((a, b) => {

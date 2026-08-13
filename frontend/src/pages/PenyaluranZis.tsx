@@ -515,7 +515,43 @@ export default function PenyaluranZis() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('Semua');
   const [selectedKategoriFilter, setSelectedKategoriFilter] = useState<string>('Semua');
   const [selectedAsnafFilter, setSelectedAsnafFilter] = useState<string>('Semua');
+  const [selectedBulanPencairan, setSelectedBulanPencairan] = useState<string>('Semua');
+  const [selectedTahunPencairan, setSelectedTahunPencairan] = useState<string>('Semua');
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
+
+  // Helper to extract effective Tanggal Pencairan (bukan tanggal masuk/pengajuan)
+  const getTanggalPencairan = useCallback((item: any): Date | null => {
+    if (!item) return null;
+    const raw = item.tanggal_pencairan_real || 
+                item.tanggal_realisasi || 
+                item.tanggalPencairan || 
+                item.tanggalRealisasi || 
+                item.tanggal_pencairan;
+    if (raw) {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const s = (item.status || '').toLowerCase();
+    const isSudahCair = s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
+    if (isSudahCair && (item.updated_at || item.updatedAt)) {
+      const d = new Date(item.updated_at || item.updatedAt);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  }, []);
+
+  // Available Years for Tanggal Pencairan filter
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    const currentYr = new Date().getFullYear();
+    years.add(currentYr);
+    years.add(currentYr - 1);
+    data.forEach(item => {
+      const tgl = getTanggalPencairan(item);
+      if (tgl) years.add(tgl.getFullYear());
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [data, getTanggalPencairan]);
 
   // Active Advanced Filters Count
   const activeAdvancedFiltersCount = useMemo(() => {
@@ -523,8 +559,10 @@ export default function PenyaluranZis() {
     if (selectedAsalFilter !== 'Semua') count++;
     if (selectedKategoriFilter !== 'Semua') count++;
     if (selectedAsnafFilter !== 'Semua') count++;
+    if (selectedBulanPencairan !== 'Semua') count++;
+    if (selectedTahunPencairan !== 'Semua') count++;
     return count;
-  }, [selectedAsalFilter, selectedKategoriFilter, selectedAsnafFilter]);
+  }, [selectedAsalFilter, selectedKategoriFilter, selectedAsnafFilter, selectedBulanPencairan, selectedTahunPencairan]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -900,11 +938,22 @@ export default function PenyaluranZis() {
 
   // Helper to find COA Accounting Code (Auto-mapping from Mapping COA Rules) for a proposal
   const getCoaInfo = (item: any) => {
+    if (!item) return { coaCode: '-', coaName: 'Beban Penyaluran ZIS' };
+
+    // 1. Direct attribute from proposal / backend realisasi journal entry (Instant load)
+    if (item.coa_code && item.coa_code !== '519999999') {
+      return {
+        coaCode: item.coa_code,
+        coaName: item.coa_name || item.program?.name || item.jenis_permohonan || 'Beban Penyaluran ZIS'
+      };
+    }
+
+    // 2. Client-side mapping resolution fallback
     const progVal = item.jenis_permohonan || item.program?.code || item.program?.name || '';
     const asnafVal = item.asnaf || 'Miskin';
-    const targetCode = item.coa_code || resolveMappingCoa(progVal, asnafVal);
+    const targetCode = resolveMappingCoa(progVal, asnafVal);
 
-    const foundCoa = coaList.find((c: any) => (c.code || c.coa_code) === targetCode || c.id === targetCode);
+    const foundCoa = (coaList || []).find((c: any) => (c.code || c.coa_code) === targetCode || c.id === targetCode);
 
     if (foundCoa) {
       return {
@@ -913,15 +962,15 @@ export default function PenyaluranZis() {
       };
     }
 
-    if (targetCode === '519999999') {
+    if (item.coa_code) {
       return {
-        coaCode: '519999999',
-        coaName: 'Penyaluran Lain-lain (Emergency Fallback)'
+        coaCode: item.coa_code,
+        coaName: item.coa_name || item.program?.name || 'Beban Penyaluran ZIS'
       };
     }
 
     return {
-      coaCode: targetCode,
+      coaCode: targetCode || '519999999',
       coaName: item.program?.name || item.jenis_permohonan || 'Beban Penyaluran ZIS'
     };
   };
@@ -992,7 +1041,30 @@ export default function PenyaluranZis() {
         matchesAsnaf = asnafItem === selectedAsnafFilter.toLowerCase();
       }
 
-      return matchesSearch && matchesAsal && matchesPilar && matchesStatus && matchesKategori && matchesAsnaf;
+      // Filter Bulan Tanggal Pencairan (Bukan Tanggal Masuk/Pengajuan)
+      let matchesBulan = true;
+      if (selectedBulanPencairan !== 'Semua') {
+        const tglCair = getTanggalPencairan(item);
+        if (!tglCair) {
+          matchesBulan = false;
+        } else {
+          const m = tglCair.getMonth() + 1;
+          matchesBulan = String(m) === selectedBulanPencairan;
+        }
+      }
+
+      // Filter Tahun Tanggal Pencairan
+      let matchesTahun = true;
+      if (selectedTahunPencairan !== 'Semua') {
+        const tglCair = getTanggalPencairan(item);
+        if (!tglCair) {
+          matchesTahun = false;
+        } else {
+          matchesTahun = String(tglCair.getFullYear()) === selectedTahunPencairan;
+        }
+      }
+
+      return matchesSearch && matchesAsal && matchesPilar && matchesStatus && matchesKategori && matchesAsnaf && matchesBulan && matchesTahun;
     }).sort((a, b) => {
       const rankA = getStatusRank(a.status);
       const rankB = getStatusRank(b.status);
@@ -1005,7 +1077,7 @@ export default function PenyaluranZis() {
       const timeB = new Date(b.created_at || b.tanggal_masuk || 0).getTime();
       return timeB - timeA;
     });
-  }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter, selectedKategoriFilter, selectedAsnafFilter]);
+  }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter, selectedKategoriFilter, selectedAsnafFilter, selectedBulanPencairan, selectedTahunPencairan, getTanggalPencairan]);
 
   // Dynamic Metrics based on active filtered data (Instant, 0ms latency, reactive to all filters)
   const metrics = useMemo(() => {
@@ -1334,6 +1406,7 @@ export default function PenyaluranZis() {
       const { rkatNo, rkatName } = getRkatInfo(item);
       const { coaCode, coaName } = getCoaInfo(item);
       const { title: namaMustahik } = getMustahikDisplayName(item);
+      const tglCair = getTanggalPencairan(item);
       return {
         No: idx + 1,
         'No. Agenda': item.asal_data === 'Jalur Direct' ? '-' : (item.agenda_no ? String(item.agenda_no) : '-'),
@@ -1350,7 +1423,8 @@ export default function PenyaluranZis() {
         'Asnaf': item.asnaf || '-',
         'Nominal (Rp)': item.nominal || 0,
         'Status': formatStatusDisplay(item.status),
-        'Tanggal': formatDate(item.created_at || item.tanggal_masuk)
+        'Tanggal Pengajuan': formatDate(item.created_at || item.tanggal_masuk),
+        'Tanggal Pencairan': tglCair ? formatDate(tglCair) : '-'
       };
     });
 
@@ -1584,6 +1658,45 @@ export default function PenyaluranZis() {
                   ))}
                 </select>
 
+                {/* Bulan Pencairan Filter (Berdasarkan Tanggal Pencairan) */}
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl py-1.5 px-3 shadow-xs">
+                  <CalendarCheck className="size-3.5 text-emerald-600 shrink-0" />
+                  <select 
+                    className="bg-transparent focus:ring-0 outline-none cursor-pointer font-semibold text-slate-700 text-xs"
+                    value={selectedBulanPencairan}
+                    onChange={(e) => { setSelectedBulanPencairan(e.target.value); setCurrentPage(1); }}
+                  >
+                    <option value="Semua">Bulan Pencairan: Semua</option>
+                    <option value="1">Januari</option>
+                    <option value="2">Februari</option>
+                    <option value="3">Maret</option>
+                    <option value="4">April</option>
+                    <option value="5">Mei</option>
+                    <option value="6">Juni</option>
+                    <option value="7">Juli</option>
+                    <option value="8">Agustus</option>
+                    <option value="9">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Desember</option>
+                  </select>
+                </div>
+
+                {/* Tahun Pencairan Filter */}
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl py-1.5 px-3 shadow-xs">
+                  <Calendar className="size-3.5 text-slate-400 shrink-0" />
+                  <select 
+                    className="bg-transparent focus:ring-0 outline-none cursor-pointer font-semibold text-slate-700 text-xs"
+                    value={selectedTahunPencairan}
+                    onChange={(e) => { setSelectedTahunPencairan(e.target.value); setCurrentPage(1); }}
+                  >
+                    <option value="Semua">Tahun: Semua</option>
+                    {availableYears.map(yr => (
+                      <option key={yr} value={String(yr)}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Reset Filters Button */}
                 {(activeAdvancedFiltersCount > 0 || selectedStatusFilter !== 'Semua' || selectedPilarFilter !== 'Semua Program' || searchTerm) && (
                   <button
@@ -1595,6 +1708,8 @@ export default function PenyaluranZis() {
                       setSelectedStatusFilter('Semua');
                       setSelectedKategoriFilter('Semua');
                       setSelectedAsnafFilter('Semua');
+                      setSelectedBulanPencairan('Semua');
+                      setSelectedTahunPencairan('Semua');
                       setCurrentPage(1);
                     }}
                     className="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer bg-white shadow-xs ml-auto"
