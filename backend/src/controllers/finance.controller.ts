@@ -780,30 +780,50 @@ export const previewDisbursement = async (req: Request, res: Response) => {
       const nominal = Number(proposal.nominal || 0);
       totalNominal += nominal;
 
-      const { debitCoaCode } = await resolveDisbursementCoa(proposal, account, prisma);
+      const resolved = await resolveDisbursementCoa(proposal, account, prisma);
+      const debitCoaCode = resolved?.debitCoaCode || '519999999';
 
-      const debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
+      let debitCoa = null;
+      if (debitCoaCode) {
+        try {
+          debitCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: debitCoaCode } as any });
+        } catch (e) {
+          console.warn('[PREVIEW DISBURSE] Gagal cari debitCoa:', e);
+        }
+      }
 
       const formattedKeterangan = formatDisbursementKeterangan(proposal);
 
       debitEntries.push({
         coa_code: debitCoaCode,
-        nama_akun: `${debitCoa ? debitCoa.nama_akun : 'Penyaluran Lainnya (Kategori Darurat)'} (${formattedKeterangan})`,
+        nama_akun: `${debitCoa ? debitCoa.nama_akun : 'Penyaluran ZIS'} (${formattedKeterangan})`,
         nominal
       });
 
-      const kreditCoaCode = account.coa_code;
-      const kreditCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: kreditCoaCode } as any });
+      const kreditCoaCode = account.coa_code || account.coa?.coa_code || '1110101';
+      let kreditCoa = null;
+      if (kreditCoaCode) {
+        try {
+          kreditCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: kreditCoaCode } as any });
+        } catch (e) {
+          console.warn('[PREVIEW DISBURSE] Gagal cari kreditCoa:', e);
+        }
+      }
 
       kreditEntries.push({
         coa_code: kreditCoaCode,
-        nama_akun: `${kreditCoa ? kreditCoa.nama_akun : account.nama_akun} (${formattedKeterangan})`,
+        nama_akun: `${kreditCoa ? kreditCoa.nama_akun : (account.nama_akun || 'Kas/Bank')} (${formattedKeterangan})`,
         nominal
       });
     }
 
-    const kreditCoaCode = account.coa_code;
-    const kreditCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: kreditCoaCode } as any });
+    const kreditCoaCode = account.coa_code || account.coa?.coa_code || '1110101';
+    let kreditCoa = null;
+    if (kreditCoaCode) {
+      try {
+        kreditCoa = await prisma.chartOfAccounts.findUnique({ where: { coa_code: kreditCoaCode } as any });
+      } catch (e) {}
+    }
 
     res.status(200).json({
       nominal: totalNominal,
@@ -815,7 +835,7 @@ export const previewDisbursement = async (req: Request, res: Response) => {
       },
       kredit: {
         coa_code: kreditCoaCode,
-        nama_akun: kreditCoa ? kreditCoa.nama_akun : account.nama_akun
+        nama_akun: kreditCoa ? kreditCoa.nama_akun : (account.nama_akun || 'Kas/Bank')
       },
       balanced: true
     });
@@ -887,7 +907,8 @@ export const executeDisbursement = async (req: Request, res: Response) => {
       for (const proposal of proposals) {
         const nominal = Number(proposal.nominal || 0);
 
-        const { debitCoaCode } = await resolveDisbursementCoa(proposal, account, tx);
+        const resolved = await resolveDisbursementCoa(proposal, account, tx);
+        const debitCoaCode = resolved?.debitCoaCode || '519999999';
 
         const formattedKeterangan = formatDisbursementKeterangan(proposal);
 
@@ -923,7 +944,7 @@ export const executeDisbursement = async (req: Request, res: Response) => {
         });
 
         // 4. Create Kredit entry for this specific proposal
-        const kreditCoaCode = account.coa_code;
+        const kreditCoaCode = account.coa_code || account.coa?.coa_code || '1110101';
         await tx.journalEntry.create({
           data: {
             transaksi_id: realisasiTrx.transaksi_id,
