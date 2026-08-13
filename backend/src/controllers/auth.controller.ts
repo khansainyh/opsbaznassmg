@@ -12,8 +12,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email }
+    const rawEmail = String(email || '').trim();
+    const cleanEmail = rawEmail.toLowerCase();
+
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: cleanEmail },
+          { email: rawEmail }
+        ]
+      }
     });
 
     if (!user) {

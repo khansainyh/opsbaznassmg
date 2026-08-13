@@ -25,8 +25,9 @@ export default function Login() {
     setIsLoading(true);
 
     try {
+      const cleanEmail = email.trim();
       const response = await axios.post('/api/auth/login', {
-        email,
+        email: cleanEmail,
         password
       });
 
@@ -34,7 +35,8 @@ export default function Login() {
         login(response.data.data.user, response.data.data.token);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Terjadi kesalahan saat menghubungi server. Pastikan koneksi Anda stabil.';
+      console.error('Login error:', err);
+      const msg = err.response?.data?.message || (err.response?.status ? `Gagal menghubungi server (${err.response.status}).` : 'Terjadi kesalahan saat menghubungi server. Pastikan koneksi Anda stabil.');
       setErrorToast(msg);
     } finally {
       setIsLoading(false);
