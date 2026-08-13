@@ -166,6 +166,32 @@ const buildCleanSuratPayload = (body: any, isUpdate = false) => {
 export const createSurat = async (req: Request, res: Response) => {
   try {
     const payload = buildCleanSuratPayload(req.body, false);
+
+    // Auto-calculate next agenda_no based on max existing agenda_no in that year if not explicitly provided
+    if (!payload.agenda_no) {
+      const suratDate = payload.tanggal_masuk ? new Date(payload.tanggal_masuk) : new Date();
+      const year = suratDate.getFullYear();
+      const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+      const endOfYear = new Date(`${year + 1}-01-01T00:00:00.000Z`);
+
+      const maxSurat = await prisma.surat.findFirst({
+        where: {
+          tanggal_masuk: {
+            gte: startOfYear,
+            lt: endOfYear
+          }
+        },
+        orderBy: { agenda_no: 'desc' },
+        select: { agenda_no: true }
+      });
+
+      let nextAgenda = (maxSurat?.agenda_no || 0) + 1;
+      while (await prisma.surat.findUnique({ where: { agenda_no: nextAgenda } })) {
+        nextAgenda++;
+      }
+      payload.agenda_no = nextAgenda;
+    }
+
     const surat = await prisma.surat.create({ data: payload });
     res.status(201).json(surat);
   } catch (error: any) {

@@ -161,17 +161,32 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
         data.agenda_no = Number(data.agenda_no);
       }
     } else {
-      // Penomoran Proposal Biasa: Terpisah dari OBS, mulai dari 922 (922, 923, 924...)
+      // Penomoran Proposal Biasa: Terpisah dari OBS, dan dihitung per tahun proposal (agar proposal 2025 tidak menggeser antrean 2026)
       if (!data.agenda_no) {
-        const maxProposal = await prisma.proposal.findFirst({
+        const propYear = data.tanggal_masuk ? new Date(data.tanggal_masuk).getFullYear() : new Date().getFullYear();
+        const startOfYear = new Date(`${propYear}-01-01T00:00:00.000Z`);
+        const endOfYear = new Date(`${propYear + 1}-01-01T00:00:00.000Z`);
+
+        const maxProposalInYear = await prisma.proposal.findFirst({
           where: {
-            NOT: { jenis_pengajuan: 'OBS' }
+            NOT: { jenis_pengajuan: 'OBS' },
+            tanggal_masuk: {
+              gte: startOfYear,
+              lt: endOfYear
+            }
           },
           orderBy: { agenda_no: 'desc' },
           select: { agenda_no: true }
         });
-        const maxAgenda = maxProposal?.agenda_no || 0;
-        let nextAgenda = maxAgenda >= 922 ? maxAgenda + 1 : 922;
+
+        let nextAgenda: number;
+        if (propYear >= 2026) {
+          const maxAgenda = maxProposalInYear?.agenda_no || 0;
+          nextAgenda = maxAgenda >= 922 ? maxAgenda + 1 : 922;
+        } else {
+          nextAgenda = (maxProposalInYear?.agenda_no || 0) + 1;
+        }
+
         while (await prisma.proposal.findUnique({ where: { agenda_no: nextAgenda } })) {
           nextAgenda++;
         }
