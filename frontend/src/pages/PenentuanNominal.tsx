@@ -87,42 +87,79 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
   }, []);
 
   const getRKATBudget = (jenisPermohonan: string, asnaf?: string, rkatActivityId?: string): number | undefined => {
-    // Resolve child-to-parent code fallback (e.g., '1102.3' -> '1102')
-    const targetCode = jenisPermohonan.includes('.') ? jenisPermohonan.split('.')[0] : jenisPermohonan;
-
-    for (const pilar of pilars) {
-      for (const prog of pilar.programs) {
-        if (
-          prog.name === jenisPermohonan ||
-          prog.code === jenisPermohonan ||
-          prog.code === targetCode
-        ) {
+    // 1. If rkatActivityId is provided (from Persetujuan Kepala Pelaksana), search all programs for this exact activity first!
+    if (rkatActivityId) {
+      for (const pilar of pilars) {
+        for (const prog of (pilar.programs || [])) {
           if (prog.rkat_details) {
             const details = typeof prog.rkat_details === 'string'
               ? JSON.parse(prog.rkat_details)
               : prog.rkat_details;
-
             if (Array.isArray(details)) {
-              const match = details.find((detail: any) => {
-                if (rkatActivityId && detail.id === rkatActivityId) return true;
-                if (asnaf) {
-                  const dAsnaf = (detail.asnaf || '').toLowerCase();
-                  const pAsnaf = asnaf.toLowerCase();
-                  return dAsnaf && (dAsnaf.includes(pAsnaf) || pAsnaf.includes(dAsnaf));
-                }
-                return false;
-              });
-              if (match) {
-                return Number(match.nominal || 0);
+              const matchedById = details.find((d: any) =>
+                String(d.id) === String(rkatActivityId) ||
+                String(d.no) === String(rkatActivityId) ||
+                String(d.coaCode) === String(rkatActivityId)
+              );
+              if (matchedById && Number(matchedById.nominal) > 0) {
+                return Number(matchedById.nominal);
               }
             }
-          }
-          if (typeof prog.budget_rkat === 'number') {
-            return prog.budget_rkat;
           }
         }
       }
     }
+
+    if (!jenisPermohonan) return undefined;
+
+    // Collect all programs
+    const allPrograms: any[] = [];
+    for (const pilar of pilars) {
+      if (Array.isArray(pilar.programs)) {
+        allPrograms.push(...pilar.programs);
+      }
+    }
+
+    // 2. Search EXACT match by code or name
+    let matchedProg = allPrograms.find(p => p.code === jenisPermohonan || p.name === jenisPermohonan);
+
+    // 3. Fallback to child-to-parent code (e.g., '210102.1' -> '210102')
+    if (!matchedProg && jenisPermohonan.includes('.')) {
+      const parentCode = jenisPermohonan.split('.')[0];
+      matchedProg = allPrograms.find(p => p.code === parentCode || p.name === parentCode);
+    }
+
+    if (matchedProg) {
+      if (matchedProg.rkat_details) {
+        const details = typeof matchedProg.rkat_details === 'string'
+          ? JSON.parse(matchedProg.rkat_details)
+          : matchedProg.rkat_details;
+
+        if (Array.isArray(details) && details.length > 0) {
+          // Priority A: Match by asnaf
+          if (asnaf) {
+            const pAsnaf = asnaf.toLowerCase().trim();
+            const matchByAsnaf = details.find((d: any) => {
+              const dAsnaf = (d.asnaf || '').toLowerCase().trim();
+              return dAsnaf === pAsnaf || (dAsnaf && (dAsnaf.includes(pAsnaf) || pAsnaf.includes(dAsnaf)));
+            });
+            if (matchByAsnaf && Number(matchByAsnaf.nominal) > 0) {
+              return Number(matchByAsnaf.nominal);
+            }
+          }
+
+          // Priority B: First detail nominal
+          if (details[0] && Number(details[0].nominal) > 0) {
+            return Number(details[0].nominal);
+          }
+        }
+      }
+
+      if (typeof matchedProg.budget_rkat === 'number' && matchedProg.budget_rkat > 0) {
+        return matchedProg.budget_rkat;
+      }
+    }
+
     return undefined;
   };
 
@@ -375,9 +412,28 @@ export default function PenentuanNominal({ data, onUpdate }: PenentuanNominalPro
                         <span className="px-2 py-1 rounded text-[10px] font-black uppercase w-fit bg-primary/5 text-primary border border-primary/10">
                           {item.program || 'Umum'}
                         </span>
-                        <p className="text-xs text-slate-500 font-medium truncate max-w-[150px]">
+                        <p className="text-xs text-slate-700 font-bold truncate max-w-[200px]">
                           {item.jenisPermohonan}
                         </p>
+                        {(() => {
+                          if (!item.rkatActivityId) return null;
+                          for (const p of pilars) {
+                            for (const pr of (p.programs || [])) {
+                              const dts = typeof pr.rkat_details === 'string' ? JSON.parse(pr.rkat_details) : pr.rkat_details;
+                              if (Array.isArray(dts)) {
+                                const foundAct = dts.find((d: any) => String(d.id) === String(item.rkatActivityId) || String(d.no) === String(item.rkatActivityId));
+                                if (foundAct) {
+                                  return (
+                                    <span className="text-[10px] text-blue-700 font-medium truncate max-w-[200px]" title={foundAct.keterangan || foundAct.name}>
+                                      📌 {foundAct.keterangan || foundAct.name}
+                                    </span>
+                                  );
+                                }
+                              }
+                            }
+                          }
+                          return null;
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4">
