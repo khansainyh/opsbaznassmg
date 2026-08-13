@@ -27,7 +27,10 @@ import {
   Filter,
   RotateCcw,
   Calendar,
-  CalendarCheck
+  CalendarCheck,
+  Upload,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
@@ -572,7 +575,12 @@ export default function PenyaluranZis() {
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [selectedPenyaluran, setSelectedPenyaluran] = useState<any | null>(null);
+
+  // Migration State
+  const [migrating, setMigrating] = useState(false);
+  const [parsedMigrationRows, setParsedMigrationRows] = useState<any[]>([]);
 
   // Mustahik Autocomplete & Quick Register State
   const [mustahikList, setMustahikList] = useState<any[]>([]);
@@ -975,6 +983,92 @@ export default function PenyaluranZis() {
     };
   };
 
+  // Helper to resolve Program & RKAT details for Migration preview & table
+  const resolveProgramAndRkatForMigration = useCallback((progCodeOrName: string, rkatIdOrNo: string) => {
+    let resolvedProgName = progCodeOrName || '-';
+    let resolvedRkatName = '-';
+    let resolvedRkatKet = '-';
+    let resolvedRkatNo = '';
+
+    const cleanProg = String(progCodeOrName || '').trim().toLowerCase();
+    const cleanRkat = String(rkatIdOrNo || '').trim().toLowerCase();
+
+    // 1. Search in pilars
+    for (const pilar of pilars) {
+      for (const prog of (pilar.programs || [])) {
+        const pCode = String(prog.code || '').trim().toLowerCase();
+        const pName = String(prog.name || '').trim().toLowerCase();
+
+        if (
+          pCode === cleanProg ||
+          (cleanProg && pCode.startsWith(cleanProg)) ||
+          (cleanProg && cleanProg.startsWith(pCode)) ||
+          pName === cleanProg ||
+          (cleanProg && pName.includes(cleanProg))
+        ) {
+          resolvedProgName = `${prog.code} - ${prog.name}`;
+          
+          // Match RKAT details inside this program
+          if (prog.rkat_details && Array.isArray(prog.rkat_details)) {
+            const matchDetail = prog.rkat_details.find((d: any) => {
+              const dId = String(d.id || '').trim().toLowerCase();
+              const dNo = String(d.no || '').trim().toLowerCase();
+              return dId === cleanRkat || dNo === cleanRkat || (cleanRkat && dId.includes(cleanRkat));
+            }) || prog.rkat_details[0];
+
+            if (matchDetail) {
+              resolvedRkatNo = matchDetail.no ? `#${matchDetail.no}` : '';
+              resolvedRkatName = matchDetail.name || matchDetail.nama || prog.name;
+              resolvedRkatKet = matchDetail.keterangan || matchDetail.spesifikasi || matchDetail.catatan || matchDetail.deskripsi || '-';
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    // 2. If RKAT detail wasn't found in pilars, search in rkatList or all pilars
+    if (resolvedRkatName === '-' && rkatIdOrNo) {
+      const foundInRkatList = (rkatList || []).find((r: any) => {
+        const rId = String(r.id || '').trim().toLowerCase();
+        const rNo = String(r.no || '').trim().toLowerCase();
+        return rId === cleanRkat || rNo === cleanRkat || (cleanRkat && rId.includes(cleanRkat));
+      });
+
+      if (foundInRkatList) {
+        resolvedRkatNo = foundInRkatList.no ? `#${foundInRkatList.no}` : '';
+        resolvedRkatName = foundInRkatList.nama || foundInRkatList.name || '-';
+        resolvedRkatKet = foundInRkatList.keterangan || foundInRkatList.spesifikasi || foundInRkatList.catatan || '-';
+      } else {
+        // Search across all pilars rkat_details
+        for (const pilar of pilars) {
+          for (const prog of (pilar.programs || [])) {
+            if (prog.rkat_details && Array.isArray(prog.rkat_details)) {
+              const dMatch = prog.rkat_details.find((d: any) => {
+                const dId = String(d.id || '').trim().toLowerCase();
+                const dNo = String(d.no || '').trim().toLowerCase();
+                return dId === cleanRkat || dNo === cleanRkat || (cleanRkat && dId.includes(cleanRkat));
+              });
+              if (dMatch) {
+                resolvedRkatNo = dMatch.no ? `#${dMatch.no}` : '';
+                resolvedRkatName = dMatch.name || dMatch.nama || prog.name;
+                resolvedRkatKet = dMatch.keterangan || dMatch.spesifikasi || dMatch.catatan || '-';
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      progDisplay: resolvedProgName,
+      rkatNo: resolvedRkatNo,
+      rkatName: resolvedRkatName !== '-' ? resolvedRkatName : (rkatIdOrNo || '-'),
+      rkatKet: resolvedRkatKet
+    };
+  }, [pilars, rkatList]);
+
   // Filtered data
   const filteredData = useMemo(() => {
     return data.filter(item => {
@@ -1281,8 +1375,9 @@ export default function PenyaluranZis() {
     setFormNik(item.nik || '');
     setFormAlamat(item.alamat || '');
     setFormTelepon(item.no_telpon || '');
-    setFormYangMengajukan(item.yang_mengajukan || item.yangMengajukan || '');
-    setFormHasMemo(item.has_memo || item.hasMemo || Boolean(item.memo_source));
+    setFormYangMengajukan(item.yang_mengajukan === 'Direct Penyaluran' || item.yang_mengajukan === '—' || item.yang_mengajukan === '-' ? '' : (item.yang_mengajukan || ''));
+    setFormHasMemo(Boolean(item.has_memo || item.hasMemo) && item.memo_source !== 'DIRECT_PENYALURAN');
+    setFormMemoSource(item.memo_source === 'DIRECT_PENYALURAN' ? '' : (item.memo_source || ''));
     const progCode = item.jenis_permohonan || item.program?.code || '';
     const asnafVal = item.asnaf || 'Miskin';
     setFormJenisPermohonan(progCode);
@@ -1326,9 +1421,9 @@ export default function PenyaluranZis() {
         jenis_kelamin: formKategori === 'Perorangan' ? formJenisKelamin : null,
         alamat: formAlamat.trim() || 'Kota Semarang',
         no_telpon: formTelepon.trim() || '080000000000',
-        yang_mengajukan: formYangMengajukan.trim() || '—',
+        yang_mengajukan: formYangMengajukan.trim() || '-',
         has_memo: formHasMemo,
-        memo_source: formHasMemo ? formMemoSource : 'DIRECT_PENYALURAN',
+        memo_source: formHasMemo ? formMemoSource : null,
         jenis_permohonan: formJenisPermohonan || null,
         rkat_activity_id: formRkatId || null,
         coa_code: formCoaCode || null,
@@ -1371,7 +1466,7 @@ export default function PenyaluranZis() {
         jenis_kelamin: formKategori === 'Perorangan' ? formJenisKelamin : null,
         alamat: formAlamat.trim(),
         no_telpon: formTelepon.trim(),
-        yang_mengajukan: formYangMengajukan.trim() || '—',
+        yang_mengajukan: formYangMengajukan.trim() || '-',
         has_memo: formHasMemo,
         memo_source: formHasMemo ? formMemoSource : null,
         jenis_permohonan: formJenisPermohonan || null,
@@ -1401,6 +1496,162 @@ export default function PenyaluranZis() {
   };
 
   // Export to Excel
+  // Migrasi Template & Handlers (Matched style with Penerimaan ZIS)
+  const downloadPenyaluranTemplate = () => {
+    const templateData = [
+      {
+        'Tanggal_Permohonan': '2026-08-10',
+        'Tanggal_Pencairan': '2026-08-13',
+        'Nama_Pemohon': 'Masjid Al-Ikhlas',
+        'NIK': '3374012345670001',
+        'No_Telpon': '081234567890',
+        'Alamat': 'Jl. Indrapasta No. 12, Semarang',
+        'Jenis_Pengajuan': 'Lembaga',
+        'Jenis_Permohonan': '210102.1',
+        'Kode_COA': '5110101',
+        'Kode_RKAT': 'asnaf-1786078759614-oc7l',
+        'Nominal': 2500000,
+        'Asnaf': 'Fisabilillah',
+        'Status': 'Selesai',
+        'Keterangan': 'Bantuan renovasi tempat wudhu masjid'
+      },
+      {
+        'Tanggal_Permohonan': '2026-08-13',
+        'Tanggal_Pencairan': '',
+        'Nama_Pemohon': 'Ahmad Fauzi',
+        'NIK': '3374023456780002',
+        'No_Telpon': '085678901234',
+        'Alamat': 'Jl. Pemuda No. 45, Semarang',
+        'Jenis_Pengajuan': 'Perorangan',
+        'Jenis_Permohonan': '210102',
+        'Kode_COA': '5110102',
+        'Kode_RKAT': 'asnaf-1786078759614-oc7m',
+        'Nominal': 1000000,
+        'Asnaf': 'Miskin',
+        'Status': 'Antrean Pencairan',
+        'Keterangan': 'Bantuan biaya hidup dhuafa'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Migrasi_Penyaluran");
+    XLSX.writeFile(wb, "Template_Migrasi_Penyaluran_ZIS.xlsx");
+  };
+
+  const handlePenyaluranFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const dataBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(dataBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+      if (json.length === 0) {
+        alert('File Excel kosong atau format tidak sesuai.');
+        return;
+      }
+
+      const getVal = (row: any, ...keys: string[]) => {
+        for (const k of keys) {
+          if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+            return row[k];
+          }
+        }
+        const rowKeys = Object.keys(row);
+        for (const k of keys) {
+          const lowerK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchKey = rowKeys.find(rk => {
+            const cleanRk = rk.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cleanRk === lowerK || cleanRk.includes(lowerK) || lowerK.includes(cleanRk);
+          });
+          if (matchKey && row[matchKey] !== undefined && row[matchKey] !== null && String(row[matchKey]).trim() !== '') {
+            return row[matchKey];
+          }
+        }
+        return '';
+      };
+
+      const rows = json.map((row, idx) => {
+        const tglPermohonan = String(getVal(row, 'Tanggal_Permohonan', 'Tanggal', 'Tgl_Permohonan', 'Tgl Permohonan', 'tanggal_permohonan', 'tanggal') || new Date().toISOString().split('T')[0]);
+        const tglPencairan = String(getVal(row, 'Tanggal_Pencairan', 'Tgl_Pencairan', 'Tgl Pencairan', 'tanggal_pencairan', 'Tanggal_Realisasi', 'Tgl Realisasi') || '');
+        const nama = String(getVal(row, 'Nama_Pemohon', 'Nama_Mustahik', 'Nama Pemohon', 'Nama Mustahik', 'nama_pemohon', 'Nama', 'nama') || '-');
+        const nik = String(getVal(row, 'NIK', 'nik', 'No_KTP', 'No KTP') || '');
+        const telepon = String(getVal(row, 'No_Telpon', 'No Telpon', 'Telepon', 'telepon', 'No HP', 'No_HP', 'no_telpon', 'HP') || '');
+        const alamat = String(getVal(row, 'Alamat', 'alamat', 'Alamat Lengkap') || '');
+        const jenisPengajuan = String(getVal(row, 'Jenis_Pengajuan', 'Jenis Pengajuan', 'jenis_pengajuan', 'Kategori', 'kategori') || 'Perorangan');
+        const jenisPermohonan = String(getVal(row, 'Jenis_Permohonan', 'Jenis Permohonan', 'jenis_permohonan', 'Program', 'program', 'Kode Program') || '210102');
+        const kodeCoa = String(getVal(row, 'Kode_COA', 'Kode COA', 'kode_coa', 'COA', 'coa', 'Akun') || '-');
+        const kodeRkat = String(getVal(row, 'Kode_RKAT', 'Kode RKAT', 'kode_rkat', 'RKAT', 'rkat', 'ID RKAT', 'rkat_activity_id') || '-');
+        
+        const rawNom = getVal(row, 'Nominal', 'nominal', 'Nominal (Rp)', 'Nominal Bantuan', 'Jumlah', 'Total', 'Nilai');
+        let nominal = 0;
+        if (typeof rawNom === 'number') {
+          nominal = rawNom;
+        } else if (typeof rawNom === 'string' && rawNom.trim() !== '') {
+          nominal = Number(rawNom.replace(/[^0-9.-]+/g, '')) || 0;
+        }
+
+        const asnaf = String(getVal(row, 'Asnaf', 'asnaf', 'Golongan Asnaf') || 'Miskin');
+        
+        let status = String(getVal(row, 'Status', 'status') || '');
+        if (!status || status === '-') {
+          status = tglPencairan ? 'Selesai' : 'Antrean Pencairan';
+        }
+
+        const keterangan = String(getVal(row, 'Keterangan', 'keterangan', 'Catatan', 'catatan') || '-');
+
+        return {
+          rowNum: idx + 1,
+          Tanggal_Permohonan: tglPermohonan,
+          Tanggal_Pencairan: tglPencairan,
+          Nama_Pemohon: nama,
+          NIK: nik,
+          No_Telpon: telepon,
+          Alamat: alamat,
+          Jenis_Pengajuan: jenisPengajuan,
+          Jenis_Permohonan: jenisPermohonan,
+          Kode_COA: kodeCoa,
+          Kode_RKAT: kodeRkat,
+          Nominal: nominal,
+          Asnaf: asnaf,
+          Status: status,
+          Keterangan: keterangan
+        };
+      });
+
+      setParsedMigrationRows(rows);
+    } catch (err: any) {
+      console.error('Error reading Excel:', err);
+      alert('Gagal membaca file Excel. Pastikan format spreadsheet valid (.xlsx / .xls)');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleProcessMigrationSubmit = async () => {
+    if (parsedMigrationRows.length === 0) return;
+    setMigrating(true);
+    try {
+      const res = await axios.post('/api/penyaluran-zis/bulk-migrate', {
+        items: parsedMigrationRows
+      });
+
+      alert(`Migrasi Berhasil!\n\n${res.data?.message || 'Data penyaluran berhasil diimpor.'}`);
+      setIsMigrationModalOpen(false);
+      setParsedMigrationRows([]);
+      fetchData();
+    } catch (err: any) {
+      console.error('Error migrating Penyaluran ZIS:', err);
+      alert('Gagal memproses migrasi: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   const handleExportExcel = () => {
     const exportRows = filteredData.map((item, idx) => {
       const { rkatNo, rkatName } = getRkatInfo(item);
@@ -1610,6 +1861,14 @@ export default function PenyaluranZis() {
 
             {/* Utilities Buttons */}
             <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+              <button 
+                onClick={() => setIsMigrationModalOpen(true)}
+                className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                title="Migrasi Penyaluran ZIS"
+              >
+                <Upload className="size-3.5 text-amber-600" />
+                <span className="hidden sm:inline">Migrasi</span>
+              </button>
               <button 
                 onClick={handleExportExcel}
                 className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
@@ -1829,13 +2088,15 @@ export default function PenyaluranZis() {
                         })()}
                         {/* Yang Mengajukan & Memo Badge */}
                         <div className="flex flex-wrap items-center gap-1 mt-1">
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-600 rounded flex items-center gap-1" title="Yang Mengajukan">
-                            <Send className="size-2.5 text-slate-400" />
-                            {yangMengajukanVal}
-                          </span>
-                          {item.has_memo && (
+                          {yangMengajukanVal && yangMengajukanVal !== '-' && yangMengajukanVal !== '—' && yangMengajukanVal !== 'Direct Penyaluran' && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-600 rounded flex items-center gap-1" title="Yang Mengajukan">
+                              <Send className="size-2.5 text-slate-400" />
+                              {yangMengajukanVal}
+                            </span>
+                          )}
+                          {item.has_memo && item.memo_source && item.memo_source !== 'DIRECT_PENYALURAN' && (
                             <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 rounded" title={item.memo_source}>
-                              {item.memo_source || 'Ada Memo'}
+                              {item.memo_source}
                             </span>
                           )}
                         </div>
@@ -3119,6 +3380,255 @@ export default function PenyaluranZis() {
                 <button onClick={() => setIsDetailModalOpen(false)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 rounded-xl text-xs transition-colors cursor-pointer">
                   Tutup
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Migrasi Penyaluran ZIS (Matched 100% with PenerimaanZis) */}
+      <AnimatePresence>
+        {isMigrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => {
+                if (!migrating) {
+                  setIsMigrationModalOpen(false);
+                  setParsedMigrationRows([]);
+                }
+              }} 
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" 
+            />
+
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className={cn(
+                "relative bg-white w-full rounded-2xl shadow-2xl overflow-hidden font-sans flex flex-col max-h-[calc(100dvh-4rem)] z-10 transition-all",
+                parsedMigrationRows.length > 0 ? "max-w-5xl" : "max-w-md"
+              )}
+            >
+              {/* Modal Header */}
+              <div className="p-4 md:p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-xl">
+                    <FileSpreadsheet className="size-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="text-base md:text-lg font-black text-slate-900 font-sans">Migrasi Penyaluran ZIS</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">Unggah file Excel untuk impor data historis transaksi penyaluran</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    if (!migrating) {
+                      setIsMigrationModalOpen(false);
+                      setParsedMigrationRows([]);
+                    }
+                  }} 
+                  className="p-2 hover:bg-slate-200/60 rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="size-5 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-4 md:p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+                <div className="space-y-3">
+                  {/* Download Template Button */}
+                  <button 
+                    onClick={downloadPenyaluranTemplate} 
+                    className="w-full flex items-center justify-between p-3.5 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Download className="size-5 text-primary" />
+                      <div className="text-left font-sans">
+                        <p className="text-sm font-bold text-primary font-sans">Download Format Template Excel</p>
+                        <p className="text-[10px] text-primary/70 font-medium font-sans">Kolom: Tanggal_Permohonan, Tanggal_Pencairan, Nama_Pemohon, NIK, No_Telpon, Alamat, Jenis_Pengajuan, Jenis_Permohonan (Kode), Kode_COA, Kode_RKAT (ID), Nominal, Asnaf, Status, Keterangan</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Upload Dropzone */}
+                  <label className="w-full flex items-center justify-between p-3.5 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                      <div className="text-left font-sans">
+                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors font-sans">
+                          {parsedMigrationRows.length > 0 ? 'Pilih File Excel Lain...' : 'Pilih File Excel Data Migrasi'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-medium font-sans">Format spreadsheet .xlsx / .xls</p>
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls,.csv" 
+                      onChange={handlePenyaluranFileSelect} 
+                      disabled={migrating}
+                    />
+                  </label>
+                </div>
+
+                {/* Staging / Preview Table */}
+                {parsedMigrationRows.length > 0 && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    {/* Summary Stats Bar */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 text-xs font-sans">
+                      <div className="flex items-center gap-2 font-bold text-slate-700">
+                        <FileText className="size-4 text-slate-400" />
+                        <span>Hasil Pembacaan Excel ({parsedMigrationRows.length} Baris)</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 font-semibold text-slate-600">
+                        <span className="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 font-bold">
+                          <CheckCircle2 className="size-3.5 text-emerald-600" />
+                          {parsedMigrationRows.filter(r => r.Nama_Pemohon && r.Nama_Pemohon !== '-' && r.Nama_Pemohon.trim() !== '').length} Baris Valid
+                        </span>
+                        <span className="font-mono text-slate-900 font-bold">
+                          Total: Rp {parsedMigrationRows.reduce((acc, curr) => acc + (Number(curr.Nominal) || 0), 0).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Table View */}
+                    <div className="border border-slate-200 rounded-xl overflow-x-auto min-h-[300px] max-h-[440px] custom-scrollbar">
+                      <table className="w-full text-left text-xs whitespace-nowrap">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-20">
+                            <th className="px-3 py-2.5 text-center w-12 bg-slate-100">#</th>
+                            <th className="px-3 py-2.5 bg-slate-100">Tgl Permohonan</th>
+                            <th className="px-3 py-2.5 bg-slate-100">Tgl Pencairan</th>
+                            <th className="px-3 py-2.5 bg-slate-100">Nama Pemohon</th>
+                            <th className="px-3 py-2.5 bg-slate-100">NIK</th>
+                            <th className="px-3 py-2.5 bg-slate-100">No. Telpon</th>
+                            <th className="px-3 py-2.5 bg-slate-100 min-w-[160px]">Alamat</th>
+                            <th className="px-3 py-2.5 bg-slate-100">Jenis Pengajuan</th>
+                            <th className="px-3 py-2.5 bg-slate-100 min-w-[200px]">Jenis Permohonan (Kegiatan)</th>
+                            <th className="px-3 py-2.5 bg-slate-100 min-w-[220px]">Program &amp; RKAT (Spesifikasi)</th>
+                            <th className="px-3 py-2.5 bg-slate-100">Kode COA</th>
+                            <th className="px-3 py-2.5 bg-slate-100">Asnaf</th>
+                            <th className="px-3 py-2.5 text-right bg-slate-100">Nominal (Rp)</th>
+                            <th className="px-3 py-2.5 text-center bg-slate-100">Status</th>
+                            <th className="px-3 py-2.5 bg-slate-100 min-w-[200px]">Keterangan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {parsedMigrationRows.map((item, index) => {
+                            const { progDisplay, rkatNo, rkatName, rkatKet } = resolveProgramAndRkatForMigration(item.Jenis_Permohonan, item.Kode_RKAT);
+
+                            return (
+                              <tr key={index} className="hover:bg-slate-50 transition-colors text-[11px]">
+                                <td className="px-3 py-2.5 text-center font-bold text-slate-400">{item.rowNum}</td>
+                                <td className="px-3 py-2.5 text-slate-600">{item.Tanggal_Permohonan || '-'}</td>
+                                <td className="px-3 py-2.5 text-emerald-700 font-medium">
+                                  {item.Tanggal_Pencairan ? (
+                                    <span className="bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 font-mono font-bold">
+                                      {item.Tanggal_Pencairan}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 font-mono">-</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2.5 font-bold text-slate-800">{item.Nama_Pemohon}</td>
+                                <td className="px-3 py-2.5 font-mono text-slate-600">{item.NIK || '-'}</td>
+                                <td className="px-3 py-2.5 text-slate-600">{item.No_Telpon || '-'}</td>
+                                <td className="px-3 py-2.5 text-slate-600 max-w-[200px] truncate" title={item.Alamat}>{item.Alamat || '-'}</td>
+                                <td className="px-3 py-2.5 font-medium text-slate-700">{item.Jenis_Pengajuan}</td>
+                                
+                                {/* Resolved Program / Kegiatan */}
+                                <td className="px-3 py-2.5 min-w-[200px]">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-slate-900 text-[11px] whitespace-normal leading-snug">
+                                      {progDisplay}
+                                    </span>
+                                    {item.Jenis_Permohonan && !progDisplay.startsWith(item.Jenis_Permohonan) && (
+                                      <span className="font-mono text-[9px] text-purple-700 font-semibold mt-0.5">
+                                        Kode: {item.Jenis_Permohonan}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Resolved RKAT Activity & Specification */}
+                                <td className="px-3 py-2.5 min-w-[220px]">
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {rkatNo && (
+                                        <span className="bg-blue-50 text-blue-700 font-mono text-[9px] font-bold px-1.5 py-0.2 rounded border border-blue-100 shrink-0">
+                                          {rkatNo}
+                                        </span>
+                                      )}
+                                      <span className="font-bold text-slate-800 text-[11px] leading-snug whitespace-normal" title={rkatName}>
+                                        {rkatName}
+                                      </span>
+                                    </div>
+                                    {rkatKet && rkatKet !== '-' && (
+                                      <span className="text-[9.5px] text-slate-500 line-clamp-1 italic mt-0.5 whitespace-normal" title={rkatKet}>
+                                        Spesifikasi: {rkatKet}
+                                      </span>
+                                    )}
+                                    {item.Kode_RKAT && item.Kode_RKAT !== '-' && (
+                                      <span className="font-mono text-[8.5px] text-slate-400 truncate max-w-[180px] mt-0.2" title={`ID: ${item.Kode_RKAT}`}>
+                                        ID: {item.Kode_RKAT}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-3 py-2.5 font-mono text-emerald-800 font-bold">
+                                  <span className="bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                    {item.Kode_COA}
+                                  </span>
+                                </td>
+                                
+                                <td className="px-3 py-2.5 font-medium text-slate-700">{item.Asnaf}</td>
+                                <td className="px-3 py-2.5 text-right font-bold text-slate-900 font-mono">
+                                  Rp {Number(item.Nominal || 0).toLocaleString('id-ID')}
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className={cn(
+                                    "px-2 py-0.5 text-[9px] font-bold rounded-full uppercase",
+                                    (item.Status === 'Selesai' || item.Status === 'CAIR') 
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  )}>
+                                    {item.Status}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-slate-500 max-w-[220px] truncate" title={item.Keterangan}>
+                                  {item.Keterangan}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      onClick={handleProcessMigrationSubmit}
+                      disabled={migrating}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                    >
+                      {migrating ? (
+                        <>
+                          <RefreshCw className="size-4 animate-spin" />
+                          Memproses Migrasi Data Penyaluran...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="size-4" />
+                          Proses Impor &amp; Migrasi Data ({parsedMigrationRows.length} Transaksi)
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

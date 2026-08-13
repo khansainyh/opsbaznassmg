@@ -131,13 +131,25 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
 
     const mapped = proposals
       .filter(p => {
-        const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
+        const isDirect = Boolean(
+          (p.agenda_no && p.agenda_no >= 90000) ||
+          p.memo_source === 'DIRECT_PENYALURAN' || 
+          p.memo_source === 'MIGRASI_PENYALURAN' ||
+          (p.keterangan || '').includes('[DIRECT') ||
+          (p.keterangan || '').includes('[MIGRASI')
+        );
         const s = (p.status || '').toLowerCase();
         const isDisbursement = s.includes('acc') || s.includes('pencairan') || s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
         return isDirect || isDisbursement;
       })
       .map(p => {
-        const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
+        const isDirect = Boolean(
+          (p.agenda_no && p.agenda_no >= 90000) ||
+          p.memo_source === 'DIRECT_PENYALURAN' || 
+          p.memo_source === 'MIGRASI_PENYALURAN' ||
+          (p.keterangan || '').includes('[DIRECT') ||
+          (p.keterangan || '').includes('[MIGRASI')
+        );
         const relData = realisasiMap.get(p.id);
         const tglCair = relData?.tanggal || (p.status && (p.status.toLowerCase().includes('cair') || p.status.toLowerCase().includes('realisasi') || p.status.toLowerCase().includes('simba') || p.status.toLowerCase().includes('arsip') || p.status.toLowerCase().includes('selesai')) ? p.updated_at : null);
 
@@ -341,11 +353,11 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
         tipe_bantuan: String(tipe_bantuan || 'Konsumtif'),
         asnaf: String(asnaf || 'Miskin'),
         rekomendasi_kabag: computedDana,
-        keterangan: `[DIRECT PENYALURAN] ${keterangan}`,
+        keterangan: String(keterangan || '-'),
         jenis_pengajuan: kategori === 'Lembaga' ? 'Lembaga' : 'Perorangan',
-        yang_mengajukan: String(yang_mengajukan || 'Direct Penyaluran'),
-        has_memo: Boolean(has_memo || memo_source),
-        memo_source: memo_source ? String(memo_source) : 'DIRECT_PENYALURAN',
+        yang_mengajukan: yang_mengajukan && yang_mengajukan !== 'Direct Penyaluran' ? String(yang_mengajukan) : '-',
+        has_memo: Boolean(has_memo),
+        memo_source: has_memo ? (memo_source ? String(memo_source) : 'Memo Pimpinan') : 'DIRECT_PENYALURAN',
         volume: Number(volume) || 1,
         rekomendasi_unit_cost: rekomendasi_unit_cost ? Number(rekomendasi_unit_cost) : parsedNominal,
         status: 'ACC',
@@ -366,7 +378,7 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
         tanggal: new Date(),
         pengaju_id: defaultUser.id,
         kategori_biaya: 'Penyaluran ZIS',
-        keterangan: `[DIRECT PENYALURAN] ${nama_pemohon} - ${keterangan}`,
+        keterangan: `${nama_pemohon} - ${keterangan || 'Penyaluran ZIS'}`,
         nominal: new Prisma.Decimal(parsedNominal),
         status: StatusPengajuan.CAIR,
         sumber_dana: computedDana
@@ -446,7 +458,7 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
         ...(jenis_kelamin !== undefined && { jenis_kelamin: String(jenis_kelamin) }),
         ...(yang_mengajukan !== undefined && { yang_mengajukan: String(yang_mengajukan) }),
         ...(has_memo !== undefined && { has_memo: Boolean(has_memo) }),
-        ...(memo_source !== undefined && { memo_source: memo_source ? String(memo_source) : null }),
+        ...(memo_source !== undefined && { memo_source: has_memo ? (memo_source ? String(memo_source) : 'Memo Pimpinan') : null }),
         ...(volume !== undefined && { volume: Math.max(1, Number(volume) || 1) }),
         ...(rekomendasi_unit_cost !== undefined && { rekomendasi_unit_cost: Number(rekomendasi_unit_cost) || null })
       },
@@ -464,6 +476,224 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
     });
   } catch (error) {
     console.error('Error updating Penyaluran ZIS:', error);
+    res.status(500).json({ error: String(error) });
+  }
+};
+
+export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'Data migrasi tidak boleh kosong.' });
+      return;
+    }
+
+    const defaultUser = await prisma.user.findFirst();
+    const allPrograms = await prisma.program.findMany();
+
+    let successCount = 0;
+    let totalNominal = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        const namaPemohon = String(item.Nama_Pemohon || item.Nama_Mustahik || item.nama_pemohon || item.nama || '').trim();
+        if (!namaPemohon || namaPemohon === '-' || namaPemohon.toLowerCase() === 'null') continue;
+        const nominal = Math.max(0, Math.round(Number(item.Nominal || item.nominal || 0)));
+
+        const jenisPengajuan = String(item.Jenis_Pengajuan || item.jenis_pengajuan || (item.Nama_Instansi ? 'Lembaga' : 'Perorangan')).trim();
+        const jenisPermohonan = String(item.Jenis_Permohonan || item.jenis_permohonan || item.Program || 'Bantuan').trim();
+        const kodeCoa = item.Kode_COA || item.kode_coa || item.COA || null;
+        const kodeRkat = item.Kode_RKAT || item.kode_rkat || item.rkat_activity_id || item.RKAT || null;
+        const asnaf = String(item.Asnaf || item.asnaf || 'Miskin').trim();
+        const statusRaw = String(item.Status || item.status || 'Antrean Pencairan').trim();
+        const keterangan = String(item.Keterangan || item.keterangan || 'Migrasi Penyaluran ZIS').trim();
+        const nik = item.NIK || item.nik ? String(item.NIK || item.nik).trim() : null;
+        const telepon = item.No_Telpon || item.telepon || item.no_telpon ? String(item.No_Telpon || item.telepon || item.no_telpon).trim() : '080000000000';
+        const alamat = item.Alamat || item.alamat ? String(item.Alamat || item.alamat).trim() : 'Kota Semarang';
+        
+        let tanggalPermohonan = new Date();
+        const rawTglPermohonan = item.Tanggal_Permohonan || item.Tanggal || item.tanggal_permohonan || item.tanggal;
+        if (rawTglPermohonan) {
+          const parsedD = new Date(rawTglPermohonan);
+          if (!isNaN(parsedD.getTime())) tanggalPermohonan = parsedD;
+        }
+
+        let tanggalPencairan: Date | null = null;
+        const rawTglPencairan = item.Tanggal_Pencairan || item.tanggal_pencairan || item.Tanggal_Realisasi;
+        if (rawTglPencairan) {
+          const parsedC = new Date(rawTglPencairan);
+          if (!isNaN(parsedC.getTime())) tanggalPencairan = parsedC;
+        }
+
+        // Determine mapped Program (prioritize code match like 210102.1 / 210102)
+        const matchedProg = allPrograms.find(p => p.code === jenisPermohonan || p.code.startsWith(jenisPermohonan) || p.name.toLowerCase() === jenisPermohonan.toLowerCase() || (kodeRkat && p.code === String(kodeRkat)));
+
+        // Auto-create or find Mustahik
+        let mustahik = null;
+        if (nik && nik !== '-') {
+          mustahik = await tx.mustahik.findUnique({ where: { nik } });
+        }
+        if (!mustahik) {
+          mustahik = await tx.mustahik.create({
+            data: {
+              kategori: jenisPengajuan === 'Lembaga' ? 'Lembaga' : 'Perorangan',
+              nik: nik,
+              nama: namaPemohon,
+              nama_pimpinan: jenisPengajuan === 'Lembaga' ? namaPemohon : null,
+              jenis_lembaga: jenisPengajuan === 'Lembaga' ? 'Lembaga' : null,
+              jenis_kelamin: jenisPengajuan === 'Lembaga' ? null : 'Pria',
+              alamat: alamat,
+              telepon: telepon,
+              catatan: 'Didaftarkan via Direct Penyaluran ZIS'
+            }
+          });
+        }
+
+        // Status logic: Default Antrean Pencairan (ACC). If status is Selesai or has nominal + tanggalPencairan => Selesai
+        const isAntrean = statusRaw.toLowerCase().includes('antrean') || statusRaw.toLowerCase().includes('acc') || statusRaw === 'Belum Dicairkan';
+        const isSelesai = !isAntrean && (statusRaw.toLowerCase().includes('selesai') || statusRaw.toLowerCase().includes('cair') || statusRaw.toLowerCase().includes('realisasi') || Boolean(tanggalPencairan));
+        const statusValue = isSelesai ? 'Selesai' : 'ACC';
+
+        const asnafUpper = asnaf.toUpperCase();
+        let computedDana = 'Zakat';
+        if (asnafUpper === 'ISTT' || asnafUpper.includes('TIDAK TERIKAT')) {
+          computedDana = 'Infak Tidak Terikat';
+        } else if (asnafUpper === 'IST' || asnafUpper.includes('TERIKAT')) {
+          computedDana = 'Infak Terikat';
+        }
+
+        const effectiveTglPencairan = tanggalPencairan || (isSelesai ? tanggalPermohonan : null);
+
+        // Create Proposal Record
+        const newProp = await tx.proposal.create({
+          data: {
+            tanggal_masuk: tanggalPermohonan,
+            nama_pemohon: namaPemohon,
+            nama_instansi: jenisPengajuan === 'Lembaga' ? namaPemohon : null,
+            nik: nik || (mustahik.nik || '-'),
+            jenis_kelamin: 'Pria',
+            alamat: alamat,
+            no_telpon: telepon,
+            jenis_permohonan: matchedProg ? matchedProg.code : (jenisPermohonan || null),
+            rkat_activity_id: kodeRkat ? String(kodeRkat) : (matchedProg ? matchedProg.code : null),
+            nominal: nominal,
+            tipe_bantuan: 'Konsumtif',
+            asnaf: asnaf,
+            rekomendasi_kabag: computedDana,
+            keterangan: String(keterangan || '-'),
+            jenis_pengajuan: jenisPengajuan === 'Lembaga' ? 'Lembaga' : 'Perorangan',
+            yang_mengajukan: item.Yang_Mengajukan || item.yang_mengajukan ? String(item.Yang_Mengajukan || item.yang_mengajukan) : '-',
+            has_memo: false,
+            memo_source: 'DIRECT_PENYALURAN',
+            volume: 1,
+            rekomendasi_unit_cost: nominal,
+            status: statusValue,
+            mustahik_id: mustahik.id
+          }
+        });
+
+        // If Selesai / Disbursed: Create Realisasi and JournalEntry
+        if (isSelesai && effectiveTglPencairan) {
+          const realisasiTrx = await tx.realisasi.create({
+            data: {
+              proposal_id: newProp.id,
+              rkat_id: kodeRkat ? String(kodeRkat) : (matchedProg ? matchedProg.code : 'GENERAL'),
+              tanggal: effectiveTglPencairan,
+              keterangan: `Bantuan ${matchedProg?.name || jenisPermohonan} an. ${namaPemohon}, ${alamat}`,
+              nrm: mustahik.nrm || null
+            }
+          });
+
+          // Ensure debit COA exists
+          let debitCoaCode = String(kodeCoa || '').trim();
+          if (!debitCoaCode || debitCoaCode === '-' || debitCoaCode === 'undefined' || debitCoaCode === 'null') {
+            debitCoaCode = '519999999';
+          }
+
+          await tx.chartOfAccounts.upsert({
+            where: { coa_code: debitCoaCode } as any,
+            update: {},
+            create: {
+              coa_code: debitCoaCode,
+              nama_akun: `Penyaluran ${matchedProg?.name || jenisPermohonan}`,
+              klasifikasi: 'Beban',
+              tipe_dana: computedDana === 'Zakat' ? 'ZAKAT' : 'INFAK'
+            } as any
+          });
+
+          // Ensure kredit COA (Kas / Bank) exists
+          const defaultBank = await tx.bankAccount.findFirst();
+          const kreditCoaCode = defaultBank?.coa_code || '1110101';
+          const accountId = defaultBank?.account_id || null;
+
+          await tx.chartOfAccounts.upsert({
+            where: { coa_code: kreditCoaCode } as any,
+            update: {},
+            create: {
+              coa_code: kreditCoaCode,
+              nama_akun: defaultBank?.nama_akun || 'Kas Penyaluran',
+              klasifikasi: 'Aset Lancar',
+              tipe_dana: 'ZAKAT'
+            } as any
+          });
+
+          // Debit Journal Entry
+          await tx.journalEntry.create({
+            data: {
+              transaksi_id: realisasiTrx.transaksi_id,
+              coa_code: debitCoaCode,
+              debit: new Prisma.Decimal(nominal),
+              kredit: new Prisma.Decimal(0.00),
+              account_id: null
+            }
+          });
+
+          // Kredit Journal Entry (Kas/Bank)
+          await tx.journalEntry.create({
+            data: {
+              transaksi_id: realisasiTrx.transaksi_id,
+              coa_code: kreditCoaCode,
+              debit: new Prisma.Decimal(0.00),
+              kredit: new Prisma.Decimal(nominal),
+              account_id: accountId
+            }
+          });
+        } else {
+          // If Antrean Pencairan (ACC): Create PengajuanPencairan
+          const noPengajuanStr = `PP-MIG/${tanggalPermohonan.getFullYear()}/${String(newProp.agenda_no).padStart(4, '0')}`;
+          if (defaultUser) {
+            await tx.pengajuanPencairan.create({
+              data: {
+                no_pengajuan: noPengajuanStr,
+                tanggal: tanggalPermohonan,
+                pengaju_id: defaultUser.id,
+                kategori_biaya: 'Penyaluran ZIS',
+                keterangan: `${namaPemohon} - ${keterangan || 'Penyaluran ZIS'}`,
+                nominal: new Prisma.Decimal(nominal),
+                status: StatusPengajuan.CAIR,
+                sumber_dana: computedDana
+              }
+            });
+          }
+        }
+
+        successCount++;
+        totalNominal += nominal;
+      }
+    }, {
+      timeout: 120000 // 2 minutes for bulk batch
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: `Berhasil memigrasikan ${successCount} transaksi Penyaluran ZIS.`,
+      summary: {
+        total_penyaluran: successCount,
+        total_nominal: totalNominal
+      }
+    });
+  } catch (error) {
+    console.error('Error bulk migrating Penyaluran ZIS:', error);
     res.status(500).json({ error: String(error) });
   }
 };
