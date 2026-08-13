@@ -334,11 +334,12 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   }, []);
 
   const { user } = useAuth();
+  const userRoleStr = (user?.role || '').toLowerCase();
   const isSuperAdmin = user?.role === 'Super_Admin';
-  const isKabagPendistribusian = user?.role === 'Kabag_Pendistribusian';
-  const isKabagPendayagunaan = user?.role === 'Kabag_Pendayagunaan';
-  const isStafPendistribusian = user?.role === 'Staf_Pendistribusian';
-  const isStafPendayagunaan = user?.role === 'Staf_Pendayagunaan';
+  const isKabagPendistribusian = user?.role === 'Kabag_Pendistribusian' || (userRoleStr.includes('distribusi') && userRoleStr.includes('kabag'));
+  const isKabagPendayagunaan = user?.role === 'Kabag_Pendayagunaan' || (userRoleStr.includes('dayaguna') && userRoleStr.includes('kabag'));
+  const isStafPendistribusian = user?.role === 'Staf_Pendistribusian' || (userRoleStr.includes('distribusi') && userRoleStr.includes('staf'));
+  const isStafPendayagunaan = user?.role === 'Staf_Pendayagunaan' || (userRoleStr.includes('dayaguna') && userRoleStr.includes('staf'));
   const isStafDistribusi = isStafPendistribusian || isStafPendayagunaan;
 
   const [rekomendasiKabag, setRekomendasiKabag] = useState<'Zakat' | 'Infak/Sedekah Tidak Terikat' | 'Infak/Sedekah Terikat' | 'Layak' | 'Tidak Layak' | 'Dipertimbangkan'>('Zakat');
@@ -358,11 +359,11 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
   const [isRekomendasiDropdownOpen, setIsRekomendasiDropdownOpen] = useState(false);
   const [isAlurDropdownOpen, setIsAlurDropdownOpen] = useState(false);
 
-  // Disposisi fields: Bantuan Berulang & Survei
   const [isBantuanBerulang, setIsBantuanBerulang] = useState(false);
-  const [frekuensiBerulang, setFrekuensiBerulang] = useState<number>(1);
-  const [tanggalPencairan, setTanggalPencairan] = useState<number>(1);
+  const [frekuensiBerulang, setFrekuensiBerulang] = useState(1);
+  const [tanggalPencairan, setTanggalPencairan] = useState(1);
   const [perluSurvei, setPerluSurvei] = useState(true);
+
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -390,7 +391,9 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     const map: { [code: string]: string } = {};
     (pilars || []).forEach(pilar => {
       (pilar.programs || []).forEach((prog: any) => {
-        map[prog.code] = prog.tipe || 'Konsumtif';
+        if (prog.code) {
+          map[prog.code] = prog.tipe || 'Konsumtif';
+        }
       });
     });
     return map;
@@ -448,38 +451,42 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
     return code.split('.')[0].trim();
   };
 
-  const getTaskTipe = (task: any) => {
+  const getTaskTipe = (task: any): 'Produktif' | 'Konsumtif' => {
     if (!task) return 'Konsumtif';
-    const code = task.programCode;
-    const cleanCode = code ? code.trim() : '';
-    
-    // 1. Check direct code mapping
+
+    // 1. Direct tipe property from task.program
+    if (task.program?.tipe) {
+      return task.program.tipe === 'Produktif' ? 'Produktif' : 'Konsumtif';
+    }
+
+    // 2. Direct programTipe property
+    if (task.programTipe) {
+      return task.programTipe === 'Produktif' ? 'Produktif' : 'Konsumtif';
+    }
+
+    const code = task.programCode || task.jenisPermohonan || '';
+    const cleanCode = typeof code === 'string' ? code.trim() : '';
+
+    // 3. Match from programTipeMap by exact code
     if (programTipeMap[cleanCode]) {
-      return programTipeMap[cleanCode];
+      return programTipeMap[cleanCode] === 'Produktif' ? 'Produktif' : 'Konsumtif';
     }
-    
-    // 2. Check parent code mapping
-    const parentCode = getParentProgramCode(code);
+
+    // 4. Match from programTipeMap by parent code (e.g. '210102.1' -> '210102')
+    const parentCode = getParentProgramCode(cleanCode);
     if (programTipeMap[parentCode]) {
-      return programTipeMap[parentCode];
+      return programTipeMap[parentCode] === 'Produktif' ? 'Produktif' : 'Konsumtif';
     }
-    
-    // 3. Fallback: Code-based check (Pilar 4 / Ekonomi is Produktif)
-    if (cleanCode.startsWith('24') || cleanCode.startsWith('14') || cleanCode.startsWith('2401') || cleanCode.startsWith('1401')) {
-      return 'Produktif';
+
+    // 5. Match by program name across all pilars
+    for (const pilar of (pilars || [])) {
+      for (const prog of (pilar.programs || [])) {
+        if (prog.name && (prog.name === task.jenisPermohonan || prog.code === cleanCode)) {
+          return prog.tipe === 'Produktif' ? 'Produktif' : 'Konsumtif';
+        }
+      }
     }
-    
-    // 4. Fallback: Name-based check
-    const name = task.jenisPermohonan ? task.jenisPermohonan.toLowerCase() : '';
-    const productiveKeywords = [
-      'ekonomi', 'usaha', 'produktif', 'dagang', 'modal', 'kewirausahaan', 
-      'gerobak', 'ternak', 'tani', 'alat kerja', 'pemberdayaan', 'microfinance'
-    ];
-    
-    if (productiveKeywords.some(keyword => name.includes(keyword))) {
-      return 'Produktif';
-    }
-    
+
     return 'Konsumtif';
   };
 
@@ -2338,223 +2345,220 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                          </div>
                       </div>
                     </div>
-                  ) : (
-                    (getSurveyStatus(selectedTask) === 'Selesai' || !perluSurvei) && 
-                    hasTaskAuthority(selectedTask) && (
-                      <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
-                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                          <ClipboardList className="size-4 text-primary" />
-                          Identifikasi & Rekomendasi Kepala Bidang
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2 relative">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Rekomendasi Dana</label>
-                            <button 
-                              type="button"
-                              onClick={() => {
-                                setIsRekomendasiDropdownOpen(!isRekomendasiDropdownOpen);
-                                setIsAsnafDropdownOpen(false);
-                                setIsAlurDropdownOpen(false);
-                              }}
-                              className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100/50 transition-all outline-none"
-                            >
-                              <span>{rekomendasiKabag || 'Pilih Rekomendasi'}</span>
-                              <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isRekomendasiDropdownOpen && "rotate-180")} />
-                            </button>
+                  ) : (getSurveyStatus(selectedTask) === 'Selesai' || !perluSurvei) && hasTaskAuthority(selectedTask) ? (
+                    <div className="space-y-4 col-span-full mt-4 pt-6 border-t border-slate-100">
+                      <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                        <ClipboardList className="size-4 text-primary" />
+                        Identifikasi & Rekomendasi Kepala Bidang
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2 relative">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Rekomendasi Dana</label>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setIsRekomendasiDropdownOpen(!isRekomendasiDropdownOpen);
+                              setIsAsnafDropdownOpen(false);
+                              setIsAlurDropdownOpen(false);
+                            }}
+                            className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100/50 transition-all outline-none"
+                          >
+                            <span>{rekomendasiKabag || 'Pilih Rekomendasi'}</span>
+                            <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isRekomendasiDropdownOpen && "rotate-180")} />
+                          </button>
 
-                            {isRekomendasiDropdownOpen && (
-                              <>
-                                <div className="fixed inset-0 z-30" onClick={() => setIsRekomendasiDropdownOpen(false)} />
-                                <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 overflow-y-auto custom-scrollbar">
-                                  {['Zakat', 'Infak/Sedekah Tidak Terikat', 'Infak/Sedekah Terikat'].map(opt => (
-                                    <button
-                                      key={opt}
-                                      type="button"
-                                      onClick={() => {
-                                        setRekomendasiKabag(opt as any);
-                                        setIsRekomendasiDropdownOpen(false);
-                                        if (opt !== 'Zakat') {
-                                          setSelectedAsnaf('');
-                                        }
-                                      }}
-                                      className={cn(
-                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
-                                        rekomendasiKabag === opt ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                                      )}
-                                    >
-                                      <span>{opt}</span>
-                                      {rekomendasiKabag === opt && <Check className="size-4 text-primary" />}
-                                    </button>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          <div className="space-y-2 relative">
-                            <label className="text-[10px] font-bold text-slate-405 uppercase tracking-widest block">Pilih Asnaf</label>
-                            <button 
-                              type="button"
-                              disabled={rekomendasiKabag !== 'Zakat'}
-                              onClick={() => {
-                                setIsAsnafDropdownOpen(!isAsnafDropdownOpen);
-                                setIsRekomendasiDropdownOpen(false);
-                                setIsAlurDropdownOpen(false);
-                              }}
-                              className={cn(
-                                "w-full flex items-center justify-between p-2.5 border rounded-lg text-sm font-semibold transition-all outline-none",
-                                rekomendasiKabag === 'Zakat'
-                                  ? "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100/50"
-                                  : "bg-slate-100 border-slate-200/80 text-slate-400 cursor-not-allowed"
-                              )}
-                            >
-                              <span>
-                                {rekomendasiKabag === 'Zakat'
-                                  ? (selectedAsnaf || 'Pilih Asnaf')
-                                  : '- (Hanya untuk Zakat)'
-                                }
-                              </span>
-                              <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isAsnafDropdownOpen && "rotate-180")} />
-                            </button>
-
-                            {isAsnafDropdownOpen && rekomendasiKabag === 'Zakat' && (
-                              <>
-                                <div className="fixed inset-0 z-30" onClick={() => setIsAsnafDropdownOpen(false)} />
-                                <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 max-h-56 overflow-y-auto custom-scrollbar">
-                                  {asnafOptions.map(asnaf => (
-                                    <button
-                                      key={asnaf}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedAsnaf(asnaf);
-                                        setIsAsnafDropdownOpen(false);
-                                      }}
-                                      className={cn(
-                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
-                                        selectedAsnaf === asnaf ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                                      )}
-                                    >
-                                      <span>{asnaf}</span>
-                                      {selectedAsnaf === asnaf && <Check className="size-4 text-primary" />}
-                                    </button>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          {programTipeMap[getParentProgramCode(selectedTask.programCode)] === 'Produktif' && (
-                            <div className="col-span-full space-y-2 bg-amber-50/50 p-4 rounded-xl border border-amber-200/60 my-2">
-                              <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block">
-                                Perubahan Alur Bantuan (Produktif → Konsumtif)
-                              </label>
-                              <p className="text-xs text-slate-600 leading-relaxed">
-                                Jika mustahik dinilai tidak sanggup menjalankan program produktif setelah survei, Anda dapat mengalihkan bantuannya ke program konsumtif di bawah ini.
-                              </p>
-                              <div className="relative">
-                                <button 
-                                  type="button"
-                                  onClick={() => {
-                                    setIsAlurDropdownOpen(!isAlurDropdownOpen);
-                                    setIsAsnafDropdownOpen(false);
-                                    setIsRekomendasiDropdownOpen(false);
-                                  }}
-                                  className="w-full flex items-center justify-between p-2.5 bg-white border border-amber-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all outline-none"
-                                >
-                                  <span className="truncate max-w-[90%]">
-                                    {changedProgramCode 
-                                      ? (() => {
-                                          const selectedProg = consumptivePrograms.find(p => p.code === changedProgramCode);
-                                          return selectedProg 
-                                            ? `[${selectedProg.pilarName}] ${selectedProg.name} (${selectedProg.code})` 
-                                            : changedProgramCode;
-                                        })()
-                                      : `-- Tetap Gunakan Bantuan Produktif (${selectedTask.jenisPermohonan}) --`
-                                    }
-                                  </span>
-                                  <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isAlurDropdownOpen && "rotate-180")} />
-                                </button>
-
-                                {isAlurDropdownOpen && (
-                                  <>
-                                    <div className="fixed inset-0 z-30" onClick={() => setIsAlurDropdownOpen(false)} />
-                                    <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
-                                      <div className="p-1 border-b border-slate-100 mb-1">
-                                        <input
-                                          type="text"
-                                          placeholder="Cari program konsumtif..."
-                                          value={alurSearchQuery}
-                                          onChange={(e) => setAlurSearchQuery(e.target.value)}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-700"
-                                        />
-                                      </div>
-                                      <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setChangedProgramCode('');
-                                            setIsAlurDropdownOpen(false);
-                                            setAlurSearchQuery('');
-                                          }}
-                                          className={cn(
-                                            "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
-                                            !changedProgramCode ? "bg-amber-50 text-amber-800 font-bold" : "text-slate-700"
-                                          )}
-                                        >
-                                          <span className="truncate">-- Tetap Gunakan Bantuan Produktif ({selectedTask.jenisPermohonan}) --</span>
-                                          {!changedProgramCode && <Check className="size-4 text-amber-700 shrink-0" />}
-                                        </button>
-                                        {consumptivePrograms
-                                          .filter(prog => 
-                                            prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
-                                            prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
-                                            prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
-                                          )
-                                          .map(prog => (
-                                            <button
-                                              key={prog.code}
-                                              type="button"
-                                              onClick={() => {
-                                                setChangedProgramCode(prog.code);
-                                                setIsAlurDropdownOpen(false);
-                                                setAlurSearchQuery('');
-                                              }}
-                                              className={cn(
-                                                "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
-                                                changedProgramCode === prog.code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                                              )}
-                                            >
-                                              <span className="truncate">[{prog.pilarName}] {prog.name} ({prog.code})</span>
-                                              {changedProgramCode === prog.code && <Check className="size-4 text-primary shrink-0" />}
-                                            </button>
-                                          ))}
-                                        {consumptivePrograms
-                                          .filter(prog => 
-                                            prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
-                                            prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
-                                            prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
-                                          ).length === 0 && (
-                                            <p className="text-center py-3 text-[10px] text-slate-400 italic font-medium">Program tidak ditemukan</p>
-                                          )}
-                                      </div>
-                                    </div>
-                                  </>
-                                )}
+                          {isRekomendasiDropdownOpen && (
+                            <>
+                              <div className="fixed inset-0 z-30" onClick={() => setIsRekomendasiDropdownOpen(false)} />
+                              <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 overflow-y-auto custom-scrollbar">
+                                {['Zakat', 'Infak/Sedekah Tidak Terikat', 'Infak/Sedekah Terikat'].map(opt => (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => {
+                                      setRekomendasiKabag(opt as any);
+                                      setIsRekomendasiDropdownOpen(false);
+                                      if (opt !== 'Zakat') {
+                                        setSelectedAsnaf('');
+                                      }
+                                    }}
+                                    className={cn(
+                                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                      rekomendasiKabag === opt ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                    )}
+                                  >
+                                    <span>{opt}</span>
+                                    {rekomendasiKabag === opt && <Check className="size-4 text-primary" />}
+                                  </button>
+                                ))}
                               </div>
-                            </div>
+                            </>
                           )}
-                          <div className="col-span-full space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hasil Identifikasi</label>
-                            <textarea 
-                              value={hasilIdentifikasi}
-                              onChange={(e) => setHasilIdentifikasi(e.target.value)}
-                              placeholder="Tuliskan hasil identifikasi lapangan/lembaga..."
-                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[100px] resize-none"
-                            />
+                        </div>
+                        <div className="space-y-2 relative">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Pilih Asnaf</label>
+                          <button 
+                            type="button"
+                            disabled={rekomendasiKabag !== 'Zakat'}
+                            onClick={() => {
+                              setIsAsnafDropdownOpen(!isAsnafDropdownOpen);
+                              setIsRekomendasiDropdownOpen(false);
+                              setIsAlurDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between p-2.5 border rounded-lg text-sm font-semibold transition-all outline-none",
+                              rekomendasiKabag === 'Zakat'
+                                ? "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100/50"
+                                : "bg-slate-100 border-slate-200/80 text-slate-400 cursor-not-allowed"
+                            )}
+                          >
+                            <span>
+                              {rekomendasiKabag === 'Zakat'
+                                ? (selectedAsnaf || 'Pilih Asnaf')
+                                : '- (Hanya untuk Zakat)'
+                              }
+                            </span>
+                            <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isAsnafDropdownOpen && "rotate-180")} />
+                          </button>
+
+                          {isAsnafDropdownOpen && rekomendasiKabag === 'Zakat' && (
+                            <>
+                              <div className="fixed inset-0 z-30" onClick={() => setIsAsnafDropdownOpen(false)} />
+                              <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 max-h-56 overflow-y-auto custom-scrollbar">
+                                {asnafOptions.map(asnaf => (
+                                  <button
+                                    key={asnaf}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedAsnaf(asnaf);
+                                      setIsAsnafDropdownOpen(false);
+                                    }}
+                                    className={cn(
+                                      "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                      selectedAsnaf === asnaf ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                    )}
+                                  >
+                                    <span>{asnaf}</span>
+                                    {selectedAsnaf === asnaf && <Check className="size-4 text-primary" />}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {getTaskTipe(selectedTask) === 'Produktif' && (
+                          <div className="col-span-full space-y-2 bg-amber-50/50 p-4 rounded-xl border border-amber-200/60 my-2">
+                            <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block">
+                              Perubahan Alur Bantuan (Produktif → Konsumtif)
+                            </label>
+                            <p className="text-xs text-slate-600 leading-relaxed">
+                              Jika mustahik dinilai tidak sanggup menjalankan program produktif setelah survei, Anda dapat mengalihkan bantuannya ke program konsumtif di bawah ini.
+                            </p>
+                            <div className="relative">
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setIsAlurDropdownOpen(!isAlurDropdownOpen);
+                                  setIsAsnafDropdownOpen(false);
+                                  setIsRekomendasiDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center justify-between p-2.5 bg-white border border-amber-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all outline-none"
+                              >
+                                <span className="truncate max-w-[90%]">
+                                  {changedProgramCode 
+                                    ? (() => {
+                                        const selectedProg = consumptivePrograms.find(p => p.code === changedProgramCode);
+                                        return selectedProg 
+                                          ? `[${selectedProg.pilarName}] ${selectedProg.name} (${selectedProg.code})` 
+                                          : changedProgramCode;
+                                      })()
+                                    : `-- Tetap Gunakan Bantuan Produktif (${selectedTask.jenisPermohonan}) --`
+                                  }
+                                </span>
+                                <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isAlurDropdownOpen && "rotate-180")} />
+                              </button>
+
+                              {isAlurDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setIsAlurDropdownOpen(false)} />
+                                  <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
+                                    <div className="p-1 border-b border-slate-100 mb-1">
+                                      <input
+                                        type="text"
+                                        placeholder="Cari program konsumtif..."
+                                        value={alurSearchQuery}
+                                        onChange={(e) => setAlurSearchQuery(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-700"
+                                      />
+                                    </div>
+                                    <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setChangedProgramCode('');
+                                          setIsAlurDropdownOpen(false);
+                                          setAlurSearchQuery('');
+                                        }}
+                                        className={cn(
+                                          "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                          !changedProgramCode ? "bg-amber-50 text-amber-800 font-bold" : "text-slate-700"
+                                        )}
+                                      >
+                                        <span className="truncate">-- Tetap Gunakan Bantuan Produktif ({selectedTask.jenisPermohonan}) --</span>
+                                        {!changedProgramCode && <Check className="size-4 text-amber-700 shrink-0" />}
+                                      </button>
+                                      {consumptivePrograms
+                                        .filter(prog => 
+                                          prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
+                                        )
+                                        .map(prog => (
+                                          <button
+                                            key={prog.code}
+                                            type="button"
+                                            onClick={() => {
+                                              setChangedProgramCode(prog.code);
+                                              setIsAlurDropdownOpen(false);
+                                              setAlurSearchQuery('');
+                                            }}
+                                            className={cn(
+                                              "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                              changedProgramCode === prog.code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                            )}
+                                          >
+                                            <span className="truncate">[{prog.pilarName}] {prog.name} ({prog.code})</span>
+                                            {changedProgramCode === prog.code && <Check className="size-4 text-primary shrink-0" />}
+                                          </button>
+                                        ))}
+                                      {consumptivePrograms
+                                        .filter(prog => 
+                                          prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
+                                        ).length === 0 && (
+                                          <p className="text-center py-3 text-[10px] text-slate-400 italic font-medium">Program tidak ditemukan</p>
+                                        )}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
+                        )}
+                        <div className="col-span-full space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hasil Identifikasi</label>
+                          <textarea 
+                            value={hasilIdentifikasi}
+                            onChange={(e) => setHasilIdentifikasi(e.target.value)}
+                            placeholder="Tuliskan hasil identifikasi lapangan/lembaga..."
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[100px] resize-none"
+                          />
                         </div>
                       </div>
-                    )
-                  )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
