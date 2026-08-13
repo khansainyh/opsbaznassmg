@@ -1,4 +1,5 @@
 import { Request, Response, RequestHandler } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { uploadToDrive, formatScanFileName, createFolderInDrive } from '../utils/gdrive';
 import path from 'path';
@@ -466,11 +467,13 @@ export const scanProposal = async (req: Request, res: Response) => {
 
 export const syncNrmFromMustahik = async (req: Request, res: Response) => {
   try {
-    console.log('Syncing NRMs from master Mustahik data...');
-    // Find all proposals in status 'Selesai & Arsip'
+    console.log('Syncing NRMs and Journal entries for archived proposals...');
+    // Find all proposals in status 'Selesai & Arsip' or 'Antrean_Arsip' or 'Antrean Arsip'
     const proposals = await prisma.proposal.findMany({
       where: {
-        status: 'Selesai & Arsip'
+        status: {
+          in: ['Selesai & Arsip', 'Antrean_Arsip', 'Antrean Arsip', 'Selesai', 'Arsip']
+        }
       },
       include: {
         mustahik: true
@@ -485,7 +488,8 @@ export const syncNrmFromMustahik = async (req: Request, res: Response) => {
       let updatedMustahikId = proposal.mustahik_id;
 
       // 1. Check by-name list
-      const isByName = proposal.jenis_pengajuan === 'Lembaga' && proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
+      const isByName = (proposal.jenis_pengajuan === 'Lembaga' || (proposal.nama_instansi && proposal.nama_instansi.trim() !== '')) && 
+                       proposal.penerima_detail && Array.isArray(proposal.penerima_detail) && proposal.penerima_detail.length > 0;
       if (isByName) {
         const list = proposal.penerima_detail as any[];
         const newList = [];
@@ -515,7 +519,6 @@ export const syncNrmFromMustahik = async (req: Request, res: Response) => {
 
       // 2. Check standard proposal (linked mustahik, or via NIK matching)
       if (!isByName) {
-        // If not linked yet but has a NIK
         const pNik = proposal.nik ? String(proposal.nik).trim() : '';
         if (!updatedMustahikId && pNik && pNik.length === 16) {
           const mustahikRecord = await prisma.mustahik.findUnique({
@@ -536,9 +539,11 @@ export const syncNrmFromMustahik = async (req: Request, res: Response) => {
             mustahik_id: updatedMustahikId
           }
         });
-        await syncRealisasiFromProposal(proposal.id);
         updatedCount++;
       }
+
+      // Ensure journal replacement/synchronization is executed for every archived proposal
+      await syncRealisasiFromProposal(proposal.id);
     }
 
     // Return the updated list of all proposals
@@ -557,29 +562,122 @@ export const syncNrmFromMustahik = async (req: Request, res: Response) => {
   }
 };
 
-async function syncRealisasiFromProposal(proposalId: string) {
+export async function syncRealisasiFromProposal(proposalId: string) {
   try {
     const updatedProposal = await prisma.proposal.findUnique({
       where: { id: proposalId },
       include: { program: true, mustahik: true }
     });
 
-    if (updatedProposal) {
-      const associatedRealisasi = await prisma.realisasi.findFirst({
-        where: { proposal_id: updatedProposal.id }
-      });
+    if (!updatedProposal) return;
 
-      if (associatedRealisasi) {
+    const statusNorm = (updatedProposal.status || '').toLowerCase().replace(/_/g, ' ');
+    const isArchivedOrCompleted = statusNorm.includes('arsip') || statusNorm.includes('selesai');
+    const isByName = updatedProposal.penerima_detail && 
+                     Array.isArray(updatedProposal.penerima_detail) && 
+                     (updatedProposal.penerima_detail as any[]).length > 0;
+
+    const existingRealisasis = await prisma.realisasi.findMany({
+      where: { proposal_id: updatedProposal.id },
+      include: { journalEntries: true }
+    });
+
+    if (existingRealisasis.length === 0) return;
+
+    // Case 1: Status is now Archived / Completed AND it is a Lembaga with By-Name list
+    // Replace the single Global Lembaga journal with individual Perorangan journals
+    if (isArchivedOrCompleted && isByName) {
+      const byNameList = (updatedProposal.penerima_detail as any[]).filter(x => x && (x.nama_lengkap || x.nama || x.nik));
+      if (byNameList.length === 0) return;
+
+      const firstReal = existingRealisasis[0];
+      const debitEntry = firstReal.journalEntries.find(j => Number(j.debit) > 0) || 
+                         existingRealisasis.flatMap(r => r.journalEntries).find(j => Number(j.debit) > 0);
+      const kreditEntry = firstReal.journalEntries.find(j => Number(j.kredit) > 0) || 
+                          existingRealisasis.flatMap(r => r.journalEntries).find(j => Number(j.kredit) > 0);
+
+      const debitCoaCode = debitEntry?.coa_code || '519999999';
+      const kreditCoaCode = kreditEntry?.coa_code || '11010001';
+      const accountId = kreditEntry?.account_id || null;
+      const rkatId = firstReal.rkat_id || updatedProposal.rkat_activity_id || updatedProposal.jenis_permohonan || 'GENERAL';
+      const tanggal = firstReal.tanggal || new Date();
+
+      const totalNominal = Number(updatedProposal.nominal) || 0;
+      const defaultUnitCost = updatedProposal.rekomendasi_unit_cost || (byNameList.length > 0 ? Math.round(totalNominal / byNameList.length) : totalNominal);
+
+      const programName = updatedProposal.program?.name || updatedProposal.jenis_permohonan || 'Bantuan';
+      const cleanProgram = programName.replace(/^Bantuan\s+/i, '');
+      const lembagaName = (updatedProposal.nama_instansi && updatedProposal.nama_instansi.trim() !== '-' 
+        ? updatedProposal.nama_instansi.trim() 
+        : updatedProposal.nama_pemohon?.trim()) || 'Lembaga';
+
+      await prisma.$transaction(async (tx) => {
+        // Delete all old Realisasi records for this proposal (cascade deletes journal entries)
+        for (const real of existingRealisasis) {
+          await tx.realisasi.delete({
+            where: { transaksi_id: real.transaksi_id }
+          });
+        }
+
+        let allocatedNominal = 0;
+        for (let i = 0; i < byNameList.length; i++) {
+          const item = byNameList[i];
+          const isLast = i === byNameList.length - 1;
+          
+          let personNominal = Number(item.nominal) || defaultUnitCost;
+          if (isLast && totalNominal > 0) {
+            personNominal = totalNominal - allocatedNominal;
+          }
+          allocatedNominal += personNominal;
+
+          const personName = item.nama_lengkap || item.nama || `Penerima ${i + 1}`;
+          const personKeterangan = `Bantuan ${cleanProgram} an. ${personName} (${lembagaName})`;
+          const personNrm = item.nrm ? String(item.nrm).trim() : null;
+
+          const newReal = await tx.realisasi.create({
+            data: {
+              proposal_id: updatedProposal.id,
+              rkat_id: rkatId,
+              tanggal: tanggal,
+              keterangan: personKeterangan,
+              nrm: personNrm
+            }
+          });
+
+          // Debit Journal Entry (Beban Penyaluran)
+          await tx.journalEntry.create({
+            data: {
+              transaksi_id: newReal.transaksi_id,
+              coa_code: debitCoaCode,
+              debit: new Prisma.Decimal(personNominal),
+              kredit: new Prisma.Decimal(0.00),
+              account_id: null
+            }
+          });
+
+          // Kredit Journal Entry (Kas / Bank)
+          await tx.journalEntry.create({
+            data: {
+              transaksi_id: newReal.transaksi_id,
+              coa_code: kreditCoaCode,
+              debit: new Prisma.Decimal(0.00),
+              kredit: new Prisma.Decimal(personNominal),
+              account_id: accountId
+            }
+          });
+        }
+      });
+    } else {
+      // Case 2: Standard Proposal or Not Archived yet (keep single global realisasi synced)
+      if (existingRealisasis.length === 1) {
+        const associatedRealisasi = existingRealisasis[0];
         let updatedNrm = updatedProposal.mustahik?.nrm || null;
-        const isByName = updatedProposal.jenis_pengajuan === 'Lembaga' && updatedProposal.penerima_detail && Array.isArray(updatedProposal.penerima_detail) && updatedProposal.penerima_detail.length > 0;
-        
         if (isByName) {
           const nrms = (updatedProposal.penerima_detail as any[]).map(p => p.nrm).filter(Boolean);
           if (nrms.length > 0) {
             updatedNrm = nrms.join(', ');
           }
         }
-
         const formattedKeterangan = formatDisbursementKeterangan(updatedProposal);
 
         await prisma.realisasi.update({

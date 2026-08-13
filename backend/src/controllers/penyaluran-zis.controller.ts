@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { Prisma, StatusPengajuan } from '@prisma/client';
+import { syncRealisasiFromProposal } from './proposal.controller';
 
 export const getPenyaluranZis = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -353,6 +354,8 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
         mustahik: true
       }
     });
+
+    await syncRealisasiFromProposal(targetId);
 
     res.status(200).json({
       status: 'success',
