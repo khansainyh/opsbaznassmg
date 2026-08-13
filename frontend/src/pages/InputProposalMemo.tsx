@@ -268,9 +268,10 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
   };
 
   const handlePrintReport = () => {
-    const filtered = allData.filter(item => {
-      // Data Jalur Direct BUKAN tupoksi Administrasi -> Jangan dimasukkan ke laporan
-      if (isDirectProposal(item)) return false;
+    // Sumber data KHUSUS & HANYA dari Halaman Registrasi Administrasi (bukan Jalur Direct)
+    const reportSource = data.filter(item => !isDirectProposal(item));
+
+    const filtered = reportSource.filter(item => {
       if (!item.tanggalMasuk) return false;
       const [y, m, d] = item.tanggalMasuk.split('-').map(Number);
       if (reportType === 'harian_pilar' || reportType === 'harian_detail') {
@@ -761,14 +762,13 @@ export default function InputProposalMemo({ data, allData, onUpdate: _onUpdate }
       return Number(b.agendaNo) - Number(a.agendaNo);
     });
 
-  // Stat values (hanya Jalur Proposal)
+  // Stat values (hanya Halaman Registrasi Proposal)
   const now = new Date();
-  const proposalBulanIni = allData.filter(d => {
-    if (isDirectProposal(d)) return false;
+  const nonDirectRegistrasiData = data.filter(d => !isDirectProposal(d));
+  const proposalBulanIni = nonDirectRegistrasiData.filter(d => {
     const dt = new Date(d.tanggalMasuk);
     return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear();
   }).length;
-  const nonDirectRegistrasiData = data.filter(d => !isDirectProposal(d));
   const menungguScan = nonDirectRegistrasiData.length;
   const memoPimpinan = nonDirectRegistrasiData.filter(d => d.hasMemo).length;
 
