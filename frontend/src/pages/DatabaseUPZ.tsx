@@ -1533,17 +1533,17 @@ export default function DatabaseUPZ() {
     <style>
         @page {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
-            margin-bottom: 1.0in;
-            margin-left: 2.54cm; /* Tambah 0.5 cm */
-            margin-right: 2.8cm; /* Tambah 0.5 cm */
+            margin-top: 1.0in; /* Halaman 2 dan 3 mulai lebih ke atas (naik 2 cm) */
+            margin-bottom: 0.8in;
+            margin-left: 0.6in; /* Lebih lebar ke samping kiri */
+            margin-right: 0.6in; /* Lebih lebar ke samping kanan */
         }
         @page Section1 {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
-            margin-bottom: 1.0in;
-            margin-left: 2.54cm;
-            margin-right: 2.8cm;
+            margin-top: 1.0in;
+            margin-bottom: 0.8in;
+            margin-left: 0.6in;
+            margin-right: 0.6in;
             mso-header-margin: 0.5in;
             mso-footer-margin: 0.5in;
             mso-paper-source: 0;
@@ -1624,55 +1624,57 @@ export default function DatabaseUPZ() {
 <body>
 <div class="Section1">
 
-    <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
+    <!-- HALAMAN 1: SURAT KEPUTUSAN (DENGAN RUANG KOP SURAT) -->
+    <div style="margin-top: 0.8in; mso-margin-top-alt: 0.8in;">
+        <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
 
-    <!-- HALAMAN 1: SURAT KEPUTUSAN -->
-    <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
-        <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
-        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+            <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+            NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
 
-        <div style="margin: 8px 0;">TENTANG</div>
+            <div style="margin: 8px 0;">TENTANG</div>
 
-        <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName}</span><br>
-        <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+            <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName}</span><br>
+            <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
 
-        <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+            <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+        </div>
+
+        <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
+        <table class="layout-table">
+            <tr>
+                <td class="col-title">Menimbang</td>
+                <td class="col-colon">:</td>
+                <td class="col-content">
+                    <ol type="a" style="margin: 0; padding-left: 15px;">
+                        <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${tingkatText};</li>
+                        <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
+                        <li style="margin-bottom: 6px;">Bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
+                    </ol>
+                </td>
+            </tr>
+            <tr>
+                <td class="col-title">Mengingat</td>
+                <td class="col-colon">:</td>
+                <td class="col-content">
+                    <ol style="margin: 0; padding-left: 15px;">
+                        <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
+                        <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                        <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
+                        <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
+                        <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
+                        <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
+                        <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027;</li>
+                        <li style="margin-bottom: 6px;">Instruksi Walikota Semarang Nomor : 451.12/5594 tanggal 22 November 2016 tentang Pembayaran Zakat, Infak dan Sedekah bagi PNS dilingkungan Pemkot Semarang.</li>
+                    </ol>
+                </td>
+            </tr>
+        </table>
     </div>
 
-    <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
-    <table class="layout-table">
-        <tr>
-            <td class="col-title">Menimbang</td>
-            <td class="col-colon">:</td>
-            <td class="col-content">
-                <ol type="a" style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${tingkatText};</li>
-                    <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
-                    <li style="margin-bottom: 6px;">Bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
-                </ol>
-            </td>
-        </tr>
-        <tr>
-            <td class="col-title">Mengingat</td>
-            <td class="col-colon">:</td>
-            <td class="col-content">
-                <ol style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
-                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
-                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
-                    <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
-                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
-                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
-                    <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027;</li>
-                    <li style="margin-bottom: 6px;">Instruksi Walikota Semarang Nomor : 451.12/5594 tanggal 22 November 2016 tentang Pembayaran Zakat, Infak dan Sedekah bagi PNS dilingkungan Pemkot Semarang.</li>
-                </ol>
-            </td>
-        </tr>
-    </table>
-
-    <!-- DIKTUM KEPUTUSAN (HALAMAN 2 - ATAS TAMBAH 2 CM) -->
-    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 2cm; margin-top: 2cm; mso-margin-top-alt: 2cm;"></div>
-    <div class="text-center bold" style="margin-top: 15px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2 - MULAI LEBIH KE ATAS) -->
+    <div class="page-break" style="page-break-before: always; clear: both;"></div>
+    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
 
     <table class="layout-table">
         <tr>
@@ -1761,8 +1763,8 @@ export default function DatabaseUPZ() {
         </ol>
     </div>
 
-    <!-- HALAMAN 3: LAMPIRAN (ATAS TAMBAH 2 CM, COMPACT & JABATAN UPZ DIPENDEKKAN) -->
-    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 2cm; margin-top: 2cm; mso-margin-top-alt: 2cm;">
+    <!-- HALAMAN 3: LAMPIRAN (MULAI LEBIH KE ATAS, COMPACT & JABATAN UPZ DIPENDEKKAN) -->
+    <div class="page-break" style="page-break-before: always; clear: both;">
         <table style="width: 100%; font-size: 10.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
             <tr>
                 <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
@@ -1837,17 +1839,17 @@ export default function DatabaseUPZ() {
     <style>
         @page {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
-            margin-bottom: 1.0in;
-            margin-left: 2.54cm; /* Tambah 0.5 cm */
-            margin-right: 2.8cm; /* Tambah 0.5 cm */
+            margin-top: 1.0in; /* Halaman 2 dan 3 mulai lebih ke atas (naik 2 cm) */
+            margin-bottom: 0.8in;
+            margin-left: 0.6in; /* Lebih lebar ke samping kiri */
+            margin-right: 0.6in; /* Lebih lebar ke samping kanan */
         }
         @page Section1 {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
-            margin-bottom: 1.0in;
-            margin-left: 2.54cm;
-            margin-right: 2.8cm;
+            margin-top: 1.0in;
+            margin-bottom: 0.8in;
+            margin-left: 0.6in;
+            margin-right: 0.6in;
             mso-header-margin: 0.5in;
             mso-footer-margin: 0.5in;
             mso-paper-source: 0;
@@ -1928,54 +1930,56 @@ export default function DatabaseUPZ() {
 <body>
 <div class="Section1">
 
-    <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
+    <!-- HALAMAN 1: SURAT KEPUTUSAN (DENGAN RUANG KOP SURAT) -->
+    <div style="margin-top: 0.8in; mso-margin-top-alt: 0.8in;">
+        <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
 
-    <!-- HALAMAN 1: SURAT KEPUTUSAN -->
-    <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
-        <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
-        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+            <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+            NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
 
-        <div style="margin: 8px 0;">TENTANG</div>
+            <div style="margin: 8px 0;">TENTANG</div>
 
-        <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
-        <span class="bold">${upzTitleName} PERIODE ${periodeTahun}</span><br>
+            <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
+            <span class="bold">${upzTitleName} PERIODE ${periodeTahun}</span><br>
 
-        <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+            <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+        </div>
+
+        <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
+        <table class="layout-table">
+            <tr>
+                <td class="col-title">Menimbang</td>
+                <td class="col-colon">:</td>
+                <td class="col-content">
+                    <ol type="a" style="margin: 0; padding-left: 15px;">
+                        <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${upzTextName};</li>
+                        <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
+                        <li style="margin-bottom: 6px;">Bahwa berdasarkan huruf a dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun}.</li>
+                    </ol>
+                </td>
+            </tr>
+            <tr>
+                <td class="col-title">Mengingat</td>
+                <td class="col-colon">:</td>
+                <td class="col-content">
+                    <ol style="margin: 0; padding-left: 15px;">
+                        <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
+                        <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                        <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
+                        <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
+                        <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
+                        <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
+                        <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027.</li>
+                    </ol>
+                </td>
+            </tr>
+        </table>
     </div>
 
-    <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
-    <table class="layout-table">
-        <tr>
-            <td class="col-title">Menimbang</td>
-            <td class="col-colon">:</td>
-            <td class="col-content">
-                <ol type="a" style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${upzTextName};</li>
-                    <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
-                    <li style="margin-bottom: 6px;">Bahwa berdasarkan huruf a dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun}.</li>
-                </ol>
-            </td>
-        </tr>
-        <tr>
-            <td class="col-title">Mengingat</td>
-            <td class="col-colon">:</td>
-            <td class="col-content">
-                <ol style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
-                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
-                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
-                    <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
-                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
-                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
-                    <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027.</li>
-                </ol>
-            </td>
-        </tr>
-    </table>
-
-    <!-- DIKTUM KEPUTUSAN (HALAMAN 2 - ATAS TAMBAH 2 CM) -->
-    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 2cm; margin-top: 2cm; mso-margin-top-alt: 2cm;"></div>
-    <div class="text-center bold" style="margin-top: 15px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2 - MULAI LEBIH KE ATAS) -->
+    <div class="page-break" style="page-break-before: always; clear: both;"></div>
+    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
 
     <table class="layout-table">
         <tr>
@@ -2064,8 +2068,8 @@ export default function DatabaseUPZ() {
         </ol>
     </div>
 
-    <!-- HALAMAN 3: LAMPIRAN (ATAS TAMBAH 2 CM, COMPACT & JABATAN UPZ DIPENDEKKAN) -->
-    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 2cm; margin-top: 2cm; mso-margin-top-alt: 2cm;">
+    <!-- HALAMAN 3: LAMPIRAN (MULAI LEBIH KE ATAS, COMPACT & JABATAN UPZ DIPENDEKKAN) -->
+    <div class="page-break" style="page-break-before: always; clear: both;">
         <table style="width: 100%; font-size: 10.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
             <tr>
                 <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
@@ -2142,17 +2146,17 @@ export default function DatabaseUPZ() {
     <style>
         @page {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
-            margin-bottom: 1.0in;
-            margin-left: 2.54cm; /* Tambah 0.5 cm */
-            margin-right: 2.8cm; /* Tambah 0.5 cm */
+            margin-top: 1.0in;
+            margin-bottom: 0.8in;
+            margin-left: 0.6in;
+            margin-right: 0.6in;
         }
         @page Section1 {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.8in;
-            margin-bottom: 1.0in;
-            margin-left: 2.54cm;
-            margin-right: 2.8cm;
+            margin-top: 1.0in;
+            margin-bottom: 0.8in;
+            margin-left: 0.6in;
+            margin-right: 0.6in;
             mso-header-margin: 0.5in;
             mso-footer-margin: 0.5in;
             mso-paper-source: 0;
@@ -2233,56 +2237,58 @@ export default function DatabaseUPZ() {
 <body>
 <div class="Section1">
 
-    <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
+    <div style="margin-top: 0.8in; mso-margin-top-alt: 0.8in;">
+        <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
 
-    <!-- HALAMAN 1: SURAT KEPUTUSAN -->
-    <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
-        <span class="bold">KEPUTUSAN</span><br>
-        <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
-        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+        <!-- HALAMAN 1: SURAT KEPUTUSAN -->
+        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+            <span class="bold">KEPUTUSAN</span><br>
+            <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+            NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
 
-        <div style="margin: 8px 0;">TENTANG</div>
+            <div style="margin: 8px 0;">TENTANG</div>
 
-        <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
-        <span class="bold">${upzTitleName} KOTA SEMARANG</span><br>
-        <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+            <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
+            <span class="bold">${upzTitleName} KOTA SEMARANG</span><br>
+            <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
 
-        <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+            <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+        </div>
+
+        <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
+        <table class="layout-table">
+            <tr>
+                <td class="col-title">Menimbang</td>
+                <td class="col-colon">:</td>
+                <td class="col-content">
+                    <ol type="a" style="margin: 0; padding-left: 15px;">
+                        <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${tingkatText};</li>
+                        <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
+                        <li style="margin-bottom: 6px;">bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
+                    </ol>
+                </td>
+            </tr>
+            <tr>
+                <td class="col-title">Mengingat</td>
+                <td class="col-colon">:</td>
+                <td class="col-content">
+                    <ol style="margin: 0; padding-left: 15px;">
+                        <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
+                        <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
+                        <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
+                        <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
+                        <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
+                        <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
+                        <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027;</li>
+                        <li style="margin-bottom: 6px;">Instruksi Walikota Semarang Nomor : 451.12/5594 tanggal 22 November 2016 tentang Pembayaran Zakat, Infak dan Sedekah bagi PNS dilingkungan Pemkot Semarang.</li>
+                    </ol>
+                </td>
+            </tr>
+        </table>
     </div>
 
-    <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
-    <table class="layout-table">
-        <tr>
-            <td class="col-title">Menimbang</td>
-            <td class="col-colon">:</td>
-            <td class="col-content">
-                <ol type="a" style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${tingkatText};</li>
-                    <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
-                    <li style="margin-bottom: 6px;">bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
-                </ol>
-            </td>
-        </tr>
-        <tr>
-            <td class="col-title">Mengingat</td>
-            <td class="col-colon">:</td>
-            <td class="col-content">
-                <ol style="margin: 0; padding-left: 15px;">
-                    <li style="margin-bottom: 6px;">Undang-Undang RI Nomor 23 Tahun 2011 tentang Pengelolaan Zakat (Lembaran Negara Republik Indonesia Tahun 2011 Nomor 115, Tambahan Lembaran Negara Republik Indonesia Nomor 5255);</li>
-                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 14 Tahun 2014 tentang Pelaksanaan Undang-undang Nomor 23 Tahun 2011 tentang Pengelolaan Zakat;</li>
-                    <li style="margin-bottom: 6px;">Peraturan Pemerintah Nomor 60 Tahun 2010 tentang Zakat atau Sumbangan Keagamaan yang sifatnya wajib yang boleh dikurangkan dari penghasilan Bruto;</li>
-                    <li style="margin-bottom: 6px;">Instruksi Presiden Nomor 3 Tahun 2014 tentang Optimalisasi Pengumpulan Zakat di Kementerian/Lembaga, Sekretaris Jendral Lembaga Negara, Sekretariat Jendral Komisi Negara, Pemerintah Daerah, BUMN dan BUMD melalui Badan Amil Zakat Nasional;</li>
-                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 3 Tahun 2014 tentang Organisasi dan Tata Kerja Badan Amil Zakat Nasional Provinsi dan Badan Amil Zakat Nasional Kabupaten/Kota;</li>
-                    <li style="margin-bottom: 6px;">Peraturan BAZNAS Nomor 2 Tahun 2016 tentang Pembentukan dan Tata Kerja Unit Pengumpul Zakat;</li>
-                    <li style="margin-bottom: 6px;">Surat Keputusan Walikota Semarang Nomor 450/662 Tahun 2022 tentang Pengangkatan Pimpinan Badan Amil Zakat Nasional (BAZNAS) Kota Semarang Periode 2022-2027;</li>
-                    <li style="margin-bottom: 6px;">Instruksi Walikota Semarang Nomor : 451.12/5594 tanggal 22 November 2016 tentang Pembayaran Zakat, Infak dan Sedekah bagi PNS dilingkungan Pemkot Semarang.</li>
-                </ol>
-            </td>
-        </tr>
-    </table>
-
-    <!-- DIKTUM KEPUTUSAN (HALAMAN 2 - ATAS TAMBAH 2 CM) -->
-    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 2cm; margin-top: 2cm; mso-margin-top-alt: 2cm;"></div>
+    <!-- DIKTUM KEPUTUSAN -->
+    <div class="page-break" style="page-break-before: always; clear: both;"></div>
     <div class="text-center bold" style="margin-top: 15px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
 
     <table class="layout-table">
@@ -2347,7 +2353,7 @@ export default function DatabaseUPZ() {
                 <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
             </tr>
             <tr>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
                 <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
                 <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
             </tr>
@@ -2372,8 +2378,8 @@ export default function DatabaseUPZ() {
         </ol>
     </div>
 
-    <!-- HALAMAN 3: LAMPIRAN (ATAS TAMBAH 2 CM, COMPACT & JABATAN UPZ DIPENDEKKAN) -->
-    <div class="page-break" style="page-break-before: always; clear: both; padding-top: 2cm; margin-top: 2cm; mso-margin-top-alt: 2cm;">
+    <!-- HALAMAN 3: LAMPIRAN -->
+    <div class="page-break" style="page-break-before: always; clear: both;">
         <table style="width: 100%; font-size: 10.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
             <tr>
                 <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
