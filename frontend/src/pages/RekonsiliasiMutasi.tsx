@@ -18,6 +18,9 @@ import {
  UserPlus,
  Trash2,
  ChevronDown,
+ ChevronLeft,
+ ChevronsLeft,
+ ChevronsRight,
  Edit3
 } from'lucide-react';
 import { motion, AnimatePresence } from'motion/react';
@@ -293,13 +296,17 @@ export default function RekonsiliasiMutasi() {
  const [activeTab, setActiveTab] = useState<'PENERIMAAN' |'PENYALURAN'>('PENERIMAAN');
  const [searchTerm, setSearchTerm] = useState('');
  const [monthlyFilter, setMonthlyFilter] = useState(() => {
- const today = new Date();
+const today = new Date();
  const year = today.getFullYear();
  const month = String(today.getMonth() + 1).padStart(2,'0');
  return `${year}-${month}`;
  });
  const [loading, setLoading] = useState(false);
- const [toast, setToast] = useState<{ message: string; type:'success' |'error' } | null>(null);
+ const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+ // Pagination states
+ const [currentPage, setCurrentPage] = useState(1);
+ const [pageSize, setPageSize] = useState(15);
 
  // Modal control
  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -308,10 +315,10 @@ export default function RekonsiliasiMutasi() {
 
  // Form states - Add Mutation
  const [formTanggal, setFormTanggal] = useState(new Date().toISOString().split('T')[0]);
- const [formAddType, setFormAddType] = useState<'DEBIT' |'KREDIT'>('DEBIT');
+ const [formAddType, setFormAddType] = useState<'DEBIT' | 'KREDIT'>('DEBIT');
  const [formBankId, setFormBankId] = useState('');
  const [formKeteranganBank, setFormKeteranganBank] = useState('');
- const [formNominal, setFormNominal] = useState<number |''>('');
+ const [formNominal, setFormNominal] = useState<number | ''>('');
 
  // Form states - Reconcile
  const [formMuzakkiId, setFormMuzakkiId] = useState('');
@@ -324,10 +331,10 @@ export default function RekonsiliasiMutasi() {
 
  // Quick register states
  const [showQuickRegister, setShowQuickRegister] = useState(false);
- const [quickKategori, setQuickKategori] = useState<'Perorangan' |'Lembaga'>('Perorangan');
+ const [quickKategori, setQuickKategori] = useState<'Perorangan' | 'Lembaga'>('Perorangan');
  const [quickNama, setQuickNama] = useState('');
  const [quickNik, setQuickNik] = useState('');
- const [quickJenisKelamin, setQuickJenisKelamin] = useState<'Laki-laki' |'Perempuan'>('Laki-laki');
+ const [quickJenisKelamin, setQuickJenisKelamin] = useState<'Laki-laki' | 'Perempuan'>('Laki-laki');
  const [quickHandphone, setQuickHandphone] = useState('');
  const [quickAddress, setQuickAddress] = useState('');
 
@@ -338,86 +345,96 @@ export default function RekonsiliasiMutasi() {
  const [isMuzakkiDropdownOpen, setIsMuzakkiDropdownOpen] = useState(false);
 
  // Trigger toast helper
- const showToast = (message: string, type:'success' |'error') => {
+ const showToast = (message: string, type: 'success' | 'error') => {
  setToast({ message, type });
  setTimeout(() => setToast(null), 4000);
  };
 
- // Fetch initial data
+ // Reset pagination on filter changes
+ useEffect(() => {
+ setCurrentPage(1);
+ }, [activeTab, searchTerm, monthlyFilter, pageSize]);
+
+ // Fetch initial data (fast-render core data first)
  const fetchData = async () => {
  setLoading(true);
  try {
- const [resMutations, resAccounts, resCoas, resMuzakkis, resMustahiks, resRkat, resPilars, resRkatOperasional] = await Promise.all([
+ // 1. Fetch critical dashboard and table data first
+ const [resMutations, resAccounts, resCoas, resRkat, resPilars, resRkatOperasional] = await Promise.all([
  axios.get('/api/mutations'),
  axios.get('/api/finance/accounts'),
  axios.get('/api/finance/coa'),
- axios.get('/api/muzakki'),
- axios.get('/api/mustahik'),
  axios.get('/api/rkat-pengumpulan'),
  axios.get('/api/pilars'),
  axios.get('/api/rkat-operasional')
  ]);
 
- setMutations(resMutations.data);
- setBankAccounts(resAccounts.data);
- setCoas(resCoas.data);
- setRkatList(resRkat.data.data || []);
+ setMutations(resMutations.data || []);
+ setBankAccounts(resAccounts.data || []);
+ setCoas(resCoas.data || []);
+ setRkatList(resRkat.data?.data || []);
 
  const pilarsData = (resPilars.data || []).map((pilar: any) => ({
  ...pilar,
  programs: (pilar.programs || []).map((prog: any) => ({
  ...prog,
- asnafTargets: typeof prog.rkat_details ==='string'
- ? JSON.parse(prog.rkat_details ||'[]')
+ asnafTargets: typeof prog.rkat_details === 'string'
+ ? JSON.parse(prog.rkat_details || '[]')
  : (prog.rkat_details || [])
  }))
  }));
  setPilars(pilarsData);
 
- if (resRkatOperasional.data.status ==='success') {
+ if (resRkatOperasional.data?.status === 'success') {
  setRkatOperasionalList(resRkatOperasional.data.data || []);
  }
 
- // Map both muzakki and mustahik
- const muzakkiList = (resMuzakkis.data.data || []).map((m: any) => ({
+ const bankOnly = (resAccounts.data || []).filter((a: any) => a.tipe_kas === 'BANK');
+ if (bankOnly.length > 0) {
+ setFormBankId(bankOnly[0]?.account_id || '');
+ }
+
+ // 2. Fetch muzakkis and mustahiks in background without delaying main table render
+ Promise.all([
+ axios.get('/api/muzakki?limit=300'),
+ axios.get('/api/mustahik?limit=300')
+ ]).then(([resMuzakkis, resMustahiks]) => {
+ const muzakkiList = (resMuzakkis.data?.data || []).map((m: any) => ({
  id: m.id,
  nama: m.nama,
  nik: m.nik,
  npwz: m.npwz,
- kategori: m.kategori ||'Perorangan',
- handphone: m.handphone ||'',
- telepon: m.telepon ||'',
- alamat: m.alamat ||''
+ kategori: m.kategori || 'Perorangan',
+ handphone: m.handphone || '',
+ telepon: m.telepon || '',
+ alamat: m.alamat || ''
  }));
 
- const mustahikList = (resMustahiks.data.data || []).map((m: any) => ({
+ const mustahikList = (resMustahiks.data?.data || []).map((m: any) => ({
  id: m.id,
  nama: `${m.nama} (Mustahik)`,
  nik: m.nik,
- npwz: m.npwz ||'',
- kategori:'Perorangan',
- handphone: m.handphone ||'',
- telepon: m.telepon ||'',
- alamat: m.alamat ||''
+ npwz: m.npwz || '',
+ kategori: 'Perorangan',
+ handphone: m.handphone || '',
+ telepon: m.telepon || '',
+ alamat: m.alamat || ''
  }));
 
  setMuzakkis([...muzakkiList, ...mustahikList]);
+ }).catch(e => console.warn('Background muzakki fetch warning:', e));
 
- const bankOnly = resAccounts.data.filter((a: any) => a.tipe_kas ==='BANK');
- if (bankOnly.length > 0) {
- setFormBankId(bankOnly[0]?.account_id ||'');
- }
  } catch (error) {
  console.error('Failed to fetch bank mutations data:', error);
  const errMsg = error instanceof Error ? error.message : String(error);
- showToast('Gagal memuat data:' + errMsg,'error');
+ showToast('Gagal memuat data: ' + errMsg, 'error');
  } finally {
  setLoading(false);
  }
  };
 
  useEffect(() => {
- fetchData();
+   fetchData();
  }, []);
 
  // Filtered COAs based on selectedMutation type and formSumberDana tag
@@ -487,8 +504,34 @@ export default function RekonsiliasiMutasi() {
  });
  }, [mutations, searchTerm, activeTab, monthlyFilter]);
 
- // Summary Metrics based on activeTab
- const metrics = useMemo(() => {
+  // Pagination calculations
+  const totalItems = filteredMutations.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  const paginatedMutations = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredMutations.slice(startIndex, startIndex + pageSize);
+  }, [filteredMutations, currentPage, pageSize]);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, '...', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+    return pages;
+  };
+
+  // Summary Metrics based on activeTab
+  const metrics = useMemo(() => {
  const tabMutations = mutations.filter(m => {
  const isDebit = m.type !=='KREDIT';
  return activeTab ==='PENERIMAAN' ? isDebit : !isDebit;
@@ -908,7 +951,7 @@ export default function RekonsiliasiMutasi() {
  )}
  </td>
  </tr>
- ) : filteredMutations.map((item) => (
+ ) : paginatedMutations.map((item) => (
  <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
  <td className="px-6 py-5 font-mono text-xs text-slate-600 font-bold">
  {new Date(item.tanggal).toLocaleDateString('id-ID')}
@@ -994,7 +1037,99 @@ export default function RekonsiliasiMutasi() {
  </tbody>
  </table>
  </div>
- </div>
+
+      {/* PAGINATION CONTROLS */}
+      {filteredMutations.length > 0 && (
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-600">
+          <div className="flex items-center gap-3">
+            <span>
+              Menampilkan <strong className="text-slate-900">{(currentPage - 1) * pageSize + 1}</strong> – <strong className="text-slate-900">{Math.min(currentPage * pageSize, totalItems)}</strong> dari <strong className="text-slate-900">{totalItems}</strong> transaksi
+            </span>
+            <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+              <span className="text-slate-400 text-[11px]">Tampilkan:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:ring-1 focus:ring-primary outline-none cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-600"
+              title="Halaman Pertama"
+            >
+              <ChevronsLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-600"
+              title="Halaman Sebelumnya"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+
+            <div className="flex items-center gap-1 px-1">
+              {getPageNumbers().map((pageNum, idx) => {
+                if (pageNum === '...') {
+                  return <span key={`ellipsis-${idx}`} className="px-2 text-slate-400 font-bold">…</span>;
+                }
+                const isCurrent = pageNum === currentPage;
+                return (
+                  <button
+                    key={`page-${pageNum}`}
+                    type="button"
+                    onClick={() => setCurrentPage(Number(pageNum))}
+                    className={cn(
+                      "min-w-[32px] h-8 px-2 rounded-lg font-bold transition-all text-xs",
+                      isCurrent
+                        ? "bg-primary text-white shadow-sm shadow-primary/30 font-black"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-600"
+              title="Halaman Selanjutnya"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-600"
+              title="Halaman Terakhir"
+            >
+              <ChevronsRight className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
 
  {/* MODAL: Record Bank Mutation */}
  <AnimatePresence>
