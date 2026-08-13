@@ -212,9 +212,9 @@ function App() {
                 approval_kabag: item.approval_kabag !== null ? item.approval_kabag : undefined,
                 rkatActivityId: item.rkat_activity_id || undefined,
                 mustahik: item.mustahik || null,
-                mustahik_id: item.mustahik_id || null,
                 updatedAt: item.updated_at || '',
-                tanggalPencairan: item.updated_at ? new Date(item.updated_at).toISOString().split('T')[0] : '',
+                tanggalPencairan: item.tanggal_pencairan_real ? new Date(item.tanggal_pencairan_real).toISOString().split('T')[0] : (item.tanggal_realisasi ? new Date(item.tanggal_realisasi).toISOString().split('T')[0] : (item.status && (item.status.toLowerCase().includes('cair') || item.status.toLowerCase().includes('realisasi') || item.status.toLowerCase().includes('simba') || item.status.toLowerCase().includes('arsip') || item.status.toLowerCase().includes('selesai')) && item.updated_at ? new Date(item.updated_at).toISOString().split('T')[0] : '')),
+                tanggalRealisasi: item.tanggal_pencairan_real ? new Date(item.tanggal_pencairan_real).toISOString().split('T')[0] : (item.tanggal_realisasi ? new Date(item.tanggal_realisasi).toISOString().split('T')[0] : undefined),
                 is_rutin: item.is_rutin ?? false,
                 frekuensi_berulang: item.frekuensi_berulang ?? undefined,
                 tanggal_pencairan: item.tanggal_pencairan ?? undefined,
@@ -296,9 +296,10 @@ function App() {
               penerima_detail: item.penerima_detail || [],
               volume: item.volume || 1,
               rekomendasi_unit_cost: item.rekomendasi_unit_cost || undefined,
-              mustahik: item.mustahik || null,
               mustahik_id: item.mustahik_id || null,
               updatedAt: item.updated_at || '',
+              tanggalPencairan: item.tanggal_pencairan_real ? new Date(item.tanggal_pencairan_real).toISOString().split('T')[0] : (item.tanggal_realisasi ? new Date(item.tanggal_realisasi).toISOString().split('T')[0] : (item.status && (item.status.toLowerCase().includes('cair') || item.status.toLowerCase().includes('realisasi') || item.status.toLowerCase().includes('simba') || item.status.toLowerCase().includes('arsip') || item.status.toLowerCase().includes('selesai')) && item.updated_at ? new Date(item.updated_at).toISOString().split('T')[0] : '')),
+              tanggalRealisasi: item.tanggal_pencairan_real ? new Date(item.tanggal_pencairan_real).toISOString().split('T')[0] : (item.tanggal_realisasi ? new Date(item.tanggal_realisasi).toISOString().split('T')[0] : undefined),
               program: item.program ? (
                 item.program.pilar_code === '1100' || item.program.pilar_code === '2101' ? 'Semarang Peduli' :
                 item.program.pilar_code === '1200' || item.program.pilar_code === '2201' ? 'Semarang Sehat' :

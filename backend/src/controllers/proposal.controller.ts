@@ -15,7 +15,24 @@ export const getProposals = async (req: Request, res: Response) => {
       const proposals = await prisma.proposal.findMany({
         include: { program: true, mustahik: true }
       });
-      return res.status(200).json(proposals);
+      const proposalIds = proposals.map(p => p.id);
+      const realisasiList = await prisma.realisasi.findMany({
+        where: { proposal_id: { in: proposalIds } },
+        select: { proposal_id: true, tanggal: true },
+        orderBy: { tanggal: 'desc' }
+      });
+      const realisasiMap = new Map<string, Date>();
+      for (const r of realisasiList) {
+        if (r.proposal_id && !realisasiMap.has(r.proposal_id)) {
+          realisasiMap.set(r.proposal_id, r.tanggal);
+        }
+      }
+      const enhanced = proposals.map(p => ({
+        ...p,
+        tanggal_pencairan_real: realisasiMap.get(p.id) || null,
+        tanggal_realisasi: realisasiMap.get(p.id) || null
+      }));
+      return res.status(200).json(enhanced);
     }
 
     const [total, proposals] = await prisma.$transaction([
@@ -27,11 +44,29 @@ export const getProposals = async (req: Request, res: Response) => {
       })
     ]);
 
+    const proposalIds = proposals.map(p => p.id);
+    const realisasiList = await prisma.realisasi.findMany({
+      where: { proposal_id: { in: proposalIds } },
+      select: { proposal_id: true, tanggal: true },
+      orderBy: { tanggal: 'desc' }
+    });
+    const realisasiMap = new Map<string, Date>();
+    for (const r of realisasiList) {
+      if (r.proposal_id && !realisasiMap.has(r.proposal_id)) {
+        realisasiMap.set(r.proposal_id, r.tanggal);
+      }
+    }
+    const enhancedProposals = proposals.map(p => ({
+      ...p,
+      tanggal_pencairan_real: realisasiMap.get(p.id) || null,
+      tanggal_realisasi: realisasiMap.get(p.id) || null
+    }));
+
     if (isPaginated) {
       const totalPages = Math.ceil(total / limit) || 1;
       return res.status(200).json({
         status: 'success',
-        data: proposals,
+        data: enhancedProposals,
         pagination: {
           total,
           page,
@@ -41,7 +76,7 @@ export const getProposals = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(200).json(proposals);
+    res.status(200).json(enhancedProposals);
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
@@ -57,7 +92,16 @@ export const getProposalById = async (req: Request, res: Response) => {
     if (!proposal) {
       return res.status(404).json({ error: 'Proposal not found' });
     }
-    res.status(200).json(proposal);
+    const realisasi = await prisma.realisasi.findFirst({
+      where: { proposal_id: id },
+      select: { tanggal: true },
+      orderBy: { tanggal: 'desc' }
+    });
+    res.status(200).json({
+      ...proposal,
+      tanggal_pencairan_real: realisasi?.tanggal || null,
+      tanggal_realisasi: realisasi?.tanggal || null
+    });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

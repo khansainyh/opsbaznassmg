@@ -25,7 +25,9 @@ import {
   Send,
   ChevronDown,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Calendar,
+  CalendarCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
@@ -2857,6 +2859,62 @@ export default function PenyaluranZis() {
                   <div>
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Asnaf</p>
                     <p className="font-bold text-slate-800 mt-0.5">{selectedPenyaluran.asnaf || '-'}</p>
+                  </div>
+                </div>
+
+                {/* Tanggal Pengajuan & Tanggal Pencairan */}
+                <div className="grid grid-cols-2 gap-4 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                      <Calendar className="size-3 text-slate-400" /> Tanggal Pengajuan
+                    </p>
+                    <p className="font-bold text-slate-800 mt-1">
+                      {selectedPenyaluran.tanggal_masuk || selectedPenyaluran.tanggalMasuk || selectedPenyaluran.created_at
+                        ? new Date(selectedPenyaluran.tanggal_masuk || selectedPenyaluran.tanggalMasuk || selectedPenyaluran.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                      <CalendarCheck className="size-3 text-emerald-600" /> Tanggal Pencairan
+                    </p>
+                    {(() => {
+                      const tglCair = selectedPenyaluran.tanggal_pencairan_real || selectedPenyaluran.tanggal_realisasi || selectedPenyaluran.tanggalPencairan || selectedPenyaluran.tanggalRealisasi;
+                      const s = (selectedPenyaluran.status || '').toLowerCase();
+                      const isSudahCair = s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
+                      
+                      if (tglCair && isSudahCair) {
+                        return (
+                          <div className="mt-1">
+                            <p className="font-black text-emerald-700 leading-tight">
+                              {new Date(tglCair).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </p>
+                            <span className="inline-block mt-0.5 text-[9px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
+                              Sudah Dicairkan
+                            </span>
+                          </div>
+                        );
+                      } else if (isSudahCair && (selectedPenyaluran.updated_at || selectedPenyaluran.updatedAt)) {
+                        return (
+                          <div className="mt-1">
+                            <p className="font-black text-emerald-700 leading-tight">
+                              {new Date(selectedPenyaluran.updated_at || selectedPenyaluran.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </p>
+                            <span className="inline-block mt-0.5 text-[9px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
+                              Sudah Dicairkan
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="mt-1">
+                          <p className="font-bold text-amber-600 leading-tight">Belum Dicairkan</p>
+                          <span className="inline-block mt-0.5 text-[9px] font-extrabold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                            Antrean Pencairan
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 

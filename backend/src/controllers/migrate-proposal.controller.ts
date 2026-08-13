@@ -243,7 +243,8 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         ).trim();
 
         const pimpinanOrganisasiVal = String(row.Pimpinan_Organisasi || row['Pimpinan Organisasi'] || row.Nama_Pimpinan || row['Nama Pimpinan'] || row.Pimpinan || '').trim() || null;
-        const namaAnakVal = String(row.Nama_Anak || row['Nama Anak'] || row.Nama_Siswa || row['Nama Siswa'] || row.Anak || '').trim() || null;
+        const rawNamaAnak = String(row.Nama_Anak || row['Nama Anak'] || row.Nama_Siswa || row['Nama Siswa'] || row.Anak || '').trim();
+        const namaAnakVal = (rawNamaAnak && rawNamaAnak !== '-' && rawNamaAnak.toLowerCase() !== 'null' && rawNamaAnak.toLowerCase() !== 'undefined') ? rawNamaAnak : null;
 
         // Determine final jenis_pengajuan
         let finalJenisPengajuan = 'Perorangan';
@@ -354,7 +355,18 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
             }
           });
 
-          const agendaNoVal = /^\d+$/.test(rawId) ? Number(rawId) : undefined;
+          let agendaNoVal: number | undefined = undefined;
+          const explicitAgenda = row.No_Agenda || row['No Agenda'] || row.Agenda_No || row['Agenda No'];
+          if (explicitAgenda && /^\d+$/.test(String(explicitAgenda).trim())) {
+            agendaNoVal = Number(String(explicitAgenda).trim());
+          } else if (/^\d+$/.test(rawId)) {
+            agendaNoVal = Number(rawId);
+          } else {
+            const match = rawId.match(/(\d+)$/);
+            if (match && match[1]) {
+              agendaNoVal = Number(match[1]);
+            }
+          }
 
           const searchConditions: any[] = [
             { keterangan: { startsWith: `${idProposal}:` } },

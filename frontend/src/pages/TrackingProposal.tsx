@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
   Search, Filter, FileText, Clock, CheckCircle2,
-  ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw
+  ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw,
+  Calendar, CalendarCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
@@ -878,7 +879,7 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                   </div>
                 </div>
 
-                {/* Nominal (kalau udah ada) */}
+                {/* Nominal & Tanggal Pencairan */}
                 {selectedProposal.nominal ? (
                   <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
@@ -886,6 +887,20 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                       <div>
                         <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Nominal Bantuan Disetujui</p>
                         <p className="text-lg font-black text-emerald-700">{formatCurrency(selectedProposal.nominal)}</p>
+                        {(() => {
+                          const s = (selectedProposal.status || '').toLowerCase();
+                          const isCair = s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
+                          const tglCair = selectedProposal.tanggalRealisasi || selectedProposal.tanggalPencairan || selectedProposal.tglCairBank || (isCair ? selectedProposal.updatedAt : null);
+                          if (isCair && tglCair) {
+                            return (
+                              <p className="text-[11px] font-bold text-emerald-900 mt-0.5 flex items-center gap-1">
+                                <CalendarCheck className="size-3 text-emerald-600" />
+                                Dicairkan pada: {new Date(tglCair).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </p>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-lg uppercase">
@@ -1037,11 +1052,35 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">Tanggal Pengajuan</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                          <Calendar className="size-3 text-slate-400" /> Tanggal Pengajuan
+                        </p>
                         <p className="text-xs font-semibold text-slate-700">
                           {selectedProposal.tanggalMasuk} {selectedProposal.jamPengajuan ? `· ${selectedProposal.jamPengajuan}` : ''}
                         </p>
                       </div>
+                      {(() => {
+                        const s = (selectedProposal.status || '').toLowerCase();
+                        const isCair = s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
+                        const tglCair = selectedProposal.tanggalRealisasi || selectedProposal.tanggalPencairan || selectedProposal.tglCairBank || (isCair ? selectedProposal.updatedAt : null);
+                        
+                        if (isCair && tglCair) {
+                          return (
+                            <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl space-y-0.5">
+                              <p className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider flex items-center gap-1">
+                                <CalendarCheck className="size-3 text-emerald-600" /> Tanggal Pencairan Dana
+                              </p>
+                              <p className="text-xs font-black text-slate-900">
+                                {new Date(tglCair).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </p>
+                              <span className="inline-block text-[9px] font-black text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded uppercase">
+                                Sudah Dicairkan
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
 

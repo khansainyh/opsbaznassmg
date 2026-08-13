@@ -100,6 +100,19 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
       orderBy: { created_at: 'desc' }
     });
 
+    const proposalIds = proposals.map(p => p.id);
+    const realisasiList = await prisma.realisasi.findMany({
+      where: { proposal_id: { in: proposalIds } },
+      select: { proposal_id: true, tanggal: true },
+      orderBy: { tanggal: 'desc' }
+    });
+    const realisasiMap = new Map<string, Date>();
+    for (const r of realisasiList) {
+      if (r.proposal_id && !realisasiMap.has(r.proposal_id)) {
+        realisasiMap.set(r.proposal_id, r.tanggal);
+      }
+    }
+
     const mapped = proposals
       .filter(p => {
         const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
@@ -109,9 +122,12 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
       })
       .map(p => {
         const isDirect = p.memo_source === 'DIRECT_PENYALURAN' || (p.keterangan || '').includes('[DIRECT PENYALURAN]');
+        const tglCair = realisasiMap.get(p.id) || (p.status && (p.status.toLowerCase().includes('cair') || p.status.toLowerCase().includes('realisasi') || p.status.toLowerCase().includes('simba') || p.status.toLowerCase().includes('arsip') || p.status.toLowerCase().includes('selesai')) ? p.updated_at : null);
         return {
           ...p,
-          asal_data: isDirect ? 'Jalur Direct' : 'Jalur Proposal'
+          asal_data: isDirect ? 'Jalur Direct' : 'Jalur Proposal',
+          tanggal_pencairan_real: tglCair,
+          tanggal_realisasi: tglCair
         };
       })
       .sort((a, b) => {
