@@ -30,13 +30,19 @@ import {
   CalendarCheck,
   Upload,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { pilarData } from '../data/pilarData';
+
+const MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
 
 // SummaryCard Component (Matched 100% with PenerimaanZis.tsx)
 function SummaryCard({ title, value, subtext, icon, colorClass }: any) {
@@ -623,6 +629,31 @@ export default function PenyaluranZis() {
   const [nikFoundStatus, setNikFoundStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // States for Cetak Laporan Modal
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedReportType, setSelectedReportType] = useState<'pendayagunaan' | 'pendistribusian' | 'excel_detail'>('pendayagunaan');
+  const [reportMonth, setReportMonth] = useState<number>(new Date().getMonth() + 1);
+  const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
+  const [reportSignDate, setReportSignDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [reportSignatories, setReportSignatories] = useState({
+    kepalaPelaksana: '',
+    kabidPendayagunaan: '',
+    kabidPendistribusian: '',
+    wakilKetua3: '',
+    wakilKetua2: ''
+  });
+
+  useEffect(() => {
+    if (isReportModalOpen) {
+      axios.get('/api/users')
+        .then(res => {
+          setUsersList(res.data || []);
+        })
+        .catch(err => console.error('Error fetching users for signatories:', err));
+    }
+  }, [isReportModalOpen]);
+
   const handleVolumeChange = (newVol: number) => {
     const vol = Math.max(1, newVol);
     setFormVolumeReal(vol);
@@ -846,13 +877,17 @@ export default function PenyaluranZis() {
       return matched.debit_coa_code;
     }
 
-    // Secondary: Check program.coa_code from programOptions
+    // Secondary: Check program.coa_code from programOptions only if valid COA code
     const prog = programOptions.find(p => p.code === programVal || p.name === programVal);
-    if (prog && prog.coa_code) {
+    if (prog && prog.coa_code && String(prog.coa_code).startsWith('5') && String(prog.coa_code).length >= 6) {
       return prog.coa_code;
     }
 
-    return '519999999';
+    // Default fallback based on asnaf
+    if (targetAsnaf === 'ist' || targetAsnaf.includes('terikat')) return '52010101';
+    if (targetAsnaf === 'istt' || targetAsnaf.includes('tidak terikat')) return '52020101';
+
+    return '51010101';
   }, [mappingRules, programOptions]);
 
   // Auto-cascade COA Code when Program changes (Matching Proposal COA Mapping)
@@ -944,20 +979,71 @@ export default function PenyaluranZis() {
     };
   };
 
-  // Helper to find COA Accounting Code (Auto-mapping from Mapping COA Rules) for a proposal
-  const getCoaInfo = (item: any) => {
-    if (!item) return { coaCode: '-', coaName: 'Beban Penyaluran ZIS' };
+  // Helper to format standard ledger description (Keterangan Buku Besar)
+  const getDisbursementKeterangan = (item: any) => {
+    const rawProgramName = item.program?.name || item.jenis_permohonan || 'Bantuan';
+    const cleanProgram = rawProgramName.toLowerCase().startsWith('bantuan') 
+      ? rawProgramName 
+      : `Bantuan ${rawProgramName}`;
 
-    // 1. Direct attribute from proposal / backend realisasi journal entry (Instant load)
-    if (item.coa_code && item.coa_code !== '519999999') {
+    const isLembaga = item.jenis_pengajuan === 'Lembaga' || 
+      (item.nama_instansi && (!item.nama_pemohon || item.nama_pemohon === item.nama_instansi));
+
+    let effectiveAnak = item.nama_anak && item.nama_anak.trim() !== '' && item.nama_anak.trim() !== '-' ? item.nama_anak.trim() : null;
+    if (!effectiveAnak && item.survey_data) {
+      try {
+        const s = typeof item.survey_data === 'string' ? JSON.parse(item.survey_data) : item.survey_data;
+        const fromSurvey = s?.namaAnak || s?.nama_anak || s?.namaSiswa || s?.nama_siswa || s?.anak;
+        if (fromSurvey && String(fromSurvey).trim() !== '' && String(fromSurvey).trim() !== '-') {
+          effectiveAnak = String(fromSurvey).trim();
+        }
+      } catch (e) {}
+    }
+
+    let targetName = '';
+    if (effectiveAnak) {
+      const instansi = (item.nama_instansi && item.nama_instansi.trim() !== '-' && !item.nama_instansi.toLowerCase().startsWith('kel.')) 
+        ? ` ${item.nama_instansi.trim()}` 
+        : '';
+      targetName = `${effectiveAnak}${instansi}`;
+    } else if (isLembaga) {
+      targetName = (item.nama_instansi && item.nama_instansi.trim() !== '-' ? item.nama_instansi.trim() : item.nama_pemohon?.trim()) || 'Lembaga';
+    } else {
+      targetName = (item.nama_pemohon && item.nama_pemohon.trim() !== '-' ? item.nama_pemohon.trim() : item.nama_instansi?.trim()) || 'Pemohon';
+    }
+
+    const addressParts: string[] = [];
+    if (item.alamat && item.alamat.trim() !== '' && item.alamat.trim() !== '-') {
+      addressParts.push(item.alamat.trim());
+    } else if (item.mustahik?.alamat && item.mustahik.alamat.trim() !== '' && item.mustahik.alamat.trim() !== '-') {
+      addressParts.push(item.mustahik.alamat.trim());
+    }
+    if (item.kelurahan && item.kelurahan.trim() !== '' && item.kelurahan.trim() !== '-') {
+      addressParts.push(item.kelurahan.trim());
+    }
+    if (item.kecamatan && item.kecamatan.trim() !== '' && item.kecamatan.trim() !== '-') {
+      addressParts.push(item.kecamatan.trim());
+    }
+
+    const addressStr = addressParts.length > 0 ? `, ${addressParts.join(' ')}` : '';
+    return `${cleanProgram} an. ${targetName}${addressStr}`;
+  };
+
+  // Helper to find COA Accounting Code (Auto-mapping from Mapping COA Rules & Master COA) for a proposal
+  const getCoaInfo = (item: any) => {
+    if (!item) return { coaCode: '51010101', coaName: 'Beban Penyaluran ZIS' };
+
+    // 1. Direct attribute from proposal / backend realisasi journal entry ONLY if it is a genuine COA code (starts with 5 and length >= 6)
+    if (item.coa_code && String(item.coa_code).startsWith('5') && String(item.coa_code).length >= 6 && item.coa_code !== '519999999') {
+      const foundInMaster = (coaList || []).find((c: any) => (c.coa_code || c.code) === item.coa_code);
       return {
         coaCode: item.coa_code,
-        coaName: item.coa_name || item.program?.name || item.jenis_permohonan || 'Beban Penyaluran ZIS'
+        coaName: foundInMaster?.nama_akun || foundInMaster?.name || item.coa_name || 'Beban Penyaluran ZIS'
       };
     }
 
-    // 2. Client-side mapping resolution fallback
-    const progVal = item.jenis_permohonan || item.program?.code || item.program?.name || '';
+    // 2. Client-side mapping resolution fallback (from Mapping COA rules)
+    const progVal = item.program?.code || item.program_code || item.jenis_permohonan || item.program?.name || '';
     const asnafVal = item.asnaf || 'Miskin';
     const targetCode = resolveMappingCoa(progVal, asnafVal);
 
@@ -966,20 +1052,29 @@ export default function PenyaluranZis() {
     if (foundCoa) {
       return {
         coaCode: foundCoa.code || foundCoa.coa_code || targetCode,
-        coaName: foundCoa.name || foundCoa.nama_akun || foundCoa.nama || 'Beban Penyaluran ZIS'
+        coaName: foundCoa.nama_akun || foundCoa.name || 'Beban Penyaluran ZIS'
       };
     }
 
-    if (item.coa_code) {
+    if (targetCode && String(targetCode).startsWith('5') && String(targetCode).length >= 6) {
       return {
-        coaCode: item.coa_code,
-        coaName: item.coa_name || item.program?.name || 'Beban Penyaluran ZIS'
+        coaCode: targetCode,
+        coaName: item.coa_name || 'Beban Penyaluran ZIS'
       };
+    }
+
+    // Default fallback based on asnaf/fund
+    const asnafNorm = String(asnafVal).toLowerCase();
+    if (asnafNorm === 'ist' || asnafNorm.includes('terikat')) {
+      return { coaCode: '52010101', coaName: 'Beban Penyaluran Infak Terikat' };
+    }
+    if (asnafNorm === 'istt' || asnafNorm.includes('tidak terikat')) {
+      return { coaCode: '52020101', coaName: 'Beban Penyaluran Infak Tidak Terikat' };
     }
 
     return {
-      coaCode: targetCode || '519999999',
-      coaName: item.program?.name || item.jenis_permohonan || 'Beban Penyaluran ZIS'
+      coaCode: '51010101',
+      coaName: 'Beban Penyaluran Zakat'
     };
   };
 
@@ -1077,7 +1172,14 @@ export default function PenyaluranZis() {
         return false;
       }
 
-      const isDirect = item.asal_data === 'Jalur Direct' || item.memo_source === 'DIRECT_PENYALURAN' || (item.agenda_no && Number(item.agenda_no) >= 90000);
+      const isDirect = item.asal_data === 'Jalur Direct' || 
+        item.memo_source === 'DIRECT_PENYALURAN' || 
+        item.memo_source === 'MIGRASI_PENYALURAN' || 
+        (item.agenda_no && Number(item.agenda_no) >= 90000) ||
+        (item.keterangan || '').toLowerCase().includes('direct') ||
+        (item.keterangan || '').toLowerCase().includes('migrasi') ||
+        (item.keterangan || '').toLowerCase().includes('penyaluran zis') ||
+        item.yang_mengajukan === 'Direct Penyaluran';
       const statusStr = (item.status || '').toString().toLowerCase();
       const isDisbursement = statusStr.includes('acc') || statusStr.includes('pencairan') || statusStr.includes('cair') || statusStr.includes('realisasi') || statusStr.includes('simba') || statusStr.includes('arsip') || statusStr.includes('selesai');
       if (!isDirect && !isDisbursement) return false;
@@ -1657,37 +1759,557 @@ export default function PenyaluranZis() {
     }
   };
 
-  const handleExportExcel = () => {
+  // Helper to find the matched Program & Kegiatan object from activePilars
+  const findProgramForTransaction = (trx: any, activePilarsSource: any[]) => {
+    if (!trx) return null;
+
+    const rkInfo = getRkatInfo(trx);
+    const targetCode = String(trx.program?.code || trx.program_code || trx.jenis_permohonan || '').trim().toLowerCase();
+    const targetName = String(rkInfo?.rkatName || trx.program?.name || trx.jenis_permohonan || trx.keterangan || '').trim().toLowerCase();
+
+    for (const pilar of activePilarsSource) {
+      for (const prog of (pilar.programs || [])) {
+        const pCode = String(prog.code || '').trim().toLowerCase();
+        const pName = String(prog.name || '').trim().toLowerCase();
+
+        if (targetCode && (pCode === targetCode || targetCode.includes(pCode))) {
+          return { prog, pilar };
+        }
+        if (targetName && (pName === targetName || targetName.includes(pName) || pName.includes(targetName))) {
+          return { prog, pilar };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Helper to determine if a program definition is Produktif
+  const isProgramDefProduktif = (prog: any, pilarName?: string): boolean => {
+    if (!prog) return false;
+    const t = String(prog.tipe || '').toLowerCase().trim();
+    if (t === 'produktif') return true;
+    if (t === 'konsumtif') return false;
+
+    const c = String(prog.code || '').trim();
+    if (c.startsWith('2')) return true;
+    if (c.startsWith('1')) return false;
+
+    if (pilarName && pilarName.toLowerCase().includes('makmur')) return true;
+    return false;
+  };
+
+  // Helper to determine if a transaction is Produktif (Pendayagunaan) or Konsumtif (Pendistribusian)
+  const getIsItemProduktif = (trx: any, activePilarsSource: any[]): boolean => {
+    // 1. Direct match from Master Program & Kegiatan
+    const match = findProgramForTransaction(trx, activePilarsSource);
+    if (match) {
+      return isProgramDefProduktif(match.prog, match.pilar?.name);
+    }
+
+    // 2. Direct program.tipe if embedded in transaction
+    if (trx.program?.tipe) {
+      const pt = String(trx.program.tipe).toLowerCase().trim();
+      if (pt === 'produktif') return true;
+      if (pt === 'konsumtif') return false;
+    }
+
+    // 3. Direct tipe_bantuan tag on transaction
+    if (trx.tipe_bantuan) {
+      const tb = String(trx.tipe_bantuan).toLowerCase().trim();
+      if (tb === 'produktif') return true;
+      if (tb === 'konsumtif') return false;
+    }
+
+    // 4. Fallback code 2xxx vs 1xxx
+    const rawCode = String(trx.program?.code || trx.program_code || trx.jenis_permohonan || '').trim();
+    if (rawCode.startsWith('2')) return true;
+    if (rawCode.startsWith('1')) return false;
+
+    // 5. Fallback Pilar / Jenis Permohonan string
+    const pilarStr = String(trx.program?.pilar?.name || trx.jenis_permohonan || trx.keterangan || '').toLowerCase();
+    if (pilarStr.includes('makmur')) return true;
+
+    // 6. Rekomendasi kabag
+    const rek = String(trx.rekomendasi_kabag || '').toLowerCase();
+    if (rek.includes('dayaguna') || rek.includes('produktif')) return true;
+    if (rek.includes('distribusi') || rek.includes('konsumtif')) return false;
+
+    return false; // Default to konsumtif
+  };
+
+  // Helper to aggregate data into official BAZNAS monthly report categories dynamically from Program & Kegiatan
+  const generateMonthlyReportData = (type: 'pendayagunaan' | 'pendistribusian', targetMonth: number, targetYear: number) => {
+    const activePilarsSource: any[] = (pilars && pilars.length > 0) ? pilars : pilarData;
+
+    // Define standard pilar order for each report
+    const preferredOrder = type === 'pendayagunaan'
+      ? ['Semarang Makmur', 'Semarang Cerdas', 'Semarang Sehat', 'Semarang Taqwa', 'Semarang Peduli']
+      : ['Semarang Peduli', 'Semarang Sehat', 'Semarang Cerdas', 'Semarang Taqwa', 'Semarang Makmur'];
+
+    // Sort pilars by preferred order
+    const sortedPilars = [...activePilarsSource].sort((a, b) => {
+      const idxA = preferredOrder.findIndex(p => a.name?.toLowerCase().includes(p.toLowerCase()));
+      const idxB = preferredOrder.findIndex(p => b.name?.toLowerCase().includes(p.toLowerCase()));
+      return (idxA >= 0 ? idxA : 999) - (idxB >= 0 ? idxB : 999);
+    });
+
+    let itemCounter = 1;
+    const reportCategories: {
+      categoryName: string;
+      pilarCode: string;
+      items: {
+        no: number;
+        code: string;
+        name: string;
+        nominal: number;
+        keterangan: string;
+        transactionCount: number;
+      }[];
+    }[] = [];
+
+    sortedPilars.forEach(pilar => {
+      // Filter programs belonging to this report type (Pendayagunaan = Produktif ONLY, Pendistribusian = Konsumtif ONLY)
+      const validPrograms = (pilar.programs || []).filter((prog: any) => {
+        const isProgProduktif = isProgramDefProduktif(prog, pilar.name);
+        return type === 'pendayagunaan' ? isProgProduktif : !isProgProduktif;
+      });
+
+      // Only include Pilar if it has 1 or more matching programs for this report!
+      if (validPrograms.length > 0) {
+        const items = validPrograms.map((prog: any) => {
+          return {
+            no: itemCounter++,
+            code: prog.code,
+            name: prog.name,
+            nominal: 0,
+            keterangan: '',
+            transactionCount: 0
+          };
+        });
+
+        reportCategories.push({
+          categoryName: pilar.name.toUpperCase(),
+          pilarCode: pilar.code,
+          items
+        });
+      }
+    });
+
+    // Filter transactions for target disbursement month and year
+    const monthlyTransactions = data.filter(item => {
+      // Exclude OBS tasks
+      if (item.jenis_pengajuan === 'OBS' || item.jenisPengajuan === 'OBS' || String(item.jenis_pengajuan).toUpperCase() === 'OBS') {
+        return false;
+      }
+
+      // Filter strictly by type from Master Program & Kegiatan (Pendayagunaan = Produktif ONLY, Pendistribusian = Konsumtif ONLY)
+      const isProduktif = getIsItemProduktif(item, activePilarsSource);
+      if (type === 'pendayagunaan' && !isProduktif) {
+        return false;
+      }
+      if (type === 'pendistribusian' && isProduktif) {
+        return false;
+      }
+
+      const tglCair = getTanggalPencairan(item);
+      const targetDate = tglCair || item.tanggal_masuk || item.created_at;
+      if (!targetDate) return false;
+
+      const d = new Date(targetDate);
+      if (isNaN(d.getTime())) return false;
+
+      return (d.getMonth() + 1) === targetMonth && d.getFullYear() === targetYear;
+    });
+
+    // Aggregate transactions into report rows
+    monthlyTransactions.forEach(trx => {
+      const nominal = Number(trx.nominal) || 0;
+      if (nominal <= 0) return;
+
+      const matchedMaster = findProgramForTransaction(trx, activePilarsSource);
+      const masterProg = matchedMaster?.prog;
+
+      let matchedItem: any = null;
+
+      // 1. If found in master, match directly in report categories
+      if (masterProg) {
+        for (const cat of reportCategories) {
+          const found = cat.items.find(it => String(it.code).toLowerCase() === String(masterProg.code).toLowerCase() || it.name.toLowerCase() === masterProg.name.toLowerCase());
+          if (found) {
+            matchedItem = found;
+            break;
+          }
+        }
+      }
+
+      // 2. If not matched, search by code or name
+      if (!matchedItem) {
+        const rkInfo = getRkatInfo(trx);
+        const progName = (rkInfo?.rkatName || trx.program?.name || trx.jenis_permohonan || trx.keterangan || '').toLowerCase();
+        const progCode = String(trx.program?.code || trx.program_code || '').toLowerCase();
+
+        if (progCode) {
+          for (const cat of reportCategories) {
+            const found = cat.items.find(it => String(it.code).toLowerCase() === progCode);
+            if (found) {
+              matchedItem = found;
+              break;
+            }
+          }
+        }
+
+        if (!matchedItem && progName) {
+          for (const cat of reportCategories) {
+            const found = cat.items.find(it => {
+              const itName = it.name.toLowerCase();
+              return itName === progName || progName.includes(itName) || itName.includes(progName);
+            });
+            if (found) {
+              matchedItem = found;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchedItem) {
+        matchedItem.nominal += nominal;
+        matchedItem.transactionCount += 1;
+
+        // Add mustahik count / note if available
+        const volumeCount = trx.volume || trx.jumlah_mustahik || 0;
+        if (volumeCount > 1) {
+          const prevKet = matchedItem.keterangan ? `${matchedItem.keterangan}, ` : '';
+          matchedItem.keterangan = `${prevKet}${volumeCount} Mustahik`;
+        }
+      }
+    });
+
+    const grandTotal = reportCategories.reduce((sum, cat) => {
+      return sum + cat.items.reduce((subSum, it) => subSum + it.nominal, 0);
+    }, 0);
+
+    return {
+      reportCategories,
+      grandTotal,
+      totalTransactions: monthlyTransactions.length,
+      monthlyTransactions
+    };
+  };
+
+  // Handler: Print / Save PDF Monthly Report (Official Dinas Format)
+  const handlePrintPdfMonthly = (type: 'pendayagunaan' | 'pendistribusian') => {
+    const { reportCategories, grandTotal } = generateMonthlyReportData(type, reportMonth, reportYear);
+    const monthName = MONTH_NAMES[reportMonth - 1].toUpperCase();
+    const kabidTitle = type === 'pendayagunaan' ? 'Kepala Bidang Pendayagunaan' : 'Kepala Bidang Pendistribusian';
+
+    const kpDisplay = reportSignatories.kepalaPelaksana ? `<strong>${reportSignatories.kepalaPelaksana}</strong>` : '( .................................................. )';
+    const kbDisplay = (type === 'pendayagunaan' ? reportSignatories.kabidPendayagunaan : reportSignatories.kabidPendistribusian) 
+      ? `<strong>${type === 'pendayagunaan' ? reportSignatories.kabidPendayagunaan : reportSignatories.kabidPendistribusian}</strong>` 
+      : '( .................................................. )';
+    const wk3Display = reportSignatories.wakilKetua3 ? `<strong>${reportSignatories.wakilKetua3}</strong>` : '( .................................................. )';
+    const wk2Display = reportSignatories.wakilKetua2 ? `<strong>${reportSignatories.wakilKetua2}</strong>` : '( .................................................. )';
+
+    const signDateObj = new Date(reportSignDate);
+    const signDateFormatted = !isNaN(signDateObj.getTime())
+      ? `${signDateObj.getDate()} ${MONTH_NAMES[signDateObj.getMonth()]} ${signDateObj.getFullYear()}`
+      : `${new Date().getDate()} ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Pop-up terblokir. Silakan izinkan pop-up browser untuk mencetak PDF laporan.');
+      return;
+    }
+
+    const rowsHtml = reportCategories.map(cat => {
+      const headerRow = `
+        <tr style="background-color: #fff; font-weight: bold;">
+          <td style="border: 1px solid #000; text-align: center; font-weight: bold; padding: 4px;"></td>
+          <td style="border: 1px solid #000; font-weight: bold; padding: 4px 8px;" colspan="3">${cat.categoryName}</td>
+        </tr>
+      `;
+
+      const itemRows = cat.items.map(it => `
+        <tr>
+          <td style="border: 1px solid #000; text-align: center; padding: 3.5px;">${it.no}</td>
+          <td style="border: 1px solid #000; padding: 3.5px 8px;">${it.name}</td>
+          <td style="border: 1px solid #000; text-align: right; padding: 3.5px 8px; font-weight: ${it.nominal > 0 ? '600' : 'normal'};">
+            ${it.nominal > 0 ? it.nominal.toLocaleString('id-ID') : ''}
+          </td>
+          <td style="border: 1px solid #000; padding: 3.5px 8px; text-align: center;">${it.keterangan || ''}</td>
+        </tr>
+      `).join('');
+
+      return headerRow + itemRows;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Rekapitulasi Usulan Penerima Pentasharufan - ${type === 'pendayagunaan' ? 'Pendayagunaan' : 'Pendistribusian'} ${monthName} ${reportYear}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 12mm 15mm 15mm 15mm;
+          }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9pt;
+            color: #000;
+            line-height: 1.25;
+            margin: 0;
+            padding: 0;
+          }
+          .header-title {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 14px;
+          }
+          .header-title h3 {
+            margin: 0;
+            font-size: 11pt;
+            letter-spacing: 0.5px;
+          }
+          .header-title h4 {
+            margin: 3px 0 0 0;
+            font-size: 10.5pt;
+          }
+          .header-title p {
+            margin: 3px 0 0 0;
+            font-size: 10pt;
+            font-weight: bold;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+          }
+          th {
+            border: 1px solid #000;
+            padding: 5px 6px;
+            text-align: center;
+            font-weight: bold;
+            background-color: #fff;
+          }
+          .total-row td {
+            border: 1.5px solid #000;
+            font-weight: bold;
+            padding: 5px 8px;
+          }
+          .sign-container {
+            width: 100%;
+            page-break-inside: avoid;
+            margin-top: 15px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header-title">
+          <h3>REKAPITULASI USULAN PENERIMA PENTASHARUFAN</h3>
+          <h4>BADAN AMIL ZAKAT NASIONAL KOTA SEMARANG</h4>
+          <p>BULAN ${monthName} TAHUN ${reportYear}</p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 35px;">No.</th>
+              <th>Jenis Program</th>
+              <th style="width: 140px;">Nominal</th>
+              <th style="width: 130px;">Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            <tr class="total-row">
+              <td colspan="2" style="text-align: center; font-weight: bold;">Total</td>
+              <td style="text-align: right; font-weight: bold;">${grandTotal.toLocaleString('id-ID')}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="sign-container">
+          <!-- Date top right -->
+          <table style="width: 100%; border: none; margin-bottom: 5px;">
+            <tr>
+              <td style="width: 60%; border: none;"></td>
+              <td style="width: 40%; text-align: center; border: none; font-size: 9.5pt;">
+                Semarang, ${signDateFormatted}
+              </td>
+            </tr>
+          </table>
+
+          <!-- Row 1 Signatures -->
+          <table style="width: 100%; border: none; margin-bottom: 18px;">
+            <tr>
+              <td style="width: 50%; text-align: center; border: none; font-size: 9pt;">
+                Mengetahui,<br>Kepala Pelaksana
+                <div style="height: 50px;"></div>
+                ${kpDisplay}
+              </td>
+              <td style="width: 50%; text-align: center; border: none; font-size: 9pt;">
+                <br>${kabidTitle}
+                <div style="height: 50px;"></div>
+                ${kbDisplay}
+              </td>
+            </tr>
+          </table>
+
+          <!-- Row 2 Signatures -->
+          <table style="width: 100%; border: none;">
+            <tr>
+              <td colspan="2" style="text-align: center; border: none; font-size: 9pt; padding-bottom: 6px;">
+                Menyetujui,
+              </td>
+            </tr>
+            <tr>
+              <td style="width: 50%; text-align: center; border: none; font-size: 9pt;">
+                Wakil ketua III Bidang<br>Perencanaan dan Pelaporan
+                <div style="height: 50px;"></div>
+                ${wk3Display}
+              </td>
+              <td style="width: 50%; text-align: center; border: none; font-size: 9pt;">
+                Wakil ketua II Bidang<br>Pendistribusian dan Pendayagunaan
+                <div style="height: 50px;"></div>
+                ${wk2Display}
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.focus();
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  // Handler: Export Monthly Excel Spreadsheet (.xlsx)
+  const handleExportExcelMonthly = (type: 'pendayagunaan' | 'pendistribusian') => {
+    const { reportCategories, grandTotal } = generateMonthlyReportData(type, reportMonth, reportYear);
+    const monthName = MONTH_NAMES[reportMonth - 1].toUpperCase();
+    const kabidTitle = type === 'pendayagunaan' ? 'Kepala Bidang Pendayagunaan' : 'Kepala Bidang Pendistribusian';
+
+    const kpExcel = reportSignatories.kepalaPelaksana || '( .................................................. )';
+    const kbExcel = (type === 'pendayagunaan' ? reportSignatories.kabidPendayagunaan : reportSignatories.kabidPendistribusian) || '( .................................................. )';
+    const wk3Excel = reportSignatories.wakilKetua3 || '( .................................................. )';
+    const wk2Excel = reportSignatories.wakilKetua2 || '( .................................................. )';
+
+    const signDateObj = new Date(reportSignDate);
+    const signDateFormatted = !isNaN(signDateObj.getTime())
+      ? `${signDateObj.getDate()} ${MONTH_NAMES[signDateObj.getMonth()]} ${signDateObj.getFullYear()}`
+      : `${new Date().getDate()} ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`;
+
+    const sheetRows: any[] = [];
+
+    // Title rows
+    sheetRows.push(['REKAPITULASI USULAN PENERIMA PENTASHARUFAN']);
+    sheetRows.push(['BADAN AMIL ZAKAT NASIONAL KOTA SEMARANG']);
+    sheetRows.push([`BULAN ${monthName} TAHUN ${reportYear}`]);
+    sheetRows.push([]); // blank row
+
+    // Table Header
+    sheetRows.push(['No.', 'Jenis Program', 'Nominal', 'Keterangan']);
+
+    // Data rows
+    reportCategories.forEach(cat => {
+      sheetRows.push(['', cat.categoryName, '', '']);
+      cat.items.forEach(it => {
+        sheetRows.push([it.no, it.name, it.nominal > 0 ? it.nominal : '', it.keterangan || '']);
+      });
+    });
+
+    // Total row
+    sheetRows.push(['', 'Total', grandTotal, '']);
+    sheetRows.push([]); // blank row
+
+    // Signatures
+    sheetRows.push(['', '', '', `Semarang, ${signDateFormatted}`]);
+    sheetRows.push(['Mengetahui,', '', '', '']);
+    sheetRows.push(['Kepala Pelaksana', '', '', kabidTitle]);
+    sheetRows.push([]);
+    sheetRows.push([]);
+    sheetRows.push([kpExcel, '', '', kbExcel]);
+    sheetRows.push([]);
+    sheetRows.push(['', 'Menyetujui,', '', '']);
+    sheetRows.push(['Wakil ketua III Bidang', '', '', 'Wakil ketua II Bidang']);
+    sheetRows.push(['Perencanaan dan Pelaporan', '', '', 'Pendistribusian dan Pendayagunaan']);
+    sheetRows.push([]);
+    sheetRows.push([]);
+    sheetRows.push([wk3Excel, '', '', wk2Excel]);
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+    const wb = XLSX.utils.book_new();
+    const sheetTitle = type === 'pendayagunaan' ? 'Rekap Pendayagunaan' : 'Rekap Pendistribusian';
+    XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
+    XLSX.writeFile(wb, `Laporan_Bulanan_${type === 'pendayagunaan' ? 'Pendayagunaan' : 'Pendistribusian'}_${monthName}_${reportYear}.xlsx`);
+  };
+
+  // Handler: Export Detail Transactions Excel (.xlsx)
+  const handleExportExcelDetail = () => {
     const exportRows = filteredData.map((item, idx) => {
-      const { rkatNo, rkatName } = getRkatInfo(item);
-      const { coaCode, coaName } = getCoaInfo(item);
+      const { rkatName, rkatKet } = getRkatInfo(item);
+      const { coaCode } = getCoaInfo(item);
       const { title: namaMustahik } = getMustahikDisplayName(item);
       const tglCair = getTanggalPencairan(item);
+      const isDirectItem = item.asal_data === 'Jalur Direct' || 
+        item.memo_source === 'DIRECT_PENYALURAN' || 
+        item.memo_source === 'MIGRASI_PENYALURAN' || 
+        (item.agenda_no && Number(item.agenda_no) >= 90000) ||
+        (item.keterangan || '').toLowerCase().includes('direct') ||
+        (item.keterangan || '').toLowerCase().includes('migrasi') ||
+        (item.keterangan || '').toLowerCase().includes('penyaluran zis') ||
+        item.yang_mengajukan === 'Direct Penyaluran';
+
+      // Alamat Lengkap
+      const alamatLengkap = [item.alamat || item.mustahik?.alamat, item.kelurahan, item.kecamatan]
+        .filter(Boolean)
+        .map((s: string) => String(s).trim())
+        .filter((s: string) => s !== '' && s !== '-')
+        .join(', ') || '-';
+
+      // Nama Program RKAT (Keterangan Spesifikasi)
+      let rkatDisplay = '-';
+      if (rkatName) {
+        rkatDisplay = rkatKet ? `${rkatName} (${rkatKet})` : rkatName;
+      } else if (item.program?.name) {
+        rkatDisplay = item.program.name;
+      }
+
+      // Keterangan format Buku Besar
+      const keteranganBukuBesar = getDisbursementKeterangan(item);
+
       return {
-        No: idx + 1,
-        'No. Agenda': item.asal_data === 'Jalur Direct' ? '-' : (item.agenda_no ? String(item.agenda_no) : '-'),
-        'Asal Data': item.asal_data,
-        'Nama Pemohon / Lembaga': namaMustahik || '-',
-        'Kategori': item.jenis_pengajuan || 'Perorangan',
-        'Jenis Kelamin': item.jenis_kelamin || item.mustahik?.jenis_kelamin || '-',
-        'Yang Mengajukan': item.yang_mengajukan || item.yangMengajukan || 'Pimpinan BAZNAS',
-        'Sumber Memo': item.has_memo ? (item.memo_source || 'Ya') : 'Tanpa Memo',
-        'No. RKAT': rkatNo ? `RKAT #${rkatNo}` : '-',
-        'Program Kegiatan': rkatName || item.program?.name || item.jenis_permohonan || 'Umum',
-        'Kode COA (Buku Besar)': coaCode,
-        'Nama Akun COA': coaName,
-        'Asnaf': item.asnaf || '-',
-        'Nominal (Rp)': item.nominal || 0,
-        'Status': formatStatusDisplay(item.status),
+        'No': idx + 1,
+        'No. Agenda': isDirectItem ? '-' : (item.agenda_no ? String(item.agenda_no) : '-'),
         'Tanggal Pengajuan': formatDate(item.created_at || item.tanggal_masuk),
-        'Tanggal Pencairan': tglCair ? formatDate(tglCair) : '-'
+        'Nama Pemohon': namaMustahik || item.nama_pemohon || item.mustahik?.nama || '-',
+        'NIK': item.nik || item.mustahik?.nik || '-',
+        'No. HP': item.no_telpon || item.mustahik?.handphone || item.mustahik?.telepon || '-',
+        'Alamat Lengkap': alamatLengkap,
+        'Program Kegiatan': item.program?.name || item.jenis_permohonan || 'Umum',
+        'Nama Program RKAT (Keterangan Spesifikasi)': rkatDisplay,
+        'Kode COA': coaCode,
+        'Asnaf': item.asnaf || '-',
+        'Tanggal Pencairan': tglCair ? formatDate(tglCair) : '-',
+        'Nominal': Number(item.nominal) || 0,
+        'Keterangan': keteranganBukuBesar
       };
     });
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Penyaluran ZIS');
-    XLSX.writeFile(wb, `Penyaluran_ZIS_BAZNAS_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `Data_Penyaluran_ZIS_BAZNAS_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
@@ -1875,12 +2497,12 @@ export default function PenyaluranZis() {
                 <span className="hidden sm:inline">Migrasi</span>
               </button>
               <button 
-                onClick={handleExportExcel}
-                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                title="Export Excel"
+                onClick={() => setIsReportModalOpen(true)}
+                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                title="Cetak Laporan Penyaluran ZIS"
               >
-                <Download className="size-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">Export Excel</span>
+                <Printer className="size-3.5 text-primary" />
+                <span className="hidden sm:inline">Cetak Laporan</span>
               </button>
             </div>
           </div>
@@ -2031,7 +2653,14 @@ export default function PenyaluranZis() {
               ) : (
                 paginatedData.map((item, idx) => {
                   const itemIndex = (currentPage - 1) * itemsPerPage + idx + 1;
-                  const isDirect = item.asal_data === 'Jalur Direct' || item.memo_source === 'DIRECT_PENYALURAN' || (item.agenda_no && Number(item.agenda_no) >= 90000);
+                  const isDirect = item.asal_data === 'Jalur Direct' || 
+                    item.memo_source === 'DIRECT_PENYALURAN' || 
+                    item.memo_source === 'MIGRASI_PENYALURAN' || 
+                    (item.agenda_no && Number(item.agenda_no) >= 90000) ||
+                    (item.keterangan || '').toLowerCase().includes('direct') ||
+                    (item.keterangan || '').toLowerCase().includes('migrasi') ||
+                    (item.keterangan || '').toLowerCase().includes('penyaluran zis') ||
+                    item.yang_mengajukan === 'Direct Penyaluran';
                   
                   // Extract RKAT & COA info cleanly
                   const { rkatName } = getRkatInfo(item);
@@ -3631,6 +4260,362 @@ export default function PenyaluranZis() {
                           Proses Impor &amp; Migrasi Data ({parsedMigrationRows.length} Transaksi)
                         </>
                       )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Cetak Laporan Modal */}
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => setIsReportModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10 border border-slate-100"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/20">
+                    <Printer className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-base">Cetak Laporan Penyaluran ZIS</h3>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Rekapitulasi Usulan Penerima Pentasharufan &amp; Ekspor Data BAZNAS
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="p-2 hover:bg-white/80 rounded-full transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1 text-xs">
+                {/* Select Report Type */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="size-3.5 text-primary" />
+                    Pilih Format / Jenis Laporan *
+                  </label>
+                  <select
+                    value={selectedReportType}
+                    onChange={(e) => setSelectedReportType(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+                  >
+                    <option value="pendayagunaan">Laporan Bulanan Usulan Pentasharufan — Bidang Pendayagunaan (PDF / Excel)</option>
+                    <option value="pendistribusian">Laporan Bulanan Usulan Pentasharufan — Bidang Pendistribusian (PDF / Excel)</option>
+                    <option value="excel_detail">Download Data Transaksi Penyaluran ZIS (Spreadsheet Excel .xlsx)</option>
+                  </select>
+                </div>
+
+                {/* Option 1 & 2: Bulanan Pendayagunaan / Pendistribusian */}
+                {(selectedReportType === 'pendayagunaan' || selectedReportType === 'pendistribusian') && (
+                  <div className="space-y-5 animate-fade-in">
+                    <div className="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-4 flex items-start gap-3">
+                      <FileText className="size-5 text-emerald-700 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-black text-emerald-950 text-xs uppercase tracking-wider">
+                          {selectedReportType === 'pendayagunaan' 
+                            ? 'Rekapitulasi Pentasharufan Bidang Pendayagunaan' 
+                            : 'Rekapitulasi Pentasharufan Bidang Pendistribusian'}
+                        </h4>
+                        <p className="text-emerald-800/80 text-[11px] mt-0.5 leading-relaxed">
+                          Menyusun rekapitulasi semua usulan per program (Semarang Makmur, Cerdas, Sehat, Taqwa, Peduli) pada bulan pencairan yang dipilih dengan 4 penandatangan resmi.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Period Pickers */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bulan Pencairan</label>
+                        <select
+                          value={reportMonth}
+                          onChange={(e) => setReportMonth(Number(e.target.value))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                        >
+                          {MONTH_NAMES.map((m, idx) => (
+                            <option key={idx + 1} value={idx + 1}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tahun</label>
+                        <input
+                          type="number"
+                          value={reportYear}
+                          onChange={(e) => setReportYear(Number(e.target.value))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tgl Tanda Tangan</label>
+                        <input
+                          type="date"
+                          value={reportSignDate}
+                          onChange={(e) => setReportSignDate(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Signatories 4 Pejabat */}
+                    <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <UserCheck className="size-3.5 text-primary" />
+                          Penandatangan Dokumen
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">Pilih user &amp; sesuaikan nama</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* 1. Kepala Pelaksana */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-slate-600">Kepala Pelaksana (Mengetahui)</label>
+                          <div className="flex gap-2">
+                            <select
+                              className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer font-medium"
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  setReportSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }));
+                                }
+                              }}
+                              value={usersList.some(u => u.name === reportSignatories.kepalaPelaksana) ? reportSignatories.kepalaPelaksana : ''}
+                            >
+                              <option value="">-- Pilih --</option>
+                              {usersList
+                                .filter(u => u.role === 'Kepala_Pelaksana')
+                                .map(u => (
+                                  <option key={u.id} value={u.name}>{u.name}</option>
+                                ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={reportSignatories.kepalaPelaksana}
+                              onChange={(e) => setReportSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
+                              placeholder="Nama..."
+                              className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold text-slate-800"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 2. Kabid Pendayagunaan / Pendistribusian */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-slate-600">
+                            {selectedReportType === 'pendayagunaan' ? 'Kepala Bidang Pendayagunaan' : 'Kepala Bidang Pendistribusian'}
+                          </label>
+                          <div className="flex gap-2">
+                            {selectedReportType === 'pendayagunaan' ? (
+                              <>
+                                <select
+                                  className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer font-medium"
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      setReportSignatories(prev => ({ ...prev, kabidPendayagunaan: e.target.value }));
+                                    }
+                                  }}
+                                  value={usersList.some(u => u.name === reportSignatories.kabidPendayagunaan) ? reportSignatories.kabidPendayagunaan : ''}
+                                >
+                                  <option value="">-- Pilih --</option>
+                                  {usersList
+                                    .filter(u => u.role === 'Kabag_Pendayagunaan' || u.role === 'Staf_Pendayagunaan')
+                                    .map(u => (
+                                      <option key={u.id} value={u.name}>{u.name}</option>
+                                    ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  value={reportSignatories.kabidPendayagunaan}
+                                  onChange={(e) => setReportSignatories(prev => ({ ...prev, kabidPendayagunaan: e.target.value }))}
+                                  placeholder="Nama..."
+                                  className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold text-slate-800"
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <select
+                                  className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer font-medium"
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      setReportSignatories(prev => ({ ...prev, kabidPendistribusian: e.target.value }));
+                                    }
+                                  }}
+                                  value={usersList.some(u => u.name === reportSignatories.kabidPendistribusian) ? reportSignatories.kabidPendistribusian : ''}
+                                >
+                                  <option value="">-- Pilih --</option>
+                                  {usersList
+                                    .filter(u => u.role === 'Kabag_Pendistribusian' || u.role === 'Staf_Pendistribusian')
+                                    .map(u => (
+                                      <option key={u.id} value={u.name}>{u.name}</option>
+                                    ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  value={reportSignatories.kabidPendistribusian}
+                                  onChange={(e) => setReportSignatories(prev => ({ ...prev, kabidPendistribusian: e.target.value }))}
+                                  placeholder="Nama..."
+                                  className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold text-slate-800"
+                                />
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 3. Wakil Ketua III */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-slate-600">Wakil Ketua III (Perencanaan &amp; Pelaporan)</label>
+                          <div className="flex gap-2">
+                            <select
+                              className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer font-medium"
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  setReportSignatories(prev => ({ ...prev, wakilKetua3: e.target.value }));
+                                }
+                              }}
+                              value={usersList.some(u => u.name === reportSignatories.wakilKetua3) ? reportSignatories.wakilKetua3 : ''}
+                            >
+                              <option value="">-- Pilih --</option>
+                              {usersList
+                                .filter(u => u.role === 'Wakil_Ketua_III')
+                                .map(u => (
+                                  <option key={u.id} value={u.name}>{u.name}</option>
+                                ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={reportSignatories.wakilKetua3}
+                              onChange={(e) => setReportSignatories(prev => ({ ...prev, wakilKetua3: e.target.value }))}
+                              placeholder="Nama..."
+                              className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold text-slate-800"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 4. Wakil Ketua II */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-slate-600">Wakil Ketua II (Pendistribusian &amp; Pendayagunaan)</label>
+                          <div className="flex gap-2">
+                            <select
+                              className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer font-medium"
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  setReportSignatories(prev => ({ ...prev, wakilKetua2: e.target.value }));
+                                }
+                              }}
+                              value={usersList.some(u => u.name === reportSignatories.wakilKetua2) ? reportSignatories.wakilKetua2 : ''}
+                            >
+                              <option value="">-- Pilih --</option>
+                              {usersList
+                                .filter(u => u.role === 'Wakil_Ketua_II')
+                                .map(u => (
+                                  <option key={u.id} value={u.name}>{u.name}</option>
+                                ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={reportSignatories.wakilKetua2}
+                              onChange={(e) => setReportSignatories(prev => ({ ...prev, wakilKetua2: e.target.value }))}
+                              placeholder="Nama..."
+                              className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs focus:ring-2 focus:ring-primary/20 outline-none transition-all font-bold text-slate-800"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Live Preview Summary */}
+                    {(() => {
+                      const repData = generateMonthlyReportData(selectedReportType, reportMonth, reportYear);
+                      return (
+                        <div className="bg-slate-900 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg">
+                          <div>
+                            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                              Ringkasan {MONTH_NAMES[reportMonth - 1]} {reportYear}
+                            </p>
+                            <p className="text-xs text-slate-300 font-medium mt-0.5">
+                              {repData.totalTransactions} Transaksi Terealisasi / Dicairkan
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] text-slate-400 font-medium">Total Nominal Usulan</p>
+                            <p className="text-base font-black text-emerald-400">{formatCurrency(repData.grandTotal)}</p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Download Actions */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      <button
+                        onClick={() => handlePrintPdfMonthly(selectedReportType)}
+                        className="py-3 px-4 bg-primary hover:bg-primary/95 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all cursor-pointer active:scale-98"
+                      >
+                        <Printer className="size-4" />
+                        Cetak / Simpan PDF
+                      </button>
+
+                      <button
+                        onClick={() => handleExportExcelMonthly(selectedReportType)}
+                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer active:scale-98"
+                      >
+                        <FileSpreadsheet className="size-4" />
+                        Download Excel (.xlsx)
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Option 3: Download Excel Detail */}
+                {selectedReportType === 'excel_detail' && (
+                  <div className="space-y-5 animate-fade-in">
+                    <div className="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-4 flex items-start gap-3">
+                      <FileSpreadsheet className="size-5 text-emerald-700 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-black text-emerald-950 text-xs uppercase tracking-wider">
+                          Data Detail Transaksi Penyaluran ZIS (.xlsx)
+                        </h4>
+                        <p className="text-emerald-800/80 text-[11px] mt-0.5 leading-relaxed">
+                          Mengunduh seluruh baris transaksi Penyaluran ZIS yang sedang aktif difilter ke dalam format Spreadsheet Excel lengkap dengan rincian Mustahik, Asnaf, Program RKAT, Kode Akun COA, dan Status Realisasi.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-700">Jumlah Baris Transaksi:</span>
+                        <p className="text-[11px] text-slate-400">Sesuai filter pencarian &amp; tab yang dipilih</p>
+                      </div>
+                      <span className="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-xl">
+                        {filteredData.length} Baris Data
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={handleExportExcelDetail}
+                      className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer active:scale-98"
+                    >
+                      <Download className="size-4" />
+                      Download Spreadsheet Excel Penyaluran ({filteredData.length} Transaksi)
                     </button>
                   </div>
                 )}

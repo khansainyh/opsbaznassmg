@@ -76,6 +76,7 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
             pilar_code: true,
             budget_rkat: true,
             rkat_details: true,
+            tipe: true,
             pilar: {
               select: {
                 code: true,
@@ -143,8 +144,10 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
           (p.agenda_no && p.agenda_no >= 90000) ||
           p.memo_source === 'DIRECT_PENYALURAN' || 
           p.memo_source === 'MIGRASI_PENYALURAN' ||
-          (p.keterangan || '').includes('[DIRECT') ||
-          (p.keterangan || '').includes('[MIGRASI')
+          (p.keterangan || '').toLowerCase().includes('direct') ||
+          (p.keterangan || '').toLowerCase().includes('migrasi') ||
+          (p.keterangan || '').toLowerCase().includes('penyaluran zis') ||
+          p.yang_mengajukan === 'Direct Penyaluran'
         );
         const s = (p.status || '').toLowerCase();
         const isDisbursement = s.includes('acc') || s.includes('pencairan') || s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
@@ -155,8 +158,10 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
           (p.agenda_no && p.agenda_no >= 90000) ||
           p.memo_source === 'DIRECT_PENYALURAN' || 
           p.memo_source === 'MIGRASI_PENYALURAN' ||
-          (p.keterangan || '').includes('[DIRECT') ||
-          (p.keterangan || '').includes('[MIGRASI')
+          (p.keterangan || '').toLowerCase().includes('direct') ||
+          (p.keterangan || '').toLowerCase().includes('migrasi') ||
+          (p.keterangan || '').toLowerCase().includes('penyaluran zis') ||
+          p.yang_mengajukan === 'Direct Penyaluran'
         );
         const relData = realisasiMap.get(p.id);
         const tglCair = relData?.tanggal || (p.status && (p.status.toLowerCase().includes('cair') || p.status.toLowerCase().includes('realisasi') || p.status.toLowerCase().includes('simba') || p.status.toLowerCase().includes('arsip') || p.status.toLowerCase().includes('selesai')) ? p.updated_at : null);
@@ -221,9 +226,9 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
           }
         }
 
-        if (!resolvedCoaCode) {
-          resolvedCoaCode = p.program?.code || '519999999';
-          resolvedCoaName = coaNameMap.get(resolvedCoaCode) || p.program?.name || p.jenis_permohonan || 'Beban Penyaluran ZIS';
+        if (!resolvedCoaCode || !resolvedCoaCode.startsWith('5')) {
+          resolvedCoaCode = '51010101';
+          resolvedCoaName = coaNameMap.get(resolvedCoaCode) || 'Beban Penyaluran ZIS';
         }
 
         return {
@@ -448,6 +453,11 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
       }
     }
 
+    const existingProposal = await prisma.proposal.findUnique({ where: { id: targetId } });
+    const isPreviouslyDirect = existingProposal?.memo_source === 'DIRECT_PENYALURAN' || 
+                               existingProposal?.memo_source === 'MIGRASI_PENYALURAN' || 
+                               (existingProposal?.agenda_no && existingProposal.agenda_no >= 90000);
+
     const updated = await prisma.proposal.update({
       where: { id: targetId },
       data: {
@@ -466,7 +476,11 @@ export const updatePenyaluranZis = async (req: Request, res: Response): Promise<
         ...(jenis_kelamin !== undefined && { jenis_kelamin: String(jenis_kelamin) }),
         ...(yang_mengajukan !== undefined && { yang_mengajukan: String(yang_mengajukan) }),
         ...(has_memo !== undefined && { has_memo: Boolean(has_memo) }),
-        ...(memo_source !== undefined && { memo_source: has_memo ? (memo_source ? String(memo_source) : 'Memo Pimpinan') : null }),
+        ...(memo_source !== undefined && { 
+          memo_source: has_memo 
+            ? (memo_source ? String(memo_source) : 'Memo Pimpinan') 
+            : (isPreviouslyDirect ? 'DIRECT_PENYALURAN' : null) 
+        }),
         ...(volume !== undefined && { volume: Math.max(1, Number(volume) || 1) }),
         ...(rekomendasi_unit_cost !== undefined && { rekomendasi_unit_cost: Number(rekomendasi_unit_cost) || null })
       },
