@@ -24,7 +24,8 @@ import {
   Send,
   Printer,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
@@ -52,6 +53,30 @@ function toGDriveEmbedUrl(link: string): string | null {
   return null;
 }
 
+/**
+ * Helper to identify and filter out Direct Penyaluran (Jalur Direct)
+ */
+function isDirectProposal(item: any): boolean {
+  if (!item) return false;
+  const memoSource = String(item.memoSource || item.memo_source || '');
+  const keterangan = String(item.keterangan || '');
+  const catatan = String(item.catatan || '');
+  const yangMengajukan = String(item.yangMengajukan || item.yang_mengajukan || '');
+  const asalData = String(item.asal_data || item.asalData || '');
+  const numAgenda = typeof item.agendaNo === 'number' ? item.agendaNo : parseInt(String(item.agendaNo || item.agenda_no), 10);
+
+  return (
+    memoSource === 'DIRECT_PENYALURAN' ||
+    memoSource.toLowerCase().includes('direct') ||
+    keterangan.includes('[DIRECT PENYALURAN]') ||
+    catatan.includes('Direct Penyaluran') ||
+    catatan.includes('Didaftarkan via Direct Penyaluran') ||
+    yangMengajukan.toLowerCase().includes('direct') ||
+    asalData === 'Jalur Direct' ||
+    (!isNaN(numAgenda) && numAgenda >= 90000)
+  );
+}
+
 interface InputProposalMemoProps {
   data: ProposalMemo[];          // Hanya proposal status Registrasi
   allData?: ProposalMemo[];      // Semua proposal
@@ -71,7 +96,39 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
   const [nikMessage, setNikMessage] = useState('');
   const [matchedMustahikId, setMatchedMustahikId] = useState<string | null>(null);
   const [editingProposal, setEditingProposal] = useState<ProposalMemo | null>(null);
+  const [agendaNoInput, setAgendaNoInput] = useState<string>('');
   const [noKk, setNoKk] = useState('');
+
+  const suggestedNextAgenda = React.useMemo(() => {
+    const listToCheck = data && data.length > 0 ? data : (_allData || []);
+    if (!listToCheck || listToCheck.length === 0) return 1;
+    // Filter out direct proposals
+    const validItems = listToCheck.filter(p => !isDirectProposal(p));
+    if (validItems.length === 0) return 1;
+    // Sort so the newest active proposal in Input Proposal is first
+    const sorted = [...validItems].sort((a, b) => {
+      const dateA = new Date(a.tanggalMasuk).getTime();
+      const dateB = new Date(b.tanggalMasuk).getTime();
+      if (!isNaN(dateA) && !isNaN(dateB) && dateB !== dateA) return dateB - dateA;
+      return Number(b.agendaNo || 0) - Number(a.agendaNo || 0);
+    });
+    const firstItem = sorted[0];
+    const num = typeof firstItem.agendaNo === 'number' ? firstItem.agendaNo : parseInt(String(firstItem.agendaNo || (firstItem as any).agenda_no), 10);
+    return !isNaN(num) && num > 0 ? num + 1 : 1;
+  }, [data, _allData]);
+
+  const duplicateProposal = React.useMemo(() => {
+    if (!agendaNoInput || !agendaNoInput.trim()) return null;
+    const targetNum = parseInt(agendaNoInput.trim(), 10);
+    if (isNaN(targetNum) || targetNum <= 0) return null;
+    
+    const listToCheck = _allData && _allData.length > 0 ? _allData : data;
+    return listToCheck.find(p => {
+      if (editingProposal && p.id === editingProposal.id) return false;
+      const num = typeof p.agendaNo === 'number' ? p.agendaNo : parseInt(String(p.agendaNo || (p as any).agenda_no), 10);
+      return num === targetNum;
+    }) || null;
+  }, [editingProposal, agendaNoInput, _allData, data]);
 
   // Scan modal state
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -246,26 +303,6 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
       }));
     }
   }, [users]);
-
-  // Helper to identify and filter out Direct Penyaluran (Jalur Direct)
-  const isDirectProposal = (item: any) => {
-    if (!item) return false;
-    const memoSource = String(item.memoSource || item.memo_source || '');
-    const keterangan = String(item.keterangan || '');
-    const catatan = String(item.catatan || '');
-    const yangMengajukan = String(item.yangMengajukan || item.yang_mengajukan || '');
-    const asalData = String(item.asal_data || item.asalData || '');
-
-    return (
-      memoSource === 'DIRECT_PENYALURAN' ||
-      memoSource.toLowerCase().includes('direct') ||
-      keterangan.includes('[DIRECT PENYALURAN]') ||
-      catatan.includes('Direct Penyaluran') ||
-      catatan.includes('Didaftarkan via Direct Penyaluran') ||
-      yangMengajukan.toLowerCase().includes('direct') ||
-      asalData === 'Jalur Direct'
-    );
-  };
 
   const handlePrintReport = () => {
     // Sumber data KHUSUS & HANYA dari Halaman Registrasi Administrasi (bukan Jalur Direct)
@@ -827,6 +864,19 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
       status:              'Registrasi',
     };
 
+    if (duplicateProposal) {
+      const confirmSave = window.confirm(
+        `⚠️ Peringatan No. Agenda Terduplikasi:\n\nNo. Agenda ${agendaNoInput} saat ini sudah digunakan oleh proposal lain atas nama:\n• ${duplicateProposal.namaPemohon || duplicateProposal.namaInstansi || 'Mustahik'} (${duplicateProposal.jenisPengajuan || 'Perorangan'})\n\nApakah Anda yakin ingin TETAP MENYIMPAN nomor agenda ini?`
+      );
+      if (!confirmSave) {
+        return;
+      }
+    }
+    const agendaNoVal = get('agendaNo') || agendaNoInput;
+    if (agendaNoVal) {
+      payload.agenda_no = parseInt(agendaNoVal, 10);
+    }
+
     try {
       const isLembaga = jenisPengajuanState === 'Lembaga';
       if (nikStatus === 'new' && nikCheckStr.length === 16) {
@@ -915,6 +965,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
 
   const handleEditClick = (proposal: ProposalMemo) => {
     setEditingProposal(proposal);
+    setAgendaNoInput(String(proposal.agendaNo || (proposal as any).agenda_no || ''));
     setSelectedKecamatan(proposal.kecamatan || '');
     setSelectedKelurahan(proposal.kelurahan || '');
     setNikCheckStr(proposal.nik || '');
@@ -1499,6 +1550,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
             <button 
               onClick={() => {
                 setEditingProposal(null);
+                setAgendaNoInput(String(suggestedNextAgenda));
                 setNikCheckStr('');
                 setNoKk('');
                 setNikStatus('idle');
@@ -2057,6 +2109,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
               onClick={() => {
                 setIsModalOpen(false);
                 setEditingProposal(null);
+                setAgendaNoInput('');
                 setNoKk('');
               }}
             />
@@ -2074,6 +2127,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                   onClick={() => {
                     setIsModalOpen(false);
                     setEditingProposal(null);
+                    setAgendaNoInput('');
                     setNoKk('');
                   }} 
                   className="p-2 hover:bg-slate-100 rounded-full transition-colors"
@@ -2088,6 +2142,49 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                   <div className="space-y-4">
                     <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2">Informasi Pengajuan</h4>
                     
+                    {/* Input No. Agenda (Untuk Input Baru & Edit) */}
+                    <div className="space-y-2 bg-amber-50/80 p-3.5 rounded-2xl border border-amber-200/90 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black text-amber-900 uppercase tracking-widest flex items-center gap-1.5">
+                          <Hash className="size-3.5 text-amber-600" />
+                          No. Agenda Proposal *
+                        </label>
+                        <span className="text-[10px] text-amber-700 font-medium">
+                          {editingProposal ? 'Ubah jika ada koreksi urutan agenda' : 'Nomor urut otomatis (bisa disesuaikan)'}
+                        </span>
+                      </div>
+                      <input 
+                        required 
+                        name="agendaNo" 
+                        type="number" 
+                        min="1"
+                        value={agendaNoInput}
+                        onChange={(e) => setAgendaNoInput(e.target.value)}
+                        className={cn(
+                          "w-full bg-white border rounded-xl px-4 py-2.5 text-sm font-bold text-slate-900 focus:ring-2 outline-none transition-all shadow-xs",
+                          duplicateProposal 
+                            ? "border-amber-400 focus:ring-amber-400 bg-amber-50/20" 
+                            : "border-amber-300 focus:ring-amber-400"
+                        )}
+                        placeholder="e.g. 925"
+                      />
+                      {duplicateProposal && (
+                        <div className="p-3 bg-amber-100/90 border border-amber-300/80 rounded-xl text-xs text-amber-950 space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                            <AlertCircle className="size-4 text-amber-600 shrink-0" />
+                            <span>Perhatian: No. Agenda {agendaNoInput} sudah terdaftar</span>
+                          </div>
+                          <p className="text-[11px] text-amber-900">
+                            Digunakan oleh: <span className="font-bold">{duplicateProposal.namaPemohon || duplicateProposal.namaInstansi || 'Tanpa Nama'}</span> ({duplicateProposal.jenisPengajuan || 'Perorangan'})
+                            {duplicateProposal.tanggalMasuk ? ` · Tanggal Masuk: ${duplicateProposal.tanggalMasuk}` : ''}.
+                          </p>
+                          <p className="text-[10px] text-amber-800 font-semibold italic">
+                            * Anda tetap dapat menyimpannya jika nomor agenda ini memang sesuai.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Masuk</label>
@@ -3162,6 +3259,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                 onClick={() => {
                   setIsFabOpen(false);
                   setEditingProposal(null);
+                  setAgendaNoInput(String(suggestedNextAgenda));
                   setNikCheckStr('');
                   setNoKk('');
                   setNikStatus('idle');

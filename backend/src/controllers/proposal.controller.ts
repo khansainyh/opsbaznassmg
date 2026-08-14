@@ -114,7 +114,7 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
 
     // Whitelist field yang valid di model Proposal (buang field asing seperti `catatan`)
     const allowedFields = [
-      'tanggal_masuk', 'nama_instansi', 'pimpinan_organisasi', 'nama_pemohon',
+      'agenda_no', 'tanggal_masuk', 'nama_instansi', 'pimpinan_organisasi', 'nama_pemohon',
       'nama_anak', 'nik', 'no_kk', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
       'alamat', 'kelurahan', 'kecamatan', 'pekerjaan', 'jenis_permohonan',
       'no_telpon', 'email', 'jam_pengajuan', 'yang_mengajukan',
@@ -126,6 +126,15 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
     for (const key of allowedFields) {
       if (body[key] !== undefined) {
         data[key] = body[key];
+      }
+    }
+
+    // Support explicit / manual No. Agenda
+    const rawAgenda = body.agenda_no ?? body.agendaNo ?? body.no_agenda ?? body.nomor_agenda;
+    if (rawAgenda !== undefined && rawAgenda !== null && rawAgenda !== '') {
+      const numAgenda = parseInt(String(rawAgenda), 10);
+      if (!isNaN(numAgenda) && numAgenda > 0) {
+        data.agenda_no = numAgenda;
       }
     }
 
@@ -145,54 +154,35 @@ export const createProposal = async (req: Request, res: Response): Promise<void>
     const isObs = data.jenis_pengajuan === 'OBS' || String(data.jenis_pengajuan).toUpperCase() === 'OBS';
 
     if (isObs) {
-      // Penomoran khusus OBS: Terpisah dari proposal biasa
+      // Penomoran khusus OBS: Terpisah dari proposal biasa, urut dari proposal OBS terakhir
       if (!data.agenda_no) {
-        const maxObs = await prisma.proposal.findFirst({
+        const lastObs = await prisma.proposal.findFirst({
           where: { jenis_pengajuan: 'OBS' },
-          orderBy: { agenda_no: 'desc' },
+          orderBy: { created_at: 'desc' },
           select: { agenda_no: true }
         });
-        let nextObsAgenda = (maxObs?.agenda_no || 0) + 1;
-        while (await prisma.proposal.findUnique({ where: { agenda_no: nextObsAgenda } })) {
-          nextObsAgenda++;
-        }
-        data.agenda_no = nextObsAgenda;
-      } else {
-        data.agenda_no = Number(data.agenda_no);
+        data.agenda_no = (lastObs?.agenda_no || 0) + 1;
       }
     } else {
-      // Penomoran Proposal Biasa: Terpisah dari OBS, dan dihitung per tahun proposal (agar proposal 2025 tidak menggeser antrean 2026)
+      // Penomoran Proposal Biasa: Mengikuti urutan dari proposal non-OBS terakhir yang baru dibuat/diubah
       if (!data.agenda_no) {
-        const propYear = data.tanggal_masuk ? new Date(data.tanggal_masuk).getFullYear() : new Date().getFullYear();
-        const startOfYear = new Date(`${propYear}-01-01T00:00:00.000Z`);
-        const endOfYear = new Date(`${propYear + 1}-01-01T00:00:00.000Z`);
-
-        const maxProposalInYear = await prisma.proposal.findFirst({
+        const lastProposal = await prisma.proposal.findFirst({
           where: {
             NOT: { jenis_pengajuan: 'OBS' },
-            tanggal_masuk: {
-              gte: startOfYear,
-              lt: endOfYear
-            }
+            status: 'Registrasi'
           },
-          orderBy: { agenda_no: 'desc' },
+          orderBy: { created_at: 'desc' },
+          select: { agenda_no: true }
+        }) || await prisma.proposal.findFirst({
+          where: {
+            NOT: { jenis_pengajuan: 'OBS' }
+          },
+          orderBy: { created_at: 'desc' },
           select: { agenda_no: true }
         });
 
-        let nextAgenda: number;
-        if (propYear >= 2026) {
-          const maxAgenda = maxProposalInYear?.agenda_no || 0;
-          nextAgenda = maxAgenda >= 922 ? maxAgenda + 1 : 922;
-        } else {
-          nextAgenda = (maxProposalInYear?.agenda_no || 0) + 1;
-        }
-
-        while (await prisma.proposal.findUnique({ where: { agenda_no: nextAgenda } })) {
-          nextAgenda++;
-        }
-        data.agenda_no = nextAgenda;
-      } else {
-        data.agenda_no = Number(data.agenda_no);
+        data.agenda_no = (lastProposal?.agenda_no || 0) + 1;
+        if (data.agenda_no <= 0) data.agenda_no = 1;
       }
     }
 
@@ -230,7 +220,7 @@ export const updateProposal = async (req: Request, res: Response) => {
     console.log(`[UPDATE PROPOSAL] ID: ${id}, DATA:`, body);
 
     const allowedFields = [
-      'tanggal_masuk', 'nama_instansi', 'pimpinan_organisasi', 'nama_pemohon',
+      'agenda_no', 'tanggal_masuk', 'nama_instansi', 'pimpinan_organisasi', 'nama_pemohon',
       'nama_anak', 'nik', 'no_kk', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kelurahan', 'kecamatan',
       'pekerjaan', 'jenis_permohonan', 'no_telpon', 'email', 'jam_pengajuan',
       'yang_mengajukan', 'has_memo', 'memo_source', 'jenis_pengajuan',
@@ -247,6 +237,15 @@ export const updateProposal = async (req: Request, res: Response) => {
     for (const key of allowedFields) {
       if (body[key] !== undefined) {
         data[key] = body[key];
+      }
+    }
+
+    // Support edit No. Agenda
+    const rawAgenda = body.agenda_no ?? body.agendaNo ?? body.no_agenda ?? body.nomor_agenda;
+    if (rawAgenda !== undefined && rawAgenda !== null && rawAgenda !== '') {
+      const numAgenda = parseInt(String(rawAgenda), 10);
+      if (!isNaN(numAgenda) && numAgenda > 0) {
+        data.agenda_no = numAgenda;
       }
     }
 
