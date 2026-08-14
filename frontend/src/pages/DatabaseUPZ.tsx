@@ -1511,7 +1511,7 @@ export default function DatabaseUPZ() {
     if (p?.anggota1?.nama) pengurusList.push({ nama: p.anggota1.nama, alamat: p.anggota1.alamat || '', jabatan: 'Anggota' });
     if (p?.anggota2?.nama) pengurusList.push({ nama: p.anggota2.nama, alamat: p.anggota2.alamat || '', jabatan: 'Anggota' });
     if (p?.anggotaTambahan && Array.isArray(p.anggotaTambahan)) {
-      p.anggotaTambahan.forEach(a => {
+        p.anggotaTambahan.forEach(a => {
         if (a.nama) {
           const jabatanVal = ((a as any).role || (a as any).jabatan || 'Anggota').trim();
           pengurusList.push({ nama: a.nama, alamat: a.alamat || '', jabatan: jabatanVal || 'Anggota' });
@@ -1533,10 +1533,10 @@ export default function DatabaseUPZ() {
     <style>
         @page {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.0in; /* Halaman 2 dan 3 mulai lebih ke atas (naik 2 cm) */
+            margin-top: 1.0in;
             margin-bottom: 0.8in;
-            margin-left: 0.6in; /* Lebih lebar ke samping kiri */
-            margin-right: 0.6in; /* Lebih lebar ke samping kanan */
+            margin-left: 0.6in;
+            margin-right: 0.6in;
         }
         @page Section1 {
             size: 8.5in 14.0in; /* US Legal size */
@@ -1564,7 +1564,7 @@ export default function DatabaseUPZ() {
         }
         body {
             font-family: Arial, sans-serif;
-            font-size: 11pt;
+            font-size: 12pt;
             color: #000;
             background-color: #fff;
         }
@@ -1583,9 +1583,9 @@ export default function DatabaseUPZ() {
             padding: 4px 0;
             vertical-align: top;
         }
-        .col-title { width: 110px; font-weight: bold; }
-        .col-colon { width: 15px; text-align: center; font-weight: bold; }
-        .col-content { width: calc(100% - 125px); text-align: justify; }
+        .col-title { width: 110px; font-weight: bold; font-size: 12pt; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; font-size: 12pt; }
+        .col-content { width: calc(100% - 125px); text-align: justify; font-size: 12pt; }
 
         /* Tabel Susunan Pengurus */
         .data-table {
@@ -1598,7 +1598,7 @@ export default function DatabaseUPZ() {
             border: 1px solid black;
             padding: 4px 6px;
             text-align: left;
-            font-size: 10pt;
+            font-size: 11pt;
             line-height: 1.2;
         }
         .data-table th { text-align: center; font-weight: bold; }
@@ -1628,16 +1628,16 @@ export default function DatabaseUPZ() {
     <div style="margin-top: 0.8in; mso-margin-top-alt: 0.8in;">
         <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
 
-        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px; font-size: 12pt;">
             <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
             NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
 
             <div style="margin: 8px 0;">TENTANG</div>
 
-            <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName}</span><br>
-            <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+            PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName}<br>
+            BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG<br>
 
-            <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+            <div style="margin: 12px 0;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
         </div>
 
         <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
@@ -1672,15 +1672,15 @@ export default function DatabaseUPZ() {
         </table>
     </div>
 
-    <!-- DIKTUM KEPUTUSAN (HALAMAN 2 - MULAI LEBIH KE ATAS) -->
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2) -->
     <div class="page-break" style="page-break-before: always; clear: both;"></div>
-    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 15px; font-size: 12pt;">MEMUTUSKAN</div>
 
     <table class="layout-table">
         <tr>
             <td class="col-title">Menetapkan</td>
             <td class="col-colon">:</td>
-            <td class="col-content bold uppercase">
+            <td class="col-content uppercase">
                 KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName} PERIODE ${periodeTahun}.
             </td>
         </tr>
@@ -1733,27 +1733,27 @@ export default function DatabaseUPZ() {
     <div style="clear: both; margin-top: 35px; width: 100%; page-break-inside: avoid;">
         <table align="right" style="width: 350px; margin-left: auto; margin-right: 25px; border-collapse: collapse; border: none; text-align: left;">
             <tr>
-                <td style="width: 100px; border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
-                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
+                <td style="width: 100px; border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Semarang</td>
             </tr>
             <tr>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
-                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
     </div>
 
     <!-- TEMBUSAN -->
-    <div class="tembusan" style="margin-top: 25px; font-size: 9pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+    <div class="tembusan" style="margin-top: 25px; font-size: 10pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
         <div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px;">Salinan disampaikan kepada Yth.:</div>
         <ol style="margin: 0; padding-left: 15px; list-style-type: decimal;">
             <li style="margin-bottom: 3px;">Walikota Semarang (sebagai laporan);</li>
@@ -1763,9 +1763,9 @@ export default function DatabaseUPZ() {
         </ol>
     </div>
 
-    <!-- HALAMAN 3: LAMPIRAN (MULAI LEBIH KE ATAS, COMPACT & JABATAN UPZ DIPENDEKKAN) -->
+    <!-- HALAMAN 3: LAMPIRAN -->
     <div class="page-break" style="page-break-before: always; clear: both;">
-        <table style="width: 100%; font-size: 10.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
+        <table style="width: 100%; font-size: 11.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
             <tr>
                 <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
                 <td style="width: 15px; border: none; padding: 1px 0; font-weight: bold; text-align: center; vertical-align: top;">:</td>
@@ -1779,7 +1779,7 @@ export default function DatabaseUPZ() {
             </tr>
         </table>
 
-        <div class="text-center bold uppercase" style="margin-top: 15px; margin-bottom: 12px; line-height: 1.25; font-size: 10.5pt;">
+        <div class="text-center uppercase" style="margin-top: 15px; margin-bottom: 12px; line-height: 1.25; font-size: 11.5pt;">
             SUSUNAN PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
             ${upzTitleName}<br>
             PERIODE ${periodeTahun}
@@ -1789,32 +1789,32 @@ export default function DatabaseUPZ() {
         <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 15px;">
             <thead>
                 <tr>
-                    <th style="width: 6%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">NO</th>
-                    <th style="width: 38%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">NAMA</th>
-                    <th style="width: 36%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">ALAMAT</th>
-                    <th style="width: 20%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">JABATAN DALAM UPZ</th>
+                    <th style="width: 6%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">NO</th>
+                    <th style="width: 38%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">NAMA</th>
+                    <th style="width: 36%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">ALAMAT</th>
+                    <th style="width: 20%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">JABATAN DALAM UPZ</th>
                 </tr>
             </thead>
             <tbody>
                 ${pengurusList.map((item, idx) => `
                 <tr>
-                    <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-size: 10pt;">${idx + 1}.</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.nama}</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.alamat || '-'}</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.jabatan}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-size: 11pt;">${idx + 1}.</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.nama}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.alamat || '-'}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.jabatan}</td>
                 </tr>
                 `).join('')}
             </tbody>
         </table>
 
-        <!-- TANDA TANGAN LAMPIRAN -->
-        <div style="clear: both; margin-top: 18px; width: 100%; page-break-inside: avoid;">
-            <table align="right" style="width: 350px; margin-left: auto; margin-right: 20px; border-collapse: collapse; border: none; text-align: left;">
+        <!-- TANDA TANGAN LAMPIRAN (LUAS DISAMAKAN DENGAN HALAMAN 2) -->
+        <div style="clear: both; margin-top: 35px; width: 100%; page-break-inside: avoid;">
+            <table align="right" style="width: 350px; margin-left: auto; margin-right: 25px; border-collapse: collapse; border: none; text-align: left;">
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10.5pt; font-family: Arial, sans-serif; padding-bottom: 50px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
                 </tr>
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
                 </tr>
             </table>
             <div style="clear: both;"></div>
@@ -1839,10 +1839,10 @@ export default function DatabaseUPZ() {
     <style>
         @page {
             size: 8.5in 14.0in; /* US Legal size */
-            margin-top: 1.0in; /* Halaman 2 dan 3 mulai lebih ke atas (naik 2 cm) */
+            margin-top: 1.0in;
             margin-bottom: 0.8in;
-            margin-left: 0.6in; /* Lebih lebar ke samping kiri */
-            margin-right: 0.6in; /* Lebih lebar ke samping kanan */
+            margin-left: 0.6in;
+            margin-right: 0.6in;
         }
         @page Section1 {
             size: 8.5in 14.0in; /* US Legal size */
@@ -1870,7 +1870,7 @@ export default function DatabaseUPZ() {
         }
         body {
             font-family: Arial, sans-serif;
-            font-size: 11pt;
+            font-size: 12pt;
             color: #000;
             background-color: #fff;
         }
@@ -1889,9 +1889,9 @@ export default function DatabaseUPZ() {
             padding: 4px 0;
             vertical-align: top;
         }
-        .col-title { width: 110px; font-weight: bold; }
-        .col-colon { width: 15px; text-align: center; font-weight: bold; }
-        .col-content { width: calc(100% - 125px); text-align: justify; }
+        .col-title { width: 110px; font-weight: bold; font-size: 12pt; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; font-size: 12pt; }
+        .col-content { width: calc(100% - 125px); text-align: justify; font-size: 12pt; }
 
         /* Tabel Susunan Pengurus */
         .data-table {
@@ -1904,7 +1904,7 @@ export default function DatabaseUPZ() {
             border: 1px solid black;
             padding: 4px 6px;
             text-align: left;
-            font-size: 10pt;
+            font-size: 11pt;
             line-height: 1.2;
         }
         .data-table th { text-align: center; font-weight: bold; }
@@ -1934,16 +1934,16 @@ export default function DatabaseUPZ() {
     <div style="margin-top: 0.8in; mso-margin-top-alt: 0.8in;">
         <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
 
-        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px; font-size: 12pt;">
             <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
             NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
 
             <div style="margin: 8px 0;">TENTANG</div>
 
-            <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
-            <span class="bold">${upzTitleName} PERIODE ${periodeTahun}</span><br>
+            PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
+            ${upzTitleName} PERIODE ${periodeTahun}<br>
 
-            <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+            <div style="margin: 12px 0;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
         </div>
 
         <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
@@ -1977,15 +1977,15 @@ export default function DatabaseUPZ() {
         </table>
     </div>
 
-    <!-- DIKTUM KEPUTUSAN (HALAMAN 2 - MULAI LEBIH KE ATAS) -->
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2) -->
     <div class="page-break" style="page-break-before: always; clear: both;"></div>
-    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 15px; font-size: 12pt;">MEMUTUSKAN</div>
 
     <table class="layout-table">
         <tr>
             <td class="col-title">Menetapkan</td>
             <td class="col-colon">:</td>
-            <td class="col-content bold uppercase">
+            <td class="col-content uppercase">
                 KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UPZ ${upzTitleName} PERIODE ${periodeTahun}.
             </td>
         </tr>
@@ -2038,27 +2038,27 @@ export default function DatabaseUPZ() {
     <div style="clear: both; margin-top: 35px; width: 100%; page-break-inside: avoid;">
         <table align="right" style="width: 350px; margin-left: auto; margin-right: 25px; border-collapse: collapse; border: none; text-align: left;">
             <tr>
-                <td style="width: 100px; border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
-                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
+                <td style="width: 100px; border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Semarang</td>
             </tr>
             <tr>
-                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
-                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
     </div>
 
     <!-- TEMBUSAN -->
-    <div class="tembusan" style="margin-top: 25px; font-size: 9pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+    <div class="tembusan" style="margin-top: 25px; font-size: 10pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
         <div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px;">Salinan disampaikan kepada Yth.:</div>
         <ol style="margin: 0; padding-left: 15px; list-style-type: decimal;">
             <li style="margin-bottom: 3px;">Walikota Semarang (sebagai laporan);</li>
@@ -2068,9 +2068,9 @@ export default function DatabaseUPZ() {
         </ol>
     </div>
 
-    <!-- HALAMAN 3: LAMPIRAN (MULAI LEBIH KE ATAS, COMPACT & JABATAN UPZ DIPENDEKKAN) -->
+    <!-- HALAMAN 3: LAMPIRAN -->
     <div class="page-break" style="page-break-before: always; clear: both;">
-        <table style="width: 100%; font-size: 10.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
+        <table style="width: 100%; font-size: 11.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
             <tr>
                 <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
                 <td style="width: 15px; border: none; padding: 1px 0; font-weight: bold; text-align: center; vertical-align: top;">:</td>
@@ -2084,7 +2084,7 @@ export default function DatabaseUPZ() {
             </tr>
         </table>
 
-        <div class="text-center bold uppercase" style="margin-top: 15px; margin-bottom: 12px; line-height: 1.25; font-size: 10.5pt;">
+        <div class="text-center uppercase" style="margin-top: 15px; margin-bottom: 12px; line-height: 1.25; font-size: 11.5pt;">
             SUSUNAN PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
             ${upzTitleName}<br>
             PERIODE ${periodeTahun}
@@ -2094,32 +2094,32 @@ export default function DatabaseUPZ() {
         <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 15px;">
             <thead>
                 <tr>
-                    <th style="width: 6%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">NO</th>
-                    <th style="width: 38%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">NAMA</th>
-                    <th style="width: 36%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">JABATAN DALAM INSTANSI</th>
-                    <th style="width: 20%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">JABATAN DALAM UPZ</th>
+                    <th style="width: 6%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">NO</th>
+                    <th style="width: 38%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">NAMA</th>
+                    <th style="width: 36%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">JABATAN DALAM INSTANSI</th>
+                    <th style="width: 20%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">JABATAN DALAM UPZ</th>
                 </tr>
             </thead>
             <tbody>
                 ${pengurusList.map((item, idx) => `
                 <tr>
-                    <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-size: 10pt;">${idx + 1}.</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.nama}</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.alamat || '-'}</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.jabatan}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-size: 11pt;">${idx + 1}.</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.nama}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.alamat || '-'}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.jabatan}</td>
                 </tr>
                 `).join('')}
             </tbody>
         </table>
 
-        <!-- TANDA TANGAN LAMPIRAN -->
-        <div style="clear: both; margin-top: 18px; width: 100%; page-break-inside: avoid;">
-            <table align="right" style="width: 350px; margin-left: auto; margin-right: 20px; border-collapse: collapse; border: none; text-align: left;">
+        <!-- TANDA TANGAN LAMPIRAN (LUAS DISAMAKAN DENGAN HALAMAN 2) -->
+        <div style="clear: both; margin-top: 35px; width: 100%; page-break-inside: avoid;">
+            <table align="right" style="width: 350px; margin-left: auto; margin-right: 25px; border-collapse: collapse; border: none; text-align: left;">
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10.5pt; font-family: Arial, sans-serif; padding-bottom: 50px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
                 </tr>
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
                 </tr>
             </table>
             <div style="clear: both;"></div>
@@ -2177,7 +2177,7 @@ export default function DatabaseUPZ() {
         }
         body {
             font-family: Arial, sans-serif;
-            font-size: 11pt;
+            font-size: 12pt;
             color: #000;
             background-color: #fff;
         }
@@ -2196,9 +2196,9 @@ export default function DatabaseUPZ() {
             padding: 4px 0;
             vertical-align: top;
         }
-        .col-title { width: 110px; font-weight: bold; }
-        .col-colon { width: 15px; text-align: center; font-weight: bold; }
-        .col-content { width: calc(100% - 125px); text-align: justify; }
+        .col-title { width: 110px; font-weight: bold; font-size: 12pt; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; font-size: 12pt; }
+        .col-content { width: calc(100% - 125px); text-align: justify; font-size: 12pt; }
 
         /* Tabel Susunan Pengurus */
         .data-table {
@@ -2211,7 +2211,7 @@ export default function DatabaseUPZ() {
             border: 1px solid black;
             padding: 4px 6px;
             text-align: left;
-            font-size: 10pt;
+            font-size: 11pt;
             line-height: 1.2;
         }
         .data-table th { text-align: center; font-weight: bold; }
@@ -2241,18 +2241,17 @@ export default function DatabaseUPZ() {
         <div style="border-top: 2px solid #000; margin-bottom: 15px; width: 100%;"></div>
 
         <!-- HALAMAN 1: SURAT KEPUTUSAN -->
-        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px;">
+        <div class="text-center uppercase" style="line-height: 1.3; margin-bottom: 18px; font-size: 12pt;">
             <span class="bold">KEPUTUSAN</span><br>
             <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
             NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
 
             <div style="margin: 8px 0;">TENTANG</div>
 
-            <span class="bold">PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)</span><br>
-            <span class="bold">${upzTitleName} KOTA SEMARANG</span><br>
-            <span class="bold">BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+            PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ)<br>
+            ${upzTitleName} KOTA SEMARANG PERIODE ${periodeTahun}<br>
 
-            <div style="margin: 12px 0; font-weight: bold;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
+            <div style="margin: 12px 0;">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG,</div>
         </div>
 
         <!-- KONSIDERAN: MENIMBANG & MENGINGAT -->
@@ -2264,7 +2263,7 @@ export default function DatabaseUPZ() {
                     <ol type="a" style="margin: 0; padding-left: 15px;">
                         <li style="margin-bottom: 6px;">Bahwa untuk meningkatkan pengumpulan zakat, infak dan sedekah, maka dipandang perlu untuk ${aksiBentukAtauUsul} Unit Pengumpul Zakat (UPZ) ${tingkatText};</li>
                         <li style="margin-bottom: 6px;">Usulan ${usulanPimpinan} tanggal ${tglSuratMasuk} tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus UPZ ${upzTextName} Periode ${periodeTahun};</li>
-                        <li style="margin-bottom: 6px;">bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
+                        <li style="margin-bottom: 6px;">Bahwa berdasarkan huruf a, dan huruf b, maka perlu diterbitkan Keputusan Ketua BAZNAS Kota Semarang tentang Pengangkatan ${tipePerubahanTeks ? tipePerubahanTeks + ' ' : ''}Pengurus Unit Pengumpul Zakat (UPZ) ${upzTextName} Periode ${periodeTahun}.</li>
                     </ol>
                 </td>
             </tr>
@@ -2287,16 +2286,16 @@ export default function DatabaseUPZ() {
         </table>
     </div>
 
-    <!-- DIKTUM KEPUTUSAN -->
+    <!-- DIKTUM KEPUTUSAN (HALAMAN 2) -->
     <div class="page-break" style="page-break-before: always; clear: both;"></div>
-    <div class="text-center bold" style="margin-top: 15px; margin-bottom: 15px; font-size: 11pt;">MEMUTUSKAN</div>
+    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 15px; font-size: 12pt;">MEMUTUSKAN</div>
 
     <table class="layout-table">
         <tr>
             <td class="col-title">Menetapkan</td>
             <td class="col-colon">:</td>
-            <td class="col-content bold uppercase">
-                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName} PERIODE ${periodeTahun}.
+            <td class="col-content uppercase">
+                KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG TENTANG PENGANGKATAN ${tipePerubahan ? tipePerubahan + ' ' : ''}PENGURUS UNIT PENGUMPUL ZAKAT (UPZ) ${upzTitleName} KOTA SEMARANG PERIODE ${periodeTahun}.
             </td>
         </tr>
         <tr>
@@ -2313,9 +2312,9 @@ export default function DatabaseUPZ() {
                 Pengurus sebagaimana dimaksud pada DIKTUM PERTAMA memiliki tugas dan kewajiban sebagai berikut:
                 <ol type="a" style="margin: 0; padding-left: 15px;">
                     <li style="margin-bottom: 6px;">Sosialisasi dan edukasi zakat, infak dan sedekah pada institusi UPZ ${upzTextName} Kota Semarang;</li>
-                    <li style="margin-bottom: 6px;">Mengumpulkan Dana Zakat, Infak dan Sedekah di ${isKecamatan ? 'Wilayah' : 'lingkungan'} ${upzTextName} Kota Semarang;</li>
+                    <li style="margin-bottom: 6px;">Mengumpulkan Dana Zakat, Infak dan Sedekah di lingkungan ${upzTextName} Kota Semarang;</li>
                     <li style="margin-bottom: 6px;">Seluruh hasil pengumpulan dana UPZ wajib disetorkan kepada BAZNAS Kota Semarang;</li>
-                    <li style="margin-bottom: 6px;">Pendataan dan layanan muzakki pada masing-masing institusi UPZ ${upzTextName};</li>
+                    <li style="margin-bottom: 6px;">Pendataan dan layanan muzakki pada masing-masing institusi UPZ ${upzTextName} Kota Semarang;</li>
                     <li style="margin-bottom: 6px;">Penyerahan Nomor Pokok Wajib Zakat (NPWZ) dan Bukti Setor Zakat (BSZ) yang diterbitkan oleh BAZNAS Kota Semarang kepada muzakki;</li>
                     <li style="margin-bottom: 6px;">Penyusunan laporan kegiatan pengumpulan zakat, infak dan sedekah BAZNAS Kota Semarang.</li>
                 </ol>
@@ -2348,27 +2347,27 @@ export default function DatabaseUPZ() {
     <div style="clear: both; margin-top: 35px; width: 100%; page-break-inside: avoid;">
         <table align="right" style="width: 350px; margin-left: auto; margin-right: 25px; border-collapse: collapse; border: none; text-align: left;">
             <tr>
-                <td style="width: 100px; border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
-                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
+                <td style="width: 100px; border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 15px; border: none; padding: 2px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Semarang</td>
             </tr>
             <tr>
-                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
-                <td style="border: none; padding: 2px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 2px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 2px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 2px 0; font-size: 12pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
     </div>
 
     <!-- TEMBUSAN -->
-    <div class="tembusan" style="margin-top: 25px; font-size: 9pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+    <div class="tembusan" style="margin-top: 25px; font-size: 10pt; line-height: 1.3; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
         <div style="font-weight: bold; text-decoration: underline; margin-bottom: 4px;">Salinan disampaikan kepada Yth.:</div>
         <ol style="margin: 0; padding-left: 15px; list-style-type: decimal;">
             <li style="margin-bottom: 3px;">Walikota Semarang (sebagai laporan);</li>
@@ -2380,7 +2379,7 @@ export default function DatabaseUPZ() {
 
     <!-- HALAMAN 3: LAMPIRAN -->
     <div class="page-break" style="page-break-before: always; clear: both;">
-        <table style="width: 100%; font-size: 10.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
+        <table style="width: 100%; font-size: 11.5pt; font-family: Arial, sans-serif; border-collapse: collapse; border: none; vertical-align: top;">
             <tr>
                 <td style="width: 110px; border: none; padding: 1px 0; font-weight: bold; vertical-align: top;">LAMPIRAN</td>
                 <td style="width: 15px; border: none; padding: 1px 0; font-weight: bold; text-align: center; vertical-align: top;">:</td>
@@ -2394,7 +2393,7 @@ export default function DatabaseUPZ() {
             </tr>
         </table>
 
-        <div class="text-center bold uppercase" style="margin-top: 15px; margin-bottom: 12px; line-height: 1.25; font-size: 10.5pt;">
+        <div class="text-center uppercase" style="margin-top: 15px; margin-bottom: 12px; line-height: 1.25; font-size: 11.5pt;">
             SUSUNAN PENGURUS<br>
             UNIT PENGUMPUL ZAKAT (UPZ)<br>
             ${upzTitleName} KOTA SEMARANG<br>
@@ -2405,32 +2404,32 @@ export default function DatabaseUPZ() {
         <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 15px;">
             <thead>
                 <tr>
-                    <th style="width: 6%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">NO</th>
-                    <th style="width: 38%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">NAMA</th>
-                    <th style="width: 36%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">JABATAN DALAM INSTANSI</th>
-                    <th style="width: 20%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 10pt;">JABATAN DALAM UPZ</th>
+                    <th style="width: 6%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">NO</th>
+                    <th style="width: 38%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">NAMA</th>
+                    <th style="width: 36%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">JABATAN DALAM INSTANSI</th>
+                    <th style="width: 20%; border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold; font-size: 11pt;">JABATAN DALAM UPZ</th>
                 </tr>
             </thead>
             <tbody>
                 ${pengurusList.map((item, idx) => `
                 <tr>
-                    <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-size: 10pt;">${idx + 1}.</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.nama}</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.alamat || '-'}</td>
-                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 10pt;">${item.jabatan}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-size: 11pt;">${idx + 1}.</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.nama}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.alamat || '-'}</td>
+                    <td style="border: 1px solid black; padding: 4px 6px; font-size: 11pt;">${item.jabatan}</td>
                 </tr>
                 `).join('')}
             </tbody>
         </table>
 
-        <!-- TANDA TANGAN LAMPIRAN -->
-        <div style="clear: both; margin-top: 18px; width: 100%; page-break-inside: avoid;">
-            <table align="right" style="width: 350px; margin-left: auto; margin-right: 20px; border-collapse: collapse; border: none; text-align: left;">
+        <!-- TANDA TANGAN LAMPIRAN (LUAS DISAMAKAN DENGAN HALAMAN 2) -->
+        <div style="clear: both; margin-top: 35px; width: 100%; page-break-inside: avoid;">
+            <table align="right" style="width: 350px; margin-left: auto; margin-right: 25px; border-collapse: collapse; border: none; text-align: left;">
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10.5pt; font-family: Arial, sans-serif; padding-bottom: 50px;">KETUA BAZNAS KOTA SEMARANG,</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
                 </tr>
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
                 </tr>
             </table>
             <div style="clear: both;"></div>
@@ -2476,12 +2475,12 @@ export default function DatabaseUPZ() {
             mso-margin-bottom-alt: 0pt;
             mso-padding-top-alt: 0pt;
             mso-padding-bottom-alt: 0pt;
-            line-height: 1.0;
+            line-height: 1.1;
             mso-line-height-rule: exactly;
         }
         body {
             font-family: Arial, sans-serif;
-            font-size: 10pt;
+            font-size: 12pt;
             color: #000;
             background-color: #fff;
         }
@@ -2500,9 +2499,9 @@ export default function DatabaseUPZ() {
             padding: 1px 0;
             vertical-align: top;
         }
-        .col-title { width: 110px; font-weight: bold; }
-        .col-colon { width: 15px; text-align: center; font-weight: bold; }
-        .col-content { width: calc(100% - 125px); text-align: justify; }
+        .col-title { width: 110px; font-weight: bold; font-size: 12pt; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; font-size: 12pt; }
+        .col-content { width: calc(100% - 125px); text-align: justify; font-size: 12pt; }
 
         /* Tabel Susunan Pengurus */
         .data-table {
@@ -2515,8 +2514,8 @@ export default function DatabaseUPZ() {
             border: 1px solid black;
             padding: 3px 5px;
             text-align: left;
-            font-size: 10pt;
-            line-height: 1.0;
+            font-size: 11pt;
+            line-height: 1.1;
         }
         .data-table th { text-align: center; font-weight: bold; }
 
@@ -2524,12 +2523,12 @@ export default function DatabaseUPZ() {
             padding-left: 15px;
         }
         li {
-            line-height: 1.0;
+            line-height: 1.1;
             text-align: justify;
         }
 
         .tembusan, .tembusan * {
-            line-height: 1.0 !important;
+            line-height: 1.1 !important;
         }
     </style>
 </head>
@@ -2538,9 +2537,8 @@ export default function DatabaseUPZ() {
 
     <div style="border-top: 2px solid #000; margin-bottom: 12px; width: 100%;"></div>
 
-    <div class="text-center uppercase" style="line-height: 1.0; margin-bottom: 12px;">
-        <span class="bold">KEPUTUSAN</span><br>
-        <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
+    <div class="text-center uppercase" style="line-height: 1.2; margin-bottom: 12px; font-size: 12pt;">
+        <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
         NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
 
         <div style="margin: 6px 0;">TENTANG</div>
@@ -2550,7 +2548,7 @@ export default function DatabaseUPZ() {
         MASA BHAKTI ${periodeTahun}<br>
 
         <div style="margin: 6px 0;">DENGAN RAHMAT TUHAN YANG MAHA ESA</div>
-        <span class="bold">KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span>
+        <div>KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</div>
     </div>
 
     <table class="layout-table">
@@ -2578,7 +2576,7 @@ export default function DatabaseUPZ() {
         </tr>
     </table>
 
-    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 10px; font-size: 10pt;">MEMUTUSKAN</div>
+    <div class="text-center bold" style="margin-top: 10px; margin-bottom: 10px; font-size: 12pt;">MEMUTUSKAN</div>
 
     <table class="layout-table">
         <tr>
@@ -2636,26 +2634,26 @@ export default function DatabaseUPZ() {
     <div style="clear: both; margin-top: 20px; width: 100%; page-break-inside: avoid;">
         <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
             <tr>
-                <td style="width: 90px; border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
-                <td style="width: 10px; border: none; padding: 1px 0; text-align: center; font-size: 10pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">Semarang</td>
+                <td style="width: 90px; border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 10px; border: none; padding: 1px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">Semarang</td>
             </tr>
             <tr>
-                <td style="border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">Pada tanggal</td>
-                <td style="border: none; padding: 1px 0; text-align: center; font-size: 10pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 1px 0; font-size: 10pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+                <td style="border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 1px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10pt; font-family: Arial, sans-serif; padding-top: 8px; padding-bottom: 50px;">K E T U A,</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 8px; padding-bottom: 50px;">K E T U A,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 10pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
     </div>
 
-    <div class="tembusan" style="margin-top: 15px; font-size: 6.5pt; line-height: 1.0; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+    <div class="tembusan" style="margin-top: 15px; font-size: 10pt; line-height: 1.1; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
         <div style="font-weight: bold; text-decoration: underline; margin-bottom: 2px;">Tembusan ini disampaikan kepada Yth.:</div>
         <ol style="margin: 0; padding-left: 12px; list-style-type: decimal;">
             <li style="margin-bottom: 1px;">Walikota Semarang (sebagai laporan);</li>
