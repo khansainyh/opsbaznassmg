@@ -1352,13 +1352,13 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
               .location-kelurahan {
                   flex: 0 0 24%;
                   max-width: 25%;
-                  text-align: center;
+                  text-align: left;
               }
 
               .location-kecamatan {
                   flex: 0 0 24%;
                   max-width: 25%;
-                  text-align: right;
+                  text-align: left;
               }
 
               .disposisi-table-container {

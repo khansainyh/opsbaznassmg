@@ -630,13 +630,13 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               .location-kelurahan {
                   flex: 0 0 24%;
                   max-width: 25%;
-                  text-align: center;
+                  text-align: left;
               }
 
               .location-kecamatan {
                   flex: 0 0 24%;
                   max-width: 25%;
-                  text-align: right;
+                  text-align: left;
               }
 
               .disposisi-table-container {

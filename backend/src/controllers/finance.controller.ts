@@ -540,15 +540,29 @@ export const checkAvailability = async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Flag is_target_program and sort target program activities to the top
+    // 3. Filter only relevant RKAT activities linked in settingan RKAT
     const targetCode = targetProgram ? targetProgram.code : (matchedAct ? matchedAct.program_code : '');
-    allActivities.forEach(a => {
+    
+    // Strict filtering: Only activities belonging to the matched program in settingan RKAT
+    let relevantActivities = allActivities.filter(a => a.program_code === targetCode);
+    
+    // Fallback: If no direct activities found for this program code but targetProgram exists with pilar, filter by pilar
+    if (relevantActivities.length === 0 && targetProgram?.pilar_code) {
+      relevantActivities = allActivities.filter(a => a.pilar_code === targetProgram.pilar_code);
+    }
+    
+    // If still empty (e.g. unmapped program), fallback to matchedAct if exists
+    if (relevantActivities.length === 0 && matchedAct) {
+      relevantActivities = [matchedAct];
+    }
+
+    relevantActivities.forEach(a => {
       a.is_target_program = a.program_code === targetCode;
     });
 
     const sortedActivities = [
-      ...allActivities.filter(a => a.is_target_program),
-      ...allActivities.filter(a => !a.is_target_program)
+      ...relevantActivities.filter(a => a.is_target_program),
+      ...relevantActivities.filter(a => !a.is_target_program)
     ];
 
     // 4. Construct rkat_spesifik and rkat_alternatif
