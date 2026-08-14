@@ -1326,12 +1326,39 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
               .perihal-locations {
                   display: flex;
                   justify-content: space-between;
-                  align-items: center;
+                  align-items: flex-end;
                   font-weight: bold;
-                  font-size: 18px;
+                  font-size: 17px;
+                  line-height: 1.25;
                   width: 100%;
                   margin-top: auto;
-                  padding-top: 8px;
+                  padding-top: 6px;
+                  gap: 12px;
+                  box-sizing: border-box;
+              }
+
+              .location-col {
+                  box-sizing: border-box;
+                  word-break: break-word;
+              }
+
+              .location-alamat {
+                  flex: 1 1 ${(kelurahanTampil || kecamatanTampil) ? '50%' : '100%'};
+                  max-width: ${(kelurahanTampil || kecamatanTampil) ? '52%' : '100%'};
+                  text-align: left;
+                  white-space: normal;
+              }
+
+              .location-kelurahan {
+                  flex: 0 0 24%;
+                  max-width: 25%;
+                  text-align: center;
+              }
+
+              .location-kecamatan {
+                  flex: 0 0 24%;
+                  max-width: 25%;
+                  text-align: right;
               }
 
               .disposisi-table-container {
@@ -1402,9 +1429,9 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                                   </div>
                                   ${(alamatTampil || kelurahanTampil || kecamatanTampil) ? `
                                   <div class="perihal-locations">
-                                      <span>${alamatTampil}</span>
-                                      ${kelurahanTampil ? `<span>${kelurahanTampil}</span>` : ''}
-                                      ${kecamatanTampil ? `<span>${kecamatanTampil}</span>` : ''}
+                                      <div class="location-col location-alamat">${(alamatTampil || '').replace(/\r?\n/g, '<br/>')}</div>
+                                      ${kelurahanTampil ? `<div class="location-col location-kelurahan">${kelurahanTampil}</div>` : ''}
+                                      ${kecamatanTampil ? `<div class="location-col location-kecamatan">${kecamatanTampil}</div>` : ''}
                                   </div>
                                   ` : ''}
                               </div>
