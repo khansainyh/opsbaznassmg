@@ -237,6 +237,9 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
   const [tanggalLahirInput, setTanggalLahirInput] = useState('');
 
   // Styled custom dropdown states
+  const [hasMemoState, setHasMemoState] = useState(false);
+  const [selectedMemoType, setSelectedMemoType] = useState<'Memo' | 'Dispo'>('Memo');
+  const [isMemoTypeDropdownOpen, setIsMemoTypeDropdownOpen] = useState(false);
   const [isMemoDropdownOpen, setIsMemoDropdownOpen] = useState(false);
   const [selectedMemoSource, setSelectedMemoSource] = useState('');
   const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
@@ -858,8 +861,8 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
       catatan:             catatanText,
       keterangan:          catatanText,
       yang_mengajukan:     get('yangMengajukan') || null,
-      has_memo:            fd.get('hasMemo') === 'on',
-      memo_source:         get('memoSource') || null,
+      has_memo:            hasMemoState,
+      memo_source:         hasMemoState ? (selectedMemoSource ? `${selectedMemoType} ${selectedMemoSource.replace(/^(memo|dispo|disposisi)\s*[:\-]?\s*/i, '').trim()}` : `${selectedMemoType} Pimpinan`) : null,
       rekomendasi:         get('rekomendasi') || null,
       status:              'Registrasi',
     };
@@ -971,7 +974,21 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
     setNikCheckStr(proposal.nik || '');
     setNoKk(proposal.no_kk || '');
     setSelectedProgramCode(proposal.programCode || proposal.jenisPermohonan || '');
-    setSelectedMemoSource(proposal.memoSource || '');
+    const isMemo = Boolean(proposal.hasMemo || (proposal as any).has_memo);
+    setHasMemoState(isMemo);
+    const rawMemoSource = proposal.memoSource || (proposal as any).memo_source || '';
+    if (rawMemoSource.toLowerCase().startsWith('dispo')) {
+      setSelectedMemoType('Dispo');
+      const clean = rawMemoSource.replace(/^(disposisi|dispo)\s*[:\-]?\s*/i, '').trim();
+      setSelectedMemoSource(clean || rawMemoSource);
+    } else if (rawMemoSource.toLowerCase().startsWith('memo')) {
+      setSelectedMemoType('Memo');
+      const clean = rawMemoSource.replace(/^memo\s*[:\-]?\s*/i, '').trim();
+      setSelectedMemoSource(clean || rawMemoSource);
+    } else {
+      setSelectedMemoType('Memo');
+      setSelectedMemoSource(rawMemoSource);
+    }
     setSelectedGender(proposal.jenis_kelamin || '');
     setSelectedPekerjaan(proposal.pekerjaan || '');
     let dob = proposal.tanggal_lahir || '';
@@ -1507,7 +1524,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
           color="amber"
         />
         <StatCard 
-          title="Memo Pimpinan"
+          title="Memo / Dispo Pimpinan"
           value={memoPimpinan.toString()}
           icon={<History className="size-5" />}
           color="blue"
@@ -1563,6 +1580,8 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                 setSelectedProgramCode('');
                 setProgramSearchQuery('');
                 setTanggalLahirInput('');
+                setHasMemoState(false);
+                setSelectedMemoType('Memo');
                 setSelectedMemoSource('');
                 setSelectedGender('');
                 setSelectedPekerjaan('');
@@ -1623,10 +1642,18 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                           {item.namaAnak ? item.namaAnak : (item.jenisPengajuan === 'Lembaga' || item.namaInstansi ? (item.namaInstansi || item.namaPemohon) : item.namaPemohon)}
                         </p>
                         {item.hasMemo && (
-                          <div className="group/memo relative">
-                            <AlertCircle className="size-3 text-emerald-500 cursor-help" />
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/memo:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
-                              Memo: {item.memoSource}
+                          <div className="group/memo relative flex items-center gap-1">
+                            <AlertCircle className={cn("size-3 cursor-help", item.memoSource?.toLowerCase().includes('dispo') ? "text-amber-500" : "text-emerald-500")} />
+                            <span className={cn(
+                              "text-[9px] font-bold px-1.5 py-0.2 rounded leading-tight",
+                              item.memoSource?.toLowerCase().includes('dispo')
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            )}>
+                              {item.memoSource?.toLowerCase().includes('dispo') ? 'Dispo' : 'Memo'}
+                            </span>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/memo:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20 shadow-lg">
+                              {item.memoSource || (item.memoSource?.toLowerCase().includes('dispo') ? 'Disposisi Pimpinan' : 'Memo Pimpinan')}
                             </div>
                           </div>
                         )}
@@ -2050,12 +2077,24 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                   </div>
 
                   {selectedProposal.hasMemo && (
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                    <div className={cn(
+                      "p-4 rounded-xl border",
+                      selectedProposal.memoSource?.toLowerCase().includes('dispo')
+                        ? "bg-amber-50/80 border-amber-100"
+                        : "bg-emerald-50/80 border-emerald-100"
+                    )}>
+                      <div className={cn(
+                        "flex items-center gap-2 mb-2",
+                        selectedProposal.memoSource?.toLowerCase().includes('dispo')
+                          ? "text-amber-700"
+                          : "text-emerald-700"
+                      )}>
                         <History className="size-4" />
-                        <span className="text-xs font-black uppercase tracking-widest">Memo Pimpinan</span>
+                        <span className="text-xs font-black uppercase tracking-widest">
+                          {selectedProposal.memoSource?.toLowerCase().includes('dispo') ? 'Disposisi Pimpinan' : 'Memo Pimpinan'}
+                        </span>
                       </div>
-                      <p className="text-sm font-bold text-slate-900">Sumber: {selectedProposal.memoSource}</p>
+                      <p className="text-sm font-bold text-slate-900">Sumber: {selectedProposal.memoSource || '-'}</p>
                     </div>
                   )}
                 </div>
@@ -2277,64 +2316,145 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                       </>
                     )}
 
-                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-3">
+                    <div className={cn(
+                      "p-4 rounded-2xl border transition-all space-y-3",
+                      hasMemoState 
+                        ? (selectedMemoType === 'Dispo' ? "bg-amber-50/70 border-amber-200" : "bg-emerald-50/70 border-emerald-200") 
+                        : "bg-slate-50 border-slate-200/80"
+                    )}>
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-emerald-700 flex items-center gap-2">
-                          <History className="size-4" />
-                          Ada Memo Pimpinan?
-                        </label>
-                        <input type="checkbox" name="hasMemo" className="size-5 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" defaultChecked={editingProposal?.hasMemo} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest">Sumber Memo</label>
-                        <div className="relative">
-                          <input type="hidden" name="memoSource" value={selectedMemoSource} />
-                          <button
-                            type="button"
-                            onClick={() => setIsMemoDropdownOpen(!isMemoDropdownOpen)}
-                            className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-200 outline-none transition-all text-left flex justify-between items-center"
-                          >
-                            <span className={selectedMemoSource ? "text-slate-800 font-medium" : "text-slate-400"}>
-                              {selectedMemoSource || "Pilih Sumber..."}
-                            </span>
-                            <span className="text-emerald-400">▼</span>
-                          </button>
-
-                          {isMemoDropdownOpen && (
-                            <>
-                              <div className="fixed inset-0 z-40" onClick={() => setIsMemoDropdownOpen(false)} />
-                              <div className="absolute left-0 right-0 mt-1 bg-white border border-emerald-200 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto p-2 space-y-1 custom-scrollbar text-left">
-                                {[
-                                  { value: "", label: "Pilih Sumber..." },
-                                  { value: "Ketua BAZNAS", label: "Ketua BAZNAS" },
-                                  { value: "Wakil Ketua I", label: "Wakil Ketua I" },
-                                  { value: "Wakil Ketua II", label: "Wakil Ketua II" },
-                                  { value: "Wakil Ketua III", label: "Wakil Ketua III" },
-                                  { value: "Wakil Ketua IV", label: "Wakil Ketua IV" },
-                                  { value: "Kepala Pelaksana", label: "Kepala Pelaksana" }
-                                ].map(opt => (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedMemoSource(opt.value);
-                                      setIsMemoDropdownOpen(false);
-                                    }}
-                                    className={cn(
-                                      "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
-                                      selectedMemoSource === opt.value
-                                        ? "bg-emerald-600 text-white font-bold"
-                                        : "text-slate-700 hover:bg-emerald-50"
-                                    )}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </>
+                        <label 
+                          onClick={() => setHasMemoState(!hasMemoState)}
+                          className={cn(
+                            "text-xs font-bold flex items-center gap-2 cursor-pointer select-none",
+                            hasMemoState 
+                              ? (selectedMemoType === 'Dispo' ? "text-amber-800" : "text-emerald-800") 
+                              : "text-slate-600"
                           )}
-                        </div>
+                        >
+                          <History className="size-4" />
+                          Ada Memo / Disposisi Pimpinan?
+                        </label>
+                        <input 
+                          type="checkbox" 
+                          name="hasMemo" 
+                          checked={hasMemoState} 
+                          onChange={(e) => setHasMemoState(e.target.checked)}
+                          className="size-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
+                        />
                       </div>
+
+                      {hasMemoState && (
+                        <div className="pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Dropdown / Pilihan Tipe: Memo atau Dispo */}
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                              Jenis Arahan
+                            </label>
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setIsMemoTypeDropdownOpen(!isMemoTypeDropdownOpen)}
+                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center shadow-sm"
+                              >
+                                <span className="flex items-center gap-1.5 text-slate-800">
+                                  <span className={cn("size-2 rounded-full", selectedMemoType === 'Dispo' ? "bg-amber-500" : "bg-emerald-500")} />
+                                  {selectedMemoType}
+                                </span>
+                                <span className="text-slate-400 text-[10px]">▼</span>
+                              </button>
+
+                              {isMemoTypeDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setIsMemoTypeDropdownOpen(false)} />
+                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-1 space-y-1 text-left">
+                                    {[
+                                      { value: 'Memo', label: 'Memo', desc: 'Memo Tertulis Pimpinan' },
+                                      { value: 'Dispo', label: 'Dispo', desc: 'Disposisi Surat Masuk' }
+                                    ].map(opt => (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedMemoType(opt.value as 'Memo' | 'Dispo');
+                                          setIsMemoTypeDropdownOpen(false);
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex flex-col",
+                                          selectedMemoType === opt.value
+                                            ? (opt.value === 'Dispo' ? "bg-amber-500 text-white font-bold" : "bg-emerald-600 text-white font-bold")
+                                            : "text-slate-700 hover:bg-slate-100"
+                                        )}
+                                      >
+                                        <span className="font-bold">{opt.label}</span>
+                                        <span className={cn("text-[10px]", selectedMemoType === opt.value ? "text-white/80" : "text-slate-400")}>{opt.desc}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Dropdown: Sumber Memo / Dispo */}
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                              Sumber {selectedMemoType}
+                            </label>
+                            <div className="relative">
+                              <input 
+                                type="hidden" 
+                                name="memoSource" 
+                                value={selectedMemoSource ? `${selectedMemoType} ${selectedMemoSource.replace(/^(memo|dispo|disposisi)\s*[:\-]?\s*/i, '').trim()}` : ''} 
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setIsMemoDropdownOpen(!isMemoDropdownOpen)}
+                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all text-left flex justify-between items-center shadow-sm"
+                              >
+                                <span className={selectedMemoSource ? "text-slate-800 truncate" : "text-slate-400"}>
+                                  {selectedMemoSource.replace(/^(memo|dispo|disposisi)\s*[:\-]?\s*/i, '').trim() || "Pilih Sumber..."}
+                                </span>
+                                <span className="text-slate-400 text-[10px]">▼</span>
+                              </button>
+
+                              {isMemoDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setIsMemoDropdownOpen(false)} />
+                                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto p-1 space-y-1 custom-scrollbar text-left">
+                                    {[
+                                      { value: "", label: "Pilih Sumber..." },
+                                      { value: "Ketua BAZNAS", label: "Ketua BAZNAS" },
+                                      { value: "Wakil Ketua I", label: "Wakil Ketua I" },
+                                      { value: "Wakil Ketua II", label: "Wakil Ketua II" },
+                                      { value: "Wakil Ketua III", label: "Wakil Ketua III" },
+                                      { value: "Wakil Ketua IV", label: "Wakil Ketua IV" },
+                                      { value: "Kepala Pelaksana", label: "Kepala Pelaksana" }
+                                    ].map(opt => (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedMemoSource(opt.value);
+                                          setIsMemoDropdownOpen(false);
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors",
+                                          selectedMemoSource.replace(/^(memo|dispo|disposisi)\s*[:\-]?\s*/i, '').trim() === opt.value
+                                            ? (selectedMemoType === 'Dispo' ? "bg-amber-500 text-white font-bold" : "bg-emerald-600 text-white font-bold")
+                                            : "text-slate-700 hover:bg-slate-100"
+                                        )}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -3272,6 +3392,8 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                   setSelectedProgramCode('');
                   setProgramSearchQuery('');
                   setTanggalLahirInput('');
+                  setHasMemoState(false);
+                  setSelectedMemoType('Memo');
                   setSelectedMemoSource('');
                   setSelectedGender('');
                   setSelectedPekerjaan('');
