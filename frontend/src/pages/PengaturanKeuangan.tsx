@@ -75,7 +75,7 @@ export interface ProposalItem {
 export default function PengaturanKeuangan() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
-  const canEdit = isSuperAdmin || user?.role === 'Staf_Keuangan' || user?.role === 'Kabag_Keuangan';
+  const canEdit = isSuperAdmin || user?.role === 'Staf_Keuangan' || user?.role === 'Kabag_Keuangan' || user?.role === 'Kabag_Pelaporan' || user?.role === 'Staf_Pelaporan';
 
   const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'kategori-biaya'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');

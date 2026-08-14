@@ -123,7 +123,7 @@ const menuGroups = [
       { name: "Pemindahan Dana", icon: ArrowRightLeft, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
       { name: "Pengeluaran Manual", icon: Banknote, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
       { name: "Catat Mutasi", icon: Upload, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
-      { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kabag_Pelaporan"] },
+      { name: "Pengaturan Keuangan", icon: Settings2, roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kabag_Pelaporan", "Staf_Pelaporan"] },
     ]
   },
   {

@@ -125,7 +125,7 @@ function App() {
         { name: "Pemindahan Dana", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
         { name: "Pengeluaran Manual", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
         { name: "Catat Mutasi", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan"] },
-        { name: "Pengaturan Keuangan", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kabag_Pelaporan"] },
+        { name: "Pengaturan Keuangan", roles: ["Super_Admin", "Staf_Keuangan", "Kabag_Keuangan", "Kabag_Pelaporan", "Staf_Pelaporan"] },
         { name: "Target RKAT", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Keuangan", "Kabag_Keuangan", "Staf_Pengumpulan", "Staf_Pelaporan", "Humas"] },
         { name: "Pengajuan Operasional", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kepala_Pelaksana", "Staf_Administrasi", "Staf_Pendistribusian", "Staf_Pendayagunaan", "Staf_Keuangan", "Kabag_Keuangan", "Staf_Pengumpulan", "Staf_Pelaporan", "Humas"] },
         { name: "Persetujuan Operasional", roles: ["Super_Admin", "Ketua", "Wakil_Ketua_I", "Wakil_Ketua_II", "Wakil_Ketua_III", "Wakil_Ketua_IV", "Kepala_Pelaksana", "Kabag_Administrasi", "Kabag_Pelaporan", "Kabag_Pengumpulan", "Kabag_Pendistribusian", "Kabag_Pendayagunaan", "Kabag_Keuangan"] },
