@@ -734,18 +734,32 @@ export default function ReviewPimpinan({ data, onUpdate, suratData, onUpdateSura
                           <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2 shadow-sm">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Plafon RKAT Terkait</p>
                             {(() => {
-                              const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedProposal.rkatActivityId);
+                              const act = (availability?.rkat_activities || []).find((a: any) => a.id === selectedProposal.rkatActivityId) 
+                                || (availability?.rkat_spesifik?.nama_kegiatan ? availability.rkat_spesifik : null)
+                                || (availability?.rkat_activities?.[0] || null);
                               if (!act) {
                                 return (
                                   <p className="text-xs text-slate-500 font-semibold italic">Tidak ada kegiatan RKAT yang dikaitkan.</p>
                                 );
                               }
 
-                              const isEnough = act.sisa_pagu >= (selectedProposal.nominal || 0);
+                              const isEnough = (act.sisa_pagu || 0) >= (selectedProposal.nominal || 0);
 
                               return (
                                 <div className="space-y-1">
-                                  <p className="text-xs font-bold text-slate-800 line-clamp-1">"{act.keterangan || act.name}"</p>
+                                  {act.program_name && (
+                                    <div className="flex items-center gap-1 flex-wrap mb-1">
+                                      {act.pilar_name && (
+                                        <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                          {act.pilar_name}
+                                        </span>
+                                      )}
+                                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                        {act.program_name}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <p className="text-xs font-bold text-slate-800 line-clamp-1">"{act.keterangan || act.nama_kegiatan || act.name}"</p>
                                   {act.name && act.keterangan && act.name !== act.keterangan && (
                                     <p className="text-[10px] text-slate-400 font-medium truncate">Program: {act.name}</p>
                                   )}

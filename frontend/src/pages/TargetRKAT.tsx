@@ -180,6 +180,172 @@ const SearchableCoaDropdownMulti: React.FC<SearchableCoaDropdownMultiProps> = ({
  );
 };
 
+// Searchable Multi-Select Checklist Component for Programs / Kegiatan
+interface SearchableProgramChecklistMultiProps {
+  label: string;
+  selectedCodes: string[];
+  onChange: (codes: string[]) => void;
+  availablePrograms: { code: string; name: string; tipe?: string }[];
+  placeholder?: string;
+}
+
+const SearchableProgramChecklistMulti: React.FC<SearchableProgramChecklistMultiProps> = ({
+  label,
+  selectedCodes,
+  onChange,
+  availablePrograms,
+  placeholder = "Cari Program / Kegiatan..."
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredPrograms = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return availablePrograms.filter(prog =>
+      prog.code.toLowerCase().includes(term) ||
+      prog.name.toLowerCase().includes(term) ||
+      (prog.tipe && prog.tipe.toLowerCase().includes(term))
+    );
+  }, [availablePrograms, searchTerm]);
+
+  const toggleSelect = (code: string) => {
+    if (selectedCodes.includes(code)) {
+      onChange(selectedCodes.filter(c => c !== code));
+    } else {
+      onChange([...selectedCodes, code]);
+    }
+  };
+
+  const selectAll = () => {
+    const allCodes = availablePrograms.map(p => p.code);
+    onChange(allCodes);
+  };
+
+  const deselectAll = () => {
+    onChange([]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+          {label}
+          {selectedCodes.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-primary/10 text-primary border border-primary/20">
+              {selectedCodes.length} Kegiatan Terpilih
+            </span>
+          )}
+        </label>
+        <div className="flex items-center gap-2 text-[11px] font-bold">
+          <button
+            type="button"
+            onClick={selectAll}
+            className="text-primary hover:underline hover:text-primary/80 transition-colors"
+          >
+            Pilih Semua
+          </button>
+          <span className="text-slate-300">|</span>
+          <button
+            type="button"
+            onClick={deselectAll}
+            className="text-slate-400 hover:text-rose-600 hover:underline transition-colors"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {/* Selected Chips */}
+      {selectedCodes.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200/80 rounded-xl max-h-24 overflow-y-auto custom-scrollbar">
+          {selectedCodes.map(code => {
+            const prog = availablePrograms.find(p => p.code === code);
+            return (
+              <span
+                key={code}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-white text-slate-700 border border-slate-200 shadow-sm"
+              >
+                <span className="text-[10px] font-mono text-primary font-black">[{code}]</span>
+                <span className="truncate max-w-[180px]">{prog ? prog.name : code}</span>
+                <X
+                  className="size-3 text-slate-400 hover:text-rose-500 cursor-pointer shrink-0 ml-0.5"
+                  onClick={() => toggleSelect(code)}
+                />
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Search & Checklist Box */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        <div className="p-2 border-b border-slate-100 bg-slate-50/60">
+          <div className="relative">
+            <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={placeholder}
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-700"
+            />
+          </div>
+        </div>
+
+        <div className="p-2 max-h-44 overflow-y-auto custom-scrollbar space-y-1">
+          {availablePrograms.length === 0 ? (
+            <p className="text-xs text-slate-400 italic py-3 text-center">Tidak ada program/kegiatan pada pilar ini.</p>
+          ) : filteredPrograms.length === 0 ? (
+            <p className="text-xs text-slate-400 italic py-3 text-center">Tidak ada program yang cocok dengan pencarian.</p>
+          ) : (
+            filteredPrograms.map((prog) => {
+              const isSelected = selectedCodes.includes(prog.code);
+              return (
+                <div
+                  key={prog.code}
+                  onClick={() => toggleSelect(prog.code)}
+                  className={cn(
+                    "flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all text-xs select-none border",
+                    isSelected
+                      ? "bg-primary/5 border-primary/30 text-slate-900 font-bold"
+                      : "bg-white border-transparent hover:bg-slate-50 text-slate-600 font-medium"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                    <div
+                      className={cn(
+                        "size-4 rounded flex items-center justify-center transition-colors shrink-0",
+                        isSelected
+                          ? "bg-primary text-white"
+                          : "border border-slate-300 bg-white"
+                      )}
+                    >
+                      {isSelected && <Check className="size-3 stroke-[3]" />}
+                    </div>
+                    <span className="text-[10px] font-mono font-black text-primary shrink-0">[{prog.code}]</span>
+                    <span className="truncate text-xs">{prog.name}</span>
+                  </div>
+                  {prog.tipe && (
+                    <span
+                      className={cn(
+                        "text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 border",
+                        prog.tipe === "Produktif"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      )}
+                    >
+                      {prog.tipe}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Searchable Single-Select Dropdown for COA or General List
 interface SearchableDropdownSingleProps {
  label: string;
@@ -683,32 +849,34 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  }
  }, [data, formPilar]);
 
- const [formProgramCode, setFormProgramCode] = useState<string>('');
- const [formNamaKegiatan, setFormNamaKegiatan] = useState<string>('');
- const [formAsnaf, setFormAsnaf] = useState<string>('');
- const [formKeterangan, setFormKeterangan] = useState<string>('');
- const [formMustahik, setFormMustahik] = useState<number>(10);
- const [formCoaCode, setFormCoaCode] = useState<string>('');
- const [formFrekuensi, setFormFrekuensi] = useState<number>(1);
- const [formUnitCost, setFormUnitCost] = useState<number>(250000);
+  const [formProgramCodes, setFormProgramCodes] = useState<string[]>([]);
+  const [formNamaKegiatan, setFormNamaKegiatan] = useState<string>('');
+  const [formAsnaf, setFormAsnaf] = useState<string>('');
+  const [formKeterangan, setFormKeterangan] = useState<string>('');
+  const [formMustahik, setFormMustahik] = useState<number>(10);
+  const [formCoaCodes, setFormCoaCodes] = useState<string[]>([]);
+  const [formFrekuensi, setFormFrekuensi] = useState<number>(1);
+  const [formUnitCost, setFormUnitCost] = useState<number>(250000);
 
- // Edit modal state variables
- const [editingActivity, setEditingActivity] = useState<RKATActivity | null>(null);
+  // Edit modal state variables
+  const [editingActivity, setEditingActivity] = useState<RKATActivity | null>(null);
 
- // Filter programs based on selected pilar in form
- const formProgramsAvailable = useMemo(() => {
- const foundPilar = data.find(p => p.code === formPilar);
- return foundPilar ? foundPilar.programs : [];
- }, [data, formPilar]);
+  // Filter programs based on selected pilar in form
+  const formProgramsAvailable = useMemo(() => {
+    const foundPilar = data.find(p => p.code === formPilar);
+    return foundPilar ? foundPilar.programs : [];
+  }, [data, formPilar]);
 
- // Set default program code when pilar changes in form
- useEffect(() => {
- if (formProgramsAvailable.length > 0) {
- setFormProgramCode(formProgramsAvailable[0].code);
- } else {
- setFormProgramCode('');
- }
- }, [formProgramsAvailable]);
+  // Set default program codes when pilar changes in form
+  useEffect(() => {
+    if (formProgramsAvailable.length > 0) {
+      if (!editingActivity) {
+        setFormProgramCodes(formProgramsAvailable.map(p => p.code));
+      }
+    } else {
+      setFormProgramCodes([]);
+    }
+  }, [formProgramsAvailable, editingActivity]);
 
  // Realized proposals are those that have been paid/disbursed or are currently queued layout
   const realizedProposals = useMemo(() => {
@@ -980,208 +1148,204 @@ const getParentProgramCode = (code?: string): string => {
  return (grandTotalRealisasi / grandTotalTarget) * 100;
  }, [grandTotalTarget, grandTotalRealisasi]);
 
- // Handler: Add Activity (Appends Asnaf target via backend API)
- const saveNewActivity = () => {
- if (!formProgramCode) {
- alert('Pilih Program SIMBA yang ingin dihubungkan ke asnaf target ini.');
- return;
- }
+  // Handler: Add Activity (Appends Asnaf target via backend API to multiple checked programs)
+  const saveNewActivity = async () => {
+    if (formProgramCodes.length === 0) {
+      alert('Pilih minimal satu Program / Kegiatan yang ingin dihubungkan ke target ini.');
+      return;
+    }
 
- const newTarget: AsnafTarget = {
- id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
- name: formNamaKegiatan.trim() || undefined,
- asnaf: (formAsnaf || undefined) as any,
- frekuensi: formFrekuensi,
- nominal: formUnitCost,
- mustahik: formMustahik,
- keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
- coaCode: formCoaCode || undefined
- };
+    try {
+      const coaCodeStr = formCoaCodes.join(', ');
+      const promises = formProgramCodes.map(async (pCode) => {
+        const newTarget: AsnafTarget = {
+          id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          name: formNamaKegiatan.trim() || undefined,
+          asnaf: (formAsnaf || undefined) as any,
+          frekuensi: formFrekuensi,
+          nominal: formUnitCost,
+          mustahik: formMustahik,
+          keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
+          coaCode: coaCodeStr || undefined
+        };
 
- let currentTargets: AsnafTarget[] = [];
- data.forEach(p => {
- p.programs.forEach(prog => {
- if (prog.code === formProgramCode) {
- currentTargets = prog.asnafTargets || [];
- }
- });
- });
+        let currentTargets: AsnafTarget[] = [];
+        data.forEach(p => {
+          p.programs.forEach(prog => {
+            if (prog.code === pCode) {
+              currentTargets = prog.asnafTargets || [];
+            }
+          });
+        });
 
- const updatedTargets = [...currentTargets, newTarget];
- const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+        const updatedTargets = [...currentTargets, newTarget];
+        const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
 
- axios.put(`/api/programs/${formProgramCode}`, {
- rkat_details: updatedTargets,
- budget_rkat: newBudget
- }).then(() => {
- fetchPilars();
- // Reset
- setFormNamaKegiatan('');
- setFormKeterangan('');
- setFormMustahik(10);
- setFormFrekuensi(1);
- setFormUnitCost(250000);
- setFormAsnaf('');
- setFormCoaCode('');
- setIsAddModalOpen(false);
- }).catch(err => {
- console.error('Gagal menambah activity', err);
- alert('Gagal menyimpan target ke database');
- });
- };
+        return axios.put(`/api/programs/${pCode}`, {
+          rkat_details: updatedTargets,
+          budget_rkat: newBudget
+        });
+      });
 
- // Handler: Delete Activity (Removes target via backend API)
- const deleteActivity = (id: string) => {
- if (window.confirm('Yakin ingin menghapus draf rincian program kerja RKAT ini?')) {
- let targetProgramCode ='';
- let updatedTargets: AsnafTarget[] = [];
- let isGeneral = false;
+      await Promise.all(promises);
+      fetchPilars();
 
- data.forEach(p => {
- p.programs.forEach(prog => {
- if (id === `prog-general-${prog.code}`) {
- isGeneral = true;
- targetProgramCode = prog.code;
- } else {
- const targets = prog.asnafTargets || [];
- const matchIndex = targets.findIndex((t, tIdx) => {
- const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf ||'General'}-${tIdx}`;
- return fallbackId === id;
- });
- if (matchIndex !== -1) {
- targetProgramCode = prog.code;
- updatedTargets = targets.filter((_, tIdx) => {
- const fallbackId = targets[tIdx].id || `act-auto-${prog.code}-${targets[tIdx].asnaf ||'General'}-${tIdx}`;
- return fallbackId !== id;
- });
- }
- }
- });
- });
+      // Reset form
+      setFormNamaKegiatan('');
+      setFormKeterangan('');
+      setFormMustahik(10);
+      setFormFrekuensi(1);
+      setFormUnitCost(250000);
+      setFormAsnaf('');
+      setFormCoaCodes([]);
+      setFormProgramCodes(formProgramsAvailable.length > 0 ? [formProgramsAvailable[0].code] : []);
+      setIsAddModalOpen(false);
+    } catch (err) {
+      console.error('Gagal menambah activity', err);
+      alert('Gagal menyimpan target ke database');
+    }
+  };
 
- if (isGeneral) {
- axios.put(`/api/programs/${targetProgramCode}`, {
- budget_rkat: 0
- }).then(() => fetchPilars()).catch(console.error);
- } else if (targetProgramCode) {
- const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
- axios.put(`/api/programs/${targetProgramCode}`, {
- rkat_details: updatedTargets,
- budget_rkat: newBudget
- }).then(() => fetchPilars()).catch(console.error);
- }
- }
- };
+  // Handler: Delete Activity (Removes target via backend API)
+  const deleteActivity = (id: string) => {
+    if (window.confirm('Yakin ingin menghapus draf rincian program kerja RKAT ini?')) {
+      let targetProgramCode = '';
+      let updatedTargets: AsnafTarget[] = [];
+      let isGeneral = false;
 
- // Edit Modal helper functions
- const startEditModal = (act: RKATActivity) => {
- setEditingActivity(act);
- setFormPilar(act.pilarCode);
- setFormProgramCode(act.programCode);
- setFormNamaKegiatan(act.name);
- setFormAsnaf(act.asnaf ||'');
- setFormKeterangan(act.keterangan);
- setFormMustahik(act.mustahik);
- setFormFrekuensi(act.frekuensi);
- setFormUnitCost(act.unitCost);
- setFormCoaCode(act.coaCode ||'');
- };
+      data.forEach(p => {
+        p.programs.forEach(prog => {
+          if (id === `prog-general-${prog.code}`) {
+            isGeneral = true;
+            targetProgramCode = prog.code;
+          } else {
+            const targets = prog.asnafTargets || [];
+            const matchIndex = targets.findIndex((t, tIdx) => {
+              const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf || 'General'}-${tIdx}`;
+              return fallbackId === id;
+            });
+            if (matchIndex !== -1) {
+              targetProgramCode = prog.code;
+              updatedTargets = targets.filter((_, tIdx) => {
+                const fallbackId = targets[tIdx].id || `act-auto-${prog.code}-${targets[tIdx].asnaf || 'General'}-${tIdx}`;
+                return fallbackId !== id;
+              });
+            }
+          }
+        });
+      });
 
- const saveEditActivity = async () => {
- if (!editingActivity) return;
- if (!formProgramCode) {
- alert('Pilih Program SIMBA yang ingin dihubungkan.');
- return;
- }
+      if (isGeneral) {
+        axios.put(`/api/programs/${targetProgramCode}`, {
+          budget_rkat: 0
+        }).then(() => fetchPilars()).catch(console.error);
+      } else if (targetProgramCode) {
+        const newBudget = updatedTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+        axios.put(`/api/programs/${targetProgramCode}`, {
+          rkat_details: updatedTargets,
+          budget_rkat: newBudget
+        }).then(() => fetchPilars()).catch(console.error);
+      }
+    }
+  };
 
- const updatedTarget: AsnafTarget = {
- id: editingActivity.asnafTargetId || editingActivity.id,
- name: formNamaKegiatan.trim() || undefined,
- asnaf: (formAsnaf || undefined) as any,
- frekuensi: formFrekuensi,
- nominal: formUnitCost,
- mustahik: formMustahik,
- keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
- coaCode: formCoaCode || undefined
- };
+  // Edit Modal helper functions
+  const startEditModal = (act: RKATActivity) => {
+    setEditingActivity(act);
+    setFormPilar(act.pilarCode);
+    setFormProgramCodes([act.programCode]);
+    setFormNamaKegiatan(act.name);
+    setFormAsnaf(act.asnaf || '');
+    setFormKeterangan(act.keterangan);
+    setFormMustahik(act.mustahik);
+    setFormFrekuensi(act.frekuensi);
+    setFormUnitCost(act.unitCost);
+    setFormCoaCodes(act.coaCode ? act.coaCode.split(',').map(c => c.trim()).filter(Boolean) : []);
+  };
 
- // If Program changed
- if (editingActivity.programCode !== formProgramCode) {
- try {
- // 1. Remove from old program
- let oldTargets: AsnafTarget[] = [];
- data.forEach(p => {
- p.programs.forEach(prog => {
- if (prog.code === editingActivity.programCode) {
- const targets = prog.asnafTargets || [];
- oldTargets = targets.filter((t, tIdx) => {
- const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf ||'General'}-${tIdx}`;
- return fallbackId !== editingActivity.id && t.id !== editingActivity.id;
- });
- }
- });
- });
- const oldBudget = oldTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
- await axios.put(`/api/programs/${editingActivity.programCode}`, {
- rkat_details: oldTargets,
- budget_rkat: oldBudget
- });
+  const saveEditActivity = async () => {
+    if (!editingActivity) return;
+    if (formProgramCodes.length === 0) {
+      alert('Pilih minimal satu Program / Kegiatan yang ingin dihubungkan.');
+      return;
+    }
 
- // 2. Add to new program
- let newTargets: AsnafTarget[] = [];
- data.forEach(p => {
- p.programs.forEach(prog => {
- if (prog.code === formProgramCode) {
- newTargets = prog.asnafTargets || [];
- }
- });
- });
- const updatedNewTargets = [...newTargets, updatedTarget];
- const newBudget = updatedNewTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
- await axios.put(`/api/programs/${formProgramCode}`, {
- rkat_details: updatedNewTargets,
- budget_rkat: newBudget
- });
+    const coaCodeStr = formCoaCodes.join(', ');
+    const updatedTarget: AsnafTarget = {
+      id: editingActivity.asnafTargetId || editingActivity.id,
+      name: formNamaKegiatan.trim() || undefined,
+      asnaf: (formAsnaf || undefined) as any,
+      frekuensi: formFrekuensi,
+      nominal: formUnitCost,
+      mustahik: formMustahik,
+      keterangan: formKeterangan || (formAsnaf ? `Penyaluran Asnaf ${formAsnaf}` : `Penyaluran Target Kegiatan`),
+      coaCode: coaCodeStr || undefined
+    };
 
- fetchPilars();
- setEditingActivity(null);
- } catch (err) {
- console.error('Gagal memindahkan kegiatan:', err);
- alert('Gagal memindahkan kegiatan program.');
- }
- } else {
- // Program did not change, just update the target inside the program
- let currentTargets: AsnafTarget[] = [];
- data.forEach(p => {
- p.programs.forEach(prog => {
- if (prog.code === formProgramCode) {
- const targets = prog.asnafTargets || [];
- // Match and replace
- currentTargets = targets.map((t, tIdx) => {
- const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf ||'General'}-${tIdx}`;
- if (fallbackId === editingActivity.id || t.id === editingActivity.id) {
- return updatedTarget;
- }
- return t;
- });
- }
- });
- });
+    try {
+      // 1. If old program is deselected, remove from old program
+      if (!formProgramCodes.includes(editingActivity.programCode)) {
+        let oldTargets: AsnafTarget[] = [];
+        data.forEach(p => {
+          p.programs.forEach(prog => {
+            if (prog.code === editingActivity.programCode) {
+              const targets = prog.asnafTargets || [];
+              oldTargets = targets.filter((t, tIdx) => {
+                const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf || 'General'}-${tIdx}`;
+                return fallbackId !== editingActivity.id && t.id !== editingActivity.id;
+              });
+            }
+          });
+        });
+        const oldBudget = oldTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+        await axios.put(`/api/programs/${editingActivity.programCode}`, {
+          rkat_details: oldTargets,
+          budget_rkat: oldBudget
+        });
+      }
 
- const newBudget = currentTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+      // 2. Save/update to all checked programs
+      const promises = formProgramCodes.map(async (pCode) => {
+        let currentTargets: AsnafTarget[] = [];
+        data.forEach(p => {
+          p.programs.forEach(prog => {
+            if (prog.code === pCode) {
+              const targets = prog.asnafTargets || [];
+              const exists = targets.some((t, tIdx) => {
+                const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf || 'General'}-${tIdx}`;
+                return fallbackId === editingActivity.id || t.id === editingActivity.id;
+              });
 
- axios.put(`/api/programs/${formProgramCode}`, {
- rkat_details: currentTargets,
- budget_rkat: newBudget
- }).then(() => {
- fetchPilars();
- setEditingActivity(null);
- }).catch(err => {
- console.error('Gagal memperbarui kegiatan', err);
- alert('Gagal memperbarui kegiatan ke database');
- });
- }
- };
+              if (exists) {
+                currentTargets = targets.map((t, tIdx) => {
+                  const fallbackId = t.id || `act-auto-${prog.code}-${t.asnaf || 'General'}-${tIdx}`;
+                  if (fallbackId === editingActivity.id || t.id === editingActivity.id) {
+                    return updatedTarget;
+                  }
+                  return t;
+                });
+              } else {
+                currentTargets = [...targets, { ...updatedTarget, id: `asnaf-${Date.now()}-${Math.random().toString(36).substr(2, 6)}` }];
+              }
+            }
+          });
+        });
+
+        const newBudget = currentTargets.reduce((sum, t) => sum + (t.mustahik * Number(t.frekuensi) * t.nominal), 0);
+        return axios.put(`/api/programs/${pCode}`, {
+          rkat_details: currentTargets,
+          budget_rkat: newBudget
+        });
+      });
+
+      await Promise.all(promises);
+      fetchPilars();
+      setEditingActivity(null);
+    } catch (err) {
+      console.error('Gagal memperbarui kegiatan:', err);
+      alert('Gagal memperbarui kegiatan program.');
+    }
+  };
 
  // Format Currency
  const formatCurrency = (val: number) => {
@@ -2289,7 +2453,7 @@ const getParentProgramCode = (code?: string): string => {
  setFormNamaKegiatan('');
  setFormAsnaf('');
  setFormKeterangan('');
- setFormCoaCode('');
+ setFormCoaCodes([]);
  setIsAddModalOpen(true);
  }}
  className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs font-black shadow-md shadow-primary/15 transition-all active:scale-95 shrink-0"
@@ -2385,542 +2549,617 @@ const getParentProgramCode = (code?: string): string => {
  {(isAddModalOpen || editingActivity !== null) && (
  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
  <motion.div 
- initial={{ opacity: 0, scale: 0.95, y: 15 }}
- animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: 15 }}
- className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-100 overflow-hidden"
- >
- {/* Modal Header */}
- <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
- <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
- {editingActivity ? <Edit2 className="size-5 text-primary" /> : <Plus className="size-5 text-primary" />}
- {editingActivity ?'Ubah Target RKAT' :'Tambah Target Asnaf RKAT'}
- </h3>
- <button
- onClick={() => {
- setIsAddModalOpen(false);
- setEditingActivity(null);
- }}
- className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-all"
- >
- <X className="size-5" />
- </button>
- </div>
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
+        >
+          {/* Modal Header */}
+          <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-xs border border-primary/20">
+                {editingActivity ? <Edit2 className="size-5" /> : <Plus className="size-5" />}
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  {editingActivity ? 'Ubah Rincian Target Kegiatan RKAT' : 'Tambah Target Kegiatan & Asnaf RKAT'}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  {editingActivity 
+                    ? 'Sesuaikan parameter asnaf, kuota mustahik, frekuensi, unit cost, dan COA.' 
+                    : 'Tetapkan target kuota penerima, frekuensi penyaluran, dan unit cost untuk kegiatan terpilih.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setIsAddModalOpen(false);
+                setEditingActivity(null);
+              }}
+              className="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 p-2 rounded-xl transition-all"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
 
- {/* Modal Body */}
- <div className="p-6 space-y-5">
- <div className="grid grid-cols-2 gap-4">
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-slate-700">Pilar BAZNAS</label>
- <select
- value={formPilar}
- onChange={(e) => setFormPilar(e.target.value)}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
- >
- {data.map(p => (
- <option key={p.code} value={p.code}>{p.name}</option>
- ))}
- </select>
- </div>
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-slate-700">Program / Kegiatan</label>
- <select
- value={formProgramCode}
- onChange={(e) => setFormProgramCode(e.target.value)}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
- disabled={formProgramsAvailable.length === 0}
- >
- {formProgramsAvailable.length > 0 ? (
- formProgramsAvailable.map(p => (
- <option key={p.code} value={p.code}>{p.name}</option>
- ))
- ) : (
- <option value="">-- Tidak ada program --</option>
- )}
- </select>
- </div>
- </div>
+          {/* Modal Body */}
+          <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/40">
+            {/* Active Edit Notice Banner */}
+            {editingActivity && (
+              <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-primary font-bold">
+                  <Info className="size-4 shrink-0" />
+                  <span>Sedang mengedit rincian target untuk program:</span>
+                  <span className="font-extrabold px-2 py-0.5 rounded-md bg-white border border-primary/20 text-slate-800">
+                    [{editingActivity.programCode}] {editingActivity.name}
+                  </span>
+                </div>
+              </div>
+            )}
 
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-slate-700">Nama Kegiatan</label>
- <input
- type="text"
- value={formNamaKegiatan}
- onChange={(e) => setFormNamaKegiatan(e.target.value)}
- placeholder="Misal: Pemberian paket sembako dhuafa Semarang Utara"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
- />
- </div>
+            {/* Card 1: Klasifikasi Pilar & Program */}
+            <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <span className="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">1</span>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Klasifikasi Pilar & Program SIMBA</h4>
+              </div>
 
- <SearchableDropdownSingle
-  label="Kategori Asnaf / Sumber Dana (8 Golongan + IST / ISTT)"
-  selectedValue={formAsnaf}
-  onChange={setFormAsnaf}
-  options={[
-  { value:"Fakir", label:"Fakir" },
-  { value:"Miskin", label:"Miskin" },
-  { value:"Amil", label:"Amil" },
-  { value:"Mualaf", label:"Mualaf" },
-  { value:"Riqab", label:"Riqab (Hamba Sahaya)" },
-  { value:"Gharimin", label:"Gharimin (Orang Berhutang)" },
-  { value:"Fisabilillah", label:"Fisabilillah" },
-  { value:"Ibnu Sabil", label:"Ibnu Sabil" },
-  { value:"IST", label:"IST (Infak Sedekah Terikat)" },
-  { value:"ISTT", label:"ISTT (Infak Sedekah Tidak Terikat)" }
-  ]}
-  placeholder="Cari / Pilih Asnaf atau IST / ISTT..."
-  emptyLabel="-- Kosong (Umum / Non-Asnaf) --"
-  allowEmpty={true}
-  />
+              <div className="space-y-3.5">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Pilar BAZNAS</label>
+                  <select
+                    value={formPilar}
+                    onChange={(e) => setFormPilar(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
+                  >
+                    {data.map(p => (
+                      <option key={p.code} value={p.code}>[{p.code}] {p.name}</option>
+                    ))}
+                  </select>
+                </div>
 
- <SearchableDropdownSingle
- label="Hubungkan Ke COA (Chart of Accounts) - Opsional"
- selectedValue={formCoaCode}
- onChange={setFormCoaCode}
- options={coas
- .filter(coa => coa.klasifikasi ==='Penyaluran' || coa.klasifikasi ==='Penggunaan')
- .map(coa => ({
- value: coa.coa_code,
- label: coa.nama_akun,
- sublabel: coa.coa_code
- }))
- }
- placeholder="Cari COA Penyaluran..."
- emptyLabel="-- Tidak dihubungkan (Opsional) --"
- allowEmpty={true}
- />
+                {/* Program / Kegiatan Multi-Select Checklist */}
+                <SearchableProgramChecklistMulti
+                  label="Pilih Program / Kegiatan (Bisa Checklist Lebih dari Satu)"
+                  selectedCodes={formProgramCodes}
+                  onChange={setFormProgramCodes}
+                  availablePrograms={formProgramsAvailable}
+                  placeholder="Cari program/kegiatan pada pilar ini..."
+                />
+              </div>
+            </div>
 
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-slate-700">Keterangan / Spesifikasi Bantuan</label>
- <input
- type="text"
- value={formKeterangan}
- onChange={(e) => setFormKeterangan(e.target.value)}
- placeholder="Misal: Bantuan paket sembako lansia"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
- />
- </div>
+            {/* Card 2: Spesifikasi Kegiatan & Asnaf */}
+            <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <span className="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">2</span>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Spesifikasi Bantuan & Parameter Asnaf</h4>
+              </div>
 
- <div className="grid grid-cols-3 gap-4">
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-slate-700">Target Mustahik</label>
- <div className="relative">
- <input
- type="number"
- min="1"
- value={formMustahik}
- onChange={(e) => setFormMustahik(Math.max(1, parseInt(e.target.value) || 0))}
- className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
- />
- <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Jiwa</span>
- </div>
- </div>
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-slate-700">Frekuensi / Thn</label>
- <div className="relative">
- <input
- type="number"
- min="1"
- value={formFrekuensi}
- onChange={(e) => setFormFrekuensi(Math.max(1, parseInt(e.target.value) || 0))}
- className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
- />
- <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">x</span>
- </div>
- </div>
- <div className="space-y-1.5">
- <label className="text-xs font-bold text-slate-700">Unit Cost (Rp)</label>
- <input
- type="number"
- step="10000"
- min="0"
- value={formUnitCost}
- onChange={(e) => setFormUnitCost(Math.max(0, parseInt(e.target.value) || 0))}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
- />
- </div>
- </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">Nama Spesifikasi Kegiatan</label>
+                    <input
+                      type="text"
+                      value={formNamaKegiatan}
+                      onChange={(e) => setFormNamaKegiatan(e.target.value)}
+                      placeholder="Misal: Pemberian paket sembako dhuafa Semarang Utara"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
+                    />
+                  </div>
 
- {/* Subtotal Summary */}
- <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex items-center justify-between">
- <span className="text-xs font-bold text-slate-600">Total Anggaran Pagu Asnaf:</span>
- <span className="text-lg font-black text-primary">
- {new Intl.NumberFormat('id-ID', {
- style:'currency',
- currency:'IDR',
- minimumFractionDigits: 0
- }).format(formMustahik * formFrekuensi * formUnitCost)}
- </span>
- </div>
- </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">Keterangan / Uraian Bantuan</label>
+                    <input
+                      type="text"
+                      value={formKeterangan}
+                      onChange={(e) => setFormKeterangan(e.target.value)}
+                      placeholder="Misal: Bantuan paket sembako lansia triwulanan"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
+                    />
+                  </div>
+                </div>
 
- {/* Modal Footer */}
- <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
- <button
- onClick={() => {
- setIsAddModalOpen(false);
- setEditingActivity(null);
- }}
- className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
- >
- Batal
- </button>
- <button
- onClick={editingActivity ? saveEditActivity : saveNewActivity}
- className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2"
- >
- <Check className="size-4" />
- {editingActivity ?'Simpan Perubahan' :'Simpan Target RKAT'}
- </button>
- </div>
- </motion.div>
- </div>
- )}
- </AnimatePresence>
+                <div className="space-y-3.5">
+                  <SearchableDropdownSingle
+                    label="Kategori Asnaf / Sumber Dana"
+                    selectedValue={formAsnaf}
+                    onChange={setFormAsnaf}
+                    options={[
+                      { value: "Fakir", label: "Fakir" },
+                      { value: "Miskin", label: "Miskin" },
+                      { value: "Amil", label: "Amil" },
+                      { value: "Mualaf", label: "Mualaf" },
+                      { value: "Riqab", label: "Riqab (Hamba Sahaya)" },
+                      { value: "Gharimin", label: "Gharimin (Orang Berhutang)" },
+                      { value: "Fisabilillah", label: "Fisabilillah" },
+                      { value: "Ibnu Sabil", label: "Ibnu Sabil" },
+                      { value: "IST", label: "IST (Infak Sedekah Terikat)" },
+                      { value: "ISTT", label: "ISTT (Infak Sedekah Tidak Terikat)" }
+                    ]}
+                    placeholder="Cari / Pilih Asnaf..."
+                    emptyLabel="-- Kosong (Umum / Non-Asnaf) --"
+                    allowEmpty={true}
+                  />
 
- </div>
- )}
+                  <SearchableCoaDropdownMulti
+                    label="Hubungkan Ke COA Penyaluran (Opsional)"
+                    selectedCodes={formCoaCodes}
+                    onChange={setFormCoaCodes}
+                    availableCoas={coas.filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan' || (coa.coa_code && coa.coa_code.startsWith('5')))}
+                    placeholder="Cari & Checklist COA Penyaluran..."
+                  />
+                </div>
+              </div>
+            </div>
 
- {/* ADD / EDIT RKAT PENGUMPULAN DIALOG MODAL */}
- <AnimatePresence>
- {(isAddPengumpulanOpen || editingPengumpulanItem !== null) && (
- <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
- <motion.div 
- initial={{ opacity: 0, scale: 0.95, y: 15 }}
- animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: 15 }}
- className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-100 overflow-hidden"
- >
- {/* Modal Header */}
- <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
- <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
- {editingPengumpulanItem ? <Edit2 className="size-5 text-primary" /> : <Plus className="size-5 text-primary" />}
- {editingPengumpulanItem ?'Ubah Target RKAT Pengumpulan' :'Tambah Target RKAT Pengumpulan'}
- </h3>
- <button
- onClick={() => {
- setIsAddPengumpulanOpen(false);
- setEditingPengumpulanItem(null);
- }}
- className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-all"
- >
- <X className="size-5" />
- </button>
- </div>
+            {/* Card 3: Formula & Kalkulasi Anggaran RKAT */}
+            <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <span className="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">3</span>
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Perhitungan Target Anggaran RKAT</h4>
+              </div>
 
- {/* Modal Body */}
- <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
- <div className="grid grid-cols-3 gap-4">
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400">No. Urut</label>
- <input
- type="text"
- value={formPengNo}
- onChange={(e) => setFormPengNo(e.target.value)}
- placeholder="e.g. 1"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
- />
- </div>
- <div className="space-y-1.5 col-span-2">
- <label className="text-[10px] font-black text-slate-400">Kategori</label>
- <select
- value={formPengKategori}
- onChange={(e) => setFormPengKategori(e.target.value as any)}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
- >
- <option value="Zakat">Zakat</option>
- <option value="Infak">Infak</option>
- <option value="DSKL">DSKL</option>
- <option value="CSR">CSR</option>
- </select>
- </div>
- </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Target Mustahik</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      value={formMustahik}
+                      onChange={(e) => setFormMustahik(Math.max(1, parseInt(e.target.value) || 0))}
+                      className="w-full pl-3.5 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right text-slate-900"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Jiwa</span>
+                  </div>
+                </div>
 
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400">Nama Program / Kegiatan</label>
- <input
- type="text"
- value={formPengNama}
- onChange={(e) => setFormPengNama(e.target.value)}
- placeholder="e.g. Zakat Maal Perorangan"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
- />
- </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Frekuensi / Thn</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      value={formFrekuensi}
+                      onChange={(e) => setFormFrekuensi(Math.max(1, parseInt(e.target.value) || 0))}
+                      className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right text-slate-900"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Kali</span>
+                  </div>
+                </div>
 
- <div className="grid grid-cols-3 gap-4">
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400 font-black">Target Perorangan</label>
- <input
- type="number"
- value={formPengPerorangan}
- onChange={(e) => setFormPengPerorangan(e.target.value ==='' ?'' : parseInt(e.target.value) || 0)}
- placeholder="n/a"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
- />
- </div>
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400 font-black">Target Lembaga</label>
- <input
- type="number"
- value={formPengLembaga}
- onChange={(e) => setFormPengLembaga(e.target.value ==='' ?'' : parseInt(e.target.value) || 0)}
- placeholder="n/a"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
- />
- </div>
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400 font-black">Nilai Anggaran (Rp)</label>
- <input
- type="number"
- value={formPengAnggaran}
- onChange={(e) => setFormPengAnggaran(parseFloat(e.target.value) || 0)}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right"
- />
- </div>
- </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Unit Cost (Rp)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Rp</span>
+                    <input
+                      type="number"
+                      step="10000"
+                      min="0"
+                      value={formUnitCost}
+                      onChange={(e) => setFormUnitCost(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full pl-8 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
 
- {/* COA mapping selection */}
- <div className="border-t border-slate-100 pt-4 space-y-2">
- <SearchableCoaDropdownMulti
- label="Hubungkan ke Akun COA Penerimaan"
- selectedCodes={formPengCoas}
- onChange={setFormPengCoas}
- availableCoas={coas.filter((coa: any) => coa.klasifikasi ==='Penerimaan' || coa.coa_code.startsWith('4'))}
- placeholder="Cari COA Penerimaan..."
- />
- <p className="text-[10px] text-slate-400">Pilih satu atau lebih akun COA Penerimaan. Nilai transaksi Uang Masuk pada COA terpilih akan otomatis terakumulasi sebagai Realisasi program.</p>
- </div>
+              {/* Subtotal Summary Card */}
+              <div className="bg-gradient-to-r from-primary/5 via-primary/[0.08] to-emerald-50/50 p-4 rounded-xl border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Kalkulasi Formula Pagu:
+                  </span>
+                  <p className="text-xs text-slate-700 font-bold">
+                    <span className="text-slate-900">{formMustahik} Jiwa</span> × <span className="text-slate-900">{formFrekuensi} Kali</span> × <span className="text-slate-900">{formatCurrency(formUnitCost)}</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] font-black text-slate-400 uppercase block tracking-wider">
+                    Total Pagu Anggaran / Kegiatan:
+                  </span>
+                  <span className="text-base sm:text-lg font-black text-emerald-600 font-mono">
+                    {formatCurrency(formMustahik * formFrekuensi * formUnitCost)}
+                  </span>
+                  {formProgramCodes.length > 1 && (
+                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                      Total untuk {formProgramCodes.length} Kegiatan: <span className="font-bold text-primary">{formatCurrency(formMustahik * formFrekuensi * formUnitCost * formProgramCodes.length)}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
- {/* Month-by-month grid */}
- <div className="border-t border-slate-100 pt-4">
- <div className="flex justify-between items-center mb-3">
- <h4 className="text-xs font-bold text-slate-700">Rincian Anggaran Target per Bulan</h4>
- <button
- type="button"
- onClick={distributePengAnggaran}
- className="text-[10px] font-black text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-all"
- >
- Bagi Rata 12 Bulan
- </button>
- </div>
-
- <div className="grid grid-cols-4 gap-3">
- {['jan','feb','mar','apr','mei','jun','jul','agt','sep','okt','nov','des'].map((m) => (
- <div key={m} className="space-y-1">
- <label className="text-[10px] font-bold text-slate-400">{m}</label>
- <input
- type="number"
- value={formPengMonths[m]}
- onChange={(e) => setFormPengMonths({ ...formPengMonths, [m]: parseFloat(e.target.value) || 0 })}
- className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right font-mono focus:ring-2 focus:ring-primary/15 focus:border-primary outline-none transition-all"
- />
- </div>
- ))}
- </div>
-
- <div className="mt-3 text-right">
- <span className="text-[10px] font-bold text-slate-400">Total Terdistribusi per Bulan: </span>
- <span className={cn(
-"text-xs font-black font-mono",
- Math.abs(Object.values(formPengMonths).reduce((a, b) => a + b, 0) - formPengAnggaran) < 5
- ?"text-emerald-600"
- :"text-amber-600"
- )}>
- {formatCurrency(Object.values(formPengMonths).reduce((a, b) => a + b, 0))}
- </span>
- </div>
- </div>
- </div>
-
- {/* Modal Footer */}
- <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 font-semibold">
- <button
- onClick={() => {
- setIsAddPengumpulanOpen(false);
- setEditingPengumpulanItem(null);
- }}
- className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
- >
- Batal
- </button>
- <button
- onClick={editingPengumpulanItem ? saveEditPengumpulan : saveNewPengumpulan}
- className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2"
- >
- <Check className="size-4" />
- {editingPengumpulanItem ?'Simpan Perubahan' :'Simpan Target RKAT'}
- </button>
- </div>
- </motion.div>
+          {/* Modal Footer */}
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+            <button
+              onClick={() => {
+                setIsAddModalOpen(false);
+                setEditingActivity(null);
+              }}
+              className="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              onClick={editingActivity ? saveEditActivity : saveNewActivity}
+              className="px-6 py-2.5 text-xs font-bold text-white bg-primary hover:bg-primary/95 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+            >
+              <Check className="size-4" />
+              {editingActivity ? 'Simpan Perubahan' : 'Simpan Target RKAT'}
+            </button>
+          </div>
+        </motion.div>
  </div>
  )}
  </AnimatePresence>
 
- {/* ADD / EDIT RKAT OPERASIONAL DIALOG MODAL */}
- <AnimatePresence>
- {(isAddOperasionalOpen || editingOperasionalItem !== null) && (
- <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
- <motion.div 
- initial={{ opacity: 0, scale: 0.95, y: 15 }}
- animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: 15 }}
- className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-100 overflow-hidden"
- >
- {/* Modal Header */}
- <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
- <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
- {editingOperasionalItem ? <Edit2 className="size-5 text-primary" /> : <Plus className="size-5 text-primary" />}
- {editingOperasionalItem ?'Ubah Target RKAT Operasional' :'Tambah Target RKAT Operasional'}
- </h3>
- <button
- onClick={() => {
- setIsAddOperasionalOpen(false);
- setEditingOperasionalItem(null);
- }}
- className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-all"
- >
- <X className="size-5" />
- </button>
- </div>
-
- {/* Modal Content */}
- <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
- <div className="grid grid-cols-3 gap-4">
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400">No. Urut</label>
- <input
- type="text"
- value={formOperNo}
- onChange={(e) => setFormOperNo(e.target.value)}
- placeholder="e.g. 1"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
- />
- </div>
- <div className="space-y-1.5 col-span-2">
- <label className="text-[10px] font-black text-slate-400">Nama Program / Kegiatan</label>
- <input
- type="text"
- value={formOperNama}
- onChange={(e) => setFormOperNama(e.target.value)}
- placeholder="e.g. Belanja ATK Kantor"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
- />
- </div>
- </div>
-
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400">Keterangan Kegiatan</label>
- <textarea
- value={formOperKeterangan}
- onChange={(e) => setFormOperKeterangan(e.target.value)}
- placeholder="e.g. Pembelian kertas, pulpen, tinta printer triwulanan"
- rows={2}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
- />
- </div>
-
- <div className="grid grid-cols-4 gap-4">
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400 font-black">Volume</label>
- <input
- type="number"
- value={formOperVolume}
- onChange={(e) => setFormOperVolume(parseInt(e.target.value) || 0)}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center"
- />
- </div>
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400 font-black">Frekuensi</label>
- <input
- type="number"
- value={formOperFrekuensi}
- onChange={(e) => setFormOperFrekuensi(parseInt(e.target.value) || 0)}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center"
- />
- </div>
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400 font-black">Unit Cost (Rp)</label>
- <input
- type="number"
- value={formOperUnitCost}
- onChange={(e) => setFormOperUnitCost(parseFloat(e.target.value) || 0)}
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right font-mono"
- />
- </div>
- <div className="space-y-1.5">
- <label className="text-[10px] font-black text-slate-400 font-black">Nilai Anggaran</label>
- <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-black text-right font-mono text-slate-700">
- {formatCurrency(formOperAnggaran)}
- </div>
- </div>
- </div>
-
-
-
- {/* Month-by-month grid */}
- <div className="border-t border-slate-100 pt-4">
- <div className="flex justify-between items-center mb-3">
- <h4 className="text-xs font-bold text-slate-700">Rincian Anggaran Target per Bulan</h4>
- <button
- type="button"
- onClick={distributeOperAnggaran}
- className="text-[10px] font-black text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-all"
- >
- Bagi Rata 12 Bulan
- </button>
- </div>
-
- <div className="grid grid-cols-4 gap-3">
- {['jan','feb','mar','apr','mei','jun','jul','agt','sep','okt','nov','des'].map((m) => (
- <div key={m} className="space-y-1">
- <label className="text-[10px] font-bold text-slate-400">{m}</label>
- <input
- type="number"
- value={formOperMonths[m]}
- onChange={(e) => setFormOperMonths({ ...formOperMonths, [m]: parseFloat(e.target.value) || 0 })}
- className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right font-mono focus:ring-2 focus:ring-primary/15 focus:border-primary outline-none transition-all"
- />
- </div>
- ))}
- </div>
-
- <div className="mt-3 text-right">
- <span className="text-[10px] font-bold text-slate-400">Total Terdistribusi per Bulan: </span>
- <span className={cn(
-"text-xs font-black font-mono",
- Math.abs(Object.values(formOperMonths).reduce((a, b) => a + b, 0) - formOperAnggaran) < 5
- ?"text-emerald-600"
- :"text-amber-600"
- )}>
- {formatCurrency(Object.values(formOperMonths).reduce((a, b) => a + b, 0))}
- </span>
- </div>
- </div>
- </div>
-
- {/* Modal Footer */}
- <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 font-semibold">
- <button
- onClick={() => {
- setIsAddOperasionalOpen(false);
- setEditingOperasionalItem(null);
- }}
- className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
- >
- Batal
- </button>
- <button
- onClick={editingOperasionalItem ? saveEditOperasional : saveNewOperasional}
- className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2"
- >
- <Check className="size-4" />
- {editingOperasionalItem ?'Simpan Perubahan' :'Simpan Target RKAT'}
- </button>
- </div>
- </motion.div>
  </div>
  )}
- </AnimatePresence>
+
+  {/* ADD / EDIT RKAT PENGUMPULAN DIALOG MODAL */}
+  <AnimatePresence>
+    {(isAddPengumpulanOpen || editingPengumpulanItem !== null) && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
+        >
+          {/* Modal Header */}
+          <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-xs border border-primary/20">
+                {editingPengumpulanItem ? <Edit2 className="size-5" /> : <Plus className="size-5" />}
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  {editingPengumpulanItem ? 'Ubah Target RKAT Pengumpulan' : 'Tambah Target RKAT Pengumpulan'}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Atur alokasi target penerimaan, target donatur perorangan/lembaga, dan akun COA.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setIsAddPengumpulanOpen(false);
+                setEditingPengumpulanItem(null);
+              }}
+              className="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 p-2 rounded-xl transition-all"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Modal Body */}
+          <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar bg-slate-50/30">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+              <div className="grid grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">No. Urut</label>
+                  <input
+                    type="text"
+                    value={formPengNo}
+                    onChange={(e) => setFormPengNo(e.target.value)}
+                    placeholder="e.g. 1"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
+                  />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Kategori Pengumpulan</label>
+                  <select
+                    value={formPengKategori}
+                    onChange={(e) => setFormPengKategori(e.target.value as any)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer"
+                  >
+                    <option value="Zakat">Zakat</option>
+                    <option value="Infak">Infak</option>
+                    <option value="DSKL">DSKL</option>
+                    <option value="CSR">CSR</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nama Program / Kegiatan</label>
+                <input
+                  type="text"
+                  value={formPengNama}
+                  onChange={(e) => setFormPengNama(e.target.value)}
+                  placeholder="e.g. Zakat Maal Perorangan"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3.5 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Target Perorangan</label>
+                  <input
+                    type="number"
+                    value={formPengPerorangan}
+                    onChange={(e) => setFormPengPerorangan(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                    placeholder="n/a"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right text-slate-800"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Target Lembaga</label>
+                  <input
+                    type="number"
+                    value={formPengLembaga}
+                    onChange={(e) => setFormPengLembaga(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                    placeholder="n/a"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right text-slate-800"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nilai Anggaran (Rp)</label>
+                  <input
+                    type="number"
+                    value={formPengAnggaran}
+                    onChange={(e) => setFormPengAnggaran(parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right text-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* COA mapping selection */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+              <SearchableCoaDropdownMulti
+                label="Hubungkan ke Akun COA Penerimaan"
+                selectedCodes={formPengCoas}
+                onChange={setFormPengCoas}
+                availableCoas={coas.filter((coa: any) => coa.klasifikasi === 'Penerimaan' || coa.coa_code.startsWith('4'))}
+                placeholder="Cari COA Penerimaan..."
+              />
+              <p className="text-[10px] text-slate-400 font-medium">Pilih satu atau lebih akun COA Penerimaan. Nilai transaksi Uang Masuk pada COA terpilih akan otomatis terakumulasi sebagai Realisasi program.</p>
+            </div>
+
+            {/* Month-by-month grid */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-bold text-slate-700">Rincian Anggaran Target per Bulan</h4>
+                <button
+                  type="button"
+                  onClick={distributePengAnggaran}
+                  className="text-[10px] font-black text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                >
+                  Bagi Rata 12 Bulan
+                </button>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2.5">
+                {['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'].map((m) => (
+                  <div key={m} className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase">{m}</label>
+                    <input
+                      type="number"
+                      value={formPengMonths[m]}
+                      onChange={(e) => setFormPengMonths({ ...formPengMonths, [m]: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right font-mono focus:ring-2 focus:ring-primary/15 focus:border-primary outline-none transition-all text-slate-800"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2 text-right pt-2 border-t border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400">Total Terdistribusi per Bulan: </span>
+                <span className={cn(
+                  "text-xs font-black font-mono ml-1",
+                  Math.abs(Object.values(formPengMonths).reduce((a, b) => a + b, 0) - formPengAnggaran) < 5
+                    ? "text-emerald-600"
+                    : "text-amber-600"
+                )}>
+                  {formatCurrency(Object.values(formPengMonths).reduce((a, b) => a + b, 0))}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 font-semibold shrink-0">
+            <button
+              onClick={() => {
+                setIsAddPengumpulanOpen(false);
+                setEditingPengumpulanItem(null);
+              }}
+              className="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              onClick={editingPengumpulanItem ? saveEditPengumpulan : saveNewPengumpulan}
+              className="px-6 py-2.5 text-xs font-bold text-white bg-primary hover:bg-primary/95 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+            >
+              <Check className="size-4" />
+              {editingPengumpulanItem ? 'Simpan Perubahan' : 'Simpan Target RKAT'}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
+
+  {/* ADD / EDIT RKAT OPERASIONAL DIALOG MODAL */}
+  <AnimatePresence>
+    {(isAddOperasionalOpen || editingOperasionalItem !== null) && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
+        >
+          {/* Modal Header */}
+          <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-xs border border-primary/20">
+                {editingOperasionalItem ? <Edit2 className="size-5" /> : <Plus className="size-5" />}
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  {editingOperasionalItem ? 'Ubah Target RKAT Operasional' : 'Tambah Target RKAT Operasional'}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Kelola target anggaran belanja operasional amil, volume, dan unit cost.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setIsAddOperasionalOpen(false);
+                setEditingOperasionalItem(null);
+              }}
+              className="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 p-2 rounded-xl transition-all"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Modal Content */}
+          <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar bg-slate-50/30">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+              <div className="grid grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">No. Urut</label>
+                  <input
+                    type="text"
+                    value={formOperNo}
+                    onChange={(e) => setFormOperNo(e.target.value)}
+                    placeholder="e.g. 1"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
+                  />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nama Program / Kegiatan</label>
+                  <input
+                    type="text"
+                    value={formOperNama}
+                    onChange={(e) => setFormOperNama(e.target.value)}
+                    placeholder="e.g. Belanja ATK Kantor"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Keterangan Kegiatan</label>
+                <textarea
+                  value={formOperKeterangan}
+                  onChange={(e) => setFormOperKeterangan(e.target.value)}
+                  placeholder="e.g. Pembelian kertas, pulpen, tinta printer triwulanan"
+                  rows={2}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-4 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Volume</label>
+                  <input
+                    type="number"
+                    value={formOperVolume}
+                    onChange={(e) => setFormOperVolume(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center text-slate-800"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Frekuensi</label>
+                  <input
+                    type="number"
+                    value={formOperFrekuensi}
+                    onChange={(e) => setFormOperFrekuensi(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center text-slate-800"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Unit Cost (Rp)</label>
+                  <input
+                    type="number"
+                    value={formOperUnitCost}
+                    onChange={(e) => setFormOperUnitCost(parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-right font-mono text-slate-800"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nilai Anggaran</label>
+                  <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-black text-right font-mono text-slate-700">
+                    {formatCurrency(formOperAnggaran)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Month-by-month grid */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-bold text-slate-700">Rincian Anggaran Target per Bulan</h4>
+                <button
+                  type="button"
+                  onClick={distributeOperAnggaran}
+                  className="text-[10px] font-black text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                >
+                  Bagi Rata 12 Bulan
+                </button>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2.5">
+                {['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'].map((m) => (
+                  <div key={m} className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase">{m}</label>
+                    <input
+                      type="number"
+                      value={formOperMonths[m]}
+                      onChange={(e) => setFormOperMonths({ ...formOperMonths, [m]: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-right font-mono focus:ring-2 focus:ring-primary/15 focus:border-primary outline-none transition-all text-slate-800"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2 text-right pt-2 border-t border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400">Total Terdistribusi per Bulan: </span>
+                <span className={cn(
+                  "text-xs font-black font-mono ml-1",
+                  Math.abs(Object.values(formOperMonths).reduce((a, b) => a + b, 0) - formOperAnggaran) < 5
+                    ? "text-emerald-600"
+                    : "text-amber-600"
+                )}>
+                  {formatCurrency(Object.values(formOperMonths).reduce((a, b) => a + b, 0))}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 font-semibold shrink-0">
+            <button
+              onClick={() => {
+                setIsAddOperasionalOpen(false);
+                setEditingOperasionalItem(null);
+              }}
+              className="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              onClick={editingOperasionalItem ? saveEditOperasional : saveNewOperasional}
+              className="px-6 py-2.5 text-xs font-bold text-white bg-primary hover:bg-primary/95 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+            >
+              <Check className="size-4" />
+              {editingOperasionalItem ? 'Simpan Perubahan' : 'Simpan Target RKAT'}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
 
  {/* Migration Modal RKAT */}
  <AnimatePresence>

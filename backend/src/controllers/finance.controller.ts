@@ -360,7 +360,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
     const { proposalId } = req.params;
     const proposal = await prisma.proposal.findUnique({
       where: { id: proposalId } as any,
-      include: { program: true } as any
+      include: { program: { include: { pilar: true } } } as any
     }) as any;
 
     if (!proposal) {
@@ -368,22 +368,9 @@ export const checkAvailability = async (req: Request, res: Response) => {
       return;
     }
 
-    const rawProgramCode = proposal.jenis_permohonan || '';
+    const rawProgramCode = String(proposal.jenis_permohonan || '').trim();
     const proposalAsnaf = proposal.asnaf || 'Miskin';
     const amount = Number(proposal.nominal || 0);
-
-    let targetProgram = proposal.program;
-    if (!targetProgram) {
-      targetProgram = await prisma.program.findFirst({
-        where: {
-          OR: [
-            { code: rawProgramCode },
-            { name: rawProgramCode },
-            { name: { contains: rawProgramCode } }
-          ]
-        }
-      });
-    }
 
     // Robust variation-friendly tag logic
     let tag = 'ZAKAT';
@@ -401,148 +388,197 @@ export const checkAvailability = async (req: Request, res: Response) => {
       tag = 'ZAKAT';
     }
 
-    let rkatSpesifik = {
-      nama_kegiatan: 'Program Global (Belum Diatur)',
-      asnaf: proposalAsnaf,
-      total_pagu: 0,
-      sisa_pagu: 0,
-      status: 'OVER_BUDGET'
-    };
+    // 1. Fetch all programs with pilars to support multi-activity RKAT structures
+    const allPrograms = await prisma.program.findMany({
+      include: { pilar: true },
+      orderBy: { code: 'asc' }
+    });
 
-    let rkatAlternatif = {
-      nama_kegiatan: 'Program Global (Alternatif)',
-      asnaf: 'Semua Asnaf',
-      total_pagu: 0,
-      sisa_pagu: 0,
-      status: 'OVER_BUDGET'
-    };
+    const allActivities: any[] = [];
 
-    let activitiesStatus: any[] = [];
+    for (const prog of allPrograms) {
+      const details = typeof prog.rkat_details === 'string'
+        ? JSON.parse(prog.rkat_details || '[]')
+        : (prog.rkat_details || []);
 
-    if (targetProgram) {
-      const budgetGlobal = targetProgram.budget_rkat || 0;
-      rkatSpesifik.total_pagu = budgetGlobal;
-      rkatSpesifik.sisa_pagu = budgetGlobal;
-      rkatSpesifik.nama_kegiatan = targetProgram.name;
-
-      rkatAlternatif.total_pagu = budgetGlobal;
-      rkatAlternatif.sisa_pagu = budgetGlobal;
-      rkatAlternatif.nama_kegiatan = targetProgram.name;
-
-      const rkatDetailsStr = targetProgram.rkat_details;
-      if (rkatDetailsStr) {
-        const details = typeof rkatDetailsStr === 'string'
-          ? JSON.parse(rkatDetailsStr)
-          : rkatDetailsStr;
-
-        if (Array.isArray(details)) {
-          // Pre-calculate real-time pagu and sisa for all activities
-          for (const act of details) {
-            const total = Number(act.mustahik || 0) * Number(act.frekuensi || 1) * Number(act.nominal || 0);
-            const journalSum = await prisma.journalEntry.aggregate({
-              _sum: { debit: true },
-              where: {
-                coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: act.id || '' }
-              }
-            });
-            const terpakai = Number(journalSum._sum.debit || 0);
-            const sisa = total - terpakai;
-            activitiesStatus.push({
-              id: act.id,
-              name: act.name,
-              keterangan: act.keterangan || act.spesifikasi || act.name,
-              asnaf: act.asnaf,
-              nominal: Number(act.nominal || 0),
-              total_pagu: total,
-              terpakai: terpakai,
-              sisa_pagu: sisa,
-              status: amount <= sisa ? 'AVAILABLE' : 'OVER_BUDGET'
-            });
+      if (Array.isArray(details) && details.length > 0) {
+        for (let idx = 0; idx < details.length; idx++) {
+          const act = details[idx];
+          const actId = String(act.id || act.asnafTargetId || `act-${prog.code}-${act.asnaf || 'all'}-${idx}`);
+          const actName = act.name || prog.name;
+          const actKeterangan = act.keterangan || act.spesifikasi || act.name || prog.name;
+          const actAsnaf = act.asnaf || 'Semua';
+          const actNominal = Number(act.nominal || act.unitCost || 0);
+          let total = Number(act.mustahik || 0) * Number(act.frekuensi || 1) * actNominal;
+          if (total === 0 && Number(prog.budget_rkat) > 0 && details.length === 1) {
+            total = Number(prog.budget_rkat);
           }
 
-          // 1. Check exact match by rkat_activity_id OR asnaf
-          const matchedAct = details.find(
-            d => String(d.id) === String(proposal.rkat_activity_id) ||
-              String(d.no) === String(proposal.rkat_activity_id) ||
-              (d.asnaf && d.asnaf.toLowerCase() === proposalAsnaf.toLowerCase())
-          ) || details[0];
-
-          if (matchedAct) {
-            const total = Number(matchedAct.mustahik || 0) * Number(matchedAct.frekuensi || 1) * Number(matchedAct.nominal || 0);
-            rkatSpesifik.total_pagu = total;
-            rkatSpesifik.nama_kegiatan = matchedAct.name || targetProgram.name;
-            rkatSpesifik.asnaf = matchedAct.asnaf || proposalAsnaf;
-
-            // Sum debits for matched asnaf
-            const journalSumSpesifik = await prisma.journalEntry.aggregate({
-              _sum: { debit: true },
-              where: {
-                coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: matchedAct.id || targetProgram?.code || rawProgramCode || '' }
+          const matchRkatIds = [actId, String(act.no || ''), act.coaCode, (details.length === 1 ? prog.code : null)].filter(Boolean) as string[];
+          const journalSum = await prisma.journalEntry.aggregate({
+            _sum: { debit: true },
+            where: {
+              coa_code: { startsWith: '5' },
+              realisasi: {
+                rkat_id: { in: matchRkatIds }
               }
-            });
-            const realisasiSpesifik = Number(journalSumSpesifik._sum.debit || 0);
-            rkatSpesifik.sisa_pagu = total - realisasiSpesifik;
-            rkatSpesifik.status = rkatSpesifik.sisa_pagu >= amount ? 'CUKUP' : 'OVER_BUDGET';
-          } else {
-            // Fallback global sum
-            const journalSumSpesifik = await prisma.journalEntry.aggregate({
-              _sum: { debit: true },
-              where: {
-                coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: targetProgram?.code || rawProgramCode || '' }
-              }
-            });
-            const realisasiSpesifik = Number(journalSumSpesifik._sum.debit || 0);
-            rkatSpesifik.sisa_pagu = budgetGlobal - realisasiSpesifik;
-            rkatSpesifik.status = rkatSpesifik.sisa_pagu >= amount ? 'CUKUP' : 'OVER_BUDGET';
-          }
+            }
+          });
+          const terpakai = Number(journalSum._sum.debit || 0);
+          const sisa = total - terpakai;
 
-          // 2. Alternative global asnaf activity
-          const altAct = details.find(d => !d.asnaf || d.asnaf.toLowerCase() === 'semua' || d.asnaf.toLowerCase() === 'semua asnaf');
-          if (altAct) {
-            const total = Number(altAct.mustahik || 0) * Number(altAct.frekuensi || 1) * Number(altAct.nominal || 0);
-            rkatAlternatif.total_pagu = total;
-            rkatAlternatif.nama_kegiatan = altAct.name || targetProgram.name;
-            rkatAlternatif.asnaf = 'Semua Asnaf';
-
-            // Sum debits for global asnaf alternative
-            const journalSumAlt = await prisma.journalEntry.aggregate({
-              _sum: { debit: true },
-              where: {
-                coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: altAct.id || targetProgram?.code || rawProgramCode || '' }
-              }
-            });
-            const realisasiAlt = Number(journalSumAlt._sum.debit || 0);
-            rkatAlternatif.sisa_pagu = total - realisasiAlt;
-            rkatAlternatif.status = rkatAlternatif.sisa_pagu >= amount ? 'CUKUP' : 'OVER_BUDGET';
-          } else {
-            // Fallback global program
-            const journalSumAlt = await prisma.journalEntry.aggregate({
-              _sum: { debit: true },
-              where: {
-                coa_code: { startsWith: '5' },
-                realisasi: { rkat_id: targetProgram?.code || rawProgramCode || '' }
-              }
-            });
-            const realisasiAlt = Number(journalSumAlt._sum.debit || 0);
-            rkatAlternatif.sisa_pagu = budgetGlobal - realisasiAlt;
-            rkatAlternatif.status = rkatAlternatif.sisa_pagu >= amount ? 'CUKUP' : 'OVER_BUDGET';
-          }
+          allActivities.push({
+            id: actId,
+            program_code: prog.code,
+            program_name: prog.name,
+            pilar_code: prog.pilar_code,
+            pilar_name: prog.pilar?.name || '',
+            name: actName,
+            keterangan: actKeterangan,
+            asnaf: actAsnaf,
+            nominal: actNominal,
+            total_pagu: total,
+            terpakai: terpakai,
+            sisa_pagu: sisa,
+            status: amount <= sisa ? 'AVAILABLE' : 'OVER_BUDGET',
+            is_target_program: false,
+            coaCode: act.coaCode,
+            no: act.no
+          });
         }
+      } else {
+        // Fallback for programs without rkat_details
+        const total = Number(prog.budget_rkat || 0);
+        const journalSum = await prisma.journalEntry.aggregate({
+          _sum: { debit: true },
+          where: {
+            coa_code: { startsWith: '5' },
+            realisasi: { rkat_id: prog.code }
+          }
+        });
+        const terpakai = Number(journalSum._sum.debit || 0);
+        const sisa = total - terpakai;
+
+        allActivities.push({
+          id: prog.code,
+          program_code: prog.code,
+          program_name: prog.name,
+          pilar_code: prog.pilar_code,
+          pilar_name: prog.pilar?.name || '',
+          name: prog.name,
+          keterangan: prog.name,
+          asnaf: 'Semua',
+          nominal: total,
+          total_pagu: total,
+          terpakai: terpakai,
+          sisa_pagu: sisa,
+          status: amount <= sisa ? 'AVAILABLE' : 'OVER_BUDGET',
+          is_target_program: false
+        });
       }
     }
 
-    // 2. Sum physical bank/cash accounts matching the tag
+    // 2. Identify target program and exact matched activity
+    let targetProgram: any = proposal.program || null;
+    let matchedAct: any = null;
+
+    // A. Priority 1: Match by explicit proposal.rkat_activity_id
+    if (proposal.rkat_activity_id) {
+      const pRkatId = String(proposal.rkat_activity_id).trim();
+      matchedAct = allActivities.find(a => 
+        String(a.id) === pRkatId || 
+        String(a.no) === pRkatId || 
+        String(a.coaCode) === pRkatId
+      );
+      if (matchedAct) {
+        targetProgram = allPrograms.find(p => p.code === matchedAct.program_code) || targetProgram;
+      }
+    }
+
+    // B. Priority 2: Match by proposal.program or rawProgramCode
+    if (!targetProgram && rawProgramCode) {
+      targetProgram = allPrograms.find(p => 
+        p.code === rawProgramCode || 
+        p.name.toLowerCase() === rawProgramCode.toLowerCase() ||
+        p.name.toLowerCase().includes(rawProgramCode.toLowerCase()) ||
+        rawProgramCode.toLowerCase().includes(p.name.toLowerCase())
+      );
+      if (!targetProgram && rawProgramCode.includes('.')) {
+        const parentCode = rawProgramCode.split('.')[0].trim();
+        targetProgram = allPrograms.find(p => p.code === parentCode);
+      }
+    }
+
+    // C. Priority 3: If targetProgram found, find matching activity within targetProgram
+    if (targetProgram && !matchedAct) {
+      const progActivities = allActivities.filter(a => a.program_code === targetProgram.code);
+      if (progActivities.length > 0) {
+        const pAsnafLower = proposalAsnaf.toLowerCase().trim();
+        matchedAct = progActivities.find(a => (a.asnaf || '').toLowerCase().trim() === pAsnafLower)
+          || progActivities.find(a => (a.asnaf || '').toLowerCase().includes(pAsnafLower))
+          || progActivities.find(a => (a.keterangan || '').toLowerCase().includes(rawProgramCode.toLowerCase()))
+          || progActivities[0];
+      }
+    }
+
+    // D. Priority 4: Search matching activity name/keterangan across all activities if still not found
+    if (!matchedAct && rawProgramCode) {
+      matchedAct = allActivities.find(a => 
+        a.name.toLowerCase() === rawProgramCode.toLowerCase() ||
+        a.keterangan.toLowerCase().includes(rawProgramCode.toLowerCase())
+      );
+      if (matchedAct) {
+        targetProgram = allPrograms.find(p => p.code === matchedAct.program_code) || targetProgram;
+      }
+    }
+
+    // E. Fallback
+    if (!matchedAct && allActivities.length > 0) {
+      matchedAct = allActivities[0];
+      if (!targetProgram) {
+        targetProgram = allPrograms.find(p => p.code === matchedAct.program_code) || null;
+      }
+    }
+
+    // 3. Flag is_target_program and sort target program activities to the top
+    const targetCode = targetProgram ? targetProgram.code : (matchedAct ? matchedAct.program_code : '');
+    allActivities.forEach(a => {
+      a.is_target_program = a.program_code === targetCode;
+    });
+
+    const sortedActivities = [
+      ...allActivities.filter(a => a.is_target_program),
+      ...allActivities.filter(a => !a.is_target_program)
+    ];
+
+    // 4. Construct rkat_spesifik and rkat_alternatif
+    let rkatSpesifik = {
+      nama_kegiatan: matchedAct ? (matchedAct.keterangan || matchedAct.name) : (targetProgram?.name || 'Program Global'),
+      asnaf: matchedAct?.asnaf || proposalAsnaf,
+      total_pagu: matchedAct?.total_pagu || (targetProgram?.budget_rkat || 0),
+      sisa_pagu: matchedAct?.sisa_pagu || (targetProgram?.budget_rkat || 0),
+      status: (matchedAct ? matchedAct.sisa_pagu : (targetProgram?.budget_rkat || 0)) >= amount ? 'CUKUP' : 'OVER_BUDGET'
+    };
+
+    const altAct = allActivities.find(a => a.is_target_program && (a.asnaf?.toLowerCase() === 'semua' || a.asnaf?.toLowerCase() === 'semua asnaf'))
+      || allActivities.find(a => a.asnaf?.toLowerCase() === 'semua' || a.asnaf?.toLowerCase() === 'semua asnaf')
+      || (allActivities.length > 0 ? allActivities[0] : null);
+
+    let rkatAlternatif = {
+      nama_kegiatan: altAct ? (altAct.keterangan || altAct.name) : 'Program Global (Alternatif)',
+      asnaf: 'Semua Asnaf',
+      total_pagu: altAct ? altAct.total_pagu : 0,
+      sisa_pagu: altAct ? altAct.sisa_pagu : 0,
+      status: (altAct ? altAct.sisa_pagu : 0) >= amount ? 'CUKUP' : 'OVER_BUDGET'
+    };
+
+    // 5. Sum physical bank/cash accounts matching the tag
     const accountsSum = await prisma.bankAccount.aggregate({
       _sum: { saldo: true },
       where: { kelompok_dana: tag }
     });
     const totalSaldoKasRiil = Number(accountsSum._sum.saldo || 0);
 
-    // Sum details for ZAKAT, ISTT, IST
     const zakatSum = await prisma.bankAccount.aggregate({
       _sum: { saldo: true },
       where: { kelompok_dana: 'ZAKAT' }
@@ -561,13 +597,15 @@ export const checkAvailability = async (req: Request, res: Response) => {
     const saldoIst = Number(istSum._sum.saldo || 0);
 
     res.status(200).json({
-      nama_program: targetProgram?.name || 'Program Penyaluran',
+      nama_program: targetProgram?.name || (matchedAct?.program_name || 'Program Penyaluran'),
+      program_code: targetCode,
+      pilar_name: targetProgram?.pilar?.name || matchedAct?.pilar_name || '',
       sumber_dana_yang_dipakai: tag,
       proposal_nominal: amount,
       proposal_asnaf: proposalAsnaf,
       rkat_spesifik: rkatSpesifik,
       rkat_alternatif: rkatAlternatif,
-      rkat_activities: activitiesStatus,
+      rkat_activities: sortedActivities,
       kas_riil: {
         total_tersedia: totalSaldoKasRiil,
         status: totalSaldoKasRiil >= amount ? 'AMAN' : 'LIKUIDITAS_KRITIS',
@@ -597,6 +635,10 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
 
     let detectedTag = 'ZAKAT';
 
+    const allPrograms = await prisma.program.findMany({
+      include: { pilar: true }
+    });
+
     for (const id of proposalIds) {
       const proposal = await prisma.proposal.findUnique({
         where: { id: id } as any,
@@ -625,57 +667,80 @@ export const checkAvailabilityBatch = async (req: Request, res: Response) => {
 
       detectedTag = tag;
 
-      const rawProgramCode = proposal.jenis_permohonan || '';
-      let targetProgram = proposal.program;
-      if (!targetProgram) {
-        targetProgram = await prisma.program.findFirst({
-          where: {
-            OR: [
-              { code: rawProgramCode },
-              { name: rawProgramCode },
-              { name: { contains: rawProgramCode } }
-            ]
-          }
-        });
-      }
+      const rawProgramCode = String(proposal.jenis_permohonan || '').trim();
+      const pRkatId = proposal.rkat_activity_id ? String(proposal.rkat_activity_id).trim() : '';
 
-      if (targetProgram) {
-        const rkatDetailsStr = targetProgram.rkat_details;
-        if (rkatDetailsStr) {
-          const details = typeof rkatDetailsStr === 'string'
-            ? JSON.parse(rkatDetailsStr)
-            : rkatDetailsStr;
+      let matchedAct: any = null;
+      let targetProg: any = proposal.program || null;
 
-          if (Array.isArray(details) && details.length > 0) {
-            const matchedAct = details.find(
-              d => String(d.id) === String(proposal.rkat_activity_id) ||
-                String(d.no) === String(proposal.rkat_activity_id) ||
-                (d.asnaf && d.asnaf.toLowerCase() === (proposal.asnaf || 'miskin').toLowerCase())
-            ) || details[0];
+      // Match across all programs
+      for (const prog of allPrograms) {
+        const details = typeof prog.rkat_details === 'string'
+          ? JSON.parse(prog.rkat_details || '[]')
+          : (prog.rkat_details || []);
 
-            if (matchedAct) {
-              const actId = matchedAct.id;
-              const total = Number(matchedAct.mustahik || 0) * Number(matchedAct.frekuensi || 1) * Number(matchedAct.nominal || 0);
-
-              if (!rkatStatusMap.has(actId)) {
-                const journalSum = await prisma.journalEntry.aggregate({
-                  _sum: { debit: true },
-                  where: {
-                    coa_code: { startsWith: '5' },
-                    realisasi: { rkat_id: actId }
-                  }
-                });
-                const terpakai = Number(journalSum._sum.debit || 0);
-                rkatStatusMap.set(actId, {
-                  total_pagu: total,
-                  terpakai_saat_ini: terpakai,
-                  sisa_pagu: total - terpakai,
-                  name: matchedAct.name || targetProgram.name,
-                  keterangan: matchedAct.keterangan || matchedAct.spesifikasi || matchedAct.name || targetProgram.name
-                });
-              }
+        if (Array.isArray(details) && details.length > 0) {
+          if (pRkatId) {
+            const found = details.find((d: any) => String(d.id) === pRkatId || String(d.no) === pRkatId || String(d.coaCode) === pRkatId);
+            if (found) {
+              matchedAct = { ...found, programName: prog.name, programCode: prog.code };
+              targetProg = prog;
+              break;
             }
           }
+          if (!matchedAct && (prog.code === rawProgramCode || prog.name.toLowerCase() === rawProgramCode.toLowerCase())) {
+            const pAsnafLower = (proposal.asnaf || 'miskin').toLowerCase();
+            const found = details.find((d: any) => (d.asnaf || '').toLowerCase() === pAsnafLower) || details[0];
+            if (found) {
+              matchedAct = { ...found, programName: prog.name, programCode: prog.code };
+              targetProg = prog;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchedAct) {
+        const actId = String(matchedAct.id || `act-${matchedAct.programCode}-${matchedAct.asnaf || 'all'}`);
+        const total = Number(matchedAct.mustahik || 0) * Number(matchedAct.frekuensi || 1) * Number(matchedAct.nominal || matchedAct.unitCost || 0);
+
+        if (!rkatStatusMap.has(actId)) {
+          const matchRkatIds = [actId, String(matchedAct.no || ''), matchedAct.coaCode, matchedAct.programCode].filter(Boolean) as string[];
+          const journalSum = await prisma.journalEntry.aggregate({
+            _sum: { debit: true },
+            where: {
+              coa_code: { startsWith: '5' },
+              realisasi: { rkat_id: { in: matchRkatIds } }
+            }
+          });
+          const terpakai = Number(journalSum._sum.debit || 0);
+          rkatStatusMap.set(actId, {
+            total_pagu: total,
+            terpakai_saat_ini: terpakai,
+            sisa_pagu: total - terpakai,
+            name: matchedAct.name || matchedAct.programName,
+            keterangan: matchedAct.keterangan || matchedAct.spesifikasi || matchedAct.name || matchedAct.programName
+          });
+        }
+      } else if (targetProg) {
+        const progCode = targetProg.code;
+        const total = Number(targetProg.budget_rkat || 0);
+        if (!rkatStatusMap.has(progCode)) {
+          const journalSum = await prisma.journalEntry.aggregate({
+            _sum: { debit: true },
+            where: {
+              coa_code: { startsWith: '5' },
+              realisasi: { rkat_id: progCode }
+            }
+          });
+          const terpakai = Number(journalSum._sum.debit || 0);
+          rkatStatusMap.set(progCode, {
+            total_pagu: total,
+            terpakai_saat_ini: terpakai,
+            sisa_pagu: total - terpakai,
+            name: targetProg.name,
+            keterangan: targetProg.name
+          });
         }
       }
 

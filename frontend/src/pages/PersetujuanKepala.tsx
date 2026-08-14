@@ -185,7 +185,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
         // Match chosen activity or fallback
         const currentAsnaf = (item.asnaf || 'Miskin').toLowerCase();
         const matched = acts.find((a: any) => a.id === item.rkatActivityId) ||
+                        acts.find((a: any) => a.is_target_program && a.asnaf && a.asnaf.toLowerCase() === currentAsnaf) ||
                         acts.find((a: any) => a.asnaf && a.asnaf.toLowerCase() === currentAsnaf) ||
+                        acts.find((a: any) => a.is_target_program) ||
                         acts[0];
                         
         setSelectedRkatId(matched ? matched.id : '');
@@ -197,7 +199,7 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
         );
         setSelectedSumberKas(initialSumber);
         setInitialSumberKas(initialSumber);
-        setSelectedAsnaf(item.asnaf || '');
+        setSelectedAsnaf(item.asnaf || (matched?.asnaf && matched.asnaf !== 'Semua' ? matched.asnaf : 'Miskin'));
         setAlasanPerubahanDana(item.alasan_perubahan_dana || '');
         const chosenNominal = Number(item.nominal) || (matched ? Number(matched.nominal) : 0) || 0;
         setRekomendasiNominal(chosenNominal);
@@ -749,10 +751,11 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                 <span className="truncate max-w-[90%]">
                                   {selectedRkatId 
                                     ? (() => {
-                                        const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedRkatId);
+                                        const act = (availability?.rkat_activities || []).find((a: any) => a.id === selectedRkatId);
                                         if (!act) return selectedRkatId;
                                         const displayName = act.keterangan || act.name;
-                                        return `${displayName} (Asnaf: ${act.asnaf || 'Semua'}, Sisa: Rp ${(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')})`;
+                                        const progPrefix = act.program_name ? `[${act.pilar_name ? `${act.pilar_name} · ` : ''}${act.program_name}] ` : '';
+                                        return `${progPrefix}${displayName} (Asnaf: ${act.asnaf || 'Semua'}, Sisa: Rp ${(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')})`;
                                       })()
                                     : '-- Pilih Kegiatan RKAT --'
                                   }
@@ -763,18 +766,18 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                               {isRkatDropdownOpen && (
                                 <>
                                   <div className="fixed inset-0 z-30" onClick={() => setIsRkatDropdownOpen(false)} />
-                                  <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
+                                  <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-80 overflow-hidden flex flex-col">
                                     <div className="p-1 border-b border-slate-100 mb-1">
                                       <input
                                         type="text"
-                                        placeholder="Cari spesifikasi / kegiatan RKAT..."
+                                        placeholder="Cari kegiatan, program, pilar, atau asnaf..."
                                         value={rkatSearchQuery}
                                         onChange={(e) => setRkatSearchQuery(e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
                                         className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-700"
                                       />
                                     </div>
-                                    <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
+                                    <div className="overflow-y-auto custom-scrollbar flex-1 max-h-60">
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -790,12 +793,17 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                         <span>-- Pilih Kegiatan RKAT --</span>
                                         {!selectedRkatId && <Check className="size-4 text-primary shrink-0" />}
                                       </button>
-                                      {(availability.rkat_activities || [])
-                                        .filter((act: any) => 
-                                          (act.name || '').toLowerCase().includes(rkatSearchQuery.toLowerCase()) ||
-                                          (act.keterangan || '').toLowerCase().includes(rkatSearchQuery.toLowerCase()) ||
-                                          (act.asnaf || '').toLowerCase().includes(rkatSearchQuery.toLowerCase())
-                                        )
+                                      {(availability?.rkat_activities || [])
+                                        .filter((act: any) => {
+                                          const term = rkatSearchQuery.toLowerCase();
+                                          return (
+                                            (act.name || '').toLowerCase().includes(term) ||
+                                            (act.keterangan || '').toLowerCase().includes(term) ||
+                                            (act.asnaf || '').toLowerCase().includes(term) ||
+                                            (act.program_name || '').toLowerCase().includes(term) ||
+                                            (act.pilar_name || '').toLowerCase().includes(term)
+                                          );
+                                        })
                                         .map((act: any) => (
                                           <button
                                             key={act.id}
@@ -804,8 +812,9 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                               setSelectedRkatId(act.id);
                                               setIsRkatDropdownOpen(false);
                                               setRkatSearchQuery('');
-                                              if (act.nominal) {
+                                              if (act.nominal && act.nominal > 0) {
                                                 setRekomendasiNominal(act.nominal);
+                                                setRekomendasiUnitCost(act.nominal);
                                               }
                                             }}
                                             className={cn(
@@ -813,28 +822,51 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                               selectedRkatId === act.id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
                                             )}
                                           >
-                                            <div className="truncate pr-2">
+                                            <div className="truncate pr-2 w-full">
+                                              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                                {act.pilar_name && (
+                                                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                    {act.pilar_name}
+                                                  </span>
+                                                )}
+                                                {act.program_name && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                                    {act.program_name}
+                                                  </span>
+                                                )}
+                                                {act.is_target_program && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    Sesuai Proposal
+                                                  </span>
+                                                )}
+                                              </div>
                                               <p className="font-bold text-slate-900 truncate text-xs">
                                                 {act.keterangan || act.name}
                                               </p>
                                               {act.name && act.keterangan && act.name !== act.keterangan && (
                                                 <p className="text-[10px] text-slate-400 font-medium truncate">
-                                                  Program: {act.name}
+                                                  Spesifikasi Program: {act.name}
                                                 </p>
                                               )}
-                                              <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                                                Asnaf: <span className="font-bold text-slate-700">{act.asnaf || 'Semua'}</span> · Sisa: <span className="font-bold text-emerald-600">Rp {(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')}</span>
-                                              </p>
+                                              <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold mt-1">
+                                                <span>Asnaf: <span className="font-bold text-slate-700">{act.asnaf || 'Semua'}</span></span>
+                                                <span>Sisa: <span className={cn("font-bold", (act.sisa_pagu || 0) > 0 ? "text-emerald-600" : "text-rose-600")}>Rp {(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')}</span></span>
+                                              </div>
                                             </div>
                                             {selectedRkatId === act.id && <Check className="size-4 text-primary shrink-0 ml-2" />}
                                           </button>
                                         ))}
-                                      {(availability.rkat_activities || [])
-                                        .filter((act: any) => 
-                                          (act.name || '').toLowerCase().includes(rkatSearchQuery.toLowerCase()) ||
-                                          (act.keterangan || '').toLowerCase().includes(rkatSearchQuery.toLowerCase()) ||
-                                          (act.asnaf || '').toLowerCase().includes(rkatSearchQuery.toLowerCase())
-                                        ).length === 0 && (
+                                      {(availability?.rkat_activities || [])
+                                        .filter((act: any) => {
+                                          const term = rkatSearchQuery.toLowerCase();
+                                          return (
+                                            (act.name || '').toLowerCase().includes(term) ||
+                                            (act.keterangan || '').toLowerCase().includes(term) ||
+                                            (act.asnaf || '').toLowerCase().includes(term) ||
+                                            (act.program_name || '').toLowerCase().includes(term) ||
+                                            (act.pilar_name || '').toLowerCase().includes(term)
+                                          );
+                                        }).length === 0 && (
                                           <p className="text-center py-3 text-[10px] text-slate-400 italic font-medium">Kegiatan tidak ditemukan</p>
                                         )}
                                     </div>
@@ -845,28 +877,40 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                           </div>
 
                           {(() => {
-                            const act = (availability.rkat_activities || []).find((a: any) => a.id === selectedRkatId);
+                            const act = (availability?.rkat_activities || []).find((a: any) => a.id === selectedRkatId);
                             if (!act) return (
                               <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-xl text-xs text-amber-700 font-semibold text-center">
                                 Silakan pilih kegiatan RKAT di atas untuk melihat detail sisa pagu.
                               </div>
                             );
 
-                            const isEnough = act.sisa_pagu >= rekomendasiNominal;
+                            const isEnough = (act.sisa_pagu || 0) >= rekomendasiNominal;
 
                             return (
                               <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-sm">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="space-y-0.5">
+                                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                      {act.pilar_name && (
+                                        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                          {act.pilar_name}
+                                        </span>
+                                      )}
+                                      {act.program_name && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                          {act.program_name}
+                                        </span>
+                                      )}
+                                    </div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                      Keterangan / Spesifikasi Kegiatan:
+                                      Keterangan / Spesifikasi Kegiatan RKAT:
                                     </p>
                                     <h5 className="text-xs font-black text-slate-900 leading-snug">
                                       {act.keterangan || act.name}
                                     </h5>
                                     {act.name && act.keterangan && act.name !== act.keterangan && (
                                       <p className="text-[11px] text-slate-500 font-medium">
-                                        Program: <span className="font-bold text-slate-700">{act.name}</span>
+                                        Program Induk: <span className="font-bold text-slate-700">{act.name}</span>
                                       </p>
                                     )}
                                   </div>
@@ -887,14 +931,14 @@ export default function PersetujuanKepala({ data, onUpdate, suratData, onUpdateS
                                     <p className="font-extrabold text-slate-700">Rp {(Number(act.total_pagu) || 0).toLocaleString('id-ID')}</p>
                                   </div>
                                   <div>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase">Realisasi Terpakai</p>
+                                    <p className="font-extrabold text-slate-500">Rp {(Number(act.terpakai) || 0).toLocaleString('id-ID')}</p>
+                                  </div>
+                                  <div>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase">Sisa Anggaran</p>
                                     <p className={cn("font-black", isEnough ? "text-emerald-600" : "text-rose-600")}>
                                       Rp {(Number(act.sisa_pagu) || 0).toLocaleString('id-ID')}
                                     </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase">Estimasi Unit Cost</p>
-                                    <p className="font-bold text-slate-600">Rp {(Number(act.nominal || rekomendasiNominal) || 0).toLocaleString('id-ID')} <span className="text-[9px] font-normal text-slate-400">/ 1x</span></p>
                                   </div>
                                 </div>
                               </div>
