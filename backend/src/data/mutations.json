@@ -233,6 +233,15 @@
     "keteranganBank": "Zakat",
     "nominal": 5000000,
     "type": "KREDIT",
-    "status": "PENDING"
+    "status": "RECONCILED",
+    "allocatedNominal": 5000000,
+    "reconciledAt": "2026-08-15T08:49:21.928Z",
+    "reconciledBy": "Super Admin",
+    "muzakkiId": null,
+    "muzakkiName": "-",
+    "coaCode": "51070201",
+    "rkatId": "e18d27d2-7acc-49a9-947a-a7a9e21c804f",
+    "sumberDana": "-",
+    "keteranganRealisasi": "Penyaluran/Penggunaan mutasi Zakat"
   }
 ]

@@ -180,13 +180,15 @@ const SearchableCoaDropdownMulti: React.FC<SearchableCoaDropdownMultiProps> = ({
  );
 };
 
-// Searchable Multi-Select Checklist Component for Programs / Kegiatan
+// Searchable Multi-Select Dropdown Component for Programs / Kegiatan
 interface SearchableProgramChecklistMultiProps {
   label: string;
   selectedCodes: string[];
   onChange: (codes: string[]) => void;
   availablePrograms: { code: string; name: string; tipe?: string }[];
   placeholder?: string;
+  emptyLabel?: string;
+  disabled?: boolean;
 }
 
 const SearchableProgramChecklistMulti: React.FC<SearchableProgramChecklistMultiProps> = ({
@@ -194,12 +196,29 @@ const SearchableProgramChecklistMulti: React.FC<SearchableProgramChecklistMultiP
   selectedCodes,
   onChange,
   availablePrograms,
-  placeholder = "Cari Program / Kegiatan..."
+  placeholder = "Cari program / kegiatan...",
+  emptyLabel = "-- Pilih Program / Kegiatan --",
+  disabled = false
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
 
   const filteredPrograms = useMemo(() => {
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return availablePrograms;
     return availablePrograms.filter(prog =>
       prog.code.toLowerCase().includes(term) ||
       prog.name.toLowerCase().includes(term) ||
@@ -225,123 +244,172 @@ const SearchableProgramChecklistMulti: React.FC<SearchableProgramChecklistMultiP
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="space-y-1.5 relative text-left" ref={dropdownRef}>
+      <div className="flex items-center justify-between">
         <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
           {label}
-          {selectedCodes.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-primary/10 text-primary border border-primary/20">
-              {selectedCodes.length} Kegiatan Terpilih
-            </span>
-          )}
         </label>
-        <div className="flex items-center gap-2 text-[11px] font-bold">
-          <button
-            type="button"
-            onClick={selectAll}
-            className="text-primary hover:underline hover:text-primary/80 transition-colors"
-          >
-            Pilih Semua
-          </button>
-          <span className="text-slate-300">|</span>
-          <button
-            type="button"
-            onClick={deselectAll}
-            className="text-slate-400 hover:text-rose-600 hover:underline transition-colors"
-          >
-            Reset
-          </button>
+        {selectedCodes.length > 0 && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-primary/10 text-primary border border-primary/20">
+            {selectedCodes.length} Program Terpilih
+          </span>
+        )}
+      </div>
+
+      {/* Trigger Box */}
+      <div
+        onClick={() => {
+          if (!disabled) {
+            setIsOpen(!isOpen);
+            setSearchTerm("");
+          }
+        }}
+        className={cn(
+          "w-full min-h-[44px] px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all pr-9 relative cursor-pointer flex flex-wrap items-center gap-1.5",
+          disabled && "cursor-not-allowed bg-slate-100 opacity-60",
+          isOpen && "ring-2 ring-primary/20 border-primary bg-white shadow-sm"
+        )}
+      >
+        {selectedCodes.length === 0 ? (
+          <span className="text-slate-400 font-normal">{emptyLabel}</span>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 py-0.5 max-h-24 overflow-y-auto custom-scrollbar">
+            {selectedCodes.map(code => {
+              const prog = availablePrograms.find(p => p.code === code);
+              return (
+                <span
+                  key={code}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-white text-slate-800 border border-slate-200 shadow-xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-[10px] font-mono text-primary font-black">[{code}]</span>
+                  <span className="truncate max-w-[200px]">{prog ? prog.name : code}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelect(code);
+                    }}
+                    className="p-0.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+          <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isOpen && "rotate-180")} />
         </div>
       </div>
 
-      {/* Selected Chips */}
-      {selectedCodes.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200/80 rounded-xl max-h-24 overflow-y-auto custom-scrollbar">
-          {selectedCodes.map(code => {
-            const prog = availablePrograms.find(p => p.code === code);
-            return (
-              <span
-                key={code}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-white text-slate-700 border border-slate-200 shadow-sm"
-              >
-                <span className="text-[10px] font-mono text-primary font-black">[{code}]</span>
-                <span className="truncate max-w-[180px]">{prog ? prog.name : code}</span>
-                <X
-                  className="size-3 text-slate-400 hover:text-rose-500 cursor-pointer shrink-0 ml-0.5"
-                  onClick={() => toggleSelect(code)}
-                />
-              </span>
-            );
-          })}
-        </div>
-      )}
+      {/* Popover Dropdown */}
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in duration-100">
+          {/* Search Header */}
+          <div className="p-2.5 border-b border-slate-100 bg-slate-50/80 space-y-2">
+            <div className="relative">
+              <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                autoFocus
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={placeholder}
+                className="w-full pl-8 pr-7 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-slate-800 placeholder:text-slate-400"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
 
-      {/* Search & Checklist Box */}
-      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-        <div className="p-2 border-b border-slate-100 bg-slate-50/60">
-          <div className="relative">
-            <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={placeholder}
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-700"
-            />
+            {/* Sub-header Actions */}
+            <div className="flex items-center justify-between text-[11px] font-bold px-1">
+              <span className="text-[10px] text-slate-400">
+                {filteredPrograms.length} Program Tersedia
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={selectAll}
+                  className="text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer"
+                >
+                  Pilih Semua
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={deselectAll}
+                  className="text-slate-400 hover:text-rose-600 hover:underline transition-colors cursor-pointer"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Checklist List */}
+          <div className="p-1.5 max-h-56 overflow-y-auto custom-scrollbar space-y-1 divide-y divide-slate-100">
+            {availablePrograms.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-5 text-center">Tidak ada program/kegiatan pada pilar ini.</p>
+            ) : filteredPrograms.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-5 text-center">Tidak ada program yang cocok dengan pencarian.</p>
+            ) : (
+              filteredPrograms.map((prog) => {
+                const isSelected = selectedCodes.includes(prog.code);
+                return (
+                  <div
+                    key={prog.code}
+                    onClick={() => toggleSelect(prog.code)}
+                    className={cn(
+                      "flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all text-xs select-none border",
+                      isSelected
+                        ? "bg-primary/5 border-primary/30 text-slate-900 font-bold shadow-xs"
+                        : "bg-white border-transparent hover:bg-slate-50 text-slate-700 font-medium"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                      <div
+                        className={cn(
+                          "size-4 rounded flex items-center justify-center transition-colors shrink-0",
+                          isSelected
+                            ? "bg-primary text-white shadow-xs"
+                            : "border border-slate-300 bg-white"
+                        )}
+                      >
+                        {isSelected && <Check className="size-3 stroke-[3]" />}
+                      </div>
+                      <span className="text-[10px] font-mono font-black text-primary shrink-0">[{prog.code}]</span>
+                      <span className="truncate text-xs">{prog.name}</span>
+                    </div>
+                    {prog.tipe && (
+                      <span
+                        className={cn(
+                          "text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 border",
+                          prog.tipe === "Produktif"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        )}
+                      >
+                        {prog.tipe}
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
-
-        <div className="p-2 max-h-44 overflow-y-auto custom-scrollbar space-y-1">
-          {availablePrograms.length === 0 ? (
-            <p className="text-xs text-slate-400 italic py-3 text-center">Tidak ada program/kegiatan pada pilar ini.</p>
-          ) : filteredPrograms.length === 0 ? (
-            <p className="text-xs text-slate-400 italic py-3 text-center">Tidak ada program yang cocok dengan pencarian.</p>
-          ) : (
-            filteredPrograms.map((prog) => {
-              const isSelected = selectedCodes.includes(prog.code);
-              return (
-                <div
-                  key={prog.code}
-                  onClick={() => toggleSelect(prog.code)}
-                  className={cn(
-                    "flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all text-xs select-none border",
-                    isSelected
-                      ? "bg-primary/5 border-primary/30 text-slate-900 font-bold"
-                      : "bg-white border-transparent hover:bg-slate-50 text-slate-600 font-medium"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <div
-                      className={cn(
-                        "size-4 rounded flex items-center justify-center transition-colors shrink-0",
-                        isSelected
-                          ? "bg-primary text-white"
-                          : "border border-slate-300 bg-white"
-                      )}
-                    >
-                      {isSelected && <Check className="size-3 stroke-[3]" />}
-                    </div>
-                    <span className="text-[10px] font-mono font-black text-primary shrink-0">[{prog.code}]</span>
-                    <span className="truncate text-xs">{prog.name}</span>
-                  </div>
-                  {prog.tipe && (
-                    <span
-                      className={cn(
-                        "text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 border",
-                        prog.tipe === "Produktif"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      )}
-                    >
-                      {prog.tipe}
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -538,6 +606,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  const [formOperNo, setFormOperNo] = useState('');
  const [formOperNama, setFormOperNama] = useState('');
  const [formOperKeterangan, setFormOperKeterangan] = useState('');
+ const [formOperCoaCodes, setFormOperCoaCodes] = useState<string[]>([]);
  const [formOperVolume, setFormOperVolume] = useState<number>(1);
  const [formOperFrekuensi, setFormOperFrekuensi] = useState<number>(1);
  const [formOperUnitCost, setFormOperUnitCost] = useState<number>(0);
@@ -680,7 +749,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  no: formOperNo,
  nama: formOperNama,
  keterangan: formOperKeterangan || null,
- coa_codes: null,
+ coa_codes: formOperCoaCodes.length > 0 ? formOperCoaCodes.join(', ') : null,
  volume: Number(formOperVolume) || 1,
  frekuensi: Number(formOperFrekuensi) || 1,
  unit_cost: Number(formOperUnitCost) || 0,
@@ -715,7 +784,7 @@ export default function TargetRKAT({ proposals }: TargetRKATProps) {
  no: formOperNo,
  nama: formOperNama,
  keterangan: formOperKeterangan || null,
- coa_codes: null,
+ coa_codes: formOperCoaCodes.length > 0 ? formOperCoaCodes.join(', ') : null,
  volume: Number(formOperVolume) || 1,
  frekuensi: Number(formOperFrekuensi) || 1,
  unit_cost: Number(formOperUnitCost) || 0,
@@ -1683,7 +1752,7 @@ const getParentProgramCode = (code?: string): string => {
  setFormOperNo(`O-${Date.now().toString().slice(-4)}`);
  setFormOperNama('');
  setFormOperKeterangan('');
- 
+ setFormOperCoaCodes([]);
  setFormOperVolume(1);
  setFormOperFrekuensi(1);
  setFormOperUnitCost(0);
@@ -1757,6 +1826,15 @@ const getParentProgramCode = (code?: string): string => {
  {item.keterangan && (
  <span className="text-[11px] text-slate-400 font-medium mt-0.5">{item.keterangan}</span>
  )}
+ {item.coa_codes && (
+ <div className="flex flex-wrap items-center gap-1 mt-1">
+ {item.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean).map((code: string) => (
+ <span key={code} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+ COA: {code}
+ </span>
+ ))}
+ </div>
+ )}
  </div>
  </td>
  <td className="px-4 py-4 text-center font-bold text-slate-600 font-mono">{item.volume}</td>
@@ -1802,7 +1880,7 @@ const getParentProgramCode = (code?: string): string => {
  setFormOperNo(item.no);
  setFormOperNama(item.nama);
  setFormOperKeterangan(item.keterangan ||'');
- 
+ setFormOperCoaCodes(item.coa_codes ? item.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : []);
  setFormOperVolume(Number(item.volume));
  setFormOperFrekuensi(Number(item.frekuensi));
  setFormOperUnitCost(Number(item.unit_cost));
@@ -2620,7 +2698,7 @@ const getParentProgramCode = (code?: string): string => {
 
                 {/* Program / Kegiatan Multi-Select Checklist */}
                 <SearchableProgramChecklistMulti
-                  label="Pilih Program / Kegiatan (Bisa Checklist Lebih dari Satu)"
+                  label="Pilih Program / Kegiatan"
                   selectedCodes={formProgramCodes}
                   onChange={setFormProgramCodes}
                   availablePrograms={formProgramsAvailable}
@@ -3058,6 +3136,14 @@ const getParentProgramCode = (code?: string): string => {
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-800"
                 />
               </div>
+
+              <SearchableCoaDropdownMulti
+                label="Hubungkan Ke COA Penyaluran / Beban (Opsional)"
+                selectedCodes={formOperCoaCodes}
+                onChange={setFormOperCoaCodes}
+                availableCoas={coas.filter(coa => coa.klasifikasi === 'Penyaluran' || coa.klasifikasi === 'Penggunaan' || (coa.coa_code && (coa.coa_code.startsWith('5') || coa.coa_code.startsWith('52'))))}
+                placeholder="Cari & Checklist COA Beban / Penyaluran..."
+              />
 
               <div className="grid grid-cols-4 gap-3 pt-1">
                 <div className="space-y-1.5">
