@@ -73,225 +73,383 @@ export interface Muzakki {
  alamat?: string;
 }
 
-interface SearchableDropdownSingleProps {
- label: string;
- selectedValue: string;
- onChange: (value: string) => void;
- options: { value: string; label: string; sublabel?: string }[];
- placeholder?: string;
- allowEmpty?: boolean;
- emptyLabel?: string;
- disabled?: boolean;
+export interface RkatOptionItem {
+  id: string;
+  value: string;
+  code?: string;
+  name: string;
+  keterangan?: string;
+  categoryOrPilar?: string;
+  asnaf?: string;
+  coaCode?: string;
+  allCoaCodes?: string;
+  type: 'PENERIMAAN' | 'PENYALURAN' | 'OPERASIONAL';
 }
 
-const SearchableDropdownSingle: React.FC<SearchableDropdownSingleProps> = ({
- label,
- selectedValue,
- onChange,
- options,
- placeholder ="Pilih item...",
- allowEmpty = true,
- emptyLabel ="-- Kosong / Tidak Dipilih --",
- disabled = false
+interface SearchableRkatDropdownProps {
+  label: string;
+  selectedValue: string;
+  onChange: (value: string, item?: RkatOptionItem) => void;
+  options: RkatOptionItem[];
+  placeholder?: string;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+  disabled?: boolean;
+}
+
+const SearchableRkatDropdown: React.FC<SearchableRkatDropdownProps> = ({
+  label,
+  selectedValue,
+  onChange,
+  options,
+  placeholder = "Cari kegiatan, program, kode, atau keterangan...",
+  allowEmpty = true,
+  emptyLabel = "-- Pilih Kegiatan RKAT --",
+  disabled = false
 }) => {
- const [isOpen, setIsOpen] = useState(false);
- const [searchTerm, setSearchTerm] = useState("");
- const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
- useEffect(() => {
- function handleClickOutside(event: MouseEvent) {
- if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
- setIsOpen(false);
- }
- }
- document.addEventListener("mousedown", handleClickOutside);
- return () => document.removeEventListener("mousedown", handleClickOutside);
- }, []);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
 
- const filteredOptions = useMemo(() => {
- const term = searchTerm.toLowerCase();
- return options.filter(opt =>
- opt.label.toLowerCase().includes(term) ||
- (opt.value && opt.value.toLowerCase().includes(term)) ||
- (opt.sublabel && opt.sublabel.toLowerCase().includes(term))
- );
- }, [options, searchTerm]);
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const term = searchTerm.toLowerCase().trim();
+    return options.filter(opt =>
+      (opt.name || '').toLowerCase().includes(term) ||
+      (opt.code && opt.code.toLowerCase().includes(term)) ||
+      (opt.keterangan && opt.keterangan.toLowerCase().includes(term)) ||
+      (opt.categoryOrPilar && opt.categoryOrPilar.toLowerCase().includes(term)) ||
+      (opt.asnaf && opt.asnaf.toLowerCase().includes(term)) ||
+      (opt.coaCode && opt.coaCode.toLowerCase().includes(term))
+    );
+  }, [options, searchTerm]);
 
- const selectedOption = options.find(o => o.value === selectedValue);
+  const selectedOption = options.find(o => o.value === selectedValue || o.id === selectedValue);
 
- return (
- <div className="space-y-1.5 relative" ref={dropdownRef}>
- <label className="text-[10px] font-black text-slate-400 block">{label}</label>
+  return (
+    <div className="space-y-1.5 relative text-left" ref={dropdownRef}>
+      <label className="text-[10px] font-black text-slate-400 block">{label}</label>
 
- {/* Selector Trigger */}
- <div
- onClick={() => !disabled && setIsOpen(!isOpen)}
- className={cn(
-"w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all pr-8 relative",
- disabled ?"cursor-not-allowed bg-slate-100 opacity-60" :"cursor-pointer"
- )}
- >
- <span className={cn("truncate", !selectedValue &&"text-slate-400 font-normal")}>
- {selectedOption ? (
- <span className="flex items-center gap-2">
- {selectedOption.sublabel && (
- <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
- {selectedOption.sublabel}
- </span>
- )}
- <span>{selectedOption.label}</span>
- </span>
- ) : (
- emptyLabel
- )}
- </span>
- <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
- <ChevronDown className="size-4 text-slate-400" />
- </div>
- </div>
+      {/* Selector Trigger */}
+      <div
+        onClick={() => {
+          if (!disabled) {
+            setIsOpen(!isOpen);
+            setSearchTerm("");
+          }
+        }}
+        className={cn(
+          "w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary outline-none transition-all pr-8 relative cursor-pointer",
+          disabled && "cursor-not-allowed bg-slate-100 opacity-60",
+          isOpen && "ring-2 ring-primary/20 border-primary bg-white shadow-sm"
+        )}
+      >
+        {selectedOption ? (
+          <div className="space-y-1 pr-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={cn(
+                "px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase border",
+                selectedOption.type === 'PENYALURAN' ? "bg-blue-50 text-blue-700 border-blue-200" :
+                selectedOption.type === 'OPERASIONAL' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                "bg-emerald-50 text-emerald-700 border-emerald-200"
+              )}>
+                {selectedOption.categoryOrPilar || selectedOption.type}
+              </span>
 
- {/* Dropdown Menu */}
- {isOpen && (
- <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-72 flex flex-col animate-in fade-in duration-100">
- <div className="p-2 border-b border-slate-100 bg-slate-50/50">
- <div className="relative">
- <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
- <input
- type="text"
- value={searchTerm}
- onChange={(e) => setSearchTerm(e.target.value)}
- placeholder={placeholder}
- className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
- onClick={(e) => e.stopPropagation()}
- />
- </div>
- </div>
+              {selectedOption.asnaf && selectedOption.asnaf !== 'Semua' && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                  {selectedOption.asnaf}
+                </span>
+              )}
 
- <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-0.5 max-h-52">
- {allowEmpty && (
- <div
- onClick={() => {
- onChange("");
- setIsOpen(false);
- }}
- className={cn(
-"p-2 rounded-lg cursor-pointer transition-colors text-xs font-semibold select-none",
- !selectedValue ?"bg-primary/5 text-primary" :"hover:bg-slate-50 text-slate-500 italic"
- )}
- >
- {emptyLabel}
- </div>
- )}
+              {selectedOption.coaCode && (
+                <span className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  COA: {selectedOption.coaCode}
+                </span>
+              )}
+            </div>
 
- {filteredOptions.length === 0 ? (
- <p className="text-xs text-slate-400 italic p-3 text-center">Tidak ada hasil pencarian.</p>
- ) : (
- filteredOptions.map((opt) => {
- const isSelected = opt.value === selectedValue;
- return (
- <div
- key={opt.value}
- onClick={() => {
- onChange(opt.value);
- setIsOpen(false);
- }}
- className={cn(
-"flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors text-xs font-medium select-none justify-between",
- isSelected ?"bg-primary/5 text-primary font-bold" :"hover:bg-slate-50 text-slate-700"
- )}
- >
- <span className="flex items-center gap-2 truncate">
- {opt.sublabel && (
- <span className="font-mono bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold">
- {opt.sublabel}
- </span>
- )}
- <span className="truncate">{opt.label}</span>
- </span>
- {isSelected && <Check className="size-3.5 text-primary shrink-0" />}
- </div>
- );
- })
- )}
- </div>
- </div>
- )}
- </div>
- );
+            <p className="font-bold text-slate-900 text-xs leading-snug break-words">
+              {selectedOption.name}
+            </p>
+
+            {selectedOption.keterangan && selectedOption.keterangan !== selectedOption.name && (
+              <p className="text-[10.5px] text-slate-500 font-medium leading-tight line-clamp-2">
+                {selectedOption.keterangan}
+              </p>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-400 font-normal">{emptyLabel}</span>
+        )}
+
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+          <ChevronDown className={cn("size-4 text-slate-400 transition-transform", isOpen && "rotate-180")} />
+        </div>
+      </div>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in duration-100">
+          <div className="p-2.5 border-b border-slate-100 bg-slate-50/80">
+            <div className="relative">
+              <Search className="size-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                autoFocus
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={placeholder}
+                className="w-full pl-8 pr-7 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-slate-800 placeholder:text-slate-400"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold px-1 mt-1.5">
+              <span>{filteredOptions.length} Kegiatan RKAT Tersedia</span>
+              {selectedOption && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange("");
+                    setIsOpen(false);
+                  }}
+                  className="text-rose-600 hover:underline cursor-pointer"
+                >
+                  Reset Pilihan
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-1 max-h-64 divide-y divide-slate-100">
+            {allowEmpty && (
+              <div
+                onClick={() => {
+                  onChange("");
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "p-2 rounded-xl cursor-pointer transition-colors text-xs font-semibold select-none",
+                  !selectedValue ? "bg-primary/5 text-primary" : "hover:bg-slate-50 text-slate-500 italic"
+                )}
+              >
+                {emptyLabel}
+              </div>
+            )}
+
+            {filteredOptions.length === 0 ? (
+              <div className="p-5 text-center text-slate-400 space-y-1">
+                <p className="text-xs font-bold">Kegiatan RKAT tidak ditemukan</p>
+                <p className="text-[10px]">Coba kata kunci program, nomor kode, atau asnaf lain.</p>
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.value === selectedValue || opt.id === selectedValue;
+                return (
+                  <div
+                    key={opt.value || opt.id}
+                    onClick={() => {
+                      onChange(opt.value || opt.id, opt);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      "p-3 rounded-xl cursor-pointer transition-all flex items-start justify-between gap-2.5",
+                      isSelected
+                        ? "bg-primary/5 text-primary border border-primary/20 shadow-sm"
+                        : "hover:bg-slate-50 text-slate-800"
+                    )}
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase border",
+                          opt.type === 'PENYALURAN' ? "bg-blue-50 text-blue-700 border-blue-200" :
+                          opt.type === 'OPERASIONAL' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                          "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        )}>
+                          {opt.categoryOrPilar || opt.type}
+                        </span>
+
+                        {opt.asnaf && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                            {opt.asnaf}
+                          </span>
+                        )}
+
+                        {opt.coaCode && (
+                          <span className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            COA: {opt.coaCode}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="font-bold text-slate-900 text-xs leading-snug break-words">
+                        {opt.name}
+                      </p>
+
+                      {opt.keterangan && opt.keterangan !== opt.name && (
+                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                          {opt.keterangan}
+                        </p>
+                      )}
+                    </div>
+
+                    {isSelected && (
+                      <div className="p-1 bg-primary text-white rounded-full shrink-0 mt-0.5 shadow-sm">
+                        <Check className="size-3" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const formatCurrency = (value: number) => {
- return new Intl.NumberFormat('id-ID', {
- style:'currency',
- currency:'IDR',
- minimumFractionDigits: 0
- }).format(value);
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(value);
 };
 
 export default function RekonsiliasiMutasi() {
- const { user } = useAuth();
+  const { user } = useAuth();
 
- // States
- const [mutations, setMutations] = useState<BankMutation[]>([]);
- const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
- const [coas, setCoas] = useState<COAItem[]>([]);
- const [muzakkis, setMuzakkis] = useState<Muzakki[]>([]);
- const [rkatList, setRkatList] = useState<any[]>([]);
- const [pilars, setPilars] = useState<any[]>([]);
- const [rkatOperasionalList, setRkatOperasionalList] = useState<any[]>([]);
+  // States
+  const [mutations, setMutations] = useState<BankMutation[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [coas, setCoas] = useState<COAItem[]>([]);
+  const [muzakkis, setMuzakkis] = useState<Muzakki[]>([]);
+  const [rkatList, setRkatList] = useState<any[]>([]);
+  const [pilars, setPilars] = useState<any[]>([]);
+  const [rkatOperasionalList, setRkatOperasionalList] = useState<any[]>([]);
 
- const rkatPenyaluranList = useMemo(() => {
- const list: any[] = [];
- (pilars || []).forEach((pilar) => {
- (pilar.programs || []).forEach((prog: any) => {
- const targets = prog.asnafTargets || [];
- if (targets.length > 0) {
- targets.forEach((target: any, tIdx: number) => {
- const fallbackId = target.id || `act-auto-${prog.code}-${target.asnaf ||'General'}-${tIdx}`;
- list.push({
- id: fallbackId,
- pilarCode: pilar.code,
- pilarName: pilar.name,
- name: target.name || prog.name,
- coaCode: target.coaCode,
- asnaf: target.asnaf,
- programCode: prog.code,
- type:'PENYALURAN'
- });
- });
- }
- });
- });
- return list;
- }, [pilars]);
+  const rkatPenyaluranList = useMemo(() => {
+    const list: any[] = [];
+    (pilars || []).forEach((pilar) => {
+      (pilar.programs || []).forEach((prog: any) => {
+        const targets = prog.asnafTargets || [];
+        if (targets.length > 0) {
+          targets.forEach((target: any, tIdx: number) => {
+            const fallbackId = target.id || `act-auto-${prog.code}-${target.asnaf || 'General'}-${tIdx}`;
+            list.push({
+              id: fallbackId,
+              pilarCode: pilar.code,
+              pilarName: pilar.name,
+              name: target.name || prog.name,
+              keterangan: target.keterangan || target.spesifikasi || prog.name,
+              coaCode: target.coaCode || prog.coaCode || '',
+              asnaf: target.asnaf || 'Semua',
+              programCode: prog.code,
+              type: 'PENYALURAN'
+            });
+          });
+        } else {
+          list.push({
+            id: prog.code,
+            pilarCode: pilar.code,
+            pilarName: pilar.name,
+            name: prog.name,
+            keterangan: prog.name,
+            coaCode: prog.coaCode || '',
+            asnaf: 'Semua',
+            programCode: prog.code,
+            type: 'PENYALURAN'
+          });
+        }
+      });
+    });
+    return list;
+  }, [pilars]);
 
- const creditRkatOptions = useMemo(() => {
- const options: { value: string; label: string; sublabel?: string; coaCode?: string; type:'PENYALURAN' |'OPERASIONAL' }[] = [];
+  const penerimaanRkatOptions = useMemo<RkatOptionItem[]>(() => {
+    return (rkatList || []).map(rkat => {
+      const firstCoa = rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '';
+      return {
+        id: rkat.id,
+        value: rkat.id,
+        code: rkat.no || rkat.id || '',
+        name: rkat.nama_program || '',
+        keterangan: rkat.keterangan || (rkat.kategori ? `Program Pengumpulan ${rkat.kategori}` : 'Penerimaan ZIS'),
+        categoryOrPilar: rkat.kategori || 'Pengumpulan',
+        coaCode: firstCoa,
+        allCoaCodes: rkat.coa_codes || '',
+        type: 'PENERIMAAN'
+      };
+    });
+  }, [rkatList]);
 
- // 1. Add Penyaluran
- rkatPenyaluranList.forEach(act => {
- options.push({
- value: act.id,
- label: `[Penyaluran] ${act.pilarName} - ${act.name} (${act.asnaf ||'Umum'})`,
- sublabel: act.coaCode || undefined,
- coaCode: act.coaCode,
- type:'PENYALURAN'
- });
- });
+  const creditRkatOptions = useMemo<RkatOptionItem[]>(() => {
+    const options: RkatOptionItem[] = [];
 
- // 2. Add Operasional
- rkatOperasionalList.forEach(item => {
- options.push({
- value: item.id,
- label: `[Operasional] ${item.nama}`,
- sublabel: item.coa_codes || undefined,
- coaCode: item.coa_codes ? item.coa_codes.split(',')[0].trim() : undefined,
- type:'OPERASIONAL'
- });
- });
+    // 1. Add Penyaluran
+    rkatPenyaluranList.forEach(act => {
+      options.push({
+        id: act.id,
+        value: act.id,
+        code: act.programCode || act.pilarCode || '',
+        name: act.name,
+        keterangan: act.keterangan || act.spesifikasi || (act.asnaf ? `Asnaf ${act.asnaf}` : '') || act.pilarName,
+        categoryOrPilar: act.pilarName || 'Penyaluran',
+        asnaf: act.asnaf || 'Semua',
+        coaCode: act.coaCode || '',
+        type: 'PENYALURAN'
+      });
+    });
 
- return options;
- }, [rkatPenyaluranList, rkatOperasionalList]);
+    // 2. Add Operasional with Auto COA Cascading / Fallback
+    rkatOperasionalList.forEach(item => {
+      let firstCoa = item.coa_codes ? item.coa_codes.split(',')[0].trim() : '';
+
+      if (!firstCoa && coas && coas.length > 0) {
+        const itemNamaLower = (item.nama || '').toLowerCase();
+        const matched = coas.find(c => c.coa_code.startsWith('52') && (c.nama_akun.toLowerCase().includes(itemNamaLower) || itemNamaLower.includes(c.nama_akun.toLowerCase())))
+          || coas.find(c => c.coa_code === '5210101' || c.coa_code.startsWith('52'));
+        if (matched) firstCoa = matched.coa_code;
+      }
+
+      options.push({
+        id: item.id,
+        value: item.id,
+        code: item.no || item.id || '',
+        name: item.nama,
+        keterangan: item.keterangan || item.pos_anggaran || item.deskripsi || 'Beban Operasional BAZNAS',
+        categoryOrPilar: 'Operasional',
+        coaCode: firstCoa,
+        allCoaCodes: item.coa_codes || '',
+        type: 'OPERASIONAL'
+      });
+    });
+
+    return options;
+  }, [rkatPenyaluranList, rkatOperasionalList, coas]);
 
  const [activeTab, setActiveTab] = useState<'PENERIMAAN' |'PENYALURAN'>('PENERIMAAN');
  const [searchTerm, setSearchTerm] = useState('');
@@ -635,16 +793,29 @@ const today = new Date();
  setIsReconcileModalOpen(true);
  };
 
- const handleRkatChange = (rkatId: string) => {
- setFormRkatId(rkatId);
- const rkat = rkatList.find(r => r.id === rkatId);
- if (rkat && rkat.coa_codes) {
- const firstCode = rkat.coa_codes.split(',')[0].trim();
- setFormCoaCode(firstCode);
- } else {
- setFormCoaCode('');
- }
- };
+  const handleRkatSelectPenerimaan = (rkatId: string, itemObj?: RkatOptionItem) => {
+    setFormRkatId(rkatId);
+    if (!rkatId) {
+      setFormCoaCode('');
+      return;
+    }
+    const rkat = itemObj || penerimaanRkatOptions.find(r => r.value === rkatId);
+    if (rkat && rkat.coaCode) {
+      setFormCoaCode(rkat.coaCode);
+    }
+  };
+
+  const handleRkatSelectPenyaluran = (rkatId: string, itemObj?: RkatOptionItem) => {
+    setFormRkatId(rkatId);
+    if (!rkatId) {
+      setFormCoaCode('');
+      return;
+    }
+    const matched = itemObj || creditRkatOptions.find(o => o.value === rkatId);
+    if (matched && matched.coaCode) {
+      setFormCoaCode(matched.coaCode);
+    }
+  };
 
  const handleQuickRegisterMuzakki = async (e: React.MouseEvent) => {
  e.preventDefault();
@@ -1432,123 +1603,122 @@ const today = new Date();
  </label>
  </div>
 
- {/* 2. Kegiatan (RKAT) */}
- <div className={`space-y-1.5 text-left transition-all duration-300 ${isOutsideRkat ?'opacity-40 grayscale pointer-events-none' :''}`}>
- <label className="text-[10px] font-black text-slate-400">Kegiatan (RKAT) *</label>
- <select
- required={!isOutsideRkat}
- className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
- value={formRkatId}
- onChange={(e) => handleRkatChange(e.target.value)}
- disabled={isOutsideRkat}
- >
- <option value="">Pilih Kegiatan RKAT Pengumpulan...</option>
- {rkatList.map(rkat => (
- <option key={rkat.id} value={rkat.id}>
- [{rkat.kategori}] {rkat.nama_program}
- </option>
- ))}
- </select>
- </div>
+                {/* 2. Kegiatan (RKAT Pengumpulan) */}
+                <div className={`space-y-1.5 text-left transition-all duration-300 ${isOutsideRkat ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+                  <SearchableRkatDropdown
+                    label="Kegiatan (RKAT Pengumpulan) *"
+                    selectedValue={formRkatId}
+                    onChange={(val, opt) => handleRkatSelectPenerimaan(val, opt)}
+                    options={penerimaanRkatOptions}
+                    placeholder="Cari program pengumpulan, nomor kode, keterangan..."
+                    emptyLabel="-- Pilih Kegiatan RKAT Pengumpulan --"
+                    disabled={isOutsideRkat}
+                  />
+                </div>
 
- {/* 3. Program Kegiatan (COA) - Standard flow */}
- {!isOutsideRkat && formRkatId && (
- <div className="space-y-1.5 text-left">
- <label className="text-[10px] font-black text-slate-400">Program Kegiatan (COA) *</label>
- <select
- required
- className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-bold text-slate-700"
- value={formCoaCode}
- onChange={(e) => setFormCoaCode(e.target.value)}
- >
- {(() => {
- const rkat = rkatList.find(r => r.id === formRkatId);
- const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
- return codes.map((code: string) => {
- const coa = coas.find(c => c.coa_code === code);
- const label = coa ? `${code} - ${coa.nama_akun}` : `${code} - Penerimaan ${rkat?.nama_program ||''}`;
- return (
- <option key={code} value={code}>
- {label}
- </option>
- );
- });
- })()}
- </select>
- </div>
- )}
+                {/* 3. Akun Buku Besar (Penerimaan COA) */}
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 block">
+                    Akun Buku Besar (Penerimaan COA) *
+                  </label>
+                  {formCoaCode ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3.5 py-2.5 rounded-xl text-xs font-black">
+                        <span className="flex items-center gap-2">
+                          <BookOpen className="size-4 shrink-0" />
+                          <span>Terpilih: <span className="font-mono">{formCoaCode}</span> - {coas.find(c => c.coa_code === formCoaCode)?.nama_akun || 'Akun Penerimaan'}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormCoaCode('');
+                            setCoaSearch('');
+                          }}
+                          className="hover:text-rose-600 p-1 text-slate-400 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                          title="Ganti / Cari Akun COA Lain"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
 
- {/* 3. Akun Buku Besar (Penerimaan COA) - Outside RKAT search */}
- {isOutsideRkat && (
- <div className="space-y-1.5 text-left">
- <label className="text-[10px] font-black text-slate-400 block">
- Akun Buku Besar (Penerimaan COA) *
- </label>
- {formCoaCode ? (
- <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3 py-2 rounded-xl text-xs font-black">
- <span className="flex items-center gap-1.5">
- <BookOpen className="size-4 shrink-0" />
- Terpilih: {formCoaCode} - {coas.find(c => c.coa_code === formCoaCode)?.nama_akun ||'Memuat...'}
- </span>
- <button
- type="button"
- onClick={() => {
- setFormCoaCode('');
- setCoaSearch('');
- }}
- className="hover:text-rose-600"
- >
- <X className="size-4" />
- </button>
- </div>
- ) : (
- <div className="space-y-1">
- <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 size-3.5" />
- <input
- type="text"
- placeholder="Cari kode COA atau nama akun Penerimaan..."
- value={coaSearch}
- onChange={(e) => setCoaSearch(e.target.value)}
- onFocus={() => setIsCoaDropdownOpen(true)}
- onBlur={() => setTimeout(() => setIsCoaDropdownOpen(false), 205)}
- className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-primary/20"
- />
- </div>
+                      {/* Quick COA alternatives if RKAT has multiple mapped codes */}
+                      {(() => {
+                        const rkObj = penerimaanRkatOptions.find(r => r.value === formRkatId);
+                        if (!rkObj || !rkObj.allCoaCodes || !rkObj.allCoaCodes.includes(',')) return null;
+                        const altCodes = rkObj.allCoaCodes.split(',').map((c: string) => c.trim()).filter(Boolean);
+                        if (altCodes.length <= 1) return null;
 
- {(isCoaDropdownOpen || coaSearch) && (
- <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner text-left">
- {filteredCoasForSearch.length === 0 ? (
- <p className="p-2 text-[10px] text-slate-400 italic">COA tidak ditemukan</p>
- ) : (
- filteredCoasForSearch.map(coa => (
- <div
- key={coa.coa_code}
- onClick={() => {
- setFormCoaCode(coa.coa_code);
- setCoaSearch('');
- setIsCoaDropdownOpen(false);
- }}
- className="p-2 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5 text-slate-700"
- >
- <span className="font-mono text-primary text-[11px]">{coa.coa_code}</span>
- <span className="text-slate-650 text-[10px]">{coa.nama_akun}</span>
- </div>
- ))
- )}
- </div>
- )}
- </div>
- )}
- <input
- type="text"
- value={formCoaCode}
- required
- onChange={() => { }}
- className="sr-only h-0 w-0"
- />
- </div>
- )}
+                        return (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[10px] text-slate-400 font-bold">Pilihan COA Terkait:</span>
+                            {altCodes.map((cCode: string) => {
+                              const cItem = coas.find(c => c.coa_code === cCode);
+                              const isCur = formCoaCode === cCode;
+                              return (
+                                <button
+                                  key={cCode}
+                                  type="button"
+                                  onClick={() => setFormCoaCode(cCode)}
+                                  className={cn(
+                                    "px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all border cursor-pointer",
+                                    isCur ? "bg-primary text-white border-primary shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                  )}
+                                >
+                                  {cCode} {cItem ? `· ${cItem.nama_akun}` : ''}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                        <input
+                          type="text"
+                          placeholder="Cari kode COA atau nama akun Penerimaan..."
+                          value={coaSearch}
+                          onChange={(e) => setCoaSearch(e.target.value)}
+                          onFocus={() => setIsCoaDropdownOpen(true)}
+                          onBlur={() => setTimeout(() => setIsCoaDropdownOpen(false), 205)}
+                          className="w-full text-xs font-semibold bg-slate-50 border-none rounded-lg pl-9 pr-4 py-2 outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+
+                      {(isCoaDropdownOpen || coaSearch) && (
+                        <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs font-bold shadow-inner text-left">
+                          {filteredCoasForSearch.length === 0 ? (
+                            <p className="p-2 text-[10px] text-slate-400 italic">COA tidak ditemukan</p>
+                          ) : (
+                            filteredCoasForSearch.map(coa => (
+                              <div
+                                key={coa.coa_code}
+                                onClick={() => {
+                                  setFormCoaCode(coa.coa_code);
+                                  setCoaSearch('');
+                                  setIsCoaDropdownOpen(false);
+                                }}
+                                className="p-2 hover:bg-slate-50 cursor-pointer flex flex-col gap-0.5 text-slate-700"
+                              >
+                                <span className="font-mono text-primary text-[11px]">{coa.coa_code}</span>
+                                <span className="text-slate-600 text-[10px]">{coa.nama_akun}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={formCoaCode}
+                    required
+                    onChange={() => { }}
+                    className="sr-only h-0 w-0"
+                  />
+                </div>
 
  {/* 4. Rumpun Dana */}
  <div className="space-y-1.5 text-left">
@@ -1598,22 +1768,13 @@ const today = new Date();
 
  {/* 1. Kegiatan (RKAT Penyaluran / Operasional) */}
  <div className={`space-y-1.5 text-left transition-all duration-300 ${isOutsideRkat ?'opacity-40 grayscale pointer-events-none' :''}`}>
- <SearchableDropdownSingle
+ <SearchableRkatDropdown
  label="Kegiatan RKAT (Penyaluran / Operasional) *"
  selectedValue={formRkatId}
- onChange={(val) => {
- setFormRkatId(val);
- const matched = creditRkatOptions.find(o => o.value === val);
- if (matched && matched.coaCode) {
- setFormCoaCode(matched.coaCode);
- } else {
- setFormCoaCode('');
- }
- }}
+ onChange={(val, opt) => handleRkatSelectPenyaluran(val, opt)}
  options={creditRkatOptions}
- placeholder="Cari program Penyaluran / Operasional..."
- allowEmpty={true}
- emptyLabel="-- Pilih Kegiatan RKAT --"
+ placeholder="Cari program penyaluran, operasional, kode, pilar, atau asnaf..."
+ emptyLabel="-- Pilih Kegiatan RKAT Penyaluran / Operasional --"
  disabled={isOutsideRkat}
  />
  </div>
@@ -1621,13 +1782,14 @@ const today = new Date();
  {/* 2. Account COA Code */}
  <div className="space-y-1.5 text-left">
  <label className="text-[10px] font-black text-slate-400 block">
- Akun Buku Besar (Penyaluran/Penggunaan COA) *
+ Akun Buku Besar (Penyaluran / Penggunaan COA) *
  </label>
  {formCoaCode ? (
- <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3 py-2 rounded-xl text-xs font-black">
- <span className="flex items-center gap-1.5">
+ <div className="space-y-2">
+ <div className="flex items-center justify-between bg-primary/10 text-primary border border-primary/20 px-3.5 py-2.5 rounded-xl text-xs font-black">
+ <span className="flex items-center gap-2">
  <BookOpen className="size-4 shrink-0" />
- Terpilih: {formCoaCode} - {coas.find(c => c.coa_code === formCoaCode)?.nama_akun ||'Memuat...'}
+ <span>Terpilih: <span className="font-mono">{formCoaCode}</span> - {coas.find(c => c.coa_code === formCoaCode)?.nama_akun || 'Akun Penyaluran/Beban'}</span>
  </span>
  <button
  type="button"
@@ -1635,10 +1797,43 @@ const today = new Date();
  setFormCoaCode('');
  setCoaSearch('');
  }}
- className="hover:text-rose-600"
+ className="hover:text-rose-600 p-1 text-slate-400 hover:bg-white rounded-lg transition-colors cursor-pointer"
+ title="Ganti / Cari Akun COA Lain"
  >
  <X className="size-4" />
  </button>
+ </div>
+
+ {/* Quick COA alternatives if RKAT has multiple mapped codes */}
+ {(() => {
+ const rkObj = creditRkatOptions.find(r => r.value === formRkatId);
+ if (!rkObj || !rkObj.allCoaCodes || !rkObj.allCoaCodes.includes(',')) return null;
+ const altCodes = rkObj.allCoaCodes.split(',').map((c: string) => c.trim()).filter(Boolean);
+ if (altCodes.length <= 1) return null;
+
+ return (
+ <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+ <span className="text-[10px] text-slate-400 font-bold">Pilihan COA Terkait:</span>
+ {altCodes.map((cCode: string) => {
+ const cItem = coas.find(c => c.coa_code === cCode);
+ const isCur = formCoaCode === cCode;
+ return (
+ <button
+ key={cCode}
+ type="button"
+ onClick={() => setFormCoaCode(cCode)}
+ className={cn(
+ "px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all border cursor-pointer",
+ isCur ? "bg-primary text-white border-primary shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+ )}
+ >
+ {cCode} {cItem ? `· ${cItem.nama_akun}` : ''}
+ </button>
+ );
+ })}
+ </div>
+ );
+ })()}
  </div>
  ) : (
  <div className="space-y-1">
