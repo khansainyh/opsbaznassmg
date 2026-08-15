@@ -21,7 +21,8 @@ import {
  ChevronLeft,
  ChevronsLeft,
  ChevronsRight,
- Edit3
+ Edit3,
+ Tag
 } from'lucide-react';
 import { motion, AnimatePresence } from'motion/react';
 import { cn } from'../lib/utils';
@@ -57,9 +58,14 @@ export interface BankMutation {
  muzakkiId?: string;
  muzakkiName?: string;
  coaCode?: string;
+ coa_code?: string;
  rkatId?: string;
+ rkat_id?: string;
  sumberDana?: string;
  keteranganRealisasi?: string;
+ judul?: string;
+ keterangan?: string;
+ nama_penerima?: string;
 }
 
 export interface Muzakki {
@@ -757,42 +763,48 @@ const today = new Date();
   const openReconcile = (mutation: BankMutation) => {
     setSelectedMutation(mutation);
 
-    const hasData = Boolean(
-      mutation.status === 'RECONCILED' ||
-      mutation.coaCode ||
-      mutation.rkatId ||
-      mutation.muzakkiId ||
-      mutation.keteranganRealisasi
-    );
+    const m = mutation as any;
+    const rkatIdVal = mutation.rkatId || m.rkat_id || '';
+    const coaCodeVal = mutation.coaCode || m.coa_code || '';
+    const ketVal = mutation.keteranganRealisasi || m.keteranganBank || m.judul || m.keterangan || '';
 
-    if (hasData) {
-      setFormMuzakkiId(mutation.muzakkiId || '');
-      setFormCustomMuzakki(mutation.muzakkiName || '');
-      setMuzakkiSearch(mutation.muzakkiName || '');
-      setFormSumberDana(
-        mutation.sumberDana && mutation.sumberDana !== '-'
-          ? (mutation.sumberDana.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : mutation.sumberDana)
-          : 'ZAKAT'
-      );
-      setFormRkatId(mutation.rkatId || '');
-      setIsOutsideRkat(!mutation.rkatId && Boolean(mutation.coaCode));
-      setFormCoaCode(mutation.coaCode || '');
-      setFormKeteranganRealisasi(
-        mutation.keteranganRealisasi ||
-        ((mutation as any).judul || mutation.keteranganBank || '')
-      );
-    } else {
-      setFormMuzakkiId('');
-      setFormCustomMuzakki('');
-      setMuzakkiSearch('');
-      setFormSumberDana('ZAKAT');
-      setFormRkatId('');
-      setIsOutsideRkat(false);
-      setFormCoaCode('');
-      setFormKeteranganRealisasi(
-        (mutation as any).judul || mutation.keteranganBank || ''
-      );
+    setFormMuzakkiId(mutation.muzakkiId || '');
+    setFormCustomMuzakki(mutation.muzakkiName || '');
+    setMuzakkiSearch(mutation.muzakkiName || '');
+    const defaultSumber = mutation.type === 'KREDIT' ? 'AMIL' : 'ZAKAT';
+    setFormSumberDana(
+      mutation.sumberDana && mutation.sumberDana !== '-'
+        ? mutation.sumberDana
+        : defaultSumber
+    );
+    setFormRkatId(rkatIdVal);
+    setIsOutsideRkat(!rkatIdVal && Boolean(coaCodeVal));
+    
+    // Auto populate COA: use coaCodeVal with dot/clean normalization if present, else lookup from RKAT
+    let resolvedCoa = coaCodeVal;
+    if (coaCodeVal && coas.length > 0) {
+      const cleanTarget = String(coaCodeVal).replace(/\./g, '').trim();
+      const matchedCoa = coas.find(c => c.coa_code.replace(/\./g, '').trim() === cleanTarget || c.coa_code === coaCodeVal);
+      if (matchedCoa) {
+        resolvedCoa = matchedCoa.coa_code;
+      }
     }
+
+    if (resolvedCoa) {
+      setFormCoaCode(resolvedCoa);
+    } else if (rkatIdVal) {
+      const allRkats = [...creditRkatOptions, ...penerimaanRkatOptions];
+      const matched = allRkats.find(r => r.id === rkatIdVal || r.value === rkatIdVal);
+      if (matched && matched.coaCode) {
+        setFormCoaCode(matched.coaCode);
+      } else {
+        setFormCoaCode('');
+      }
+    } else {
+      setFormCoaCode('');
+    }
+
+    setFormKeteranganRealisasi(ketVal);
 
     setCoaSearch('');
     setIsCoaDropdownOpen(false);

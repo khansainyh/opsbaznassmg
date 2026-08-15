@@ -74,6 +74,13 @@ export const getMutations = async (req: Request, res: Response) => {
 
     let updated = false;
     const mapped = mutations.map(m => {
+      // Normalize RKAT and COA keys
+      m.rkatId = m.rkatId || m.rkat_id || null;
+      m.rkat_id = m.rkatId;
+      m.coaCode = m.coaCode || m.coa_code || null;
+      m.coa_code = m.coaCode;
+      m.keteranganRealisasi = m.keteranganRealisasi || m.keteranganBank || m.judul || '';
+
       if (!m.bankAccountId && bankAccounts.length > 0) {
         // Try matching by bank name prefix or fallback to first bank account
         const match = bankAccounts.find(ba => ba.nama_akun.toLowerCase().includes(m.bankName.split(' ')[0].toLowerCase())) || bankAccounts[0];
@@ -88,7 +95,7 @@ export const getMutations = async (req: Request, res: Response) => {
         updated = true;
       }
       // Ensure reconciled items retain RECONCILED status and allocated nominal
-      if ((m.reconciledAt || m.coaCode) && m.status === 'PENDING') {
+      if (m.reconciledAt && m.status === 'PENDING') {
         m.status = 'RECONCILED';
         m.allocatedNominal = Number(m.nominal || 0);
         updated = true;

@@ -1317,10 +1317,12 @@ export const getCoaSummaries = async (req: Request, res: Response) => {
 // ==========================================
 export const createManualExpense = async (req: Request, res: Response) => {
   try {
-    const { sourceAccountId, type, nominal, judul, keterangan, tanggalTransaksi, tanggalCatatan, kategoriBiaya } = req.body;
+    const { sourceAccountId, type, nominal, judul, keterangan, tanggalTransaksi, tanggalCatatan, kategoriBiaya, breakdownItems } = req.body;
 
-    if (!sourceAccountId || !type || !nominal || Number(nominal) <= 0 || (!judul && !keterangan)) {
-      res.status(400).json({ error: 'Sumber dana, jenis transaksi, nominal, dan judul pengeluaran wajib diisi' });
+    const hasBreakdown = Array.isArray(breakdownItems) && breakdownItems.length > 0;
+
+    if (!sourceAccountId || !type || (!nominal && !hasBreakdown)) {
+      res.status(400).json({ error: 'Sumber dana, jenis transaksi, dan nominal wajib diisi' });
       return;
     }
 
@@ -1366,30 +1368,63 @@ export const createManualExpense = async (req: Request, res: Response) => {
     const tglCatat = tanggalCatatan || new Date().toISOString().split('T')[0];
     const judulPengeluaran = (judul && judul.trim()) ? judul.trim() : (keterangan ? keterangan.trim() : 'Pengeluaran Kas');
 
-    const newDraft = {
-      id: `mut-${Date.now()}`,
-      tanggalCatatan: tglCatat,
-      tanggal: tglTx,
-      bankAccountId: sourceAccountId,
-      bankName: sourceAccount.nama_akun,
-      judul: judulPengeluaran,
-      keterangan: keterangan ? keterangan.trim() : '',
-      keteranganBank: judulPengeluaran,
-      nominal: Number(nominal),
-      type: 'KREDIT', // Selalu KREDIT (Pengeluaran)
-      status: 'PENDING',
-      kategori_biaya: kategoriBiaya || 'Lain-lain'
-    };
+    if (hasBreakdown) {
+      breakdownItems.forEach((item: any, idx: number) => {
+        const itemNominal = Number(item.nominal) || 0;
+        if (itemNominal <= 0) return;
+        const itemNama = (item.nama_penerima || '').trim();
+        const itemKet = (item.keterangan || '').trim();
+        const itemDesc = itemNama 
+          ? `${itemNama}${itemKet ? ` - ${itemKet}` : ''}`
+          : (itemKet || judulPengeluaran);
 
-    mutations.push(newDraft);
+        const newDraft = {
+          id: `mut-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+          tanggalCatatan: tglCatat,
+          tanggal: tglTx,
+          bankAccountId: sourceAccountId,
+          bankName: sourceAccount.nama_akun,
+          judul: itemNama || judulPengeluaran,
+          keterangan: itemKet || keterangan || '',
+          keteranganBank: itemDesc,
+          keteranganRealisasi: itemDesc,
+          nominal: itemNominal,
+          type: 'KREDIT',
+          status: 'PENDING',
+          kategori_biaya: kategoriBiaya || 'Lain-lain',
+          rkat_id: item.rkat_id || null,
+          rkatId: item.rkat_id || null,
+          coa_code: item.coa_code || null,
+          coaCode: item.coa_code || null,
+          nama_penerima: itemNama || null
+        };
+        mutations.push(newDraft);
+      });
+    } else {
+      const newDraft = {
+        id: `mut-${Date.now()}`,
+        tanggalCatatan: tglCatat,
+        tanggal: tglTx,
+        bankAccountId: sourceAccountId,
+        bankName: sourceAccount.nama_akun,
+        judul: judulPengeluaran,
+        keterangan: keterangan ? keterangan.trim() : '',
+        keteranganBank: judulPengeluaran,
+        keteranganRealisasi: judulPengeluaran,
+        nominal: Number(nominal),
+        type: 'KREDIT', // Selalu KREDIT (Pengeluaran)
+        status: 'PENDING',
+        kategori_biaya: kategoriBiaya || 'Lain-lain'
+      };
+      mutations.push(newDraft);
+    }
 
     // Tulis kembali ke file
     fs.writeFileSync(mutationsFilePath, JSON.stringify(mutations, null, 2), 'utf-8');
 
     res.status(200).json({
       success: true,
-      message: `Pengeluaran manual kas berhasil dicatat sebagai draft gantung untuk diverifikasi tim Pelaporan!`,
-      draftId: newDraft.id
+      message: `Pengeluaran manual kas berhasil dicatat sebagai draft gantung untuk diverifikasi tim Pelaporan!`
     });
   } catch (error) {
     console.error('Error in createManualExpense:', error);

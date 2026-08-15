@@ -266,7 +266,7 @@ export const rejectPengajuan = async (req: Request, res: Response) => {
 export const disbursePengajuan = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { actorId, bankAccountId, sumberDana, catatan, nominalRealisasi, linkNota } = req.body;
+    const { actorId, bankAccountId, sumberDana, catatan, nominalRealisasi, linkNota, breakdownItems } = req.body;
 
     if (!actorId || !bankAccountId) {
       res.status(400).json({ error: 'Actor ID dan Rekening Bank wajib diisi.' });
@@ -289,8 +289,15 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
     }
 
     const nominalAwal = Number(pengajuan.nominal);
-    const parsedRiil = nominalRealisasi !== undefined && nominalRealisasi !== null ? Number(nominalRealisasi) : NaN;
-    const nominalRiil = (!isNaN(parsedRiil) && parsedRiil > 0) ? parsedRiil : nominalAwal;
+    const hasBreakdown = Array.isArray(breakdownItems) && breakdownItems.length > 0;
+    
+    let nominalRiil = nominalAwal;
+    if (hasBreakdown) {
+      nominalRiil = breakdownItems.reduce((acc: number, it: any) => acc + (Number(it.nominal) || 0), 0);
+    } else {
+      const parsedRiil = nominalRealisasi !== undefined && nominalRealisasi !== null ? Number(nominalRealisasi) : NaN;
+      nominalRiil = (!isNaN(parsedRiil) && parsedRiil > 0) ? parsedRiil : nominalAwal;
+    }
 
     if (nominalRiil > nominalAwal) {
       res.status(400).json({ 
@@ -329,6 +336,9 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
 
       // 3. Log the payment
       let logMsg = `Dana dicairkan sebesar Rp ${nominalRiil.toLocaleString('id-ID')}`;
+      if (hasBreakdown) {
+        logMsg += ` (Pencairan dipecah ${breakdownItems.length} penerima by-name)`;
+      }
       if (nominalRiil < nominalAwal) {
         const hemat = nominalAwal - nominalRiil;
         logMsg += ` (Plafon Awal: Rp ${nominalAwal.toLocaleString('id-ID')}, Efisiensi: Rp ${hemat.toLocaleString('id-ID')})`;
@@ -369,23 +379,66 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
         ? pengajuan.judul.trim() 
         : (pengajuan.keterangan || 'Pengajuan Operasional');
 
-      const newDraft = {
-        id: `mut-${Date.now()}`,
-        tanggalCatatan: new Date().toISOString().split('T')[0],
-        tanggal: new Date().toISOString().split('T')[0],
-        bankAccountId: bankAccountId,
-        bankName: account.nama_akun,
-        judul: pengajuan.judul || null,
-        keterangan: pengajuan.keterangan || null,
-        keteranganBank: `${ringkasanJurnal} an. ${pengajuan.pengaju?.name || 'Pengaju'}`,
-        nominal: nominalRiil,
-        type: 'KREDIT',
-        status: 'PENDING',
-        kategori_biaya: pengajuan.kategori_biaya || 'Lain-lain',
-        link_nota: linkNota ? String(linkNota).trim() : null
-      };
+      if (hasBreakdown) {
+        breakdownItems.forEach((item: any, idx: number) => {
+          const itemNominal = Number(item.nominal) || 0;
+          if (itemNominal <= 0) return;
+          const itemNama = (item.nama_penerima || '').trim();
+          const itemKet = (item.keterangan || '').trim();
+          
+          // Pure By-Name text (without global title)
+          const itemBankDesc = itemNama 
+            ? `${itemNama}${itemKet ? ` - ${itemKet}` : ''}`
+            : (itemKet || ringkasanJurnal);
 
-      mutations.push(newDraft);
+          const newDraft = {
+            id: `mut-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+            tanggalCatatan: new Date().toISOString().split('T')[0],
+            tanggal: new Date().toISOString().split('T')[0],
+            bankAccountId: bankAccountId,
+            bankName: account.nama_akun,
+            judul: itemNama || ringkasanJurnal,
+            keterangan: itemKet || pengajuan.keterangan || null,
+            keteranganBank: itemBankDesc,
+            keteranganRealisasi: itemBankDesc,
+            nominal: itemNominal,
+            type: 'KREDIT',
+            status: 'PENDING',
+            kategori_biaya: pengajuan.kategori_biaya || 'Lain-lain',
+            link_nota: linkNota ? String(linkNota).trim() : null,
+            rkat_id: item.rkat_id || pengajuan.rkat_id || null,
+            rkatId: item.rkat_id || pengajuan.rkat_id || null,
+            coa_code: item.coa_code || null,
+            coaCode: item.coa_code || null,
+            nama_penerima: itemNama || null
+          };
+          mutations.push(newDraft);
+        });
+      } else {
+        const standardDesc = `${ringkasanJurnal} an. ${pengajuan.pengaju?.name || 'Pengaju'}`;
+        const newDraft = {
+          id: `mut-${Date.now()}`,
+          tanggalCatatan: new Date().toISOString().split('T')[0],
+          tanggal: new Date().toISOString().split('T')[0],
+          bankAccountId: bankAccountId,
+          bankName: account.nama_akun,
+          judul: pengajuan.judul || null,
+          keterangan: pengajuan.keterangan || null,
+          keteranganBank: standardDesc,
+          keteranganRealisasi: standardDesc,
+          nominal: nominalRiil,
+          type: 'KREDIT',
+          status: 'PENDING',
+          kategori_biaya: pengajuan.kategori_biaya || 'Lain-lain',
+          link_nota: linkNota ? String(linkNota).trim() : null,
+          rkat_id: pengajuan.rkat_id || null,
+          rkatId: pengajuan.rkat_id || null,
+          coa_code: pengajuan.coa_code || null,
+          coaCode: pengajuan.coa_code || null
+        };
+        mutations.push(newDraft);
+      }
+
       fs.writeFileSync(mutationsFilePath, JSON.stringify(mutations, null, 2), 'utf-8');
 
       return p;
