@@ -372,9 +372,11 @@ export const reconcileMutation = async (req: Request, res: Response) => {
 
       // Update or create Realisasi entry
       let realisasi;
-      const realisasiKeterangan = isDebit
-        ? `Rekonsiliasi Mutasi - Penerimaan dari ${muzakkiName || 'Hamba Allah'} (${keteranganRealisasi})`
-        : `Rekonsiliasi Mutasi - Penyaluran/Penggunaan (${keteranganRealisasi})`;
+      const realisasiKeterangan = keteranganRealisasi ? String(keteranganRealisasi).trim() : (
+        isDebit
+          ? (muzakkiName ? `Penerimaan dari ${muzakkiName}` : (mutation.keteranganBank || 'Penerimaan'))
+          : (mutation.judul || mutation.keteranganBank || 'Pengeluaran')
+      );
 
       if (isEdit && existingRealisasi) {
         realisasi = await tx.realisasi.update({

@@ -756,7 +756,6 @@ const today = new Date();
   // Open Reconcile Modal
   const openReconcile = (mutation: BankMutation) => {
     setSelectedMutation(mutation);
-    const isDebit = mutation.type !== 'KREDIT';
 
     const hasData = Boolean(
       mutation.status === 'RECONCILED' ||
@@ -780,9 +779,7 @@ const today = new Date();
       setFormCoaCode(mutation.coaCode || '');
       setFormKeteranganRealisasi(
         mutation.keteranganRealisasi ||
-        (isDebit
-          ? `Penerimaan mutasi ${mutation.keteranganBank}`
-          : `Penyaluran/Penggunaan mutasi ${mutation.keteranganBank}`)
+        ((mutation as any).judul || mutation.keteranganBank || '')
       );
     } else {
       setFormMuzakkiId('');
@@ -793,9 +790,7 @@ const today = new Date();
       setIsOutsideRkat(false);
       setFormCoaCode('');
       setFormKeteranganRealisasi(
-        isDebit
-          ? `Penerimaan mutasi ${mutation.keteranganBank}`
-          : `Penyaluran/Penggunaan mutasi ${mutation.keteranganBank}`
+        (mutation as any).judul || mutation.keteranganBank || ''
       );
     }
 
