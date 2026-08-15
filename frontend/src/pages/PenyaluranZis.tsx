@@ -1646,13 +1646,77 @@ export default function PenyaluranZis() {
     XLSX.writeFile(wb, "Template_Migrasi_Penyaluran_ZIS.xlsx");
   };
 
+  const parseExcelDate = (val: any, defaultToday = false): string => {
+    if (val === undefined || val === null || val === '') {
+      return defaultToday ? new Date().toISOString().split('T')[0] : '';
+    }
+
+    // 1. If already JS Date object
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      const year = val.getFullYear();
+      const month = String(val.getMonth() + 1).padStart(2, '0');
+      const day = String(val.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // 2. If number or numeric string (Excel serial code, e.g. 45260 or "45260")
+    const num = typeof val === 'number' ? val : (typeof val === 'string' && /^\d+(\.\d+)?$/.test(val.trim()) ? parseFloat(val.trim()) : NaN);
+    if (!isNaN(num) && num >= 1000 && num <= 100000) {
+      const utcDays = num - 25569;
+      const utcValue = utcDays * 86400 * 1000;
+      const d = new Date(utcValue);
+      if (!isNaN(d.getTime())) {
+        const year = d.getUTCFullYear();
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        if (year >= 1970 && year <= 2100) {
+          return `${year}-${month}-${day}`;
+        }
+      }
+    }
+
+    const str = String(val).trim();
+    if (!str || str === '-' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') {
+      return defaultToday ? new Date().toISOString().split('T')[0] : '';
+    }
+
+    // DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+      const day = dmyMatch[1].padStart(2, '0');
+      const month = dmyMatch[2].padStart(2, '0');
+      const year = dmyMatch[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    // YYYY-MM-DD or YYYY/MM/DD
+    const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (ymdMatch) {
+      const year = ymdMatch[1];
+      const month = ymdMatch[2].padStart(2, '0');
+      const day = ymdMatch[3].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Standard date parsing fallback
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= 1970 && parsed.getFullYear() <= 2100) {
+      const year = parsed.getFullYear();
+      const month = String(parsed.getMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    return defaultToday ? new Date().toISOString().split('T')[0] : str;
+  };
+
   const handlePenyaluranFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       const dataBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(dataBuffer, { type: 'array' });
+      const workbook = XLSX.read(dataBuffer, { type: 'array', cellDates: true });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const json: any[] = XLSX.utils.sheet_to_json(worksheet);
@@ -1683,8 +1747,12 @@ export default function PenyaluranZis() {
       };
 
       const rows = json.map((row, idx) => {
-        const tglPermohonan = String(getVal(row, 'Tanggal_Permohonan', 'Tanggal', 'Tgl_Permohonan', 'Tgl Permohonan', 'tanggal_permohonan', 'tanggal') || new Date().toISOString().split('T')[0]);
-        const tglPencairan = String(getVal(row, 'Tanggal_Pencairan', 'Tgl_Pencairan', 'Tgl Pencairan', 'tanggal_pencairan', 'Tanggal_Realisasi', 'Tgl Realisasi') || '');
+        const rawTglPermohonan = getVal(row, 'Tanggal_Permohonan', 'Tanggal', 'Tgl_Permohonan', 'Tgl Permohonan', 'tanggal_permohonan', 'tanggal');
+        const tglPermohonan = parseExcelDate(rawTglPermohonan, true);
+
+        const rawTglPencairan = getVal(row, 'Tanggal_Pencairan', 'Tgl_Pencairan', 'Tgl Pencairan', 'tanggal_pencairan', 'Tanggal_Realisasi', 'Tgl Realisasi');
+        const tglPencairan = parseExcelDate(rawTglPencairan, false);
+
         const nama = String(getVal(row, 'Nama_Pemohon', 'Nama_Mustahik', 'Nama Pemohon', 'Nama Mustahik', 'nama_pemohon', 'Nama', 'nama') || '-');
         const nik = String(getVal(row, 'NIK', 'nik', 'No_KTP', 'No KTP') || '');
         const telepon = String(getVal(row, 'No_Telpon', 'No Telpon', 'Telepon', 'telepon', 'No HP', 'No_HP', 'no_telpon', 'HP') || '');

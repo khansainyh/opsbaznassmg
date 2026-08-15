@@ -516,6 +516,47 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
     let successCount = 0;
     let totalNominal = 0;
 
+    const parseToDate = (val: any): Date | null => {
+      if (val === undefined || val === null || val === '') return null;
+      if (val instanceof Date && !isNaN(val.getTime())) return val;
+
+      const num = typeof val === 'number' ? val : (typeof val === 'string' && /^\d+(\.\d+)?$/.test(val.trim()) ? parseFloat(val.trim()) : NaN);
+      if (!isNaN(num) && num >= 1000 && num <= 100000) {
+        const utcDays = num - 25569;
+        const utcValue = utcDays * 86400 * 1000;
+        const d = new Date(utcValue);
+        if (!isNaN(d.getTime())) return d;
+      }
+
+      const str = String(val).trim();
+      if (!str || str === '-' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return null;
+
+      // DD/MM/YYYY or DD-MM-YYYY
+      const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmyMatch) {
+        const day = parseInt(dmyMatch[1], 10);
+        const month = parseInt(dmyMatch[2], 10) - 1;
+        const year = parseInt(dmyMatch[3], 10);
+        return new Date(Date.UTC(year, month, day));
+      }
+
+      // YYYY-MM-DD or YYYY/MM/DD
+      const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+      if (ymdMatch) {
+        const year = parseInt(ymdMatch[1], 10);
+        const month = parseInt(ymdMatch[2], 10) - 1;
+        const day = parseInt(ymdMatch[3], 10);
+        return new Date(Date.UTC(year, month, day));
+      }
+
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= 1970 && parsed.getFullYear() <= 2100) {
+        return parsed;
+      }
+
+      return null;
+    };
+
     await prisma.$transaction(async (tx) => {
       for (const item of items) {
         const namaPemohon = String(item.Nama_Pemohon || item.Nama_Mustahik || item.nama_pemohon || item.nama || '').trim();
@@ -533,19 +574,8 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
         const telepon = item.No_Telpon || item.telepon || item.no_telpon ? String(item.No_Telpon || item.telepon || item.no_telpon).trim() : '080000000000';
         const alamat = item.Alamat || item.alamat ? String(item.Alamat || item.alamat).trim() : 'Kota Semarang';
         
-        let tanggalPermohonan = new Date();
-        const rawTglPermohonan = item.Tanggal_Permohonan || item.Tanggal || item.tanggal_permohonan || item.tanggal;
-        if (rawTglPermohonan) {
-          const parsedD = new Date(rawTglPermohonan);
-          if (!isNaN(parsedD.getTime())) tanggalPermohonan = parsedD;
-        }
-
-        let tanggalPencairan: Date | null = null;
-        const rawTglPencairan = item.Tanggal_Pencairan || item.tanggal_pencairan || item.Tanggal_Realisasi;
-        if (rawTglPencairan) {
-          const parsedC = new Date(rawTglPencairan);
-          if (!isNaN(parsedC.getTime())) tanggalPencairan = parsedC;
-        }
+        let tanggalPermohonan = parseToDate(item.Tanggal_Permohonan || item.Tanggal || item.tanggal_permohonan || item.tanggal) || new Date();
+        let tanggalPencairan = parseToDate(item.Tanggal_Pencairan || item.tanggal_pencairan || item.Tanggal_Realisasi);
 
         // Determine mapped Program (prioritize code match like 210102.1 / 210102)
         const matchedProg = allPrograms.find(p => p.code === jenisPermohonan || p.code.startsWith(jenisPermohonan) || p.name.toLowerCase() === jenisPermohonan.toLowerCase() || (kodeRkat && p.code === String(kodeRkat)));

@@ -458,6 +458,70 @@ export default function PenerimaanZis() {
     XLSX.writeFile(wb, "Template_Migrasi_Penerimaan_ZIS.xlsx");
   };
 
+  const parseExcelDate = (val: any, defaultToday = false): string => {
+    if (val === undefined || val === null || val === '') {
+      return defaultToday ? new Date().toISOString().split('T')[0] : '';
+    }
+
+    // 1. If already JS Date object
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      const year = val.getFullYear();
+      const month = String(val.getMonth() + 1).padStart(2, '0');
+      const day = String(val.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // 2. If number or numeric string (Excel serial code, e.g. 45260 or "45260")
+    const num = typeof val === 'number' ? val : (typeof val === 'string' && /^\d+(\.\d+)?$/.test(val.trim()) ? parseFloat(val.trim()) : NaN);
+    if (!isNaN(num) && num >= 1000 && num <= 100000) {
+      const utcDays = num - 25569;
+      const utcValue = utcDays * 86400 * 1000;
+      const d = new Date(utcValue);
+      if (!isNaN(d.getTime())) {
+        const year = d.getUTCFullYear();
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        if (year >= 1970 && year <= 2100) {
+          return `${year}-${month}-${day}`;
+        }
+      }
+    }
+
+    const str = String(val).trim();
+    if (!str || str === '-' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') {
+      return defaultToday ? new Date().toISOString().split('T')[0] : '';
+    }
+
+    // DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+      const day = dmyMatch[1].padStart(2, '0');
+      const month = dmyMatch[2].padStart(2, '0');
+      const year = dmyMatch[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    // YYYY-MM-DD or YYYY/MM/DD
+    const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (ymdMatch) {
+      const year = ymdMatch[1];
+      const month = ymdMatch[2].padStart(2, '0');
+      const day = ymdMatch[3].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Standard date parsing fallback
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= 1970 && parsed.getFullYear() <= 2100) {
+      const year = parsed.getFullYear();
+      const month = String(parsed.getMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    return defaultToday ? new Date().toISOString().split('T')[0] : str;
+  };
+
   const handlePenerimaanFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -466,7 +530,7 @@ export default function PenerimaanZis() {
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const rawRows = XLSX.utils.sheet_to_json(ws);
@@ -514,12 +578,15 @@ export default function PenerimaanZis() {
             }
           }
 
+          const rawTgl = item['Tanggal Trx'] || item.tanggal_pembayaran || item.tanggal_trx || item.Tanggal || item['Tanggal'];
+          const parsedTgl = parseExcelDate(rawTgl, true);
+
           return {
             rowNum: item.No || item.no || (idx + 1),
             kodeProgram: rawKodeProg || '-',
             kodeAkun: item['Kode Akun'] || item.kode_akun || '-',
             sumberDana: item['Sumber Dana'] || item.sumber_dana || item.bank_account_name || '-',
-            tanggalTrx: item['Tanggal Trx'] || item.tanggal_pembayaran || item.tanggal_trx || item.Tanggal || '-',
+            tanggalTrx: parsedTgl || '-',
             noTransaksi: item['No Transaksi'] || item.no_transaksi || item.no_kuitansi || '-',
             keterangan: item.Keterangan || item.keterangan || item.Uraian || item.uraian || item.Deskripsi || item.deskripsi || item.Catatan || item.catatan || item.Detail || item.detail || item['Keterangan Transaksi'] || item.Peruntukan || item.Rincian || '-',
             nominal: nominalVal,
