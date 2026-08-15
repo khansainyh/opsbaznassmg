@@ -749,3 +749,77 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
     res.status(500).json({ error: String(error) });
   }
 };
+
+export const deletePenyaluranZis = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = String(req.params.id);
+
+    const existing = await prisma.proposal.findUnique({
+      where: { id }
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Data transaksi penyaluran tidak ditemukan.' });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Find all related Realisasi records
+      const relatedRealisasis = await tx.realisasi.findMany({
+        where: { proposal_id: id },
+        select: { transaksi_id: true }
+      });
+
+      const transaksiIds = relatedRealisasis.map(r => r.transaksi_id);
+
+      // 2. If there are journal entries, restore bank account balances for any disbursements
+      if (transaksiIds.length > 0) {
+        const journalEntries = await tx.journalEntry.findMany({
+          where: { transaksi_id: { in: transaksiIds } }
+        });
+
+        for (const je of journalEntries) {
+          if (je.account_id && Number(je.kredit) > 0) {
+            await tx.bankAccount.update({
+              where: { account_id: je.account_id },
+              data: {
+                saldo: { increment: je.kredit }
+              }
+            });
+          }
+        }
+
+        // Delete realisasi records (cascades to delete JournalEntry)
+        await tx.realisasi.deleteMany({
+          where: { transaksi_id: { in: transaksiIds } }
+        });
+      }
+
+      // 3. Delete related PengajuanPencairan if exists
+      if (existing.agenda_no || existing.nama_pemohon) {
+        await tx.pengajuanPencairan.deleteMany({
+          where: {
+            OR: [
+              ...(existing.agenda_no ? [{ no_pengajuan: { contains: String(existing.agenda_no) } }] : []),
+              ...(existing.nama_pemohon ? [{ keterangan: { contains: existing.nama_pemohon } }] : [])
+            ],
+            kategori_biaya: 'Penyaluran ZIS'
+          }
+        });
+      }
+
+      // 4. Delete the proposal record
+      await tx.proposal.delete({
+        where: { id }
+      });
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Transaksi Penyaluran ZIS berhasil dihapus.'
+    });
+  } catch (error: any) {
+    console.error('Error deleting Penyaluran ZIS:', error);
+    res.status(500).json({ error: 'Gagal menghapus data penyaluran: ' + (error.message || String(error)) });
+  }
+};

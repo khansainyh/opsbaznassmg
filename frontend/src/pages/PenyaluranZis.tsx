@@ -31,7 +31,9 @@ import {
   Upload,
   FileSpreadsheet,
   FileText,
-  Printer
+  Printer,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
@@ -583,6 +585,12 @@ export default function PenyaluranZis() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [selectedPenyaluran, setSelectedPenyaluran] = useState<any | null>(null);
+
+  // Delete Confirmation Modal & Toast State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toastNotification, setToastNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Migration State
   const [migrating, setMigrating] = useState(false);
@@ -1827,6 +1835,46 @@ export default function PenyaluranZis() {
     }
   };
 
+  // Auto-clear Toast Notification
+  useEffect(() => {
+    if (toastNotification) {
+      const timer = setTimeout(() => setToastNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotification]);
+
+  const promptDeletePenyaluran = (item: any) => {
+    if (!item) return;
+    setItemToDelete(item);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await axios.delete(`/api/penyaluran-zis/${itemToDelete.id}`);
+      if (res.data?.status === 'success' || res.status === 200) {
+        setIsDeleteModalOpen(false);
+        setIsDetailModalOpen(false);
+        setToastNotification({
+          type: 'success',
+          message: `Transaksi Penyaluran ${itemToDelete.agenda_no ? `No. Agenda ${itemToDelete.agenda_no}` : ''} berhasil dihapus & saldo kas/buku besar telah dikoreksi.`
+        });
+        setItemToDelete(null);
+        fetchData();
+      }
+    } catch (err: any) {
+      console.error('Error deleting Penyaluran ZIS:', err);
+      setToastNotification({
+        type: 'error',
+        message: 'Gagal menghapus transaksi: ' + (err.response?.data?.error || err.message)
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Helper to find the matched Program & Kegiatan object from activePilars
   const findProgramForTransaction = (trx: any, activePilarsSource: any[]) => {
     if (!trx) return null;
@@ -2844,6 +2892,13 @@ export default function PenyaluranZis() {
                             title="Detail Transaksi"
                           >
                             <Eye className="size-3.5" />
+                          </button>
+                          <button
+                            onClick={() => promptDeletePenyaluran(item)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Hapus Transaksi Penyaluran"
+                          >
+                            <Trash2 className="size-3.5" />
                           </button>
                         </div>
                       </td>
@@ -4078,10 +4133,32 @@ export default function PenyaluranZis() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-slate-100 bg-slate-50/80 shrink-0 flex justify-end">
-                <button onClick={() => setIsDetailModalOpen(false)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 rounded-xl text-xs transition-colors cursor-pointer">
-                  Tutup
+              <div className="p-4 border-t border-slate-100 bg-slate-50/80 shrink-0 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => promptDeletePenyaluran(selectedPenyaluran)}
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-rose-200"
+                >
+                  <Trash2 className="size-3.5" />
+                  Hapus Transaksi
                 </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const itemToEdit = selectedPenyaluran;
+                      setIsDetailModalOpen(false);
+                      handleOpenEditModal(itemToEdit);
+                    }}
+                    className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-amber-200"
+                  >
+                    <Edit3 className="size-3.5" />
+                    Edit Transaksi
+                  </button>
+                  <button onClick={() => setIsDetailModalOpen(false)} className="px-5 py-2 bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 rounded-xl text-xs transition-colors cursor-pointer">
+                    Tutup
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -4690,6 +4767,160 @@ export default function PenyaluranZis() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modern Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {isDeleteModalOpen && itemToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => !isDeleting && setIsDeleteModalOpen(false)} 
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.95, opacity: 0, y: 20 }} 
+              transition={{ type: "spring", duration: 0.3 }}
+              className="relative bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden z-10 flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-5 pb-4 border-b border-rose-100/70 bg-gradient-to-r from-rose-50/90 to-red-50/50 flex items-start gap-3.5">
+                <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl shrink-0 shadow-sm ring-4 ring-rose-50">
+                  <AlertTriangle className="size-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-black text-slate-900 leading-tight">
+                    Konfirmasi Hapus Transaksi
+                  </h3>
+                  <p className="text-xs text-rose-700 font-medium mt-0.5">
+                    Tindakan ini permanen dan akan memulihkan saldo kas.
+                  </p>
+                </div>
+                <button 
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 space-y-4 text-xs">
+                {/* Detail Box */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pemohon / Mustahik</span>
+                    <span className="font-bold text-slate-900 text-right">
+                      {itemToDelete.nama_pemohon || itemToDelete.nama_instansi || itemToDelete.mustahik?.nama || '-'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center gap-2 pt-1 border-t border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">No. Agenda / Asal</span>
+                    <span className="font-bold text-slate-700 font-mono">
+                      {itemToDelete.agenda_no ? `No. Agenda ${itemToDelete.agenda_no}` : (itemToDelete.asal_data || 'Jalur Direct')}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center gap-2 pt-1 border-t border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Nominal Penyaluran</span>
+                    <span className="text-sm font-black text-rose-600">
+                      {formatCurrency(itemToDelete.nominal || 0)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center gap-2 pt-1 border-t border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status Transaksi</span>
+                    <span className={cn("px-2 py-0.5 text-[10px] font-bold rounded-full uppercase", getStatusColor(itemToDelete.status))}>
+                      {formatStatusDisplay(itemToDelete.status)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Impact Info */}
+                <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3 text-[11px] text-amber-900 space-y-1.5 leading-relaxed">
+                  <p className="font-bold flex items-center gap-1.5 text-amber-950">
+                    <span>⚡ Dampak Otomatis Sistem:</span>
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5 text-amber-800/90 pl-1 font-medium text-[10.5px]">
+                    <li>Transaksi akan dihapus dari daftar Penyaluran ZIS.</li>
+                    <li>Jurnal akuntansi terkait di <strong>Buku Besar</strong> akan otomatis dibersihkan.</li>
+                    <li><strong>Saldo Kas/Bank</strong> akan otomatis dipulihkan/dikembalikan jika transaksi sudah dicairkan.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 font-bold text-slate-700 rounded-xl text-xs transition-colors border border-slate-200 cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDelete}
+                  className="px-5 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 font-bold text-white rounded-xl text-xs transition-all shadow-md shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <RefreshCw className="size-3.5 animate-spin" />
+                      Menghapus Data...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="size-3.5" />
+                      Ya, Hapus Transaksi
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating In-App Toast Notification */}
+      <AnimatePresence>
+        {toastNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={cn(
+              "fixed top-5 right-5 z-50 max-w-md px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-3 backdrop-blur-md",
+              toastNotification.type === 'success' 
+                ? "bg-emerald-900/90 text-white border-emerald-700/50 shadow-emerald-950/20" 
+                : "bg-rose-900/90 text-white border-rose-700/50 shadow-rose-950/20"
+            )}
+          >
+            {toastNotification.type === 'success' ? (
+              <CheckCircle2 className="size-5 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="size-5 text-rose-400 shrink-0" />
+            )}
+            <p className="text-xs font-bold flex-1 leading-snug">
+              {toastNotification.message}
+            </p>
+            <button
+              onClick={() => setToastNotification(null)}
+              className="p-1 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white/70 hover:text-white"
+            >
+              <X className="size-3.5" />
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
