@@ -6,6 +6,7 @@ import {
   approvePengajuan,
   rejectPengajuan,
   disbursePengajuan,
+  updatePengajuanNota,
   deletePengajuan
 } from '../controllers/pengajuan-pencairan.controller';
 import { migrateProposalExcel } from '../controllers/migrate-proposal.controller';
@@ -19,6 +20,8 @@ router.get('/', getPengajuans);
 router.post('/:id/approve', approvePengajuan);
 router.post('/:id/reject', rejectPengajuan);
 router.post('/:id/disburse', disbursePengajuan);
+router.put('/:id/nota', updatePengajuanNota);
 router.delete('/:id', deletePengajuan);
 
 export default router;
+

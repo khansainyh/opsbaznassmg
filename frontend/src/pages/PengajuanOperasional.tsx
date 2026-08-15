@@ -20,13 +20,12 @@ export default function PengajuanOperasional() {
   // List states
   const [pengajuans, setPengajuans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitLoading, setIsSubmitLoading] = useState(false);
-
-  // Form states
-  const [kategoriBiaya, setKategoriBiaya] = useState('');
-  const [keterangan, setKeterangan] = useState('');
-  const [nominal, setNominal] = useState('');
   const [categories, setCategories] = useState<any[]>([]);
+  const [kategoriBiaya, setKategoriBiaya] = useState('');
+  const [judul, setJudul] = useState('');
+  const [nominal, setNominal] = useState('');
+  const [keterangan, setKeterangan] = useState('');
+  const [isSubmitLoading, setIsSubmitLoading] = useState(false);
 
   // Modal / Detail state
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
@@ -72,8 +71,8 @@ export default function PengajuanOperasional() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nominal || Number(nominal) <= 0 || !keterangan) {
-      alert('Mohon isi nominal valid dan keterangan pengajuan.');
+    if (!nominal || Number(nominal) <= 0 || (!judul && !keterangan)) {
+      alert('Mohon isi judul pengajuan, nominal valid, dan keterangan.');
       return;
     }
 
@@ -82,13 +81,15 @@ export default function PengajuanOperasional() {
       const res = await axios.post('/api/pengajuan-pencairan', {
         pengaju_id: user?.id,
         kategori_biaya: kategoriBiaya,
-        keterangan: keterangan,
+        judul: judul.trim(),
+        keterangan: keterangan.trim(),
         nominal: Number(nominal),
         rkat_id: null
       });
 
       if (res.data.status === 'success') {
         alert('Pengajuan pencairan berhasil disubmit ke alur persetujuan.');
+        setJudul('');
         setKeterangan('');
         setNominal('');
         fetchMyPengajuans();
@@ -129,25 +130,25 @@ export default function PengajuanOperasional() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'DRAFT':
-        return <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs font-bold">DRAFT</span>;
+        return <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-xs font-bold">Draft</span>;
       case 'WAITING_KABID':
-        return <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Waiting Kabid</span>;
+        return <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kabid</span>;
       case 'WAITING_KAPEL':
-        return <span className="bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Waiting Kapel</span>;
+        return <span className="bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kapel</span>;
       case 'WAITING_WAKA3':
-        return <span className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Waiting Waka III</span>;
+        return <span className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Waka III</span>;
       case 'WAITING_KETUA':
-        return <span className="bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Waiting Ketua</span>;
+        return <span className="bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Ketua</span>;
       case 'WAITING_FINANCE_APP':
-        return <span className="bg-yellow-50 text-yellow-700 border border-yellow-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Waiting Kabag Keu</span>;
+        return <span className="bg-yellow-50 text-yellow-700 border border-yellow-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kabag Keuangan</span>;
       case 'APPROVED':
-        return <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="size-3" /> Antrean Bayar</span>;
+        return <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="size-3" /> Disetujui</span>;
       case 'CAIR':
-        return <span className="bg-green-50 text-green-700 border border-green-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="size-3" /> Realisasi Cair</span>;
+        return <span className="bg-green-50 text-green-700 border border-green-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="size-3" /> Cair</span>;
       case 'DITOLAK':
         return <span className="bg-red-50 text-red-700 border border-red-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><XCircle className="size-3" /> Ditolak</span>;
       default:
-        return <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs font-bold">{status}</span>;
+        return <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-xs font-bold">{status}</span>;
     }
   };
 
@@ -192,9 +193,22 @@ export default function PengajuanOperasional() {
               </select>
             </div>
 
+            {/* Judul Pengajuan */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Judul Pengajuan *</label>
+              <input
+                type="text"
+                value={judul}
+                onChange={(e) => setJudul(e.target.value)}
+                placeholder="Contoh: Pembelian ATK Kantor Bulanan"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                required
+              />
+            </div>
+
              {/* Nominal */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">Nominal Pengajuan (Rp)</label>
+              <label className="text-xs font-bold text-slate-700 block">Nominal Pengajuan (Rp) *</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">Rp</span>
                 <input
@@ -210,14 +224,13 @@ export default function PengajuanOperasional() {
 
             {/* Keterangan */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">Detail Keperluan & Keterangan</label>
+              <label className="text-xs font-bold text-slate-700 block">Keterangan / Rincian Tambahan</label>
               <textarea
                 value={keterangan}
                 onChange={(e) => setKeterangan(e.target.value)}
-                placeholder="Tulis alasan, item yang dibeli, atau keperluan pengajuan secara detail..."
-                rows={4}
+                placeholder="Tulis rincian barang, spesifikasi item, atau catatan keperluan pengajuan..."
+                rows={3}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                required
               />
             </div>
 
@@ -247,22 +260,30 @@ export default function PengajuanOperasional() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
-                    <th className="py-3 px-2">No Pengajuan</th>
-                    <th className="py-3 px-2">Tanggal</th>
-                    <th className="py-3 px-2">Kategori</th>
-                    <th className="py-3 px-2 text-right">Nominal</th>
-                    <th className="py-3 px-2 text-center">Status</th>
-                    <th className="py-3 px-2 text-center">Aksi</th>
+                    <th className="py-3 px-3">No Pengajuan</th>
+                    <th className="py-3 px-3">Tanggal</th>
+                    <th className="py-3 px-3">Judul Pengajuan</th>
+                    <th className="py-3 px-3">Keterangan / Rincian</th>
+                    <th className="py-3 px-3">Kategori</th>
+                    <th className="py-3 px-3 text-right">Nominal</th>
+                    <th className="py-3 px-3 text-center">Status</th>
+                    <th className="py-3 px-3 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm font-semibold text-slate-600">
                   {pengajuans.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-2 font-mono text-xs">{p.no_pengajuan}</td>
-                      <td className="py-3 px-2 text-xs font-medium">{new Date(p.tanggal).toLocaleDateString('id-ID')}</td>
-                      <td className="py-3 px-2 text-xs">
-                        <span className="font-semibold">{p.kategori_biaya}</span>
-                        {p.rkat && <p className="text-[10px] text-slate-400 font-mono">({p.rkat.no})</p>}
+                      <td className="py-3 px-3 font-mono text-xs text-slate-800 whitespace-nowrap">{p.no_pengajuan}</td>
+                      <td className="py-3 px-3 text-xs font-medium text-slate-500 whitespace-nowrap">{new Date(p.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      <td className="py-3 px-3 text-xs font-bold text-slate-900 max-w-[200px]">
+                        {p.judul || p.keterangan || '-'}
+                      </td>
+                      <td className="py-3 px-3 text-xs text-slate-600 font-normal max-w-[220px] truncate">
+                        {p.keterangan || '-'}
+                      </td>
+                      <td className="py-3 px-3 text-xs whitespace-nowrap">
+                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold">{p.kategori_biaya}</span>
+                        {p.rkat && <p className="text-[9px] text-slate-400 font-mono mt-0.5">({p.rkat.no})</p>}
                       </td>
                       <td className="py-3 px-2 text-right text-xs font-black text-slate-800">{formatRupiah(Number(p.nominal))}</td>
                       <td className="py-3 px-2 text-center">{getStatusBadge(p.status)}</td>
@@ -317,6 +338,10 @@ export default function PengajuanOperasional() {
             <div className="p-6 overflow-y-auto space-y-5 custom-scrollbar text-sm">
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
                 <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Judul Pengajuan</p>
+                  <p className="font-bold text-slate-800 mt-0.5 text-sm">{selectedItem.judul || selectedItem.keterangan || '-'}</p>
+                </div>
+                <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Kategori Biaya</p>
                   <p className="font-bold text-slate-700 mt-0.5">{selectedItem.kategori_biaya}</p>
                 </div>
@@ -324,15 +349,15 @@ export default function PengajuanOperasional() {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nominal</p>
                   <p className="font-black text-primary mt-0.5 text-base">{formatRupiah(Number(selectedItem.nominal))}</p>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Link RKAT</p>
                   <p className="font-semibold text-slate-600 mt-0.5 text-xs">
                     {selectedItem.rkat ? `(${selectedItem.rkat.no}) ${selectedItem.rkat.nama}` : 'Tidak di-link ke RKAT'}
                   </p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Keterangan Keperluan</p>
-                  <p className="font-medium text-slate-600 mt-0.5 whitespace-pre-wrap">{selectedItem.keterangan}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Keterangan / Rincian Tambahan</p>
+                  <p className="font-medium text-slate-600 mt-0.5 whitespace-pre-wrap">{selectedItem.keterangan || '-'}</p>
                 </div>
                 {selectedItem.status === 'DITOLAK' && selectedItem.alasan_penolakan && (
                   <div className="col-span-2 bg-red-50 border border-red-100 p-3 rounded-lg flex gap-2 text-red-700">

@@ -7,7 +7,8 @@ import {
   X, 
   HelpCircle,
   Eye,
-  ChevronRight
+  ChevronRight,
+  Clock
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -25,15 +26,15 @@ export default function PersetujuanOperasional() {
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);
 
   const fetchPendingRequests = useCallback(async () => {
-    if (!user?.role) return;
+    if (!user?.id) return;
     try {
       setIsLoading(true);
-      const res = await axios.get(`/api/pengajuan-pencairan?role=${user.role}&tab=pending`);
+      const res = await axios.get(`/api/pengajuan-pencairan?userId=${user.id}&tab=pending-approvals`);
       if (res.data.status === 'success') {
         setPendingList(res.data.data);
       }
     } catch (err) {
-      console.error('Failed to fetch pending requests:', err);
+      console.error('Failed to fetch pending approvals:', err);
     } finally {
       setIsLoading(false);
     }
@@ -110,6 +111,31 @@ export default function PersetujuanOperasional() {
     return role.replace(/_/g, ' ');
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'DRAFT':
+        return <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-xs font-bold">Draft</span>;
+      case 'WAITING_KABID':
+        return <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kabid</span>;
+      case 'WAITING_KAPEL':
+        return <span className="bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kapel</span>;
+      case 'WAITING_WAKA3':
+        return <span className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Waka III</span>;
+      case 'WAITING_KETUA':
+        return <span className="bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Ketua</span>;
+      case 'WAITING_FINANCE_APP':
+        return <span className="bg-yellow-50 text-yellow-700 border border-yellow-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kabag Keuangan</span>;
+      case 'APPROVED':
+        return <span className="bg-teal-50 text-teal-700 border border-teal-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="size-3" /> Disetujui</span>;
+      case 'CAIR':
+        return <span className="bg-green-50 text-green-700 border border-green-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="size-3" /> Cair</span>;
+      case 'DITOLAK':
+        return <span className="bg-red-50 text-red-700 border border-red-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><XCircle className="size-3" /> Ditolak</span>;
+      default:
+        return <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-xs font-bold">{status}</span>;
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Header */}
@@ -169,16 +195,17 @@ export default function PersetujuanOperasional() {
                       <p className="text-[10px] text-slate-400 uppercase tracking-wider">{cleanRoleName(item.pengaju?.role || '')}</p>
                     </td>
                     <td className="py-3 px-2 text-xs">
-                      <p className="font-semibold text-slate-700 truncate max-w-xs">{item.keterangan}</p>
+                      <p className="font-bold text-slate-800 truncate max-w-xs">{item.judul || item.keterangan}</p>
+                      {item.judul && item.keterangan && (
+                        <p className="text-[11px] text-slate-500 truncate max-w-xs">{item.keterangan}</p>
+                      )}
                       <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono mt-1 inline-block">
                         {item.kategori_biaya}
                       </span>
                     </td>
                     <td className="py-3 px-2 text-right text-xs font-black text-primary">{formatRupiah(Number(item.nominal))}</td>
                     <td className="py-3 px-2 text-center text-xs">
-                      <span className="bg-yellow-50 text-yellow-700 border border-yellow-100 px-2 py-0.5 rounded-full font-bold">
-                        Pending
-                      </span>
+                      {getStatusBadge(item.status)}
                     </td>
                     <td className="py-3 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -249,6 +276,10 @@ export default function PersetujuanOperasional() {
               {/* Summary Card */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2.5">
                 <div className="flex justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider">Judul</span>
+                  <span className="font-bold text-slate-800 text-right max-w-xs">{selectedActionItem.judul || selectedActionItem.keterangan}</span>
+                </div>
+                <div className="flex justify-between text-xs">
                   <span className="text-slate-400 font-bold uppercase tracking-wider">Pengaju</span>
                   <span className="font-bold text-slate-700">{selectedActionItem.pengaju?.name} ({cleanRoleName(selectedActionItem.pengaju?.role || '')})</span>
                 </div>
@@ -260,9 +291,13 @@ export default function PersetujuanOperasional() {
                   <span className="text-slate-400 font-bold uppercase tracking-wider">Nominal</span>
                   <span className="font-black text-primary text-sm">{formatRupiah(Number(selectedActionItem.nominal))}</span>
                 </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider">Status Tahapan</span>
+                  <div>{getStatusBadge(selectedActionItem.status)}</div>
+                </div>
                 <div className="border-t border-slate-200/60 pt-2 text-xs">
-                  <span className="text-slate-400 font-bold uppercase tracking-wider block mb-1">Keperluan</span>
-                  <p className="font-medium text-slate-600 italic">"{selectedActionItem.keterangan}"</p>
+                  <span className="text-slate-400 font-bold uppercase tracking-wider block mb-1">Rincian / Keterangan</span>
+                  <p className="font-medium text-slate-600 italic">"{selectedActionItem.keterangan || '-'}"</p>
                 </div>
               </div>
 

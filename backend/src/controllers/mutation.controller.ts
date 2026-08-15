@@ -147,7 +147,7 @@ export const createMutation = async (req: Request, res: Response) => {
 export const updateMutation = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { tanggal, bankAccountId, keteranganBank, nominal, type } = req.body;
+    const { tanggal, tanggalCatatan, bankAccountId, judul, keterangan, keteranganBank, kategori_biaya, nominal, type, link_nota } = req.body;
 
     const mutations = readMutations();
     const index = mutations.findIndex(m => m.id === id);
@@ -163,26 +163,37 @@ export const updateMutation = async (req: Request, res: Response) => {
       return;
     }
 
-    const account = await prisma.bankAccount.findUnique({
-      where: { account_id: bankAccountId } as any
-    }) as any;
+    if (bankAccountId && bankAccountId !== mutation.bankAccountId) {
+      const account = await prisma.bankAccount.findUnique({
+        where: { account_id: bankAccountId } as any
+      }) as any;
 
-    if (!account) {
-      res.status(404).json({ error: 'Akun Bank tidak ditemukan' });
-      return;
+      if (!account) {
+        res.status(404).json({ error: 'Akun Bank tidak ditemukan' });
+        return;
+      }
+      mutation.bankAccountId = bankAccountId;
+      mutation.bankName = account.nama_akun;
     }
 
-    mutation.tanggal = tanggal || mutation.tanggal;
-    mutation.bankAccountId = bankAccountId || mutation.bankAccountId;
-    mutation.bankName = account.nama_akun;
-    mutation.keteranganBank = keteranganBank || mutation.keteranganBank;
-    mutation.nominal = nominal !== undefined ? Number(nominal) : mutation.nominal;
-    mutation.type = type === 'KREDIT' ? 'KREDIT' : 'DEBIT';
+    if (tanggal) mutation.tanggal = tanggal;
+    if (tanggalCatatan) mutation.tanggalCatatan = tanggalCatatan;
+    if (judul !== undefined) mutation.judul = judul ? String(judul).trim() : null;
+    if (keterangan !== undefined) mutation.keterangan = keterangan ? String(keterangan).trim() : '';
+    if (keteranganBank) {
+      mutation.keteranganBank = keteranganBank;
+    } else if (judul) {
+      mutation.keteranganBank = String(judul).trim();
+    }
+    if (kategori_biaya !== undefined) mutation.kategori_biaya = kategori_biaya;
+    if (nominal !== undefined && !isNaN(Number(nominal))) mutation.nominal = Number(nominal);
+    if (type !== undefined) mutation.type = type === 'KREDIT' ? 'KREDIT' : 'DEBIT';
+    if (link_nota !== undefined) mutation.link_nota = link_nota ? String(link_nota).trim() : null;
 
     mutations[index] = mutation;
     writeMutations(mutations);
 
-    res.status(200).json(mutation);
+    res.status(200).json({ success: true, message: 'Data transaksi berhasil diperbarui!', data: mutation });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }

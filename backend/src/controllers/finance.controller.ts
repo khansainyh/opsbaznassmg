@@ -1317,10 +1317,10 @@ export const getCoaSummaries = async (req: Request, res: Response) => {
 // ==========================================
 export const createManualExpense = async (req: Request, res: Response) => {
   try {
-    const { sourceAccountId, type, nominal, keterangan, tanggalTransaksi, tanggalCatatan, kategoriBiaya } = req.body;
+    const { sourceAccountId, type, nominal, judul, keterangan, tanggalTransaksi, tanggalCatatan, kategoriBiaya } = req.body;
 
-    if (!sourceAccountId || !type || !nominal || Number(nominal) <= 0 || !keterangan) {
-      res.status(400).json({ error: 'Sumber dana, jenis transaksi (Kredit/Pengeluaran), nominal, dan keterangan wajib diisi' });
+    if (!sourceAccountId || !type || !nominal || Number(nominal) <= 0 || (!judul && !keterangan)) {
+      res.status(400).json({ error: 'Sumber dana, jenis transaksi, nominal, dan judul pengeluaran wajib diisi' });
       return;
     }
 
@@ -1364,6 +1364,7 @@ export const createManualExpense = async (req: Request, res: Response) => {
 
     const tglTx = tanggalTransaksi || new Date().toISOString().split('T')[0];
     const tglCatat = tanggalCatatan || new Date().toISOString().split('T')[0];
+    const judulPengeluaran = (judul && judul.trim()) ? judul.trim() : (keterangan ? keterangan.trim() : 'Pengeluaran Kas');
 
     const newDraft = {
       id: `mut-${Date.now()}`,
@@ -1371,7 +1372,9 @@ export const createManualExpense = async (req: Request, res: Response) => {
       tanggal: tglTx,
       bankAccountId: sourceAccountId,
       bankName: sourceAccount.nama_akun,
-      keteranganBank: keterangan.trim(),
+      judul: judulPengeluaran,
+      keterangan: keterangan ? keterangan.trim() : '',
+      keteranganBank: judulPengeluaran,
       nominal: Number(nominal),
       type: 'KREDIT', // Selalu KREDIT (Pengeluaran)
       status: 'PENDING',

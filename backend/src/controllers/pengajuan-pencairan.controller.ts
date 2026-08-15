@@ -26,10 +26,10 @@ async function generateNoPengajuan(): Promise<string> {
 
 export const createPengajuan = async (req: Request, res: Response) => {
   try {
-    const { pengaju_id, kategori_biaya, keterangan, nominal, rkat_id } = req.body;
+    const { pengaju_id, kategori_biaya, judul, keterangan, nominal, rkat_id } = req.body;
 
-    if (!pengaju_id || !kategori_biaya || !keterangan || !nominal || Number(nominal) <= 0) {
-      res.status(400).json({ error: 'Pengaju, kategori biaya, keterangan, dan nominal wajib diisi valid.' });
+    if (!pengaju_id || !kategori_biaya || (!judul && !keterangan) || !nominal || Number(nominal) <= 0) {
+      res.status(400).json({ error: 'Pengaju, kategori biaya, judul pengajuan, dan nominal wajib diisi valid.' });
       return;
     }
 
@@ -66,7 +66,8 @@ export const createPengajuan = async (req: Request, res: Response) => {
           no_pengajuan,
           pengaju_id,
           kategori_biaya,
-          keterangan,
+          judul: judul ? String(judul).trim() : null,
+          keterangan: keterangan ? String(keterangan).trim() : (judul ? String(judul).trim() : '-'),
           nominal: parsedNominal,
           rkat_id: rkat_id || null,
           status: initialStatus,
@@ -96,7 +97,10 @@ export const getPengajuans = async (req: Request, res: Response) => {
   try {
     const { userId, role, tab } = req.query;
 
-    const whereClause: any = {};
+    const whereClause: any = {
+      no_pengajuan: { startsWith: 'PP/' },
+      kategori_biaya: { not: 'Penyaluran ZIS' },
+    };
 
     if (tab === 'my-requests' && userId) {
       whereClause.pengaju_id = String(userId);
@@ -262,10 +266,10 @@ export const rejectPengajuan = async (req: Request, res: Response) => {
 export const disbursePengajuan = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { actorId, bankAccountId, sumberDana, catatan } = req.body;
+    const { actorId, bankAccountId, sumberDana, catatan, nominalRealisasi, linkNota } = req.body;
 
-    if (!actorId || !bankAccountId || !sumberDana) {
-      res.status(400).json({ error: 'Actor ID, Rekening Bank, dan Sumber Dana wajib diisi.' });
+    if (!actorId || !bankAccountId) {
+      res.status(400).json({ error: 'Actor ID dan Rekening Bank wajib diisi.' });
       return;
     }
 
@@ -284,7 +288,16 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
       return;
     }
 
-    const nominal = Number(pengajuan.nominal);
+    const nominalAwal = Number(pengajuan.nominal);
+    const parsedRiil = nominalRealisasi !== undefined && nominalRealisasi !== null ? Number(nominalRealisasi) : NaN;
+    const nominalRiil = (!isNaN(parsedRiil) && parsedRiil > 0) ? parsedRiil : nominalAwal;
+
+    if (nominalRiil > nominalAwal) {
+      res.status(400).json({ 
+        error: `Nominal pencairan riil (Rp ${nominalRiil.toLocaleString('id-ID')}) tidak boleh melebihi plafon pengajuan awal yang telah disetujui (Rp ${nominalAwal.toLocaleString('id-ID')}).` 
+      });
+      return;
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Fetch bank account and ensure balance is sufficient
@@ -296,9 +309,11 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
         throw new Error('Rekening pembayar tidak ditemukan.');
       }
 
-      if (Number(account.saldo) < nominal) {
-        throw new Error(`Saldo di ${account.nama_akun} tidak mencukupi! Tersedia: ${account.saldo}, Dibutuhkan: ${nominal}`);
+      if (Number(account.saldo) < nominalRiil) {
+        throw new Error(`Saldo di ${account.nama_akun} tidak mencukupi! Tersedia: Rp ${Number(account.saldo).toLocaleString('id-ID')}, Dibutuhkan: Rp ${nominalRiil.toLocaleString('id-ID')}`);
       }
+
+      const finalSumberDana = (sumberDana && String(sumberDana).trim()) ? String(sumberDana).trim() : (account.kelompok_dana || 'AMIL');
 
       // 2. Update Pengajuan record to CAIR
       const p = await tx.pengajuanPencairan.update({
@@ -306,17 +321,31 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
         data: {
           status: StatusPengajuan.CAIR,
           bank_account_id: bankAccountId,
-          sumber_dana: sumberDana,
+          sumber_dana: finalSumberDana,
+          nominal_realisasi: new Prisma.Decimal(nominalRiil),
+          link_nota: linkNota ? String(linkNota).trim() : null,
         },
       });
 
       // 3. Log the payment
+      let logMsg = `Dana dicairkan sebesar Rp ${nominalRiil.toLocaleString('id-ID')}`;
+      if (nominalRiil < nominalAwal) {
+        const hemat = nominalAwal - nominalRiil;
+        logMsg += ` (Plafon Awal: Rp ${nominalAwal.toLocaleString('id-ID')}, Efisiensi: Rp ${hemat.toLocaleString('id-ID')})`;
+      }
+      if (linkNota) {
+        logMsg += ` | Link Nota: ${linkNota.trim()}`;
+      }
+      if (catatan) {
+        logMsg += ` | Catatan: ${catatan.trim()}`;
+      }
+
       await tx.pengajuanLog.create({
         data: {
           pengajuan_id: id,
           actor_id: actorId,
           action: 'DISBURSE',
-          catatan: catatan || 'Dana dicairkan dan rancangan mutasi dikirim ke Pelaporan.',
+          catatan: logMsg,
         },
       });
 
@@ -336,17 +365,24 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
         console.error('Error reading mutations file in disbursePengajuan:', readErr);
       }
 
+      const ringkasanJurnal = (pengajuan.judul && pengajuan.judul.trim()) 
+        ? pengajuan.judul.trim() 
+        : (pengajuan.keterangan || 'Pengajuan Operasional');
+
       const newDraft = {
         id: `mut-${Date.now()}`,
         tanggalCatatan: new Date().toISOString().split('T')[0],
         tanggal: new Date().toISOString().split('T')[0],
         bankAccountId: bankAccountId,
         bankName: account.nama_akun,
-        keteranganBank: `Disbursement Pengajuan: "${pengajuan.keterangan}" an. ${pengajuan.pengaju.name}`,
-        nominal: nominal,
+        judul: pengajuan.judul || null,
+        keterangan: pengajuan.keterangan || null,
+        keteranganBank: `${ringkasanJurnal} an. ${pengajuan.pengaju?.name || 'Pengaju'}`,
+        nominal: nominalRiil,
         type: 'KREDIT',
         status: 'PENDING',
-        kategori_biaya: pengajuan.kategori_biaya || 'Lain-lain'
+        kategori_biaya: pengajuan.kategori_biaya || 'Lain-lain',
+        link_nota: linkNota ? String(linkNota).trim() : null
       };
 
       mutations.push(newDraft);
@@ -358,6 +394,42 @@ export const disbursePengajuan = async (req: Request, res: Response) => {
     res.status(200).json({ status: 'success', data: result });
   } catch (error: any) {
     console.error('Disburse Pengajuan Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+};
+
+export const updatePengajuanNota = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { linkNota, actorId } = req.body;
+
+    const pengajuan = await prisma.pengajuanPencairan.findUnique({ where: { id } });
+    if (!pengajuan) {
+      res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+      return;
+    }
+
+    const updated = await prisma.pengajuanPencairan.update({
+      where: { id },
+      data: {
+        link_nota: linkNota ? String(linkNota).trim() : null
+      }
+    });
+
+    if (actorId) {
+      await prisma.pengajuanLog.create({
+        data: {
+          pengajuan_id: id,
+          actor_id: actorId,
+          action: 'UPDATE_NOTA',
+          catatan: linkNota ? `Memperbarui tautan nota: ${linkNota.trim()}` : 'Menghapus tautan nota.'
+        }
+      });
+    }
+
+    res.status(200).json({ status: 'success', data: updated });
+  } catch (error: any) {
+    console.error('Update Pengajuan Nota Error:', error);
     res.status(500).json({ error: error.message || String(error) });
   }
 };

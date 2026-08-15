@@ -473,8 +473,11 @@ model PengajuanPencairan {
   pengaju_id       String
   pengaju          User            @relation("PengajuUser", fields: [pengaju_id], references: [id])
   kategori_biaya   String          
+  judul            String?         @db.VarChar(255)
   keterangan       String          @db.Text
   nominal          Decimal         @db.Decimal(15, 2)
+  nominal_realisasi Decimal?       @db.Decimal(15, 2)
+  link_nota        String?         @db.Text
   rkat_id          String?         
   rkat             RkatOperasional? @relation(fields: [rkat_id], references: [id])
   status           StatusPengajuan @default(WAITING_KABID)

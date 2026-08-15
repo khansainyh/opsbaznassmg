@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ChevronRight, 
+  ChevronLeft,
   Save, 
   AlertTriangle, 
   CheckCircle2, 
@@ -14,15 +15,30 @@ import {
   ListOrdered,
   Banknote,
   Send,
-  XCircle,
   Plus,
   X,
-  Search
+  Search,
+  ExternalLink,
+  Link2,
+  Receipt,
+  Eye,
+  Sparkles,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
+
+function toGDriveEmbedUrl(link?: string | null): string | null {
+  if (!link || !link.trim()) return null;
+  const fileMatch = link.match(/\/file\/d\/([^/?#]+)/);
+  if (fileMatch) return `https://drive.google.com/file/d/${fileMatch[1]}/preview`;
+  const openMatch = link.match(/[?&]id=([^&]+)/);
+  if (openMatch) return `https://drive.google.com/file/d/${openMatch[1]}/preview`;
+  return null;
+}
 
 interface BankAccount {
   account_id: string;
@@ -57,14 +73,29 @@ export default function PengeluaranManual() {
   const [tanggalCatatan, setTanggalCatatan] = useState(new Date().toISOString().split('T')[0]);
   const [tanggalTransaksi, setTanggalTransaksi] = useState(new Date().toISOString().split('T')[0]);
   const [sourceAccountId, setSourceAccountId] = useState('');
+  const [judulPengeluaran, setJudulPengeluaran] = useState('');
   const [nominal, setNominal] = useState('');
   const [keterangan, setKeterangan] = useState('');
   const [filterAccountId, setFilterAccountId] = useState('ALL');
+  const [filterMonth, setFilterMonth] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSourceAccountDropdownOpen, setIsSourceAccountDropdownOpen] = useState(false);
   const [isFilterAccountDropdownOpen, setIsFilterAccountDropdownOpen] = useState(false);
+  const [isFilterMonthDropdownOpen, setIsFilterMonthDropdownOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [categories, setCategories] = useState<any[]>([]);
   const [kategoriBiaya, setKategoriBiaya] = useState('');
+
+  // Edit Transaction Draft States
+  const [editingDraft, setEditingDraft] = useState<any | null>(null);
+  const [editTanggalCatatan, setEditTanggalCatatan] = useState('');
+  const [editBankAccountId, setEditBankAccountId] = useState('');
+  const [editJudul, setEditJudul] = useState('');
+  const [editKeterangan, setEditKeterangan] = useState('');
+  const [editKategoriBiaya, setEditKategoriBiaya] = useState('');
+  const [editNominal, setEditNominal] = useState('');
+  const [editLinkNota, setEditLinkNota] = useState('');
+  const [isEditLoading, setIsEditLoading] = useState(false);
 
   // Queue tab states
   const [queueList, setQueueList] = useState<any[]>([]);
@@ -74,9 +105,13 @@ export default function PengeluaranManual() {
   // Queue Payout Modal States
   const [payoutBankAccountId, setPayoutBankAccountId] = useState('');
   const [payoutSumberDana, setPayoutSumberDana] = useState('AMIL');
+  const [payoutNominalRealisasi, setPayoutNominalRealisasi] = useState('');
+  const [payoutLinkNota, setPayoutLinkNota] = useState('');
   const [payoutCatatan, setPayoutCatatan] = useState('');
   const [isPayoutSubmitLoading, setIsPayoutSubmitLoading] = useState(false);
   const [isPayoutDropdownOpen, setIsPayoutDropdownOpen] = useState(false);
+  const [showEmbedPreview, setShowEmbedPreview] = useState(false);
+
   // General Status & Toast
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -182,8 +217,22 @@ export default function PengeluaranManual() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-450">
-            Nominal Transaksi
+          <label className="text-xs font-bold text-slate-700 block">
+            Judul Pengeluaran *
+          </label>
+          <input
+            type="text"
+            value={judulPengeluaran}
+            onChange={(e) => setJudulPengeluaran(e.target.value)}
+            placeholder="Contoh: Beli Galon & Kopi Kantor"
+            className="w-full h-11 px-4 rounded-xl border border-primary/10 bg-white focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-semibold text-slate-800"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 block">
+            Nominal Transaksi *
           </label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Rp</span>
@@ -199,7 +248,7 @@ export default function PengeluaranManual() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-450 flex items-center gap-1.5">
+          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
             Kategori Biaya
           </label>
           <select
@@ -215,13 +264,12 @@ export default function PengeluaranManual() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-455">Keterangan Pengeluaran / Memo</label>
+          <label className="text-xs font-bold text-slate-700 block">Keterangan / Rincian Pengeluaran</label>
           <textarea
             value={keterangan}
             onChange={(e) => setKeterangan(e.target.value)}
-            placeholder="Detail penggunaan..."
+            placeholder="Detail rincian barang, nomor nota/bon, atau catatan tambahan..."
             className="w-full h-24 p-4 rounded-xl border border-primary/10 focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm font-medium resize-none"
-            required
           />
         </div>
 
@@ -308,8 +356,8 @@ export default function PengeluaranManual() {
       showToast('Silakan pilih akun laci kas atau bank sumber.', 'error');
       return;
     }
-    if (numericNominal <= 0) {
-      showToast('Nominal transaksi harus lebih besar dari Rp 0.', 'error');
+    if (!numericNominal || numericNominal <= 0 || (!judulPengeluaran && !keterangan)) {
+      showToast('Mohon lengkapi judul pengeluaran dan nominal transaksi.', 'error');
       return;
     }
     if (isOverdrawn) {
@@ -323,7 +371,8 @@ export default function PengeluaranManual() {
         sourceAccountId,
         type: 'KREDIT',
         nominal: numericNominal,
-        keterangan: keterangan,
+        judul: judulPengeluaran.trim(),
+        keterangan: keterangan.trim(),
         tanggalTransaksi,
         tanggalCatatan,
         kategoriBiaya
@@ -332,6 +381,7 @@ export default function PengeluaranManual() {
       const res = await axios.post('/api/finance/manual-expense', payload);
       if (res.data.success) {
         showToast(res.data.message || 'Transaksi gantung berhasil disimpan.', 'success');
+        setJudulPengeluaran('');
         setNominal('');
         setKeterangan('');
         await fetchDirectData();
@@ -346,40 +396,127 @@ export default function PengeluaranManual() {
     }
   };
 
+  // Open Edit Modal for Riwayat Transaksi
+  const openEditModal = (dr: any) => {
+    setEditingDraft(dr);
+    setEditTanggalCatatan(dr.tanggalCatatan || dr.tanggal || new Date().toISOString().split('T')[0]);
+    setEditBankAccountId(dr.bankAccountId || '');
+    setEditJudul((dr as any).judul || dr.keteranganBank || '');
+    setEditKeterangan((dr as any).keterangan || '');
+    setEditKategoriBiaya((dr as any).kategori_biaya || (categories[0]?.nama || 'Lain-lain'));
+    setEditNominal(String(dr.nominal || 0));
+    setEditLinkNota((dr as any).link_nota || '');
+  };
+
+  // Submit Edit Riwayat Transaksi
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDraft) return;
+
+    const parsedNominal = parseFloat(editNominal.replace(/[^0-9]/g, '')) || 0;
+    if (parsedNominal <= 0) {
+      showToast('Nominal transaksi harus lebih besar dari Rp 0.', 'error');
+      return;
+    }
+
+    try {
+      setIsEditLoading(true);
+      const res = await axios.put(`/api/mutations/${editingDraft.id}`, {
+        tanggalCatatan: editTanggalCatatan,
+        bankAccountId: editBankAccountId,
+        judul: editJudul.trim(),
+        keterangan: editKeterangan.trim(),
+        kategori_biaya: editKategoriBiaya,
+        nominal: parsedNominal,
+        link_nota: editLinkNota ? editLinkNota.trim() : null
+      });
+
+      if (res.data.success || res.status === 200) {
+        showToast('Data transaksi berhasil diperbarui!', 'success');
+        setEditingDraft(null);
+        await fetchDirectData();
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.response?.data?.error || 'Gagal memperbarui transaksi', 'error');
+    } finally {
+      setIsEditLoading(false);
+    }
+  };
+
+  // Delete Riwayat Transaksi
+  const handleDeleteDraft = async (id: string) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus transaksi ini dari riwayat?')) {
+      return;
+    }
+
+    try {
+      const res = await axios.delete(`/api/mutations/${id}`);
+      if (res.data.success || res.status === 200) {
+        showToast('Transaksi berhasil dihapus dari riwayat.', 'success');
+        await fetchDirectData();
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.response?.data?.error || 'Gagal menghapus transaksi', 'error');
+    }
+  };
+
   // Process Payout Disbursement
   const handlePayoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedQueueItem || !payoutBankAccountId) {
-      alert('Pilih rekening bank pembayar terlebih dahulu.');
+      showToast('Pilih rekening bank pembayar terlebih dahulu.', 'error');
+      return;
+    }
+
+    if (!payoutLinkNota || !payoutLinkNota.trim()) {
+      showToast('Tautan Google Drive bukti nota wajib diisi.', 'error');
+      return;
+    }
+
+    const nominalAwal = Number(selectedQueueItem.nominal || 0);
+    const parsedRiil = parseFloat(payoutNominalRealisasi.replace(/[^0-9]/g, '')) || 0;
+    const nominalRiil = parsedRiil > 0 ? parsedRiil : nominalAwal;
+
+    if (nominalRiil > nominalAwal) {
+      showToast(`Nominal realisasi (${formatRupiah(nominalRiil)}) tidak boleh melebihi nominal plafon persetujuan (${formatRupiah(nominalAwal)}).`, 'error');
       return;
     }
 
     const payAcc = accounts.find(a => a.account_id === payoutBankAccountId);
-    if (payAcc && Number(payAcc.saldo) < Number(selectedQueueItem.nominal)) {
-      alert('Saldo rekening terpilih tidak mencukupi.');
+    if (payAcc && Number(payAcc.saldo) < nominalRiil) {
+      showToast(`Saldo rekening terpilih tidak mencukupi! Tersedia: ${formatRupiah(Number(payAcc.saldo))}, Dibutuhkan: ${formatRupiah(nominalRiil)}`, 'error');
       return;
     }
+
+    const autoSumberDana = payAcc?.kelompok_dana || payoutSumberDana || 'AMIL';
 
     try {
       setIsPayoutSubmitLoading(true);
       const res = await axios.post(`/api/pengajuan-pencairan/${selectedQueueItem.id}/disburse`, {
         actorId: user?.id,
         bankAccountId: payoutBankAccountId,
-        sumberDana: payoutSumberDana,
+        sumberDana: autoSumberDana,
+        nominalRealisasi: nominalRiil,
+        linkNota: payoutLinkNota.trim(),
         catatan: payoutCatatan || 'Pencairan operasional disetujui kasir.'
       });
 
       if (res.data.status === 'success') {
-        showToast('Dana berhasil dicairkan & draft transaksi dikirim ke Pelaporan!', 'success');
+        showToast('Dana berhasil dicairkan & draft mutasi dikirim ke Pelaporan!', 'success');
         setSelectedQueueItem(null);
         setPayoutCatatan('');
         setPayoutBankAccountId('');
+        setPayoutNominalRealisasi('');
+        setPayoutLinkNota('');
+        setShowEmbedPreview(false);
         fetchQueueData();
         fetchDirectData();
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.error || 'Gagal mencairkan dana.');
+      showToast(err.response?.data?.error || 'Gagal mencairkan dana.', 'error');
     } finally {
       setIsPayoutSubmitLoading(false);
     }
@@ -393,18 +530,60 @@ export default function PengeluaranManual() {
     }).format(num);
   };
 
-  const filteredDrafts = recentDrafts.filter(dr => {
-    const matchesAccount = filterAccountId === 'ALL' || dr.bankAccountId === filterAccountId;
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return matchesAccount;
-    
-    const matchesQuery = (dr.keteranganBank || '').toLowerCase().includes(query) ||
-      (dr.bankName || '').toLowerCase().includes(query) ||
-      (dr as any).kategori_biaya && ((dr as any).kategori_biaya || '').toLowerCase().includes(query) ||
-      dr.nominal.toString().includes(query);
+  // Reset to page 1 on filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterAccountId, filterMonth]);
 
-    return matchesAccount && matchesQuery;
-  });
+  const formatMonthName = (monthStr: string) => {
+    if (!monthStr || monthStr === 'ALL') return 'Semua Bulan';
+    const [year, month] = monthStr.split('-');
+    const monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const mIndex = parseInt(month, 10) - 1;
+    return `${monthNames[mIndex] || month} ${year}`;
+  };
+
+  const availableMonths = React.useMemo(() => {
+    const months = new Set<string>();
+    recentDrafts.forEach(dr => {
+      const d = dr.tanggalCatatan || dr.tanggal;
+      if (d && typeof d === 'string' && d.length >= 7) {
+        months.add(d.substring(0, 7));
+      }
+    });
+    return Array.from(months).sort().reverse();
+  }, [recentDrafts]);
+
+  const filteredDrafts = React.useMemo(() => {
+    return recentDrafts.filter(dr => {
+      const matchesAccount = filterAccountId === 'ALL' || dr.bankAccountId === filterAccountId;
+      
+      let matchesMonth = true;
+      if (filterMonth !== 'ALL') {
+        const d = dr.tanggalCatatan || dr.tanggal || '';
+        matchesMonth = d.startsWith(filterMonth);
+      }
+
+      const query = searchQuery.toLowerCase().trim();
+      if (!query) return matchesAccount && matchesMonth;
+      
+      const matchesQuery = (dr.keteranganBank || '').toLowerCase().includes(query) ||
+        (dr.bankName || '').toLowerCase().includes(query) ||
+        Boolean((dr as any).kategori_biaya && ((dr as any).kategori_biaya || '').toLowerCase().includes(query)) ||
+        dr.nominal.toString().includes(query);
+
+      return matchesAccount && matchesMonth && matchesQuery;
+    });
+  }, [recentDrafts, filterAccountId, filterMonth, searchQuery]);
+
+  const itemsPerPage = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredDrafts.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const paginatedDrafts = filteredDrafts.slice(startIndex, startIndex + itemsPerPage);
 
   const selectedPayoutAccount = accounts.find(a => a.account_id === payoutBankAccountId);
 
@@ -512,16 +691,20 @@ export default function PengeluaranManual() {
               </div>
             </div>
 
-            {/* Direct recent drafts table - Widened to span full width */}
+            {/* Riwayat Transaksi Table - Desktop View */}
             <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-2">
+              <div className="px-6 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                <div className="flex items-center gap-2.5">
                   <History className="size-5 text-primary" />
-                  <h3 className="text-sm font-black text-slate-900">Riwayat Draf Transaksi Terkini</h3>
+                  <h3 className="text-sm font-black text-slate-900">Riwayat Transaksi</h3>
+                  <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+                    {filteredDrafts.length} transaksi
+                  </span>
                 </div>
                 
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="relative w-full sm:w-60">
+                <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+                  {/* Search Input */}
+                  <div className="relative flex-1 sm:w-56 min-w-[180px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
                     <input
                       type="text"
@@ -532,95 +715,258 @@ export default function PengeluaranManual() {
                     />
                   </div>
 
+                  {/* Filter Bulan Dropdown */}
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsFilterMonthDropdownOpen(!isFilterMonthDropdownOpen)}
+                      className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer h-[34px] hover:bg-slate-50 transition-all"
+                    >
+                      <Calendar className="size-3.5 text-primary" />
+                      <span>{formatMonthName(filterMonth)}</span>
+                      <ChevronDown className="size-3 text-slate-400 shrink-0" />
+                    </button>
+
+                    {isFilterMonthDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsFilterMonthDropdownOpen(false)} />
+                        <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 max-h-60 overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-100">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterMonth('ALL');
+                              setIsFilterMonthDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors",
+                              filterMonth === 'ALL' ? "bg-primary/10 text-primary font-bold" : "text-slate-700"
+                            )}
+                          >
+                            Semua Bulan
+                          </button>
+                          {availableMonths.map(m => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setFilterMonth(m);
+                                setIsFilterMonthDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors",
+                                filterMonth === m ? "bg-primary/10 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              {formatMonthName(m)}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Filter Akun Dropdown */}
                   <div className="relative shrink-0">
                     <button
                       type="button"
                       onClick={() => setIsFilterAccountDropdownOpen(!isFilterAccountDropdownOpen)}
-                      className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer h-[34px]"
+                      className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-primary/10 text-xs font-bold text-slate-700 cursor-pointer h-[34px] hover:bg-slate-50 transition-all"
                     >
                       <Filter className="size-3.5 text-slate-400" />
-                      <span>
+                      <span className="truncate max-w-[150px]">
                         {filterAccountId === 'ALL' 
-                          ? 'Semua Akun Kas' 
-                          : accounts.find(a => a.account_id === filterAccountId)?.nama_akun || 'Semua Akun Kas'
+                          ? 'Semua Akun (Kas & Bank)' 
+                          : accounts.find(a => a.account_id === filterAccountId)?.nama_akun || 'Semua Akun'
                         }
                       </span>
                       <ChevronDown className="size-3 text-slate-400 shrink-0" />
                     </button>
 
-                  {isFilterAccountDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-30" onClick={() => setIsFilterAccountDropdownOpen(false)} />
-                      <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-y-auto custom-scrollbar">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFilterAccountId('ALL');
-                            setIsFilterAccountDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-slate-50"
-                        >
-                          Semua Akun Kas
-                        </button>
-                        {accounts.filter(acc => acc.tipe_kas === 'TUNAI').map(acc => (
+                    {isFilterAccountDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsFilterAccountDropdownOpen(false)} />
+                        <div className="absolute right-0 mt-1 w-60 bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-1.5 max-h-72 overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-100">
                           <button
-                            key={acc.account_id}
                             type="button"
                             onClick={() => {
-                              setFilterAccountId(acc.account_id);
+                              setFilterAccountId('ALL');
                               setIsFilterAccountDropdownOpen(false);
                             }}
-                            className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-slate-50"
+                            className={cn(
+                              "w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors",
+                              filterAccountId === 'ALL' ? "bg-primary/10 text-primary font-bold" : "text-slate-700"
+                            )}
                           >
-                            {acc.nama_akun}
+                            Semua Akun (Kas & Bank)
                           </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                          {accounts.filter(acc => acc.tipe_kas === 'TUNAI' || acc.tipe_kas === 'BANK').map(acc => (
+                            <button
+                              key={acc.account_id}
+                              type="button"
+                              onClick={() => {
+                                setFilterAccountId(acc.account_id);
+                                setIsFilterAccountDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center justify-between",
+                                filterAccountId === acc.account_id ? "bg-primary/10 text-primary font-bold" : "text-slate-700"
+                              )}
+                            >
+                              <span>{acc.nama_akun}</span>
+                              <span className="text-[10px] text-slate-400 font-mono font-normal">({acc.tipe_kas})</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/20 border-b border-slate-100">
-                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Tanggal Catat</th>
-                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Sumber Kas</th>
-                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400">Keterangan</th>
-                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400 text-right">Nominal</th>
-                      <th className="px-6 py-3 text-[10px] font-bold text-slate-400 text-center">Status</th>
+                    <tr className="bg-slate-50/40 border-b border-slate-100">
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tanggal Catat</th>
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sumber Kas / Bank</th>
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Judul Transaksi</th>
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Keterangan / Rincian</th>
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kategori</th>
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 text-right uppercase tracking-wider">Nominal</th>
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 text-center uppercase tracking-wider">Status</th>
+                      <th className="px-5 py-3.5 text-[10px] font-bold text-slate-400 text-center uppercase tracking-wider">Aksi</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50 text-xs">
-                    {filteredDrafts.map(dr => (
-                      <tr key={dr.id} className="hover:bg-slate-50/50">
-                        <td className="px-6 py-3 text-slate-500 font-medium">{new Date(dr.tanggalCatatan).toLocaleDateString('id-ID')}</td>
-                        <td className="px-6 py-3 font-semibold text-slate-700">{dr.bankName}</td>
-                        <td className="px-6 py-3 text-slate-900 truncate max-w-xs">
-                          <span className="block font-bold">{dr.keteranganBank}</span>
-                          {(dr as any).kategori_biaya && (
-                            <span className="inline-block mt-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
-                              {(dr as any).kategori_biaya}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-3 text-right font-black text-slate-900">Rp {dr.nominal.toLocaleString('id-ID')}</td>
-                        <td className="px-6 py-3 text-center">
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-full font-bold text-[10px]",
-                            dr.status === 'RECONCILED' 
-                              ? "bg-slate-100 text-slate-500" 
-                              : "bg-amber-50 text-amber-700 border border-amber-100"
-                          )}>
-                            {dr.status === 'RECONCILED' ? 'Terekonsiliasi' : dr.status}
-                          </span>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {paginatedDrafts.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
+                          <p className="font-semibold">Tidak ada data transaksi yang sesuai dengan filter.</p>
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paginatedDrafts.map(dr => (
+                        <tr key={dr.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-5 py-3.5 text-slate-500 font-medium whitespace-nowrap">
+                            {dr.tanggalCatatan ? new Date(dr.tanggalCatatan).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                          </td>
+                          <td className="px-5 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                            {dr.bankName}
+                          </td>
+                          <td className="px-5 py-3.5 text-slate-900 font-bold max-w-[200px]">
+                            {(dr as any).judul || dr.keteranganBank}
+                          </td>
+                          <td className="px-5 py-3.5 text-slate-600 font-normal max-w-[220px]">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="truncate max-w-[180px]">{(dr as any).keterangan || dr.keteranganBank || '-'}</span>
+                              {(dr as any).link_nota && (
+                                <a
+                                  href={(dr as any).link_nota}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-primary bg-slate-100 hover:bg-primary/10 px-2 py-0.5 rounded transition-colors"
+                                >
+                                  <ExternalLink className="size-2.5" /> Nota
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            {(dr as any).kategori_biaya ? (
+                              <span className="inline-block px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
+                                {(dr as any).kategori_biaya}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">-</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-right font-black text-slate-900 whitespace-nowrap font-mono">
+                            {formatRupiah(Number(dr.nominal))}
+                          </td>
+                          <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                            <span className={cn(
+                              "px-2.5 py-1 rounded-full font-bold text-[10px] inline-block",
+                              dr.status === 'RECONCILED' 
+                                ? "bg-slate-100 text-slate-600 border border-slate-200" 
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
+                            )}>
+                              {dr.status === 'RECONCILED' ? 'Terekonsiliasi' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(dr)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-primary rounded-lg transition-colors cursor-pointer"
+                                title="Edit Transaksi"
+                              >
+                                <Edit3 className="size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDraft(dr.id)}
+                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                                title="Hapus Transaksi"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+                <p className="font-semibold">
+                  Menampilkan <span className="font-bold text-slate-800">{filteredDrafts.length > 0 ? startIndex + 1 : 0}</span> - <span className="font-bold text-slate-800">{Math.min(startIndex + itemsPerPage, filteredDrafts.length)}</span> dari <span className="font-bold text-slate-800">{filteredDrafts.length}</span> transaksi
+                </p>
+                
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={safeCurrentPage <= 1}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      title="Halaman Sebelumnya"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={cn(
+                            "min-w-7 h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                            safeCurrentPage === page
+                              ? "bg-primary text-white shadow-sm"
+                              : "border border-slate-200 bg-white hover:bg-slate-100 text-slate-700"
+                          )}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={safeCurrentPage >= totalPages}
+                      className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      title="Halaman Berikutnya"
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -630,7 +976,7 @@ export default function PengeluaranManual() {
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                 <Banknote className="size-5 text-primary" />
-                Antrean Pembayaran Pengajuan Operasional (Approved)
+                Antrean Pembayaran Pengajuan Operasional (Disetujui)
               </h3>
             </div>
 
@@ -645,10 +991,12 @@ export default function PengeluaranManual() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-100 text-xs font-black text-slate-400">
+                    <tr className="border-b border-slate-100 text-xs font-black text-slate-400 uppercase tracking-wider">
                       <th className="py-3 px-3">No Pengajuan</th>
                       <th className="py-3 px-3">Pengaju</th>
-                      <th className="py-3 px-3">Kategori & Keperluan</th>
+                      <th className="py-3 px-3">Judul Pengajuan</th>
+                      <th className="py-3 px-3">Keterangan / Rincian</th>
+                      <th className="py-3 px-3">Kategori</th>
                       <th className="py-3 px-3">Link RKAT</th>
                       <th className="py-3 px-3 text-right">Nominal</th>
                       <th className="py-3 px-3 text-center">Aksi</th>
@@ -657,29 +1005,51 @@ export default function PengeluaranManual() {
                   <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-600">
                     {queueList.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3 px-3 font-mono text-xs text-slate-800">{item.no_pengajuan}</td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 font-mono text-xs text-slate-800 whitespace-nowrap">{item.no_pengajuan}</td>
+                        <td className="py-3 px-3 whitespace-nowrap">
                           <p className="font-bold text-slate-700">{item.pengaju?.name}</p>
                           <p className="text-[9px] text-slate-400">{item.pengaju?.role.replace(/_/g, ' ')}</p>
                         </td>
-                        <td className="py-3 px-3">
-                          <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold text-[9px] mb-1 inline-block">
+                        <td className="py-3 px-3 text-slate-900 font-bold max-w-[180px]">
+                          {item.judul || item.keterangan}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 font-normal max-w-[200px] truncate">
+                          {item.keterangan || '-'}
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-[9px]">
                             {item.kategori_biaya}
                           </span>
-                          <p className="font-medium text-slate-600 truncate max-w-xs">{item.keterangan}</p>
                         </td>
-                        <td className="py-3 px-3 text-slate-555">
+                        <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
                           {item.rkat ? `(${item.rkat.no}) ${item.rkat.nama}` : <span className="italic text-slate-400 font-normal">Direct Expense</span>}
                         </td>
-                        <td className="py-3 px-3 text-right font-black text-slate-900 text-sm">{formatRupiah(Number(item.nominal))}</td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 text-sm">
+                          {formatRupiah(Number(item.nominal))}
+                          {item.link_nota && (
+                            <a
+                              href={item.link_nota}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-primary hover:underline flex items-center justify-end gap-1 font-semibold mt-0.5"
+                            >
+                              <ExternalLink className="size-2.5" /> Ada Nota
+                            </a>
+                          )}
+                        </td>
                         <td className="py-3 px-3 text-center">
                           <button
                             onClick={() => {
                               setSelectedQueueItem(item);
-                              setPayoutSumberDana('AMIL');
-                              setPayoutBankAccountId(accounts[0]?.account_id || '');
+                              setPayoutNominalRealisasi(Number(item.nominal).toString());
+                              setPayoutLinkNota(item.link_nota || '');
+                              setPayoutSumberDana(item.sumber_dana || 'AMIL');
+                              setPayoutCatatan('');
+                              const defaultPayAcc = accounts.find(a => a.tipe_kas === 'TUNAI' || a.tipe_kas === 'BANK');
+                              setPayoutBankAccountId(defaultPayAcc?.account_id || accounts[0]?.account_id || '');
+                              setShowEmbedPreview(false);
                             }}
-                            className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 mx-auto active:scale-95 transition-all"
+                            className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 mx-auto active:scale-95 transition-all cursor-pointer shadow-sm"
                           >
                             <Send className="size-3" /> Cairkan Dana
                           </button>
@@ -734,12 +1104,17 @@ export default function PengeluaranManual() {
                     <button
                       onClick={() => {
                         setSelectedQueueItem(item);
-                        setPayoutSumberDana('AMIL');
-                        setPayoutBankAccountId(accounts[0]?.account_id || '');
+                        setPayoutNominalRealisasi(Number(item.nominal).toString());
+                        setPayoutLinkNota(item.link_nota || '');
+                        setPayoutSumberDana(item.sumber_dana || 'AMIL');
+                        setPayoutCatatan('');
+                        const defaultPayAcc = accounts.find(a => a.tipe_kas === 'TUNAI' || a.tipe_kas === 'BANK');
+                        setPayoutBankAccountId(defaultPayAcc?.account_id || accounts[0]?.account_id || '');
+                        setShowEmbedPreview(false);
                       }}
-                      className="bg-primary hover:bg-primary/95 text-white font-bold px-3 py-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1 active:scale-95 transition-all"
+                      className="bg-primary text-white font-bold px-3 py-1 rounded-lg text-[10px] flex items-center gap-1 active:scale-95 transition-all shadow-sm"
                     >
-                      <Send className="size-3" /> Cairkan
+                      <Send className="size-2.5" /> Cairkan
                     </button>
                   </div>
                 </div>
@@ -767,13 +1142,19 @@ export default function PengeluaranManual() {
           </div>
         </div>
 
-        {/* 3. Riwayat Draf */}
+        {/* 3. Riwayat Transaksi Mobile */}
         <div className="bg-white rounded-2xl border border-primary/10 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-primary/5 bg-slate-50/50 flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <History className="size-4.5 text-primary" />
-              <h4 className="text-xs font-black text-slate-900">Riwayat Draf Transaksi Terkini</h4>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History className="size-4.5 text-primary" />
+                <h4 className="text-xs font-black text-slate-900">Riwayat Transaksi</h4>
+              </div>
+              <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+                {filteredDrafts.length} total
+              </span>
             </div>
+            
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input
@@ -784,38 +1165,89 @@ export default function PengeluaranManual() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+
+            <div className="flex gap-2">
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="flex-1 bg-white border border-slate-200 rounded-xl text-[11px] font-bold px-2.5 py-1.5 text-slate-700 outline-none"
+              >
+                <option value="ALL">Semua Bulan</option>
+                {availableMonths.map(m => (
+                  <option key={m} value={m}>{formatMonthName(m)}</option>
+                ))}
+              </select>
+
+              <select
+                value={filterAccountId}
+                onChange={(e) => setFilterAccountId(e.target.value)}
+                className="flex-1 bg-white border border-slate-200 rounded-xl text-[11px] font-bold px-2.5 py-1.5 text-slate-700 outline-none"
+              >
+                <option value="ALL">Semua Akun</option>
+                {accounts.filter(a => a.tipe_kas === 'TUNAI' || a.tipe_kas === 'BANK').map(a => (
+                  <option key={a.account_id} value={a.account_id}>{a.nama_akun}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
           <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto custom-scrollbar">
-            {filteredDrafts.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">Tidak ada riwayat draf.</div>
+            {paginatedDrafts.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs">Tidak ada riwayat transaksi.</div>
             ) : (
-              filteredDrafts.map(dr => (
+              paginatedDrafts.map(dr => (
                 <div key={dr.id} className="p-4 text-xs space-y-2 hover:bg-slate-50/20 transition-colors">
                   <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                    <span>{new Date(dr.tanggalCatatan).toLocaleDateString('id-ID')}</span>
+                    <span>{dr.tanggalCatatan ? new Date(dr.tanggalCatatan).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</span>
                     <span className={cn(
                       "px-2 py-0.5 rounded-full font-bold text-[9px]",
                       dr.status === 'RECONCILED' 
                         ? "bg-slate-100 text-slate-500" 
                         : "bg-amber-50 text-amber-700 border border-amber-100"
                     )}>
-                      {dr.status === 'RECONCILED' ? 'Terekonsiliasi' : dr.status}
+                      {dr.status === 'RECONCILED' ? 'Terekonsiliasi' : 'Pending'}
                     </span>
                   </div>
                   <div className="font-semibold text-slate-800">
                     <p className="font-bold text-slate-900">{dr.keteranganBank}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Sumber: {dr.bankName}</p>
+                    <p className="text-[10px] text-slate-400 font-normal mt-0.5">{dr.bankName}</p>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-100/50">
-                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold">
-                      {(dr as any).kategori_biaya || 'Operasional'}
-                    </span>
-                    <span className="font-black text-slate-950 text-xs">Rp {dr.nominal.toLocaleString('id-ID')}</span>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+                    <div>
+                      {(dr as any).kategori_biaya && (
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold">
+                          {(dr as any).kategori_biaya}
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-black text-slate-900 font-mono text-xs">{formatRupiah(Number(dr.nominal))}</p>
                   </div>
                 </div>
               ))
             )}
           </div>
+
+          {totalPages > 1 && (
+            <div className="p-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
+              <span className="text-[11px] font-bold">Hal {safeCurrentPage} dari {totalPages}</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safeCurrentPage <= 1}
+                  className="px-2.5 py-1 rounded-lg border bg-white disabled:opacity-40 text-xs font-bold"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safeCurrentPage >= totalPages}
+                  className="px-2.5 py-1 rounded-lg border bg-white disabled:opacity-40 text-xs font-bold"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -861,124 +1293,394 @@ export default function PengeluaranManual() {
       </AnimatePresence>
 
       {/* Payout Processing Dialog Modal */}
-      {selectedQueueItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-              <div>
-                <h3 className="font-black text-slate-800 text-base">Proses Pencairan Operasional</h3>
-                <p className="font-mono text-xs text-slate-400 mt-0.5">{selectedQueueItem.no_pengajuan}</p>
-              </div>
-              <button 
-                onClick={() => setSelectedQueueItem(null)}
-                className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
-              >
-                <XCircle className="size-5" />
-              </button>
-            </div>
+      {selectedQueueItem && (() => {
+        const nominalAwal = Number(selectedQueueItem.nominal || 0);
+        const parsedRiil = parseFloat(payoutNominalRealisasi.replace(/[^0-9]/g, '')) || 0;
+        const nominalRiil = parsedRiil > 0 ? parsedRiil : 0;
+        const isExceeded = nominalRiil > nominalAwal;
+        const selisihHemat = nominalAwal - nominalRiil;
+        const persenHemat = (nominalAwal > 0 && selisihHemat > 0) ? (selisihHemat / nominalAwal) * 100 : 0;
+        const gdriveEmbed = toGDriveEmbedUrl(payoutLinkNota);
 
-            <form onSubmit={handlePayoutSubmit} className="p-6 space-y-4 text-sm">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-bold">Pengaju</span>
-                  <span className="font-bold text-slate-700">{selectedQueueItem.pengaju?.name}</span>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-150 max-h-[92vh]">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                    <Receipt className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-base leading-tight">Proses Pencairan & Input Nota</h3>
+                    <p className="font-mono text-xs text-slate-400 mt-0.5">{selectedQueueItem.no_pengajuan}</p>
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-bold">Nominal</span>
-                  <span className="font-black text-primary text-sm">{formatRupiah(Number(selectedQueueItem.nominal))}</span>
-                </div>
-                <div className="border-t border-slate-200/60 pt-2 text-xs">
-                  <span className="text-slate-400 font-bold block mb-0.5">Keperluan</span>
-                  <p className="font-medium text-slate-650 italic">"{selectedQueueItem.keterangan}"</p>
-                </div>
-              </div>
-
-              {/* Rekening Pembayar Select */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">Akun Kas / Bank Pembayar</label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsPayoutDropdownOpen(!isPayoutDropdownOpen)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between cursor-pointer"
-                  >
-                    <span>
-                      {selectedPayoutAccount 
-                        ? `${selectedPayoutAccount.nama_akun} - Balance: [${formatRupiah(Number(selectedPayoutAccount.saldo))}]`
-                        : '-- Pilih Rekening Pembayar --'
-                      }
-                    </span>
-                    <ChevronDown className="size-4 text-slate-400" />
-                  </button>
-
-                  {isPayoutDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-30" onClick={() => setIsPayoutDropdownOpen(false)} />
-                      <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
-                        {accounts.map(acc => (
-                          <button
-                            key={acc.account_id}
-                            type="button"
-                            onClick={() => {
-                              setPayoutBankAccountId(acc.account_id);
-                              setIsPayoutDropdownOpen(false);
-                            }}
-                            className={cn(
-                              "w-full text-left px-3 py-2 rounded-xl text-[11px] font-semibold hover:bg-slate-50 flex items-center justify-between mb-0.5",
-                              payoutBankAccountId === acc.account_id ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
-                            )}
-                          >
-                            <span>{acc.nama_akun} ({acc.tipe_kas})</span>
-                            <span className="font-bold text-slate-900">{formatRupiah(Number(acc.saldo))}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Tag Dana / Asnaf Select */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">Sumber Dana / Tag Dana</label>
-                <select
-                  value={payoutSumberDana}
-                  onChange={(e) => setPayoutSumberDana(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                <button 
+                  onClick={() => setSelectedQueueItem(null)}
+                  className="p-1.5 hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 rounded-xl transition-all cursor-pointer"
                 >
-                  <option value="AMIL">AMIL (Dana Operasional Lembaga)</option>
-                  <option value="ZAKAT">ZAKAT</option>
-                  <option value="INFAK_SEDEKAH_TERIKAT">INFAK / SEDEKAH TERIKAT</option>
-                  <option value="INFAK_SEDEKAH_TIDAK_TERIKAT">INFAK / SEDEKAH TIDAK TERIKAT</option>
-                </select>
-              </div>
-
-              {/* Catatan / Memo */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">Catatan Payout</label>
-                <textarea
-                  value={payoutCatatan}
-                  onChange={(e) => setPayoutCatatan(e.target.value)}
-                  placeholder="Catatan verifikasi pencairan oleh kasir..."
-                  rows={2}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex pt-2 border-t mt-4">
-                <button
-                  type="submit"
-                  disabled={isPayoutSubmitLoading || !payoutBankAccountId}
-                  className="w-full py-3 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-xs shadow-md shadow-primary/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  {isPayoutSubmitLoading ? 'Memproses...' : 'Cairkan Dana'}
+                  <X className="size-5" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handlePayoutSubmit} className="p-6 space-y-4 text-sm overflow-y-auto custom-scrollbar flex-1">
+                {/* Ringkasan Pengajuan Card */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">Judul Pengajuan:</span>
+                    <span className="font-bold text-slate-800 text-right max-w-xs">{selectedQueueItem.judul || selectedQueueItem.keterangan}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">Pemohon / Pengaju:</span>
+                    <span className="font-bold text-slate-800">{selectedQueueItem.pengaju?.name} <span className="text-slate-400 text-[10px]">({selectedQueueItem.pengaju?.role?.replace(/_/g, ' ')})</span></span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">Kategori Biaya:</span>
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-bold text-[10px]">{selectedQueueItem.kategori_biaya}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">Plafon Disetujui:</span>
+                    <span className="font-black text-slate-900 text-sm font-mono">{formatRupiah(nominalAwal)}</span>
+                  </div>
+                  <div className="border-t border-slate-200/80 pt-2 text-xs">
+                    <span className="text-slate-400 font-bold block mb-0.5 text-[10px] uppercase tracking-wider">Keterangan / Rincian</span>
+                    <p className="font-medium text-slate-700 italic">"{selectedQueueItem.keterangan || '-'}"</p>
+                  </div>
+                </div>
+
+                {/* Field 1: Nominal Pencairan Riil (Sesuai Nota) */}
+                <div className="space-y-1.5 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Coins className="size-4 text-primary" />
+                      Nominal Pencairan Riil (Sesuai Nota / Kwitansi) *
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-bold">Maks: {formatRupiah(nominalAwal)}</span>
+                  </div>
+                  
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Rp</span>
+                    <input
+                      type="text"
+                      required
+                      value={payoutNominalRealisasi ? Number(payoutNominalRealisasi.replace(/[^0-9]/g, '')).toLocaleString('id-ID') : ''}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        setPayoutNominalRealisasi(raw);
+                      }}
+                      placeholder="Masukkan nominal sesuai nota belanja..."
+                      className={cn(
+                        "w-full pl-10 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm font-black font-mono focus:ring-2 outline-none transition-all",
+                        isExceeded 
+                          ? "border-rose-300 text-rose-600 bg-rose-50/50 focus:ring-rose-200 focus:border-rose-500" 
+                          : "border-slate-200 text-slate-900 focus:ring-primary/20 focus:border-primary"
+                      )}
+                    />
+                  </div>
+
+                  {/* Indikator Hemat / Alert Exceeded */}
+                  {isExceeded ? (
+                    <div className="flex items-center gap-1.5 text-rose-600 text-xs font-bold bg-rose-50 p-2 rounded-xl border border-rose-200 mt-1">
+                      <AlertTriangle className="size-3.5 shrink-0" />
+                      <span>Nominal riil tidak boleh melebihi plafon persetujuan awal ({formatRupiah(nominalAwal)}).</span>
+                    </div>
+                  ) : selisihHemat > 0 ? (
+                    <div className="flex items-center justify-between bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-emerald-800 text-xs font-bold mt-1">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="size-3.5 text-emerald-600 shrink-0" />
+                        <span>Efisiensi / Penghematan Anggaran:</span>
+                      </span>
+                      <span className="font-mono text-emerald-700 font-black">Hemat {formatRupiah(selisihHemat)} ({persenHemat.toFixed(1)}%)</span>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">Nominal pencairan penuh sesuai plafon persetujuan.</p>
+                  )}
+                </div>
+
+                {/* Field 2: Tautan Google Drive Bukti Foto Nota */}
+                <div className="space-y-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Link2 className="size-4 text-primary" />
+                      Tautan Google Drive Bukti Nota *
+                    </label>
+                    {payoutLinkNota && (
+                      <a
+                        href={payoutLinkNota}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1 bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20 cursor-pointer"
+                      >
+                        <ExternalLink className="size-3" /> Buka di Drive
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="url"
+                      required
+                      value={payoutLinkNota}
+                      onChange={(e) => setPayoutLinkNota(e.target.value)}
+                      placeholder="https://drive.google.com/file/d/... atau link cloud nota"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  {/* GDrive Live Preview Option */}
+                  {gdriveEmbed && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowEmbedPreview(!showEmbedPreview)}
+                        className="text-[11px] font-bold text-slate-600 hover:text-primary flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Eye className="size-3.5" />
+                        {showEmbedPreview ? 'Sembunyikan Pratinjau Nota' : 'Lihat Pratinjau Foto Nota'}
+                      </button>
+
+                      {showEmbedPreview && (
+                        <div className="mt-2 rounded-2xl overflow-hidden border border-slate-200 shadow-inner h-56 w-full">
+                          <iframe
+                            src={gdriveEmbed}
+                            className="w-full h-full bg-slate-100"
+                            title="Pratinjau Nota Google Drive"
+                            allow="autoplay"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Field 3: Rekening Pembayar Select */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">Akun Kas / Bank Pembayar *</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsPayoutDropdownOpen(!isPayoutDropdownOpen)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    >
+                      <span>
+                        {selectedPayoutAccount 
+                          ? `${selectedPayoutAccount.nama_akun} - Saldo: [${formatRupiah(Number(selectedPayoutAccount.saldo))}]`
+                          : '-- Pilih Rekening Pembayar --'
+                        }
+                      </span>
+                      <ChevronDown className="size-4 text-slate-400" />
+                    </button>
+
+                    {isPayoutDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsPayoutDropdownOpen(false)} />
+                        <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-2xl shadow-xl z-40 p-2 max-h-56 overflow-y-auto custom-scrollbar">
+                          {accounts.filter(acc => acc.tipe_kas === 'TUNAI' || acc.tipe_kas === 'BANK').map(acc => (
+                            <button
+                              key={acc.account_id}
+                              type="button"
+                              onClick={() => {
+                                setPayoutBankAccountId(acc.account_id);
+                                setIsPayoutDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-50 flex items-center justify-between mb-1 cursor-pointer",
+                                payoutBankAccountId === acc.account_id ? "bg-primary/10 text-primary font-bold border border-primary/20" : "text-slate-700"
+                              )}
+                            >
+                              <span>{acc.nama_akun} ({acc.tipe_kas})</span>
+                              <span className="font-black text-slate-900 font-mono">{formatRupiah(Number(acc.saldo))}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Field 4: Catatan / Memo */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">Catatan Pencairan Kasir (Opsional)</label>
+                  <textarea
+                    value={payoutCatatan}
+                    onChange={(e) => setPayoutCatatan(e.target.value)}
+                    placeholder="Catatan verifikasi pencairan, nomor tanda terima, dll..."
+                    rows={2}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-3 border-t border-slate-100 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQueueItem(null)}
+                    className="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPayoutSubmitLoading || !payoutBankAccountId || isExceeded}
+                    className="flex-1 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold text-xs shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Send className="size-3.5" />
+                    {isPayoutSubmitLoading ? 'Memproses Pencairan...' : `Cairkan Dana (${formatRupiah(nominalRiil)})`}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Modal Edit Transaksi Riwayat */}
+      <AnimatePresence>
+        {editingDraft && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Edit3 className="size-5 text-primary" />
+                  <h3 className="text-sm font-black text-slate-900">Edit Data Transaksi</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingDraft(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 text-xs">
+                {/* Tanggal */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 block">Tanggal Catatan *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editTanggalCatatan}
+                    onChange={(e) => setEditTanggalCatatan(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+
+                {/* Sumber Kas / Bank */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 block">Sumber Kas / Bank *</label>
+                  <select
+                    required
+                    value={editBankAccountId}
+                    onChange={(e) => setEditBankAccountId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  >
+                    {accounts.filter(a => a.tipe_kas === 'TUNAI' || a.tipe_kas === 'BANK').map(a => (
+                      <option key={a.account_id} value={a.account_id}>
+                        {a.nama_akun} ({a.tipe_kas}) - Saldo: {formatRupiah(Number(a.saldo))}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Judul Transaksi */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 block">Judul Transaksi *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editJudul}
+                    onChange={(e) => setEditJudul(e.target.value)}
+                    placeholder="Contoh: Beli Galon & Kopi Kantor"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+
+                {/* Nominal */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 block">Nominal (Rp) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-slate-400">Rp</span>
+                    <input
+                      type="text"
+                      required
+                      value={editNominal ? parseInt(editNominal.replace(/[^0-9]/g, '') || '0').toLocaleString('id-ID') : ''}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        setEditNominal(raw);
+                      }}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black font-mono text-slate-900 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* Kategori Biaya */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 block">Kategori Biaya *</label>
+                  <select
+                    value={editKategoriBiaya}
+                    onChange={(e) => setEditKategoriBiaya(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.nama}>{cat.nama}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Keterangan */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 block">Keterangan / Rincian Tambahan</label>
+                  <textarea
+                    value={editKeterangan}
+                    onChange={(e) => setEditKeterangan(e.target.value)}
+                    rows={2}
+                    placeholder="Rincian barang, catatan transaksi..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                  />
+                </div>
+
+                {/* Link Nota */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 block">Tautan Google Drive Bukti Nota (Opsional)</label>
+                  <input
+                    type="url"
+                    value={editLinkNota}
+                    onChange={(e) => setEditLinkNota(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDraft(null)}
+                    className="px-4 py-2 hover:bg-slate-100 text-slate-600 rounded-xl font-bold transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isEditLoading}
+                    className="px-5 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl font-bold shadow-md shadow-primary/20 disabled:opacity-50 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Save className="size-4" />
+                    {isEditLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
