@@ -554,13 +554,21 @@ export default function IdentifikasiMutasi() {
   // Open Identification Modal
   const openIdentificationModal = (m: BankMutation) => {
     setSelectedMutation(m);
-    if (m.status === 'RECONCILED') {
+    const hasData = Boolean(
+      m.status === 'RECONCILED' ||
+      m.coaCode ||
+      m.rkatId ||
+      m.muzakkiId ||
+      m.keteranganRealisasi
+    );
+
+    if (hasData) {
       setSelectedMuzakkiId(m.muzakkiId || '');
       setMuzakkiSearch(m.muzakkiName || '');
       setSelectedRkatId(m.rkatId || '');
       setSelectedCoaCode(m.coaCode || '');
       setCustomKeterangan(m.keteranganRealisasi || '');
-      setIsOutsideRkat(!m.rkatId);
+      setIsOutsideRkat(!m.rkatId && Boolean(m.coaCode));
     } else {
       setSelectedMuzakkiId('');
       setSelectedRkatId('');

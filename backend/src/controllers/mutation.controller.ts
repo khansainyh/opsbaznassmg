@@ -87,6 +87,12 @@ export const getMutations = async (req: Request, res: Response) => {
         m.type = 'DEBIT'; // Default legacy bank statement mutations to DEBIT (money in)
         updated = true;
       }
+      // Ensure reconciled items retain RECONCILED status and allocated nominal
+      if ((m.reconciledAt || m.coaCode) && m.status === 'PENDING') {
+        m.status = 'RECONCILED';
+        m.allocatedNominal = Number(m.nominal || 0);
+        updated = true;
+      }
       return m;
     });
 
@@ -494,20 +500,15 @@ export const reconcileMutation = async (req: Request, res: Response) => {
     });
 
     // Update JSON mutation state
-    const prevAllocated = Number(mutation.allocatedNominal || 0);
-    const newAllocated = isEdit ? nominal : prevAllocated + nominal;
-    const totalMutNominal = Number(mutation.nominal || 0);
-    const isFullyReconciled = newAllocated >= totalMutNominal - 0.01;
-
-    mutation.allocatedNominal = newAllocated;
-    mutation.status = isFullyReconciled ? 'RECONCILED' : 'PARTIAL';
+    mutation.allocatedNominal = Number(nominal);
+    mutation.status = 'RECONCILED';
     mutation.reconciledAt = new Date().toISOString();
     mutation.reconciledBy = userName || 'Staff';
-    mutation.muzakkiId = muzakkiId || null;
-    mutation.muzakkiName = muzakkiName || 'Hamba Allah';
+    mutation.muzakkiId = isDebit ? (muzakkiId || null) : null;
+    mutation.muzakkiName = isDebit ? (muzakkiName || 'Hamba Allah') : '-';
     mutation.coaCode = coaCode;
     mutation.rkatId = rkatId || null;
-    mutation.sumberDana = isDebit ? sumberDana : '-';
+    mutation.sumberDana = isDebit ? (sumberDana || 'ZAKAT') : '-';
     mutation.keteranganRealisasi = keteranganRealisasi;
 
     mutations[mutationIndex] = mutation;
@@ -741,13 +742,8 @@ export const identifyMutationAsPenerimaan = async (req: Request, res: Response) 
     });
 
     // Update JSON mutation state
-    const prevAllocated = Number(mutation.allocatedNominal || 0);
-    const newAllocated = isEdit ? nominal : prevAllocated + nominal;
-    const totalMutNominal = Number(mutation.nominal || 0);
-    const isFullyReconciled = newAllocated >= totalMutNominal - 0.01;
-
-    mutation.allocatedNominal = newAllocated;
-    mutation.status = isFullyReconciled ? 'RECONCILED' : 'PARTIAL';
+    mutation.allocatedNominal = Number(nominal);
+    mutation.status = 'RECONCILED';
     mutation.reconciledAt = new Date().toISOString();
     mutation.reconciledBy = userName || 'Staff';
     mutation.muzakkiId = muzakkiId;

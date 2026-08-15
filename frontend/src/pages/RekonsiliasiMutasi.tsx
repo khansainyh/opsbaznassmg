@@ -753,45 +753,62 @@ const today = new Date();
  }
  };
 
- // Open Reconcile Modal
- const openReconcile = (mutation: BankMutation) => {
- setSelectedMutation(mutation);
- const isDebit = mutation.type !=='KREDIT';
+  // Open Reconcile Modal
+  const openReconcile = (mutation: BankMutation) => {
+    setSelectedMutation(mutation);
+    const isDebit = mutation.type !== 'KREDIT';
 
- if (mutation.status ==='RECONCILED') {
- setFormMuzakkiId(mutation.muzakkiId ||'');
- setFormCustomMuzakki(mutation.muzakkiName ||'');
- setMuzakkiSearch(mutation.muzakkiName ||'');
- setFormSumberDana(mutation.sumberDana ||'ZAKAT');
- setFormRkatId(mutation.rkatId ||'');
- setIsOutsideRkat(!mutation.rkatId);
- setFormCoaCode(mutation.coaCode ||'');
- setFormKeteranganRealisasi(mutation.keteranganRealisasi ||'');
- } else {
- setFormMuzakkiId('');
- setFormCustomMuzakki('');
- setMuzakkiSearch('');
- setFormSumberDana('ZAKAT');
- setFormRkatId('');
- setIsOutsideRkat(false);
- setFormCoaCode('');
- setFormKeteranganRealisasi(
- isDebit
- ? `Penerimaan mutasi ${mutation.keteranganBank}`
- : `Penyaluran/Penggunaan mutasi ${mutation.keteranganBank}`
- );
- }
+    const hasData = Boolean(
+      mutation.status === 'RECONCILED' ||
+      mutation.coaCode ||
+      mutation.rkatId ||
+      mutation.muzakkiId ||
+      mutation.keteranganRealisasi
+    );
 
- setCoaSearch('');
- setIsCoaDropdownOpen(false);
- setShowQuickRegister(false);
- setQuickNama('');
- setQuickNik('');
- setQuickHandphone('');
- setQuickAddress('');
+    if (hasData) {
+      setFormMuzakkiId(mutation.muzakkiId || '');
+      setFormCustomMuzakki(mutation.muzakkiName || '');
+      setMuzakkiSearch(mutation.muzakkiName || '');
+      setFormSumberDana(
+        mutation.sumberDana && mutation.sumberDana !== '-'
+          ? (mutation.sumberDana.toUpperCase() === 'ZAKAT' ? 'ZAKAT' : mutation.sumberDana)
+          : 'ZAKAT'
+      );
+      setFormRkatId(mutation.rkatId || '');
+      setIsOutsideRkat(!mutation.rkatId && Boolean(mutation.coaCode));
+      setFormCoaCode(mutation.coaCode || '');
+      setFormKeteranganRealisasi(
+        mutation.keteranganRealisasi ||
+        (isDebit
+          ? `Penerimaan mutasi ${mutation.keteranganBank}`
+          : `Penyaluran/Penggunaan mutasi ${mutation.keteranganBank}`)
+      );
+    } else {
+      setFormMuzakkiId('');
+      setFormCustomMuzakki('');
+      setMuzakkiSearch('');
+      setFormSumberDana('ZAKAT');
+      setFormRkatId('');
+      setIsOutsideRkat(false);
+      setFormCoaCode('');
+      setFormKeteranganRealisasi(
+        isDebit
+          ? `Penerimaan mutasi ${mutation.keteranganBank}`
+          : `Penyaluran/Penggunaan mutasi ${mutation.keteranganBank}`
+      );
+    }
 
- setIsReconcileModalOpen(true);
- };
+    setCoaSearch('');
+    setIsCoaDropdownOpen(false);
+    setShowQuickRegister(false);
+    setQuickNama('');
+    setQuickNik('');
+    setQuickHandphone('');
+    setQuickAddress('');
+
+    setIsReconcileModalOpen(true);
+  };
 
   const handleRkatSelectPenerimaan = (rkatId: string, itemObj?: RkatOptionItem) => {
     setFormRkatId(rkatId);
