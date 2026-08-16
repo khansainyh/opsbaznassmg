@@ -1366,7 +1366,12 @@ export const createManualExpense = async (req: Request, res: Response) => {
 
     const tglTx = tanggalTransaksi || new Date().toISOString().split('T')[0];
     const tglCatat = tanggalCatatan || new Date().toISOString().split('T')[0];
-    const judulPengeluaran = (judul && judul.trim()) ? judul.trim() : (keterangan ? keterangan.trim() : 'Pengeluaran Kas');
+    const rawJudul = (judul && judul.trim()) ? judul.trim() : '';
+    const rawKet = (keterangan && keterangan.trim()) ? keterangan.trim() : '';
+    const judulPengeluaran = rawJudul || rawKet || 'Pengeluaran Kas';
+    const combinedGeneralDesc = (rawJudul && rawKet && rawJudul !== rawKet)
+      ? `${rawJudul} - ${rawKet}`
+      : (rawJudul || rawKet || 'Pengeluaran Kas');
 
     if (hasBreakdown) {
       breakdownItems.forEach((item: any, idx: number) => {
@@ -1374,9 +1379,10 @@ export const createManualExpense = async (req: Request, res: Response) => {
         if (itemNominal <= 0) return;
         const itemNama = (item.nama_penerima || '').trim();
         const itemKet = (item.keterangan || '').trim();
+        const effectiveKet = itemKet || rawKet;
         const itemDesc = itemNama 
-          ? `${itemNama}${itemKet ? ` - ${itemKet}` : ''}`
-          : (itemKet || judulPengeluaran);
+          ? `${itemNama}${effectiveKet ? ` - ${effectiveKet}` : ''}`
+          : (effectiveKet || judulPengeluaran);
 
         const newDraft = {
           id: `mut-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
@@ -1384,8 +1390,8 @@ export const createManualExpense = async (req: Request, res: Response) => {
           tanggal: tglTx,
           bankAccountId: sourceAccountId,
           bankName: sourceAccount.nama_akun,
-          judul: itemNama || judulPengeluaran,
-          keterangan: itemKet || keterangan || '',
+          judul: itemNama || rawJudul || judulPengeluaran,
+          keterangan: effectiveKet || '',
           keteranganBank: itemDesc,
           keteranganRealisasi: itemDesc,
           nominal: itemNominal,
@@ -1407,10 +1413,10 @@ export const createManualExpense = async (req: Request, res: Response) => {
         tanggal: tglTx,
         bankAccountId: sourceAccountId,
         bankName: sourceAccount.nama_akun,
-        judul: judulPengeluaran,
-        keterangan: keterangan ? keterangan.trim() : '',
-        keteranganBank: judulPengeluaran,
-        keteranganRealisasi: judulPengeluaran,
+        judul: rawJudul || judulPengeluaran,
+        keterangan: rawKet,
+        keteranganBank: combinedGeneralDesc,
+        keteranganRealisasi: combinedGeneralDesc,
         nominal: Number(nominal),
         type: 'KREDIT', // Selalu KREDIT (Pengeluaran)
         status: 'PENDING',

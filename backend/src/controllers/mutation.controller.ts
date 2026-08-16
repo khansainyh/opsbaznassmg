@@ -79,7 +79,19 @@ export const getMutations = async (req: Request, res: Response) => {
       m.rkat_id = m.rkatId;
       m.coaCode = m.coaCode || m.coa_code || null;
       m.coa_code = m.coaCode;
-      m.keteranganRealisasi = m.keteranganRealisasi || m.keteranganBank || m.judul || '';
+      m.keterangan = m.keterangan || null;
+      m.judul = m.judul || null;
+      m.kategori_biaya = m.kategori_biaya || null;
+      m.nama_penerima = m.nama_penerima || null;
+
+      const effectiveJudul = m.judul ? String(m.judul).trim() : '';
+      const effectiveKet = m.keterangan ? String(m.keterangan).trim() : '';
+      const fallbackDesc = (effectiveJudul && effectiveKet && effectiveJudul !== effectiveKet)
+        ? `${effectiveJudul} - ${effectiveKet}`
+        : (effectiveJudul || effectiveKet || m.keteranganBank || 'Pengeluaran Kas');
+
+      m.keteranganBank = m.keteranganBank || fallbackDesc;
+      m.keteranganRealisasi = m.keteranganRealisasi || fallbackDesc || m.keteranganBank || '';
 
       if (!m.bankAccountId && bankAccounts.length > 0) {
         // Try matching by bank name prefix or fallback to first bank account

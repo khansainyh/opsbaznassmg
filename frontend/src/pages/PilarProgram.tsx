@@ -15,17 +15,22 @@ import {
   Upload,
   Download,
   FileSpreadsheet,
-  AlertCircle,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Eye,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 import { Pilar, Program } from '../data/pilarData';
 
 export default function PilarProgram() {
+  const { user } = useAuth();
+  const isReadOnly = user?.role !== 'Super_Admin';
+
   const [data, setData] = useState<Pilar[]>([]);
   const [expandedPilar, setExpandedPilar] = useState<string | null>("1100");
   const [searchTerm, setSearchTerm] = useState("");
@@ -330,21 +335,30 @@ export default function PilarProgram() {
             </h2>
             <p className="text-slate-500 font-medium">Kelola klasifikasi program utama dan kode kegiatan berdasarkan standar SIMBA BAZNAS.</p>
           </div>
-          <div className="hidden md:flex gap-3">
-            <button
-              onClick={() => setIsMigrationModalOpen(true)}
-              className="bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-slate-200 shadow-sm"
-            >
-              <Upload className="size-4 text-slate-400" />
-              Migrasi Kegiatan
-            </button>
-            <button
-              onClick={handleAddPilar}
-              className="bg-primary hover:bg-primary/95 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
-            >
-              <Plus className="size-4" />
-              Tambah Program
-            </button>
+          <div className="hidden md:flex gap-3 items-center">
+            {isReadOnly ? (
+              <span className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs">
+                <Eye className="size-4 text-amber-600" />
+                Mode Akses: Hanya Lihat (View Only)
+              </span>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsMigrationModalOpen(true)}
+                  className="bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 border border-slate-200 shadow-sm"
+                >
+                  <Upload className="size-4 text-slate-400" />
+                  Migrasi Kegiatan
+                </button>
+                <button
+                  onClick={handleAddPilar}
+                  className="bg-primary hover:bg-primary/95 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+                >
+                  <Plus className="size-4" />
+                  Tambah Program
+                </button>
+              </>
+            )}
           </div>
         </div>
       </motion.div>
@@ -395,7 +409,9 @@ export default function PilarProgram() {
                 <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Nama Program</th>
                 <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Jumlah Kegiatan</th>
                 <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Status</th>
-                <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500 text-right">Aksi</th>
+                {!isReadOnly && (
+                  <th className="px-6 py-3.5 text-[10px] font-black uppercase tracking-wider text-slate-500 text-right">Aksi</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -440,31 +456,33 @@ export default function PilarProgram() {
                         {pilar.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleEditPilar(pilar); }}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                          title="Edit Program"
-                        >
-                          <Edit2 className="size-4" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeletePilar(pilar.code); }}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Hapus Program"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {!isReadOnly && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleEditPilar(pilar); }}
+                            className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                            title="Edit Program"
+                          >
+                            <Edit2 className="size-4" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeletePilar(pilar.code); }}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Hapus Program"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
 
                   {/* Expanded Programs */}
                   <AnimatePresence>
                     {expandedPilar === pilar.code && (
                       <tr>
-                        <td colSpan={5} className="px-10 py-4 bg-primary/[0.02]">
+                        <td colSpan={isReadOnly ? 4 : 5} className="px-10 py-4 bg-primary/[0.02]">
                           <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
@@ -475,8 +493,11 @@ export default function PilarProgram() {
                               {pilar.programs.map((prog) => (
                                  <div
                                    key={prog.code}
-                                   onClick={() => handleEditProgram(pilar.code, prog)}
-                                   className="flex items-start justify-between p-4 bg-white rounded-xl border border-slate-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all group cursor-pointer animate-fade-in min-h-[92px]"
+                                   onClick={() => { if (!isReadOnly) handleEditProgram(pilar.code, prog); }}
+                                   className={cn(
+                                     "flex items-start justify-between p-4 bg-white rounded-xl border border-slate-200 transition-all group animate-fade-in min-h-[92px]",
+                                     !isReadOnly && "hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
+                                   )}
                                  >
                                       <div className="flex flex-col flex-1">
                                         <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -492,33 +513,37 @@ export default function PilarProgram() {
                                         </div>
                                         <span className="text-xs font-bold text-slate-700 leading-tight">{prog.name}</span>
                                       </div>
-                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                     <button
-                                       onClick={(e) => { e.stopPropagation(); handleEditProgram(pilar.code, prog); }}
-                                       className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-all"
-                                       title="Edit Kegiatan"
-                                     >
-                                       <Edit2 className="size-3.5" />
-                                     </button>
-                                     <button
-                                       onClick={(e) => { e.stopPropagation(); handleDeleteProgram(pilar.code, prog.code); }}
-                                       className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
-                                       title="Hapus Kegiatan"
-                                     >
-                                       <Trash2 className="size-3.5" />
-                                     </button>
-                                   </div>
+                                   {!isReadOnly && (
+                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                       <button
+                                         onClick={(e) => { e.stopPropagation(); handleEditProgram(pilar.code, prog); }}
+                                         className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-md transition-all"
+                                         title="Edit Kegiatan"
+                                       >
+                                         <Edit2 className="size-3.5" />
+                                       </button>
+                                       <button
+                                         onClick={(e) => { e.stopPropagation(); handleDeleteProgram(pilar.code, prog.code); }}
+                                         className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
+                                         title="Hapus Kegiatan"
+                                       >
+                                         <Trash2 className="size-3.5" />
+                                       </button>
+                                     </div>
+                                   )}
                                  </div>
                               ))}
-                              <div
-                                onClick={() => handleAddProgram(pilar.code)}
-                                className="flex items-center justify-center p-4 border-2 border-dashed border-slate-200 rounded-xl hover:bg-primary/[0.02] hover:border-primary/40 transition-all cursor-pointer group min-h-[92px]"
-                              >
-                                <span className="text-xs font-bold text-primary flex items-center gap-2">
-                                  <PlusCircle className="size-4 text-primary" />
-                                  Tambah Kegiatan Baru
-                                </span>
-                              </div>
+                              {!isReadOnly && (
+                                <div
+                                  onClick={() => handleAddProgram(pilar.code)}
+                                  className="flex items-center justify-center p-4 border-2 border-dashed border-slate-200 rounded-xl hover:bg-primary/[0.02] hover:border-primary/40 transition-all cursor-pointer group min-h-[92px]"
+                                >
+                                  <span className="text-xs font-bold text-primary flex items-center gap-2">
+                                    <PlusCircle className="size-4 text-primary" />
+                                    Tambah Kegiatan Baru
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </motion.div>
                         </td>
@@ -761,51 +786,53 @@ export default function PilarProgram() {
       )}
 
       {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3">
-        {/* FAB Options */}
-        <AnimatePresence>
-          {isFabOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 15, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 15, scale: 0.9 }}
-              className="flex flex-col items-end gap-3"
-            >
-              <button
-                onClick={() => {
-                  setIsFabOpen(false);
-                  setIsMigrationModalOpen(true);
-                }}
-                className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+      {!isReadOnly && (
+        <div className="fixed bottom-6 right-6 z-40 md:hidden flex flex-col items-end gap-3">
+          {/* FAB Options */}
+          <AnimatePresence>
+            {isFabOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 15, scale: 0.9 }}
+                className="flex flex-col items-end gap-3"
               >
-                <Upload className="size-4 text-slate-500" />
-                Migrasi Kegiatan
-              </button>
-              <button
-                onClick={() => {
-                  setIsFabOpen(false);
-                  handleAddPilar();
-                }}
-                className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
-              >
-                <Plus className="size-4" />
-                Tambah Program
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <button
+                  onClick={() => {
+                    setIsFabOpen(false);
+                    setIsMigrationModalOpen(true);
+                  }}
+                  className="flex items-center gap-2.5 bg-white text-slate-700 px-4 py-3 rounded-xl shadow-xl border border-slate-100 text-xs font-bold whitespace-nowrap"
+                >
+                  <Upload className="size-4 text-slate-500" />
+                  Migrasi Kegiatan
+                </button>
+                <button
+                  onClick={() => {
+                    setIsFabOpen(false);
+                    handleAddPilar();
+                  }}
+                  className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
+                >
+                  <Plus className="size-4" />
+                  Tambah Program
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Main FAB Trigger */}
-        <button
-          onClick={() => setIsFabOpen(!isFabOpen)}
-          className={cn(
-            "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
-            isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
-          )}
-        >
-          <Plus className="size-6" />
-        </button>
-      </div>
+          {/* Main FAB Trigger */}
+          <button
+            onClick={() => setIsFabOpen(!isFabOpen)}
+            className={cn(
+              "size-14 rounded-full bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all duration-300 active:scale-90 cursor-pointer",
+              isFabOpen ? "rotate-45 bg-slate-800 shadow-slate-800/30" : ""
+            )}
+          >
+            <Plus className="size-6" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

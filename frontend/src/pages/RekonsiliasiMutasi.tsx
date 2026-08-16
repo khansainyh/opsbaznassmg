@@ -64,6 +64,7 @@ export interface BankMutation {
  keteranganRealisasi?: string;
  judul?: string;
  keterangan?: string;
+ kategori_biaya?: string;
  nama_penerima?: string;
 }
 
@@ -650,10 +651,13 @@ const today = new Date();
  const search = searchTerm.toLowerCase();
  if (!search) return true;
  return (
- m.keteranganBank.toLowerCase().includes(search) ||
- m.bankName.toLowerCase().includes(search) ||
- (m.muzakkiName ||'').toLowerCase().includes(search) ||
- (m.coaCode ||'').includes(search)
+ (m.keteranganBank || '').toLowerCase().includes(search) ||
+ (m.keterangan || '').toLowerCase().includes(search) ||
+ (m.judul || '').toLowerCase().includes(search) ||
+ (m.nama_penerima || '').toLowerCase().includes(search) ||
+ (m.bankName || '').toLowerCase().includes(search) ||
+ (m.muzakkiName || '').toLowerCase().includes(search) ||
+ (m.coaCode || '').includes(search)
  );
  });
 
@@ -765,7 +769,14 @@ const today = new Date();
     const m = mutation as any;
     const rkatIdVal = mutation.rkatId || m.rkat_id || '';
     const coaCodeVal = mutation.coaCode || m.coa_code || '';
-    const ketVal = mutation.keteranganRealisasi || m.keteranganBank || m.judul || m.keterangan || '';
+    
+    // Auto-fill combined description if both judul & keterangan exist
+    let ketVal = '';
+    if (m.judul && m.keterangan && m.judul.trim() !== m.keterangan.trim()) {
+      ketVal = `${m.judul.trim()} - ${m.keterangan.trim()}`;
+    } else {
+      ketVal = mutation.keteranganRealisasi || m.keteranganBank || m.judul || m.keterangan || '';
+    }
 
     setFormMuzakkiId(mutation.muzakkiId || '');
     setFormCustomMuzakki(mutation.muzakkiName || '');
@@ -1157,7 +1168,33 @@ const today = new Date();
  </span>
  </td>
  <td className="px-6 py-5 font-bold text-slate-800">
- {item.keteranganBank}
+ <div className="space-y-1">
+   <p className="font-bold text-slate-800 text-xs">
+     {item.judul || item.keteranganBank || item.keterangan || '-'}
+   </p>
+   {item.keterangan && item.keterangan !== item.judul && item.keterangan !== item.keteranganBank && (
+     <p className="text-[11px] text-slate-600 font-medium whitespace-pre-wrap leading-relaxed">
+       {item.keterangan}
+     </p>
+   )}
+   {item.keteranganBank && item.keteranganBank !== item.judul && item.keteranganBank !== item.keterangan && (
+     <p className="text-[10px] text-slate-400 font-medium italic">
+       Mutasi: {item.keteranganBank}
+     </p>
+   )}
+   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+     {item.nama_penerima && (
+       <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+         Penerima: {item.nama_penerima}
+       </span>
+     )}
+     {item.kategori_biaya && (
+       <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+         {item.kategori_biaya}
+       </span>
+     )}
+   </div>
+ </div>
  </td>
  <td className={`px-6 py-5 text-right font-black font-mono ${activeTab ==='PENERIMAAN' ?'text-emerald-700' :'text-rose-700'
  }`}>
@@ -1445,10 +1482,24 @@ const today = new Date();
  </button>
  </div>
 
- <div className="bg-amber-50 p-4 border-b border-amber-100 text-amber-800 text-[11px] font-bold space-y-1">
- <p>📌 Sumber Akun: {selectedMutation.bankName}</p>
- <p>💬 Keterangan:"{selectedMutation.keteranganBank}"</p>
- <p>💰 Jumlah Dana: {formatCurrency(selectedMutation.nominal)} ({selectedMutation.type ==='KREDIT' ?'Pengeluaran' :'Penerimaan'})</p>
+ <div className="bg-amber-50 p-4 border-b border-amber-100 text-amber-800 text-[11px] font-bold space-y-1.5">
+ <p>📌 Sumber Akun: <span className="font-extrabold">{selectedMutation.bankName}</span></p>
+ {selectedMutation.judul && (
+   <p>🏷️ Judul / Keperluan: <span className="font-extrabold text-slate-900">"{selectedMutation.judul}"</span></p>
+ )}
+ {selectedMutation.keterangan && selectedMutation.keterangan !== selectedMutation.judul && (
+   <p>📝 Keterangan Transaksi: <span className="font-extrabold text-slate-900">"{selectedMutation.keterangan}"</span></p>
+ )}
+ {selectedMutation.keteranganBank && selectedMutation.keteranganBank !== selectedMutation.judul && selectedMutation.keteranganBank !== selectedMutation.keterangan && (
+   <p>💬 Keterangan Mutasi / Koran: <span className="italic font-medium">"{selectedMutation.keteranganBank}"</span></p>
+ )}
+ {selectedMutation.nama_penerima && (
+   <p>👤 Penerima: <span className="font-extrabold text-blue-800">{selectedMutation.nama_penerima}</span></p>
+ )}
+ {selectedMutation.kategori_biaya && (
+   <p>📂 Kategori: <span className="font-extrabold text-amber-900">{selectedMutation.kategori_biaya}</span></p>
+ )}
+ <p>💰 Jumlah Dana: <span className="font-extrabold text-emerald-700">{formatCurrency(selectedMutation.nominal)}</span> ({selectedMutation.type === 'KREDIT' ? 'Pengeluaran' : 'Penerimaan'})</p>
  </div>
 
  <form onSubmit={handleReconcile} className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
