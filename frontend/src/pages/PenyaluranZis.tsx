@@ -874,9 +874,7 @@ export default function PenyaluranZis() {
 
   // Resolve COA based on CoaMappingRule from Pengaturan Keuangan
   const resolveMappingCoa = useCallback((programVal: string, asnafVal: string) => {
-    if (!programVal) return '519999999';
-    const targetProg = String(programVal).trim().toLowerCase();
-    const targetProgCode = targetProg.split(' ')[0].split('-')[0].trim();
+    const targetProg = String(programVal || '').trim().toLowerCase();
     const targetAsnaf = String(asnafVal || '').trim().toLowerCase();
 
     // Determine fund source
@@ -884,24 +882,56 @@ export default function PenyaluranZis() {
     if (targetAsnaf === 'istt' || targetAsnaf.includes('tidak terikat')) fundSource = 'INFAK_TIDAK_TERIKAT';
     else if (targetAsnaf === 'ist' || targetAsnaf.includes('terikat')) fundSource = 'INFAK_TERIKAT';
 
+    const normalizeTag = (tag: string) => {
+      if (!tag) return '';
+      const u = String(tag).toUpperCase().trim();
+      if (u.includes('INFAK_TERIKAT') || u.includes('TERIKAT') || u === 'IST') return 'INFAK_TERIKAT';
+      if (u.includes('INFAK_TIDAK_TERIKAT') || u.includes('TIDAK TERIKAT') || u === 'ISTT' || u.includes('INFAK')) return 'INFAK_TIDAK_TERIKAT';
+      if (u.includes('AMIL')) return 'AMIL';
+      if (u.includes('APBD')) return 'APBD';
+      if (u.includes('ZAKAT')) return 'ZAKAT';
+      return u;
+    };
+
+    const targetTokens = [targetProg, targetProg.split(' ')[0].split('-')[0].trim()].filter(Boolean);
+
     const matchProg = (ruleProg: string) => {
       if (!ruleProg) return false;
       const cleanRule = ruleProg.trim().toLowerCase();
+      const ruleParts = cleanRule.split(/[-–|]/).map(x => x.trim());
       const cleanRuleCode = cleanRule.split(' ')[0].split('-')[0].trim();
-      if (cleanRule === targetProg || targetProg.includes(cleanRule) || cleanRule.includes(targetProg)) return true;
-      if (cleanRuleCode && targetProgCode && (targetProgCode === cleanRuleCode || targetProgCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(targetProgCode))) return true;
+
+      for (const t of targetTokens) {
+        if (!t) continue;
+        if (t === cleanRule || t.includes(cleanRule) || cleanRule.includes(t)) return true;
+        for (const rp of ruleParts) {
+          if (rp && (rp === t || rp.includes(t) || t.includes(rp))) return true;
+        }
+        const tCode = t.split(' ')[0].split('-')[0].trim();
+        if (cleanRuleCode && tCode && !isNaN(Number(tCode.replace(/\./g, ''))) && !isNaN(Number(cleanRuleCode.replace(/\./g, '')))) {
+          if (tCode === cleanRuleCode || tCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(tCode)) return true;
+        }
+        const words = t.split(/\s+/).filter(w => w.length > 4 && !['bantuan', 'program', 'melalui'].includes(w));
+        for (const w of words) {
+          if (cleanRule.includes(w)) return true;
+        }
+      }
       return false;
     };
 
     const matchAsnaf = (ruleAsnaf: string | null) => {
-      if (!ruleAsnaf || ruleAsnaf.trim() === '' || ruleAsnaf.trim().toLowerCase() === 'global') return true;
-      return ruleAsnaf.trim().toLowerCase() === targetAsnaf;
+      if (!ruleAsnaf || ruleAsnaf.trim() === '' || ruleAsnaf.trim().toLowerCase() === 'global' || ruleAsnaf.trim().toLowerCase() === 'all' || ruleAsnaf.trim().toLowerCase() === 'non-asnaf') return true;
+      const cleanRuleAsnaf = ruleAsnaf.trim().toLowerCase();
+      if (cleanRuleAsnaf === targetAsnaf) return true;
+      if (normalizeTag(ruleAsnaf) === normalizeTag(targetAsnaf)) return true;
+      if (normalizeTag(ruleAsnaf) === normalizeTag(fundSource)) return true;
+      return false;
     };
 
     // Filter rules by fundSource
     const fundRules = mappingRules.filter((r: any) => {
       if (!r.sumber_dana_tag || r.sumber_dana_tag === 'ALL') return true;
-      return r.sumber_dana_tag === fundSource;
+      return normalizeTag(r.sumber_dana_tag) === fundSource;
     });
 
     // 1. Match Exact Program AND Exact Asnaf
@@ -910,6 +940,11 @@ export default function PenyaluranZis() {
     // 2. Match Exact Program AND Global/Empty Asnaf
     if (!matched) {
       matched = fundRules.find((r: any) => matchProg(r.program_code) && matchAsnaf(r.asnaf_id));
+    }
+
+    // 3. Match Any rule in fundRules
+    if (!matched && fundRules.length > 0) {
+      matched = fundRules.find((r: any) => matchAsnaf(r.asnaf_id)) || fundRules[0];
     }
 
     if (matched && matched.debit_coa_code) {
@@ -922,9 +957,9 @@ export default function PenyaluranZis() {
       return prog.coa_code;
     }
 
-    // Default fallback based on asnaf
-    if (targetAsnaf === 'ist' || targetAsnaf.includes('terikat')) return '52010101';
-    if (targetAsnaf === 'istt' || targetAsnaf.includes('tidak terikat')) return '52020101';
+    // Default fallback based on asnaf / fundSource
+    if (fundSource === 'INFAK_TIDAK_TERIKAT') return '52040101';
+    if (fundSource === 'INFAK_TERIKAT') return '53010101';
 
     return '51010101';
   }, [mappingRules, programOptions]);

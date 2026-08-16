@@ -204,29 +204,64 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
             }
           }
 
+          const normalizeTag = (tag: string) => {
+            if (!tag) return '';
+            const u = String(tag).toUpperCase().trim();
+            if (u.includes('INFAK_TERIKAT') || u.includes('TERIKAT') || u === 'IST') return 'INFAK_TERIKAT';
+            if (u.includes('INFAK_TIDAK_TERIKAT') || u.includes('TIDAK TERIKAT') || u === 'ISTT' || u.includes('INFAK')) return 'INFAK_TIDAK_TERIKAT';
+            if (u.includes('AMIL')) return 'AMIL';
+            if (u.includes('APBD')) return 'APBD';
+            if (u.includes('ZAKAT')) return 'ZAKAT';
+            return u;
+          };
+
           const targetAsnaf = String(p.asnaf || '').trim().toLowerCase();
           const pCode = String(p.program?.code || p.jenis_permohonan || '').trim().toLowerCase();
           const pName = String(p.program?.name || '').trim().toLowerCase();
+          const pilarCode = String(p.program?.pilar_code || '').trim().toLowerCase();
+
+          const targetTokens = [pCode, pName, pilarCode, String(p.rkat_activity_id || '').toLowerCase()].filter(Boolean);
 
           const matchProg = (ruleProg: string) => {
             if (!ruleProg) return false;
             const cleanRule = ruleProg.trim().toLowerCase();
+            const ruleParts = cleanRule.split(/[-–|]/).map(x => x.trim());
             const cleanRuleCode = cleanRule.split(' ')[0].split('-')[0].trim();
-            if (pCode && (pCode === cleanRule || pCode.includes(cleanRule) || cleanRule.includes(pCode))) return true;
-            if (pName && (pName === cleanRule || pName.includes(cleanRule) || cleanRule.includes(pName))) return true;
-            if (cleanRuleCode && pCode && (pCode === cleanRuleCode || pCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(pCode))) return true;
+
+            for (const t of targetTokens) {
+              if (!t) continue;
+              if (t === cleanRule || t.includes(cleanRule) || cleanRule.includes(t)) return true;
+              for (const rp of ruleParts) {
+                if (rp && (rp === t || rp.includes(t) || t.includes(rp))) return true;
+              }
+              const tCode = t.split(' ')[0].split('-')[0].trim();
+              if (cleanRuleCode && tCode && !isNaN(Number(tCode.replace(/\./g, ''))) && !isNaN(Number(cleanRuleCode.replace(/\./g, '')))) {
+                if (tCode === cleanRuleCode || tCode.startsWith(cleanRuleCode) || cleanRuleCode.startsWith(tCode)) return true;
+              }
+              const words = t.split(/\s+/).filter(w => w.length > 4 && !['bantuan', 'program', 'melalui'].includes(w));
+              for (const w of words) {
+                if (cleanRule.includes(w)) return true;
+              }
+            }
             return false;
           };
 
           const matchAsnaf = (ruleAsnaf: string | null) => {
-            if (!ruleAsnaf || ruleAsnaf.trim() === '' || ruleAsnaf.trim().toLowerCase() === 'global') return true;
-            return ruleAsnaf.trim().toLowerCase() === targetAsnaf;
+            if (!ruleAsnaf || ruleAsnaf.trim() === '' || ruleAsnaf.trim().toLowerCase() === 'global' || ruleAsnaf.trim().toLowerCase() === 'all' || ruleAsnaf.trim().toLowerCase() === 'non-asnaf') return true;
+            const cleanRuleAsnaf = ruleAsnaf.trim().toLowerCase();
+            if (cleanRuleAsnaf === targetAsnaf) return true;
+            if (normalizeTag(ruleAsnaf) === normalizeTag(targetAsnaf)) return true;
+            if (normalizeTag(ruleAsnaf) === normalizeTag(fundSource)) return true;
+            return false;
           };
 
-          const fundRules = mappingRules.filter(r => !r.sumber_dana_tag || r.sumber_dana_tag === 'ALL' || r.sumber_dana_tag === fundSource);
+          const fundRules = mappingRules.filter(r => !r.sumber_dana_tag || r.sumber_dana_tag === 'ALL' || normalizeTag(r.sumber_dana_tag) === fundSource);
           let matchedRule = fundRules.find(r => matchProg(r.program_code) && r.asnaf_id && r.asnaf_id.trim().toLowerCase() === targetAsnaf);
           if (!matchedRule) {
             matchedRule = fundRules.find(r => matchProg(r.program_code) && matchAsnaf(r.asnaf_id));
+          }
+          if (!matchedRule && fundRules.length > 0) {
+            matchedRule = fundRules.find(r => matchAsnaf(r.asnaf_id)) || fundRules[0];
           }
 
           if (matchedRule) {
@@ -236,8 +271,16 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
         }
 
         if (!resolvedCoaCode || !resolvedCoaCode.startsWith('5')) {
-          resolvedCoaCode = '51010101';
-          resolvedCoaName = coaNameMap.get(resolvedCoaCode) || 'Beban Penyaluran ZIS';
+          if (fundSource === 'INFAK_TIDAK_TERIKAT') {
+            resolvedCoaCode = '52040101';
+            resolvedCoaName = coaNameMap.get(resolvedCoaCode) || 'Penyaluran Infak Tidak Terikat';
+          } else if (fundSource === 'INFAK_TERIKAT') {
+            resolvedCoaCode = '53010101';
+            resolvedCoaName = coaNameMap.get(resolvedCoaCode) || 'Penyaluran Infak Terikat';
+          } else {
+            resolvedCoaCode = '51010101';
+            resolvedCoaName = coaNameMap.get(resolvedCoaCode) || 'Beban Penyaluran ZIS';
+          }
         }
 
         return {
