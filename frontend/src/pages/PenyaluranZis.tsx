@@ -62,6 +62,37 @@ function SummaryCard({ title, value, subtext, icon, colorClass }: any) {
   );
 }
 
+export const checkIsDirectPenyaluran = (item: any): boolean => {
+  if (!item) return false;
+  const rawAgenda = item.agenda_no !== undefined ? item.agenda_no : item.agendaNo;
+  if (rawAgenda !== null && rawAgenda !== undefined && String(rawAgenda).trim() !== '') {
+    const numAgenda = Number(rawAgenda);
+    if (!isNaN(numAgenda)) {
+      // 1. No Agenda 1 - 89,999 (e.g. 1 - 3000) is STRICTLY Jalur Proposal
+      if (numAgenda > 0 && numAgenda < 90000) {
+        return false;
+      }
+      // 2. No Agenda 0 or >= 90,000 is STRICTLY Jalur Direct
+      if (numAgenda === 0 || numAgenda >= 90000) {
+        return true;
+      }
+    }
+  }
+
+  const memoSource = String(item.memo_source || item.memoSource || '');
+  const yangMengajukan = String(item.yang_mengajukan || item.yangMengajukan || '');
+  const asalData = String(item.asal_data || item.asalData || '');
+  const keterangan = String(item.keterangan || '');
+
+  return (
+    asalData === 'Jalur Direct' ||
+    memoSource === 'DIRECT_PENYALURAN' ||
+    memoSource === 'MIGRASI_PENYALURAN' ||
+    yangMengajukan === 'Direct Penyaluran' ||
+    keterangan.includes('[DIRECT PENYALURAN]')
+  );
+};
+
 // Custom Styled Select Component (Replaces native browser <select>)
 function CustomSelect({
   options,
@@ -1180,14 +1211,7 @@ export default function PenyaluranZis() {
         return false;
       }
 
-      const isDirect = item.asal_data === 'Jalur Direct' || 
-        item.memo_source === 'DIRECT_PENYALURAN' || 
-        item.memo_source === 'MIGRASI_PENYALURAN' || 
-        (item.agenda_no && Number(item.agenda_no) >= 90000) ||
-        (item.keterangan || '').toLowerCase().includes('direct') ||
-        (item.keterangan || '').toLowerCase().includes('migrasi') ||
-        (item.keterangan || '').toLowerCase().includes('penyaluran zis') ||
-        item.yang_mengajukan === 'Direct Penyaluran';
+      const isDirect = checkIsDirectPenyaluran(item);
       const statusStr = (item.status || '').toString().toLowerCase();
       const isDisbursement = statusStr.includes('acc') || statusStr.includes('pencairan') || statusStr.includes('cair') || statusStr.includes('realisasi') || statusStr.includes('simba') || statusStr.includes('arsip') || statusStr.includes('selesai');
       if (!isDirect && !isDisbursement) return false;
@@ -1300,7 +1324,7 @@ export default function PenyaluranZis() {
       const nom = Number(d.nominal) || 0;
       totalPenyaluran += nom;
 
-      if (d.asal_data === 'Jalur Proposal') {
+      if (!checkIsDirectPenyaluran(d)) {
         totalProposal += 1;
         totalProposalNominal += nom;
       } else {
@@ -2377,14 +2401,7 @@ export default function PenyaluranZis() {
       const { coaCode } = getCoaInfo(item);
       const { title: namaMustahik } = getMustahikDisplayName(item);
       const tglCair = getTanggalPencairan(item);
-      const isDirectItem = item.asal_data === 'Jalur Direct' || 
-        item.memo_source === 'DIRECT_PENYALURAN' || 
-        item.memo_source === 'MIGRASI_PENYALURAN' || 
-        (item.agenda_no && Number(item.agenda_no) >= 90000) ||
-        (item.keterangan || '').toLowerCase().includes('direct') ||
-        (item.keterangan || '').toLowerCase().includes('migrasi') ||
-        (item.keterangan || '').toLowerCase().includes('penyaluran zis') ||
-        item.yang_mengajukan === 'Direct Penyaluran';
+      const isDirectItem = checkIsDirectPenyaluran(item);
 
       // Alamat Lengkap
       const alamatLengkap = [item.alamat || item.mustahik?.alamat, item.kelurahan, item.kecamatan]
@@ -2509,7 +2526,7 @@ export default function PenyaluranZis() {
           >
             Jalur Proposal
             <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-              {data.filter(d => d.asal_data === 'Jalur Proposal').length}
+              {data.filter(d => !checkIsDirectPenyaluran(d)).length}
             </span>
           </button>
           <button
@@ -2523,7 +2540,7 @@ export default function PenyaluranZis() {
           >
             Jalur Direct
             <span className="bg-purple-50 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-              {data.filter(d => d.asal_data === 'Jalur Direct').length}
+              {data.filter(d => checkIsDirectPenyaluran(d)).length}
             </span>
           </button>
         </div>
@@ -2769,14 +2786,7 @@ export default function PenyaluranZis() {
               ) : (
                 paginatedData.map((item, idx) => {
                   const itemIndex = (currentPage - 1) * itemsPerPage + idx + 1;
-                  const isDirect = item.asal_data === 'Jalur Direct' || 
-                    item.memo_source === 'DIRECT_PENYALURAN' || 
-                    item.memo_source === 'MIGRASI_PENYALURAN' || 
-                    (item.agenda_no && Number(item.agenda_no) >= 90000) ||
-                    (item.keterangan || '').toLowerCase().includes('direct') ||
-                    (item.keterangan || '').toLowerCase().includes('migrasi') ||
-                    (item.keterangan || '').toLowerCase().includes('penyaluran zis') ||
-                    item.yang_mengajukan === 'Direct Penyaluran';
+                  const isDirect = checkIsDirectPenyaluran(item);
                   
                   // Extract RKAT & COA info cleanly
                   const { rkatName } = getRkatInfo(item);
@@ -3921,7 +3931,7 @@ export default function PenyaluranZis() {
               <div className="p-5 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center shrink-0">
                 <div>
                   <h3 className="text-base font-black text-slate-900">Rincian Penyaluran ZIS</h3>
-                  <p className="text-xs text-slate-500 font-medium">Asal Data: {selectedPenyaluran.asal_data}</p>
+                  <p className="text-xs text-slate-500 font-medium">Asal Data: {checkIsDirectPenyaluran(selectedPenyaluran) ? 'Jalur Direct' : 'Jalur Proposal'}</p>
                 </div>
                 <button onClick={() => setIsDetailModalOpen(false)} className="p-1.5 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
                   <X className="size-5 text-slate-400" />
@@ -3932,7 +3942,7 @@ export default function PenyaluranZis() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">No. Agenda</p>
-                    {selectedPenyaluran.asal_data === 'Jalur Direct' ? (
+                    {checkIsDirectPenyaluran(selectedPenyaluran) ? (
                       <span className="inline-block mt-1 text-xs font-medium text-slate-400 font-mono">—</span>
                     ) : (
                       <span className="inline-block mt-1 text-sm font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md">

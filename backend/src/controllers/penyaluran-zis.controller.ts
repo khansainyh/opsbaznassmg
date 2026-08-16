@@ -133,6 +133,31 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
     const allCoa = await prisma.chartOfAccounts.findMany();
     const coaNameMap = new Map(allCoa.map(c => [c.coa_code, c.nama_akun]));
 
+    const checkIsDirect = (p: any): boolean => {
+      if (!p) return false;
+      const agendaNum = (p.agenda_no !== null && p.agenda_no !== undefined && String(p.agenda_no).trim() !== '') 
+        ? Number(p.agenda_no) 
+        : null;
+
+      // 1. Explicit proposal agenda range: 1 - 89,999 (e.g. 1 - 3000) is STRICTLY Jalur Proposal
+      if (agendaNum !== null && !isNaN(agendaNum)) {
+        if (agendaNum > 0 && agendaNum < 90000) {
+          return false;
+        }
+        if (agendaNum === 0 || agendaNum >= 90000) {
+          return true;
+        }
+      }
+
+      // 2. Direct markers
+      return Boolean(
+        p.memo_source === 'DIRECT_PENYALURAN' || 
+        p.memo_source === 'MIGRASI_PENYALURAN' ||
+        (p.keterangan || '').includes('[DIRECT PENYALURAN]') ||
+        p.yang_mengajukan === 'Direct Penyaluran'
+      );
+    };
+
     const mapped = proposals
       .filter(p => {
         // STRICT: Exclude OBS tasks from Penyaluran ZIS completely
@@ -140,29 +165,13 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
           return false;
         }
 
-        const isDirect = Boolean(
-          (p.agenda_no && p.agenda_no >= 90000) ||
-          p.memo_source === 'DIRECT_PENYALURAN' || 
-          p.memo_source === 'MIGRASI_PENYALURAN' ||
-          (p.keterangan || '').toLowerCase().includes('direct') ||
-          (p.keterangan || '').toLowerCase().includes('migrasi') ||
-          (p.keterangan || '').toLowerCase().includes('penyaluran zis') ||
-          p.yang_mengajukan === 'Direct Penyaluran'
-        );
+        const isDirect = checkIsDirect(p);
         const s = (p.status || '').toLowerCase();
         const isDisbursement = s.includes('acc') || s.includes('pencairan') || s.includes('cair') || s.includes('realisasi') || s.includes('simba') || s.includes('arsip') || s.includes('selesai');
         return isDirect || isDisbursement;
       })
       .map(p => {
-        const isDirect = Boolean(
-          (p.agenda_no && p.agenda_no >= 90000) ||
-          p.memo_source === 'DIRECT_PENYALURAN' || 
-          p.memo_source === 'MIGRASI_PENYALURAN' ||
-          (p.keterangan || '').toLowerCase().includes('direct') ||
-          (p.keterangan || '').toLowerCase().includes('migrasi') ||
-          (p.keterangan || '').toLowerCase().includes('penyaluran zis') ||
-          p.yang_mengajukan === 'Direct Penyaluran'
-        );
+        const isDirect = checkIsDirect(p);
         const relData = realisasiMap.get(p.id);
         const tglCair = relData?.tanggal || (p.status && (p.status.toLowerCase().includes('cair') || p.status.toLowerCase().includes('realisasi') || p.status.toLowerCase().includes('simba') || p.status.toLowerCase().includes('arsip') || p.status.toLowerCase().includes('selesai')) ? p.updated_at : null);
 

@@ -355,22 +355,32 @@ function App() {
   // Helper to filter out Direct Penyaluran (Jalur Direct) from Input Proposal
   const isDirectProposal = (item: any) => {
     if (!item) return false;
+    const numAgenda = typeof item.agendaNo === 'number' ? item.agendaNo : parseInt(String(item.agendaNo || item.agenda_no || ''), 10);
+    
+    // 1. Explicit proposal agenda: 1 - 89,999 (e.g. 1 - 3000) is STRICTLY Jalur Proposal
+    if (!isNaN(numAgenda)) {
+      if (numAgenda > 0 && numAgenda < 90000) {
+        return false;
+      }
+      if (numAgenda === 0 || numAgenda >= 90000) {
+        return true;
+      }
+    }
+
     const memoSource = String(item.memoSource || item.memo_source || '');
     const keterangan = String(item.keterangan || '');
     const catatan = String(item.catatan || '');
     const yangMengajukan = String(item.yangMengajukan || item.yang_mengajukan || '');
     const asalData = String(item.asal_data || item.asalData || '');
-    const numAgenda = typeof item.agendaNo === 'number' ? item.agendaNo : parseInt(String(item.agendaNo || item.agenda_no), 10);
 
     return (
       memoSource === 'DIRECT_PENYALURAN' ||
-      memoSource.toLowerCase().includes('direct') ||
+      memoSource === 'MIGRASI_PENYALURAN' ||
       keterangan.includes('[DIRECT PENYALURAN]') ||
       catatan.includes('Direct Penyaluran') ||
       catatan.includes('Didaftarkan via Direct Penyaluran') ||
-      yangMengajukan.toLowerCase().includes('direct') ||
-      asalData === 'Jalur Direct' ||
-      (!isNaN(numAgenda) && numAgenda >= 90000)
+      yangMengajukan === 'Direct Penyaluran' ||
+      asalData === 'Jalur Direct'
     );
   };
 
