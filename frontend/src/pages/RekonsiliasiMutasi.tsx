@@ -21,8 +21,7 @@ import {
  ChevronLeft,
  ChevronsLeft,
  ChevronsRight,
- Edit3,
- Tag
+ Edit3
 } from'lucide-react';
 import { motion, AnimatePresence } from'motion/react';
 import { cn } from'../lib/utils';
