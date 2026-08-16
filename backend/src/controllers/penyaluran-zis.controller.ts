@@ -179,30 +179,31 @@ export const getPenyaluranZis = async (req: Request, res: Response): Promise<voi
         let resolvedCoaCode = relData?.coa_code || null;
         let resolvedCoaName = relData?.coa_name || null;
 
-        if (!resolvedCoaCode) {
-          // Resolve fundSource
-          let fundSource = 'ZAKAT';
-          const possibleSources = [p.asnaf, p.rekomendasi_kabag, p.tipe_bantuan];
-          for (const src of possibleSources) {
-            if (!src) continue;
-            const normalized = String(src).toUpperCase().trim();
-            if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
-              fundSource = 'INFAK_TERIKAT';
-              break;
-            } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
-              fundSource = 'INFAK_TIDAK_TERIKAT';
-              break;
-            } else if (normalized.includes('AMIL')) {
-              fundSource = 'AMIL';
-              break;
-            } else if (normalized.includes('APBD')) {
-              fundSource = 'APBD';
-              break;
-            } else if (normalized.includes('ZAKAT')) {
-              fundSource = 'ZAKAT';
-              break;
-            }
+        // Resolve fundSource
+        let fundSource = 'ZAKAT';
+        const possibleSources = [p.asnaf, p.rekomendasi_kabag, p.tipe_bantuan];
+        for (const src of possibleSources) {
+          if (!src) continue;
+          const normalized = String(src).toUpperCase().trim();
+          if (normalized.includes('INFAK_TERIKAT') || normalized.includes('TERIKAT') || normalized === 'IST') {
+            fundSource = 'INFAK_TERIKAT';
+            break;
+          } else if (normalized.includes('INFAK_TIDAK_TERIKAT') || normalized.includes('TIDAK TERIKAT') || normalized === 'ISTT' || normalized.includes('INFAK')) {
+            fundSource = 'INFAK_TIDAK_TERIKAT';
+            break;
+          } else if (normalized.includes('AMIL')) {
+            fundSource = 'AMIL';
+            break;
+          } else if (normalized.includes('APBD')) {
+            fundSource = 'APBD';
+            break;
+          } else if (normalized.includes('ZAKAT')) {
+            fundSource = 'ZAKAT';
+            break;
           }
+        }
+
+        if (!resolvedCoaCode) {
 
           const normalizeTag = (tag: string) => {
             if (!tag) return '';
@@ -435,7 +436,9 @@ export const createDirectPenyaluran = async (req: Request, res: Response): Promi
     });
 
     // Create PengajuanPencairan record so it instantly appears in Antrean Pencairan Keuangan
-    const noPengajuanStr = `PP-DIR/${new Date().getFullYear()}/${String(newProposal.agenda_no).padStart(4, '0')}`;
+    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const uid = newProposal.agenda_no > 0 ? String(newProposal.agenda_no).padStart(4, '0') : `${Date.now().toString().slice(-6)}-${randomSuffix}`;
+    const noPengajuanStr = `PP-DIR/${new Date().getFullYear()}/${uid}`;
 
     await prisma.pengajuanPencairan.create({
       data: {
@@ -632,16 +635,18 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
         // Determine mapped Program (prioritize code match like 210102.1 / 210102)
         const matchedProg = allPrograms.find(p => p.code === jenisPermohonan || p.code.startsWith(jenisPermohonan) || p.name.toLowerCase() === jenisPermohonan.toLowerCase() || (kodeRkat && p.code === String(kodeRkat)));
 
+        const cleanNik = (nik && String(nik).trim() !== '' && String(nik).trim() !== '-' && String(nik).trim() !== '0') ? String(nik).trim() : null;
+
         // Auto-create or find Mustahik
         let mustahik = null;
-        if (nik && nik !== '-') {
-          mustahik = await tx.mustahik.findUnique({ where: { nik } });
+        if (cleanNik) {
+          mustahik = await tx.mustahik.findUnique({ where: { nik: cleanNik } });
         }
         if (!mustahik) {
           mustahik = await tx.mustahik.create({
             data: {
               kategori: jenisPengajuan === 'Lembaga' ? 'Lembaga' : 'Perorangan',
-              nik: nik,
+              nik: cleanNik,
               nama: namaPemohon,
               nama_pimpinan: jenisPengajuan === 'Lembaga' ? namaPemohon : null,
               jenis_lembaga: jenisPengajuan === 'Lembaga' ? 'Lembaga' : null,
@@ -674,7 +679,7 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
             tanggal_masuk: tanggalPermohonan,
             nama_pemohon: namaPemohon,
             nama_instansi: jenisPengajuan === 'Lembaga' ? namaPemohon : null,
-            nik: nik || (mustahik.nik || '-'),
+            nik: cleanNik || (mustahik.nik || '-'),
             jenis_kelamin: 'Pria',
             alamat: alamat,
             no_telpon: telepon,
@@ -763,8 +768,10 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
             }
           });
         } else {
-          // If Antrean Pencairan (ACC): Create PengajuanPencairan
-          const noPengajuanStr = `PP-MIG/${tanggalPermohonan.getFullYear()}/${String(newProp.agenda_no).padStart(4, '0')}`;
+          // If Antrean Pencairan (ACC): Create PengajuanPencairan with unique key
+          const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+          const uid = newProp.agenda_no > 0 ? String(newProp.agenda_no).padStart(4, '0') : `${Date.now().toString().slice(-6)}-${successCount + 1}-${randomSuffix}`;
+          const noPengajuanStr = `PP-MIG/${tanggalPermohonan.getFullYear()}/${uid}`;
           if (defaultUser) {
             await tx.pengajuanPencairan.create({
               data: {
