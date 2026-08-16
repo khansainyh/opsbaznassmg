@@ -2446,7 +2446,7 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                             </>
                           )}
                         </div>
-                        {getTaskTipe(selectedTask) === 'Produktif' && (
+                        {getTaskTipe(selectedTask) === 'Produktif' ? (
                           <div className="col-span-full space-y-2 bg-amber-50/50 p-4 rounded-xl border border-amber-200/60 my-2">
                             <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block">
                               Perubahan Alur Bantuan (Produktif → Konsumtif)
@@ -2506,6 +2506,106 @@ export default function MonitoringTugas({ data, onUpdate }: MonitoringTugasProps
                                         )}
                                       >
                                         <span className="truncate">-- Tetap Gunakan Bantuan Produktif ({selectedTask.jenisPermohonan}) --</span>
+                                        {!changedProgramCode && <Check className="size-4 text-amber-700 shrink-0" />}
+                                      </button>
+                                      {consumptivePrograms
+                                        .filter(prog => 
+                                          prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
+                                        )
+                                        .map(prog => (
+                                          <button
+                                            key={prog.code}
+                                            type="button"
+                                            onClick={() => {
+                                              setChangedProgramCode(prog.code);
+                                              setIsAlurDropdownOpen(false);
+                                              setAlurSearchQuery('');
+                                            }}
+                                            className={cn(
+                                              "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left",
+                                              changedProgramCode === prog.code ? "bg-primary/5 text-primary font-bold" : "text-slate-700"
+                                            )}
+                                          >
+                                            <span className="truncate">[{prog.pilarName}] {prog.name} ({prog.code})</span>
+                                            {changedProgramCode === prog.code && <Check className="size-4 text-primary shrink-0" />}
+                                          </button>
+                                        ))}
+                                      {consumptivePrograms
+                                        .filter(prog => 
+                                          prog.name.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.code.toLowerCase().includes(alurSearchQuery.toLowerCase()) ||
+                                          prog.pilarName.toLowerCase().includes(alurSearchQuery.toLowerCase())
+                                        ).length === 0 && (
+                                          <p className="text-center py-3 text-[10px] text-slate-400 italic font-medium">Program tidak ditemukan</p>
+                                        )}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="col-span-full space-y-2 bg-amber-50/50 p-4 rounded-xl border border-amber-200/60 my-2">
+                            <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block">
+                              Perubahan Program Bantuan (Konsumtif → Konsumtif Lainnya)
+                            </label>
+                            <p className="text-xs text-slate-600 leading-relaxed">
+                              Jika berdasarkan hasil survei bantuan dinilai lebih tepat dialihkan ke program konsumtif lainnya, Anda dapat memilih program konsumtif baru di bawah ini.
+                            </p>
+                            <div className="relative">
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setIsAlurDropdownOpen(!isAlurDropdownOpen);
+                                  setIsAsnafDropdownOpen(false);
+                                  setIsRekomendasiDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center justify-between p-2.5 bg-white border border-amber-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all outline-none"
+                              >
+                                <span className="truncate max-w-[90%]">
+                                  {changedProgramCode 
+                                    ? (() => {
+                                        const selectedProg = consumptivePrograms.find(p => p.code === changedProgramCode);
+                                        return selectedProg 
+                                          ? `[${selectedProg.pilarName}] ${selectedProg.name} (${selectedProg.code})` 
+                                          : changedProgramCode;
+                                      })()
+                                    : `-- Tetap Gunakan Program Semula (${selectedTask.jenisPermohonan}) --`
+                                  }
+                                </span>
+                                <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isAlurDropdownOpen && "rotate-180")} />
+                              </button>
+
+                              {isAlurDropdownOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setIsAlurDropdownOpen(false)} />
+                                  <div className="absolute left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-40 p-2 max-h-72 overflow-hidden flex flex-col">
+                                    <div className="p-1 border-b border-slate-100 mb-1">
+                                      <input
+                                        type="text"
+                                        placeholder="Cari program konsumtif..."
+                                        value={alurSearchQuery}
+                                        onChange={(e) => setAlurSearchQuery(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-700"
+                                      />
+                                    </div>
+                                    <div className="overflow-y-auto custom-scrollbar flex-1 max-h-52">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setChangedProgramCode('');
+                                          setIsAlurDropdownOpen(false);
+                                          setAlurSearchQuery('');
+                                        }}
+                                        className={cn(
+                                          "w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-left mb-1",
+                                          !changedProgramCode ? "bg-amber-50 text-amber-800 font-bold" : "text-slate-700"
+                                        )}
+                                      >
+                                        <span className="truncate">-- Tetap Gunakan Program Semula ({selectedTask.jenisPermohonan}) --</span>
                                         {!changedProgramCode && <Check className="size-4 text-amber-700 shrink-0" />}
                                       </button>
                                       {consumptivePrograms
