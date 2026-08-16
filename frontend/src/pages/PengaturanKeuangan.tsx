@@ -72,6 +72,124 @@ export interface ProposalItem {
   };
 }
 
+// Reusable Table Pagination Component
+function TablePagination({
+  currentPage,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [10, 25, 50, 100],
+  itemName = 'data'
+}: {
+  currentPage: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: number[];
+  itemName?: string;
+}) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const fromIndex = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const toIndex = Math.min(totalItems, currentPage * pageSize);
+
+  // Generate page numbers with ellipses
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 4) {
+        for (let i = 1; i <= 5; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 3) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
+
+  if (totalItems === 0) return null;
+
+  return (
+    <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-medium text-slate-600">
+      <div className="flex flex-wrap items-center gap-3">
+        <p>
+          Menampilkan <span className="font-bold text-slate-900">{fromIndex}</span> - <span className="font-bold text-slate-900">{toIndex}</span> dari <span className="font-bold text-slate-900">{totalItems}</span> {itemName}
+        </p>
+        {onPageSizeChange && (
+          <div className="flex items-center gap-1.5 ml-1 sm:ml-2">
+            <span className="text-[11px] text-slate-400">Baris:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                onPageSizeChange(Number(e.target.value));
+                onPageChange(1);
+              }}
+              className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none cursor-pointer hover:border-slate-300 transition-colors shadow-2xs"
+            >
+              {pageSizeOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+        >
+          <ChevronRight className="size-3.5 rotate-180" />
+          <span className="hidden sm:inline">Sebelumnya</span>
+        </button>
+
+        <div className="flex items-center gap-1">
+          {getPageNumbers().map((p, idx) => (
+            p === '...' ? (
+              <span key={`ellipsis-${idx}`} className="px-1.5 text-slate-400 font-bold">...</span>
+            ) : (
+              <button
+                key={`page-${p}`}
+                onClick={() => onPageChange(Number(p))}
+                className={cn(
+                  "min-w-[30px] h-7.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                  currentPage === p
+                    ? "bg-primary text-white shadow-sm shadow-primary/20"
+                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs"
+                )}
+              >
+                {p}
+              </button>
+            )
+          ))}
+        </div>
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || totalPages === 0}
+          className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+        >
+          <span className="hidden sm:inline">Berikutnya</span>
+          <ChevronRight className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function PengaturanKeuangan() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
@@ -79,6 +197,24 @@ export default function PengaturanKeuangan() {
 
   const [activeTab, setActiveTab] = useState<'accounts' | 'mapping' | 'coa' | 'kategori-biaya'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Pagination States
+  const [coaPage, setCoaPage] = useState(1);
+  const [coaPageSize, setCoaPageSize] = useState(25);
+  const [rulesPage, setRulesPage] = useState(1);
+  const [rulesPageSize, setRulesPageSize] = useState(20);
+  const [kasPage, setKasPage] = useState(1);
+  const [bankPage, setBankPage] = useState(1);
+  const [categoryPage, setCategoryPage] = useState(1);
+
+  // Reset pagination on search or tab change
+  useEffect(() => {
+    setCoaPage(1);
+    setRulesPage(1);
+    setKasPage(1);
+    setBankPage(1);
+    setCategoryPage(1);
+  }, [searchTerm, activeTab]);
 
   // DB States
   const [coas, setCoas] = useState<COAItem[]>([]);
@@ -372,7 +508,7 @@ export default function PengaturanKeuangan() {
     }).format(val);
   };
 
-  // Helper lists
+  // Helper lists & Pagination Slices
   const filteredKasAccounts = useMemo(() => {
     return accounts.filter(a => 
       a.tipe_kas === 'TUNAI' && (
@@ -381,6 +517,10 @@ export default function PengaturanKeuangan() {
       )
     );
   }, [accounts, searchTerm]);
+
+  const paginatedKasAccounts = useMemo(() => {
+    return filteredKasAccounts.slice((kasPage - 1) * 10, kasPage * 10);
+  }, [filteredKasAccounts, kasPage]);
 
   const filteredBankAccounts = useMemo(() => {
     return accounts.filter(a => 
@@ -392,6 +532,10 @@ export default function PengaturanKeuangan() {
     );
   }, [accounts, searchTerm]);
 
+  const paginatedBankAccounts = useMemo(() => {
+    return filteredBankAccounts.slice((bankPage - 1) * 10, bankPage * 10);
+  }, [filteredBankAccounts, bankPage]);
+
   const filteredCOAs = useMemo(() => {
     return coas.filter(c => 
       c.nama_akun.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -399,12 +543,24 @@ export default function PengaturanKeuangan() {
     );
   }, [coas, searchTerm]);
 
+  const paginatedCOAs = useMemo(() => {
+    return filteredCOAs.slice((coaPage - 1) * coaPageSize, coaPage * coaPageSize);
+  }, [filteredCOAs, coaPage, coaPageSize]);
+
   const filteredRules = useMemo(() => {
     return rules.filter(r => 
       r.program_code.includes(searchTerm) ||
       (r.asnaf_id || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [rules, searchTerm]);
+
+  const paginatedRules = useMemo(() => {
+    return filteredRules.slice((rulesPage - 1) * rulesPageSize, rulesPage * rulesPageSize);
+  }, [filteredRules, rulesPage, rulesPageSize]);
+
+  const paginatedCategories = useMemo(() => {
+    return categories.slice((categoryPage - 1) * 10, categoryPage * 10);
+  }, [categories, categoryPage]);
 
 
 
@@ -908,7 +1064,7 @@ export default function PengaturanKeuangan() {
                       <tr>
                         <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada kas kecil / operasional ditemukan</td>
                       </tr>
-                    ) : filteredKasAccounts.map((item) => (
+                    ) : paginatedKasAccounts.map((item) => (
                       <tr key={item.account_id} className="hover:bg-slate-50/30 transition-colors group">
                         <td className="px-6 py-5 font-bold text-slate-900">
                           {item.nama_akun}
@@ -949,6 +1105,13 @@ export default function PengaturanKeuangan() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination 
+                currentPage={kasPage} 
+                totalItems={filteredKasAccounts.length} 
+                pageSize={10} 
+                onPageChange={setKasPage} 
+                itemName="kas fisik" 
+              />
             </div>
 
             {/* Section B: Rekening Bank */}
@@ -983,7 +1146,7 @@ export default function PengaturanKeuangan() {
                       <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic font-medium">Tidak ada rekening bank ditemukan</td>
                       </tr>
-                    ) : filteredBankAccounts.map((item) => (
+                    ) : paginatedBankAccounts.map((item) => (
                       <tr key={item.account_id} className="hover:bg-slate-50/30 transition-colors group">
                         <td className="px-6 py-5 font-bold text-slate-900">
                           {item.nama_akun}
@@ -1019,6 +1182,13 @@ export default function PengaturanKeuangan() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination 
+                currentPage={bankPage} 
+                totalItems={filteredBankAccounts.length} 
+                pageSize={10} 
+                onPageChange={setBankPage} 
+                itemName="rekening bank" 
+              />
             </div>
           </motion.div>
         )}
@@ -1080,7 +1250,7 @@ export default function PengaturanKeuangan() {
                         <tr>
                           <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Belum ada aturan mapping penyaluran terdaftar</td>
                         </tr>
-                      ) : filteredRules.map((item) => (
+                      ) : paginatedRules.map((item) => (
                         <tr key={item.rule_id} className="hover:bg-slate-50/30 transition-colors group">
                           <td className="px-6 py-5">
                             <div className="flex flex-col gap-1">
@@ -1127,6 +1297,15 @@ export default function PengaturanKeuangan() {
                     </tbody>
                   </table>
                 </div>
+                <TablePagination 
+                  currentPage={rulesPage} 
+                  totalItems={filteredRules.length} 
+                  pageSize={rulesPageSize} 
+                  onPageChange={setRulesPage} 
+                  onPageSizeChange={setRulesPageSize} 
+                  pageSizeOptions={[10, 20, 50, 100]} 
+                  itemName="aturan mapping" 
+                />
               </div>
             </div>
 
@@ -1297,7 +1476,7 @@ export default function PengaturanKeuangan() {
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic font-medium">Bagan akun COA masih kosong</td>
                       </tr>
-                    ) : filteredCOAs.map((item) => (
+                    ) : paginatedCOAs.map((item) => (
                       <tr key={item.coa_code} className="hover:bg-slate-50/30 transition-colors group">
                         <td className="px-6 py-5 font-mono text-xs font-black text-slate-900 bg-slate-50 border border-slate-100 rounded-xl w-fit px-2.5 py-1">
                           {item.coa_code}
@@ -1342,6 +1521,15 @@ export default function PengaturanKeuangan() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination 
+                currentPage={coaPage} 
+                totalItems={filteredCOAs.length} 
+                pageSize={coaPageSize} 
+                onPageChange={setCoaPage} 
+                onPageSizeChange={setCoaPageSize} 
+                pageSizeOptions={[10, 25, 50, 100, 200]} 
+                itemName="akun COA" 
+              />
             </div>
           </motion.div>
         )}
@@ -1409,7 +1597,7 @@ export default function PengaturanKeuangan() {
                         <tr>
                           <td colSpan={3} className="px-6 py-12 text-center text-slate-400 italic">Tidak ada kategori biaya ditemukan</td>
                         </tr>
-                      ) : categories.map((cat) => (
+                      ) : paginatedCategories.map((cat) => (
                         <tr key={cat.id} className="hover:bg-slate-50/30 transition-colors">
                           <td className="px-6 py-5 font-bold text-slate-900">{cat.nama}</td>
                           <td className="px-6 py-5 text-xs text-slate-400">
@@ -1433,6 +1621,13 @@ export default function PengaturanKeuangan() {
                     </tbody>
                   </table>
                 </div>
+                <TablePagination 
+                  currentPage={categoryPage} 
+                  totalItems={categories.length} 
+                  pageSize={10} 
+                  onPageChange={setCategoryPage} 
+                  itemName="kategori biaya" 
+                />
               </div>
             </div>
           </motion.div>
