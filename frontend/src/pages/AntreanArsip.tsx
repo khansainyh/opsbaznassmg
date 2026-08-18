@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Search, 
   Filter, 
   ChevronRight, 
+  ChevronDown,
   Eye, 
   CheckCircle2, 
   FileText,
@@ -15,7 +16,8 @@ import {
   Upload,
   Camera,
   Trash2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
@@ -32,7 +34,16 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
   const isReadOnly = user?.role === 'Staf_Pelaporan';
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [pilars, setPilars] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'Semua' | 'Konsumtif' | 'Produktif'>('Semua');
+  const [selectedProgramFilter, setSelectedProgramFilter] = useState<string>('');
+  const [searchProgramQuery, setSearchProgramQuery] = useState('');
+  const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
+  const [selectedPilarFilter, setSelectedPilarFilter] = useState<string>('');
+  const [isPilarDropdownOpen, setIsPilarDropdownOpen] = useState(false);
   const [kuitansiFilter, setKuitansiFilter] = useState<'semua' | 'belum_kembali' | 'sudah_kembali'>('semua');
+  const [isKuitansiDropdownOpen, setIsKuitansiDropdownOpen] = useState(false);
+
   const [selectedProposal, setSelectedProposal] = useState<ProposalMemo | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -49,26 +60,111 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const kuitansiInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter proposals with 'Antrean Arsip' status and kuitansi filter
+  useEffect(() => {
+    axios.get('/api/pilars')
+      .then(res => setPilars(res.data))
+      .catch(console.error);
+  }, []);
+
+  const pilarNames = useMemo(() => {
+    return (pilars || []).map(p => p.name);
+  }, [pilars]);
+
+  const programTipeMap = useMemo(() => {
+    const map: { [code: string]: string } = {};
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        map[prog.code] = prog.tipe || 'Konsumtif';
+      });
+    });
+    return map;
+  }, [pilars]);
+
+  const getParentProgramCode = (code?: string) => {
+    if (!code) return '';
+    const clean = code.trim();
+    const parts = clean.split('.');
+    if (parts.length > 2) {
+      return `${parts[0]}.${parts[1]}`;
+    }
+    return clean;
+  };
+
+  const allPrograms = useMemo(() => {
+    const progs: { code: string; name: string; pilarName: string }[] = [];
+    (pilars || []).forEach(pilar => {
+      (pilar.programs || []).forEach((prog: any) => {
+        progs.push({
+          code: prog.code,
+          name: prog.name,
+          pilarName: pilar.name
+        });
+      });
+    });
+    return progs;
+  }, [pilars]);
+
+  const handlePilarChange = (pilarName: string) => {
+    setSelectedPilarFilter(pilarName);
+    if (pilarName) {
+      const belongs = allPrograms.find(p => p.code === selectedProgramFilter && p.pilarName === pilarName);
+      if (!belongs) {
+        setSelectedProgramFilter('');
+      }
+    }
+  };
+
+  const resetAllFilters = () => {
+    setActiveTab('Semua');
+    setSelectedPilarFilter('');
+    setSelectedProgramFilter('');
+    setSearchProgramQuery('');
+    setKuitansiFilter('semua');
+    setSearchTerm('');
+  };
+
+  const hasActiveFilters = activeTab !== 'Semua' || !!selectedPilarFilter || !!selectedProgramFilter || kuitansiFilter !== 'semua' || !!searchTerm;
+
+  // Filter proposals with 'Antrean Arsip' status and filters
   const filteredData = useMemo(() => {
     return data.filter(item => {
       const isAntreanArsip = item.status === 'Antrean Arsip';
+      if (!isAntreanArsip) return false;
+
+      // Grouping tab (Semua, Konsumtif, Produktif)
+      if (activeTab !== 'Semua') {
+        const cleanCode = getParentProgramCode(item.programCode);
+        const tipe = programTipeMap[cleanCode] || 'Konsumtif';
+        if (tipe !== activeTab) return false;
+      }
+
+      // Pilar filter
+      if (selectedPilarFilter) {
+        if (item.program !== selectedPilarFilter) return false;
+      }
+
+      // Program / Kegiatan filter
+      if (selectedProgramFilter) {
+        const cleanCode = getParentProgramCode(item.programCode);
+        const filterCleanCode = getParentProgramCode(selectedProgramFilter);
+        if (cleanCode !== filterCleanCode) return false;
+      }
+
+      // Kuitansi filter
+      const sData = item.survey_data as any;
+      const hasKuitansi = !!(sData && sData.kuitansi_ditandatangani);
+      if (kuitansiFilter === 'belum_kembali' && hasKuitansi) return false;
+      if (kuitansiFilter === 'sudah_kembali' && !hasKuitansi) return false;
+
+      // Search match
       const searchMatch = item.agendaNo.toString().includes(searchTerm) || 
                          item.namaPemohon.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.namaInstansi?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                          (item.nik || '').includes(searchTerm);
 
-      if (!isAntreanArsip || !searchMatch) return false;
-
-      const sData = item.survey_data as any;
-      const hasKuitansi = !!(sData && sData.kuitansi_ditandatangani);
-
-      if (kuitansiFilter === 'belum_kembali') return !hasKuitansi;
-      if (kuitansiFilter === 'sudah_kembali') return hasKuitansi;
-
-      return true;
+      return searchMatch;
     });
-  }, [data, searchTerm, kuitansiFilter]);
+  }, [data, searchTerm, activeTab, selectedPilarFilter, selectedProgramFilter, kuitansiFilter, programTipeMap]);
 
   // Statistics helper
   const stats = useMemo(() => {
@@ -86,10 +182,17 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
       const sData = d.survey_data as any;
       return !sData || !sData.kuitansi_ditandatangani;
     }).length;
+
+    const hasKuitansiCount = archiveQueue.filter(d => {
+      const sData = d.survey_data as any;
+      return !!(sData && sData.kuitansi_ditandatangani);
+    }).length;
     
     return {
+      totalQueue: archiveQueue.length,
       missingFoto,
       missingKuitansi,
+      hasKuitansi: hasKuitansiCount,
       archived: fullyArchived
     };
   }, [data]);
@@ -295,12 +398,47 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
         transition={{ delay: 0.2 }}
         className="bg-white rounded-xl border border-primary/10 shadow-sm overflow-hidden"
       >
+        {/* Tabs Grouping: Semua Bantuan, Bantuan Konsumtif, Bantuan Produktif */}
+        <div className="flex gap-2 border-b border-slate-100 px-4 pt-3 bg-slate-50/50 overflow-x-auto scrollbar-none">
+          {(['Semua', 'Konsumtif', 'Produktif'] as const).map(tab => {
+            const count = data.filter(d => {
+              const isAntreanArsip = d.status === 'Antrean Arsip';
+              if (!isAntreanArsip) return false;
+              if (tab === 'Semua') return true;
+              const cleanCode = getParentProgramCode(d.programCode);
+              const tipe = programTipeMap[cleanCode] || 'Konsumtif';
+              return tipe === tab;
+            }).length;
+
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  "pb-3 px-4 text-xs font-bold border-b-2 transition-all relative flex items-center shrink-0",
+                  activeTab === tab 
+                    ? "border-primary text-primary" 
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                )}
+              >
+                {tab === 'Semua' ? 'Semua Bantuan' : tab === 'Konsumtif' ? 'Bantuan Konsumtif' : 'Bantuan Produktif'}
+                <span className={cn(
+                  "ml-2 px-1.5 py-0.5 text-[9px] font-black rounded-full",
+                  activeTab === tab ? "bg-primary/10 text-primary" : "bg-slate-200/60 text-slate-500"
+                )}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Filter Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+        <div className="p-4 border-b border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto flex-1">
             <button 
               onClick={toggleSelectAll}
-              className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold text-slate-650 hover:bg-slate-50 rounded-lg transition-all border border-slate-200 bg-white"
+              className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold text-slate-650 hover:bg-slate-50 rounded-lg transition-all border border-slate-200 bg-white shrink-0"
             >
               {selectedIds.length === filteredData.length && filteredData.length > 0 ? (
                 <CheckSquare className="size-4 text-primary" />
@@ -310,40 +448,7 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
               Pilih Semua
             </button>
 
-            {/* Filter Tabs for Kuitansi Status */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-              <button
-                onClick={() => setKuitansiFilter('semua')}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
-                  kuitansiFilter === 'semua' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
-                )}
-              >
-                Semua
-              </button>
-              <button
-                onClick={() => setKuitansiFilter('belum_kembali')}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5",
-                  kuitansiFilter === 'belum_kembali' ? "bg-rose-500 text-white shadow-sm" : "text-rose-600 hover:bg-rose-50"
-                )}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                Belum Kuitansi ({stats.missingKuitansi})
-              </button>
-              <button
-                onClick={() => setKuitansiFilter('sudah_kembali')}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5",
-                  kuitansiFilter === 'sudah_kembali' ? "bg-emerald-600 text-white shadow-sm" : "text-emerald-600 hover:bg-emerald-50"
-                )}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                Kuitansi Kembali
-              </button>
-            </div>
-
-            <div className="relative w-full sm:w-64">
+            <div className="relative w-full sm:w-64 md:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
               <input 
                 type="text"
@@ -354,20 +459,280 @@ export default function AntreanArsip({ data, onUpdate }: AntreanArsipProps) {
               />
             </div>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+
+          {/* Right Side: Filters Group & Export Button */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
             {selectedIds.length > 0 && (
               <motion.button 
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all w-full sm:w-auto"
               >
                 <DownloadCloud className="size-4" />
                 EXPORT LAPORAN ({selectedIds.length})
               </motion.button>
             )}
-            <button className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-slate-200 bg-white shrink-0">
-              <Filter className="size-4" />
-            </button>
+
+            {/* Filter Dropdown for Pilar (Program BAZNAS) */}
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full">
+                <button 
+                  onClick={() => setIsPilarDropdownOpen(!isPilarDropdownOpen)}
+                  className={cn(
+                    "flex items-center justify-between sm:justify-start gap-2 px-3 py-2.5 text-xs font-bold rounded-lg transition-all border w-full",
+                    selectedPilarFilter 
+                      ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
+                      : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter className={cn("size-4 shrink-0", selectedPilarFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                    <span className="truncate">
+                      {selectedPilarFilter ? `Pilar: ${selectedPilarFilter}` : "Pilih Pilar Bantuan"}
+                    </span>
+                  </div>
+                  <ChevronDown className="size-4 text-slate-400" />
+                </button>
+                {selectedPilarFilter && (
+                  <button 
+                    onClick={() => handlePilarChange('')}
+                    className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm shrink-0"
+                    title="Hapus Filter Pilar"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {isPilarDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsPilarDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-full sm:w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
+                    <button 
+                      onClick={() => {
+                        handlePilarChange('');
+                        setIsPilarDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold",
+                        !selectedPilarFilter && "bg-primary/5 text-primary font-bold"
+                      )}
+                    >
+                      Semua Pilar
+                    </button>
+                    {pilarNames.map(name => (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          handlePilarChange(name);
+                          setIsPilarDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold mt-0.5",
+                          selectedPilarFilter === name && "bg-primary/5 text-primary font-bold"
+                        )}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Filter Dropdown for Kegiatan / Sub-Program */}
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full">
+                <button 
+                  onClick={() => setIsProgramDropdownOpen(!isProgramDropdownOpen)}
+                  className={cn(
+                    "flex items-center justify-between sm:justify-start gap-2 px-3 py-2.5 text-xs font-bold rounded-lg transition-all border w-full",
+                    selectedProgramFilter 
+                      ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 shadow-sm shadow-primary/5" 
+                      : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Filter className={cn("size-4 shrink-0", selectedProgramFilter ? "text-primary animate-pulse" : "text-slate-400")} />
+                    <span className="truncate">
+                      {selectedProgramFilter ? (
+                        <span>Kegiatan: {allPrograms.find(p => p.code === selectedProgramFilter)?.name || selectedProgramFilter}</span>
+                      ) : (
+                        <span>Pilih Kegiatan Bantuan</span>
+                      )}
+                    </span>
+                  </div>
+                  <ChevronDown className="size-4 text-slate-400" />
+                </button>
+                {selectedProgramFilter && (
+                  <button 
+                    onClick={() => {
+                      setSelectedProgramFilter('');
+                      setSearchProgramQuery('');
+                    }}
+                    className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm shrink-0"
+                    title="Hapus Filter Kegiatan"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {isProgramDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsProgramDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-full sm:w-80 md:w-96 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-2">
+                    <input 
+                      type="text"
+                      placeholder="Cari kegiatan / sub-program..."
+                      className="w-full text-xs bg-slate-50 border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-primary focus:border-primary outline-none font-semibold text-slate-800"
+                      value={searchProgramQuery}
+                      onChange={(e) => setSearchProgramQuery(e.target.value)}
+                    />
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar text-xs font-semibold text-slate-700">
+                      <button 
+                        onClick={() => {
+                          setSelectedProgramFilter('');
+                          setIsProgramDropdownOpen(false);
+                          setSearchProgramQuery('');
+                        }}
+                        className={cn(
+                          "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors",
+                          !selectedProgramFilter && "bg-primary/5 text-primary font-bold"
+                        )}
+                      >
+                        Semua Kegiatan
+                      </button>
+                      {allPrograms
+                        .filter(p => !selectedPilarFilter || p.pilarName === selectedPilarFilter)
+                        .filter(p => p.name.toLowerCase().includes(searchProgramQuery.toLowerCase()) || p.pilarName.toLowerCase().includes(searchProgramQuery.toLowerCase()))
+                        .map(prog => (
+                          <button
+                            key={prog.code}
+                            onClick={() => {
+                              setSelectedProgramFilter(prog.code);
+                              setIsProgramDropdownOpen(false);
+                              setSearchProgramQuery('');
+                            }}
+                            className={cn(
+                              "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors mt-0.5",
+                              selectedProgramFilter === prog.code && "bg-primary/5 text-primary font-bold"
+                            )}
+                          >
+                            <span className="text-[10px] text-slate-400 font-bold block">{prog.pilarName}</span>
+                            <span>{prog.name}</span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Filter Dropdown for Kuitansi Status */}
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full">
+                <button
+                  onClick={() => setIsKuitansiDropdownOpen(!isKuitansiDropdownOpen)}
+                  className={cn(
+                    "flex items-center justify-between sm:justify-start gap-2 px-3 py-2.5 text-xs font-bold rounded-lg transition-all border w-full",
+                    kuitansiFilter !== 'semua'
+                      ? (kuitansiFilter === 'belum_kembali' ? "bg-rose-50 text-rose-700 border-rose-200 shadow-sm" : "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm")
+                      : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className={cn("size-4 shrink-0", kuitansiFilter !== 'semua' ? (kuitansiFilter === 'belum_kembali' ? "text-rose-600" : "text-emerald-600") : "text-slate-400")} />
+                    <span className="truncate">
+                      {kuitansiFilter === 'semua' 
+                        ? 'Status Kuitansi: Semua' 
+                        : kuitansiFilter === 'belum_kembali' 
+                          ? `Belum Kuitansi (${stats.missingKuitansi})` 
+                          : `Sudah Kuitansi (${stats.hasKuitansi})`}
+                    </span>
+                  </div>
+                  <ChevronDown className="size-4 text-slate-400" />
+                </button>
+                {kuitansiFilter !== 'semua' && (
+                  <button
+                    onClick={() => setKuitansiFilter('semua')}
+                    className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-100 transition-all flex items-center justify-center shadow-sm shrink-0"
+                    title="Reset Filter Kuitansi"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {isKuitansiDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsKuitansiDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-full sm:w-60 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
+                    <button
+                      onClick={() => {
+                        setKuitansiFilter('semua');
+                        setIsKuitansiDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold flex items-center justify-between",
+                        kuitansiFilter === 'semua' && "bg-primary/5 text-primary font-bold"
+                      )}
+                    >
+                      <span>Semua Status Kuitansi</span>
+                      <span className="text-[10px] text-slate-400 font-bold">{stats.totalQueue}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setKuitansiFilter('belum_kembali');
+                        setIsKuitansiDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold flex items-center justify-between text-rose-600",
+                        kuitansiFilter === 'belum_kembali' && "bg-rose-50 font-bold"
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        Belum Ada Kuitansi
+                      </span>
+                      <span className="px-1.5 py-0.5 text-[9px] bg-rose-100 text-rose-700 rounded-full font-bold">
+                        {stats.missingKuitansi}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setKuitansiFilter('sudah_kembali');
+                        setIsKuitansiDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold flex items-center justify-between text-emerald-600",
+                        kuitansiFilter === 'sudah_kembali' && "bg-emerald-50 font-bold"
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Sudah Ada Kuitansi
+                      </span>
+                      <span className="px-1.5 py-0.5 text-[9px] bg-emerald-100 text-emerald-700 rounded-full font-bold">
+                        {stats.hasKuitansi}
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Reset All Filters Button */}
+            {hasActiveFilters && (
+              <button
+                onClick={resetAllFilters}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-slate-200 bg-white shrink-0"
+                title="Reset Semua Filter"
+              >
+                <RotateCcw className="size-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
         </div>
 
