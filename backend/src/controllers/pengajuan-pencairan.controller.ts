@@ -24,6 +24,36 @@ async function generateNoPengajuan(): Promise<string> {
   return `${prefix}${nextNumber}`;
 }
 
+// Status constants to guarantee IDE compatibility and runtime type safety
+export const STATUS_PENGAJUAN = {
+  DRAFT: 'DRAFT',
+  WAITING_KABID: 'WAITING_KABID',
+  WAITING_KABAG_ADMIN: 'WAITING_KABAG_ADMIN',
+  WAITING_KAPEL: 'WAITING_KAPEL',
+  WAITING_WAKA4: 'WAITING_WAKA4',
+  WAITING_WAKA3: 'WAITING_WAKA3',
+  WAITING_KETUA: 'WAITING_KETUA',
+  WAITING_FINANCE_APP: 'WAITING_FINANCE_APP',
+  APPROVED: 'APPROVED',
+  CAIR: 'CAIR',
+  DITOLAK: 'DITOLAK',
+} as const;
+
+// Mapping Kabag/Kabid role to their respective department staff
+export const KABAG_TO_STAFF_MAP: Record<string, string[]> = {
+  'Kabag_Pengumpulan': ['Staf_Pengumpulan'],
+  'Kabid_Pengumpulan': ['Staf_Pengumpulan'],
+  'Kabag_Pendistribusian': ['Staf_Pendistribusian'],
+  'Kabid_Pendistribusian': ['Staf_Pendistribusian'],
+  'Kabag_Pendayagunaan': ['Staf_Pendayagunaan'],
+  'Kabid_Pendayagunaan': ['Staf_Pendayagunaan'],
+  'Kabag_Pelaporan': ['Staf_Pelaporan'],
+  'Kabid_Pelaporan': ['Staf_Pelaporan'],
+  'Kabag_Keuangan': ['Staf_Keuangan'],
+  'Kabag_Administrasi': ['Staf_Administrasi', 'Humas', 'Tim_Monev', 'Relawan', 'Relawan_Sementara'],
+  'Kabid_Administrasi': ['Staf_Administrasi', 'Humas', 'Tim_Monev', 'Relawan', 'Relawan_Sementara'],
+};
+
 export const createPengajuan = async (req: Request, res: Response) => {
   try {
     const { pengaju_id, kategori_biaya, judul, keterangan, nominal, rkat_id } = req.body;
@@ -47,46 +77,46 @@ export const createPengajuan = async (req: Request, res: Response) => {
     const parsedNominal = new Prisma.Decimal(nominal);
 
     // Initial status determined by user role:
-    let initialStatus: StatusPengajuan = StatusPengajuan.WAITING_KABID;
+    let initialStatus: any = STATUS_PENGAJUAN.WAITING_KABID;
     const userRole = user.role;
 
     if (userRole === 'Staf_Administrasi') {
-      // Staf Administrasi -> directly to Kabag Administrasi
-      initialStatus = StatusPengajuan.WAITING_KABAG_ADMIN;
+      // Staf Administrasi -> directly to Kabag Administrasi (approval occurs once)
+      initialStatus = STATUS_PENGAJUAN.WAITING_KABAG_ADMIN;
     } else if (userRole === 'Kabag_Administrasi') {
       // Kabag Administrasi -> skips Kabag Admin
       if (Number(nominal) <= 1000000) {
-        initialStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        initialStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        initialStatus = StatusPengajuan.WAITING_KAPEL;
+        initialStatus = STATUS_PENGAJUAN.WAITING_KAPEL;
       }
     } else if (userRole.startsWith('Kabag') || userRole.startsWith('Kabid')) {
       // Other Kabags -> skips initial bidang, goes directly to Kabag Administrasi
-      initialStatus = StatusPengajuan.WAITING_KABAG_ADMIN;
+      initialStatus = STATUS_PENGAJUAN.WAITING_KABAG_ADMIN;
     } else if (userRole === 'Kepala_Pelaksana') {
       // Kapel -> skips Kapel
       if (Number(nominal) <= 15000000) {
-        initialStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        initialStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        initialStatus = StatusPengajuan.WAITING_WAKA4;
+        initialStatus = STATUS_PENGAJUAN.WAITING_WAKA4;
       }
     } else if (userRole === 'Wakil_Ketua_IV') {
       if (Number(nominal) <= 25000000) {
-        initialStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        initialStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        initialStatus = StatusPengajuan.WAITING_WAKA3;
+        initialStatus = STATUS_PENGAJUAN.WAITING_WAKA3;
       }
     } else if (userRole === 'Wakil_Ketua_III' || userRole === 'Wakil_Ketua_I' || userRole === 'Wakil_Ketua_II') {
       if (Number(nominal) <= 100000000) {
-        initialStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        initialStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        initialStatus = StatusPengajuan.WAITING_KETUA;
+        initialStatus = STATUS_PENGAJUAN.WAITING_KETUA;
       }
     } else if (userRole === 'Ketua' || userRole === 'Super_Admin') {
-      initialStatus = StatusPengajuan.WAITING_FINANCE_APP;
+      initialStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
     } else {
       // Regular staff of other departments (Pendistribusian, Pendayagunaan, Pengumpulan, Pelaporan, Keuangan, dll.)
-      initialStatus = StatusPengajuan.WAITING_KABID;
+      initialStatus = STATUS_PENGAJUAN.WAITING_KABID;
     }
 
     const newPengajuan = await prisma.$transaction(async (tx) => {
@@ -137,22 +167,43 @@ export const getPengajuans = async (req: Request, res: Response) => {
       const userRole = String(role);
       // Determine what statuses this role can approve
       if (userRole === 'Kepala_Pelaksana') {
-        whereClause.status = StatusPengajuan.WAITING_KAPEL;
+        whereClause.status = STATUS_PENGAJUAN.WAITING_KAPEL;
       } else if (userRole === 'Wakil_Ketua_IV') {
-        whereClause.status = StatusPengajuan.WAITING_WAKA4;
+        whereClause.status = STATUS_PENGAJUAN.WAITING_WAKA4;
       } else if (userRole === 'Wakil_Ketua_III' || userRole === 'Wakil_Ketua_I' || userRole === 'Wakil_Ketua_II') {
-        whereClause.status = StatusPengajuan.WAITING_WAKA3;
+        whereClause.status = STATUS_PENGAJUAN.WAITING_WAKA3;
       } else if (userRole === 'Ketua') {
-        whereClause.status = StatusPengajuan.WAITING_KETUA;
+        whereClause.status = STATUS_PENGAJUAN.WAITING_KETUA;
       } else if (userRole === 'Kabag_Keuangan') {
-        whereClause.status = StatusPengajuan.WAITING_FINANCE_APP;
-      } else if (userRole === 'Kabag_Administrasi') {
-        whereClause.status = { in: [StatusPengajuan.WAITING_KABAG_ADMIN, StatusPengajuan.WAITING_KABID] };
+        // Kabag Keuangan approves WAITING_FINANCE_APP (all), plus initial WAITING_KABID from Staf Keuangan
+        whereClause.OR = [
+          { status: STATUS_PENGAJUAN.WAITING_FINANCE_APP },
+          {
+            status: STATUS_PENGAJUAN.WAITING_KABID,
+            pengaju: { role: 'Staf_Keuangan' }
+          }
+        ];
+      } else if (userRole === 'Kabag_Administrasi' || userRole === 'Kabid_Administrasi') {
+        // Kabag Administrasi approves all requests at WAITING_KABAG_ADMIN, plus initial WAITING_KABID from general/adm staff
+        whereClause.OR = [
+          { status: STATUS_PENGAJUAN.WAITING_KABAG_ADMIN },
+          {
+            status: STATUS_PENGAJUAN.WAITING_KABID,
+            pengaju: { role: { in: ['Staf_Administrasi', 'Humas', 'Tim_Monev', 'Relawan', 'Relawan_Sementara'] } }
+          }
+        ];
       } else if (userRole.startsWith('Kabag') || userRole.startsWith('Kabid')) {
-        // Any other Kabag/Kabid approves initial WAITING_KABID stage
-        whereClause.status = StatusPengajuan.WAITING_KABID;
+        // Department-specific Kabag/Kabid ONLY sees initial WAITING_KABID from their respective staff
+        const allowedStaffRoles = KABAG_TO_STAFF_MAP[userRole] || [];
+        whereClause.status = STATUS_PENGAJUAN.WAITING_KABID;
+        if (allowedStaffRoles.length > 0) {
+          whereClause.pengaju = { role: { in: allowedStaffRoles } };
+        } else {
+          res.status(200).json({ status: 'success', data: [] });
+          return;
+        }
       } else if (userRole === 'Super_Admin') {
-        whereClause.status = { notIn: [StatusPengajuan.DRAFT, StatusPengajuan.APPROVED, StatusPengajuan.CAIR, StatusPengajuan.DITOLAK] };
+        whereClause.status = { notIn: [STATUS_PENGAJUAN.DRAFT, STATUS_PENGAJUAN.APPROVED, STATUS_PENGAJUAN.CAIR, STATUS_PENGAJUAN.DITOLAK] };
       } else {
         // Regular staff see nothing in "pending" approval queue
         res.status(200).json({ status: 'success', data: [] });
@@ -160,7 +211,7 @@ export const getPengajuans = async (req: Request, res: Response) => {
       }
     } else if (tab === 'queue') {
       // Payout queue for Keuangan
-      whereClause.status = StatusPengajuan.APPROVED;
+      whereClause.status = STATUS_PENGAJUAN.APPROVED;
     }
 
     const list = await prisma.pengajuanPencairan.findMany({
@@ -201,6 +252,7 @@ export const approvePengajuan = async (req: Request, res: Response) => {
 
     const pengajuan = await prisma.pengajuanPencairan.findUnique({
       where: { id },
+      include: { pengaju: true },
     });
 
     if (!pengajuan) {
@@ -208,46 +260,66 @@ export const approvePengajuan = async (req: Request, res: Response) => {
       return;
     }
 
-    const nominal = Number(pengajuan.nominal);
-    let nextStatus: StatusPengajuan = pengajuan.status;
+    const actor = await prisma.user.findUnique({
+      where: { id: actorId },
+    });
 
-    if (pengajuan.status === StatusPengajuan.WAITING_KABID) {
+    if (!actor) {
+      res.status(404).json({ error: 'User penilai tidak ditemukan.' });
+      return;
+    }
+
+    const currentStatus = String(pengajuan.status);
+
+    // Role-based validation for WAITING_KABID stage
+    if (currentStatus === STATUS_PENGAJUAN.WAITING_KABID && actor.role !== 'Super_Admin') {
+      const allowedStaffRoles = KABAG_TO_STAFF_MAP[actor.role] || [];
+      if (!allowedStaffRoles.includes(pengajuan.pengaju.role)) {
+        res.status(403).json({ error: 'Anda tidak memiliki hak akses untuk menyetujui pengajuan awal dari bidang ini.' });
+        return;
+      }
+    }
+
+    const nominal = Number(pengajuan.nominal);
+    let nextStatus: any = pengajuan.status;
+
+    if (currentStatus === STATUS_PENGAJUAN.WAITING_KABID) {
       // Step 1: Kabag Bidang approves -> goes to Kabag Administrasi (SDM & Umum)
-      nextStatus = StatusPengajuan.WAITING_KABAG_ADMIN;
-    } else if (pengajuan.status === StatusPengajuan.WAITING_KABAG_ADMIN) {
+      nextStatus = STATUS_PENGAJUAN.WAITING_KABAG_ADMIN;
+    } else if (currentStatus === STATUS_PENGAJUAN.WAITING_KABAG_ADMIN) {
       // Step 2: Kabag Administrasi approves -> check nominal threshold
       if (nominal <= 1000000) {
-        nextStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        nextStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        nextStatus = StatusPengajuan.WAITING_KAPEL;
+        nextStatus = STATUS_PENGAJUAN.WAITING_KAPEL;
       }
-    } else if (pengajuan.status === StatusPengajuan.WAITING_KAPEL) {
+    } else if (currentStatus === STATUS_PENGAJUAN.WAITING_KAPEL) {
       // Step 3: Kepala Pelaksana approves -> check nominal threshold
       if (nominal <= 15000000) {
-        nextStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        nextStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        nextStatus = StatusPengajuan.WAITING_WAKA4;
+        nextStatus = STATUS_PENGAJUAN.WAITING_WAKA4;
       }
-    } else if (pengajuan.status === StatusPengajuan.WAITING_WAKA4) {
+    } else if (currentStatus === STATUS_PENGAJUAN.WAITING_WAKA4) {
       // Step 4: Wakil Ketua IV approves -> check nominal threshold
       if (nominal <= 25000000) {
-        nextStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        nextStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        nextStatus = StatusPengajuan.WAITING_WAKA3;
+        nextStatus = STATUS_PENGAJUAN.WAITING_WAKA3;
       }
-    } else if (pengajuan.status === StatusPengajuan.WAITING_WAKA3) {
+    } else if (currentStatus === STATUS_PENGAJUAN.WAITING_WAKA3) {
       // Step 5: Wakil Ketua III approves -> check nominal threshold
       if (nominal <= 100000000) {
-        nextStatus = StatusPengajuan.WAITING_FINANCE_APP;
+        nextStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
       } else {
-        nextStatus = StatusPengajuan.WAITING_KETUA;
+        nextStatus = STATUS_PENGAJUAN.WAITING_KETUA;
       }
-    } else if (pengajuan.status === StatusPengajuan.WAITING_KETUA) {
+    } else if (currentStatus === STATUS_PENGAJUAN.WAITING_KETUA) {
       // Step 6: Ketua approves -> goes to Kabag Keuangan
-      nextStatus = StatusPengajuan.WAITING_FINANCE_APP;
-    } else if (pengajuan.status === StatusPengajuan.WAITING_FINANCE_APP) {
+      nextStatus = STATUS_PENGAJUAN.WAITING_FINANCE_APP;
+    } else if (currentStatus === STATUS_PENGAJUAN.WAITING_FINANCE_APP) {
       // Step 7: Kabag Keuangan approves -> APPROVED (Siap Cair)
-      nextStatus = StatusPengajuan.APPROVED;
+      nextStatus = STATUS_PENGAJUAN.APPROVED;
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -285,11 +357,41 @@ export const rejectPengajuan = async (req: Request, res: Response) => {
       return;
     }
 
+    const pengajuan = await prisma.pengajuanPencairan.findUnique({
+      where: { id },
+      include: { pengaju: true },
+    });
+
+    if (!pengajuan) {
+      res.status(404).json({ error: 'Pengajuan tidak ditemukan.' });
+      return;
+    }
+
+    const actor = await prisma.user.findUnique({
+      where: { id: actorId },
+    });
+
+    if (!actor) {
+      res.status(404).json({ error: 'User penolak tidak ditemukan.' });
+      return;
+    }
+
+    const currentStatus = String(pengajuan.status);
+
+    // Role-based validation for WAITING_KABID stage
+    if (currentStatus === STATUS_PENGAJUAN.WAITING_KABID && actor.role !== 'Super_Admin') {
+      const allowedStaffRoles = KABAG_TO_STAFF_MAP[actor.role] || [];
+      if (!allowedStaffRoles.includes(pengajuan.pengaju.role)) {
+        res.status(403).json({ error: 'Anda tidak memiliki hak akses untuk menolak pengajuan dari bidang ini.' });
+        return;
+      }
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const p = await tx.pengajuanPencairan.update({
         where: { id },
         data: {
-          status: StatusPengajuan.DITOLAK,
+          status: STATUS_PENGAJUAN.DITOLAK,
           alasan_penolakan,
         },
       });
