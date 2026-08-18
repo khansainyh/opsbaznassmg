@@ -93,6 +93,15 @@ export const checkIsDirectPenyaluran = (item: any): boolean => {
   );
 };
 
+export const MEMO_SOURCE_OPTIONS = [
+  { value: 'Ketua BAZNAS', label: 'Ketua BAZNAS' },
+  { value: 'Wakil Ketua I', label: 'Wakil Ketua I' },
+  { value: 'Wakil Ketua II', label: 'Wakil Ketua II' },
+  { value: 'Wakil Ketua III', label: 'Wakil Ketua III' },
+  { value: 'Wakil Ketua IV', label: 'Wakil Ketua IV' },
+  { value: 'Kepala Pelaksana', label: 'Kepala Pelaksana' },
+];
+
 // Custom Styled Select Component (Replaces native browser <select>)
 function CustomSelect({
   options,
@@ -110,7 +119,11 @@ function CustomSelect({
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const selectedOpt = options.find(o => o.value === value);
+  const selectedOpt = options.find(o => 
+    o.value === value || 
+    o.value === value?.replace(/^(memo|dispo|disposisi)\s*[:\-]?\s*/i, '').trim() ||
+    o.label === value
+  );
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -652,7 +665,7 @@ export default function PenyaluranZis() {
   const [formTelepon, setFormTelepon] = useState('');
   const [formYangMengajukan, setFormYangMengajukan] = useState('');
   const [formHasMemo, setFormHasMemo] = useState(false);
-  const [formMemoSource, setFormMemoSource] = useState('Memo Ketua BAZNAS');
+  const [formMemoSource, setFormMemoSource] = useState('Ketua BAZNAS');
 
   const [formJenisPermohonan, setFormJenisPermohonan] = useState('');
   const [formAsnaf, setFormAsnaf] = useState('Miskin');
@@ -1521,7 +1534,7 @@ export default function PenyaluranZis() {
     setFormTelepon('');
     setFormYangMengajukan('');
     setFormHasMemo(false);
-    setFormMemoSource('Memo Ketua BAZNAS');
+    setFormMemoSource('Ketua BAZNAS');
     setFormJenisPermohonan('');
     setFormAsnaf('Miskin');
     setFormRkatId('');
@@ -1550,8 +1563,10 @@ export default function PenyaluranZis() {
     setFormAlamat(item.alamat || '');
     setFormTelepon(item.no_telpon || '');
     setFormYangMengajukan(item.yang_mengajukan === 'Direct Penyaluran' || item.yang_mengajukan === '—' || item.yang_mengajukan === '-' ? '' : (item.yang_mengajukan || ''));
-    setFormHasMemo(Boolean(item.has_memo || item.hasMemo) && item.memo_source !== 'DIRECT_PENYALURAN');
-    setFormMemoSource(item.memo_source === 'DIRECT_PENYALURAN' ? '' : (item.memo_source || ''));
+    setFormHasMemo(Boolean(item.has_memo || item.hasMemo) && item.memo_source !== 'DIRECT_PENYALURAN' && item.memo_source !== 'MIGRASI_PENYALURAN');
+    const rawMemo = item.memo_source === 'DIRECT_PENYALURAN' || item.memo_source === 'MIGRASI_PENYALURAN' ? '' : (item.memo_source || '');
+    const cleanMemo = rawMemo.replace(/^(memo|dispo|disposisi)\s*[:\-]?\s*/i, '').trim();
+    setFormMemoSource(cleanMemo || 'Ketua BAZNAS');
     const progCode = item.jenis_permohonan || item.program?.code || '';
     const asnafVal = item.asnaf || 'Miskin';
     setFormJenisPermohonan(progCode);
@@ -3313,7 +3328,7 @@ export default function PenyaluranZis() {
                           onChange={(e) => {
                             setFormHasMemo(e.target.checked);
                             if (!e.target.checked) setFormMemoSource('');
-                            else if (!formMemoSource) setFormMemoSource('Memo Ketua BAZNAS');
+                            else if (!formMemoSource) setFormMemoSource('Ketua BAZNAS');
                           }}
                           className="accent-primary rounded size-4"
                         />
@@ -3328,16 +3343,7 @@ export default function PenyaluranZis() {
                       <div className="space-y-1.5 md:col-span-2">
                         <label className="font-bold text-slate-700">Sumber Memo / Disposisi *</label>
                         <CustomSelect
-                          options={[
-                            { value: 'Memo Ketua BAZNAS', label: 'Memo Ketua BAZNAS' },
-                            { value: 'Memo Wakil Ketua I', label: 'Memo Wakil Ketua I' },
-                            { value: 'Memo Wakil Ketua II', label: 'Memo Wakil Ketua II' },
-                            { value: 'Memo Wakil Ketua III', label: 'Memo Wakil Ketua III' },
-                            { value: 'Memo Walikota Semarang', label: 'Memo Walikota Semarang' },
-                            { value: 'Disposisi Pimpinan', label: 'Disposisi Pimpinan' },
-                            { value: 'Rekomendasi Camat / Lurah', label: 'Rekomendasi Camat / Lurah' },
-                            { value: 'DIRECT_PENYALURAN', label: 'Direct Penyaluran' }
-                          ]}
+                          options={MEMO_SOURCE_OPTIONS}
                           value={formMemoSource}
                           onChange={val => setFormMemoSource(val)}
                           placeholder="-- Pilih Sumber Memo / Disposisi --"
@@ -3712,7 +3718,7 @@ export default function PenyaluranZis() {
                           onChange={(e) => {
                             setFormHasMemo(e.target.checked);
                             if (!e.target.checked) setFormMemoSource('');
-                            else if (!formMemoSource) setFormMemoSource('Memo Ketua BAZNAS');
+                            else if (!formMemoSource) setFormMemoSource('Ketua BAZNAS');
                           }}
                           className="accent-primary rounded size-4"
                         />
@@ -3726,16 +3732,7 @@ export default function PenyaluranZis() {
                       <div className="space-y-1.5 md:col-span-2">
                         <label className="font-bold text-slate-700">Sumber Memo / Disposisi *</label>
                         <CustomSelect
-                          options={[
-                            { value: 'Memo Ketua BAZNAS', label: 'Memo Ketua BAZNAS' },
-                            { value: 'Memo Wakil Ketua I', label: 'Memo Wakil Ketua I' },
-                            { value: 'Memo Wakil Ketua II', label: 'Memo Wakil Ketua II' },
-                            { value: 'Memo Wakil Ketua III', label: 'Memo Wakil Ketua III' },
-                            { value: 'Memo Walikota Semarang', label: 'Memo Walikota Semarang' },
-                            { value: 'Disposisi Pimpinan', label: 'Disposisi Pimpinan' },
-                            { value: 'Rekomendasi Camat / Lurah', label: 'Rekomendasi Camat / Lurah' },
-                            { value: 'DIRECT_PENYALURAN', label: 'Direct Penyaluran' }
-                          ]}
+                          options={MEMO_SOURCE_OPTIONS}
                           value={formMemoSource}
                           onChange={val => setFormMemoSource(val)}
                           placeholder="-- Pilih Sumber Memo / Disposisi --"
