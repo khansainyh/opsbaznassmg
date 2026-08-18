@@ -360,6 +360,7 @@ model PenerimaanZis {
   muzakki_id         String?
   upz_id             String?
   rkat_id            String?
+  coa_code           String?          @db.VarChar(50)
   bank_account_id    String
   nominal            Decimal          @db.Decimal(15, 2)
   metode_pembayaran  String
@@ -381,6 +382,7 @@ model PenerimaanZis {
   @@index([muzakki_id], map: "PenerimaanZis_muzakki_id_fkey")
   @@index([rkat_id], map: "PenerimaanZis_rkat_id_fkey")
   @@index([upz_id], map: "PenerimaanZis_upz_id_fkey")
+  @@index([coa_code], map: "PenerimaanZis_coa_code_idx")
 }
 
 model RkatOperasional {

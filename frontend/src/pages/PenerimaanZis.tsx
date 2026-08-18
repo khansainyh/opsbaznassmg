@@ -885,14 +885,20 @@ export default function PenerimaanZis() {
   }, [rkatList]);
 
   const rkatCoaOptions: CustomSelectOption[] = useMemo(() => {
-    const rkat = rkatList.find(r => r.id === selectedRkatId);
+    const rkat = rkatList.find(r => r.id === selectedRkatId || r.no === String(selectedRkatId));
     const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
-    return codes.map((code: string) => {
+    
+    const allCodes = [...codes];
+    if (selectedCoaCode && !allCodes.includes(selectedCoaCode)) {
+      allCodes.push(selectedCoaCode);
+    }
+
+    return allCodes.map((code: string) => {
       const coa = coaList.find(c => c.coa_code === code);
       const label = coa ? `${code} - ${coa.nama_akun}` : `${code} - Penerimaan ${rkat?.nama_program || ''}`;
       return { value: code, label };
     });
-  }, [rkatList, selectedRkatId, coaList]);
+  }, [rkatList, selectedRkatId, coaList, selectedCoaCode]);
 
   const coaListOptions: CustomSelectOption[] = useMemo(() => {
     return coaList.map(c => ({
@@ -1150,8 +1156,10 @@ export default function PenerimaanZis() {
     const rkat = rkatList.find(r => r.id === rkatId || r.no === String(rkatId));
     const codes = rkat?.coa_codes ? rkat.coa_codes.split(',').map((c: string) => c.trim()).filter(Boolean) : [];
     if (codes.length > 0) {
-      setSelectedCoaCode(codes[0]);
-    } else {
+      if (!selectedCoaCode || !codes.includes(selectedCoaCode)) {
+        setSelectedCoaCode(codes[0]);
+      }
+    } else if (!selectedCoaCode) {
       setSelectedCoaCode('');
     }
 
@@ -1725,7 +1733,22 @@ export default function PenerimaanZis() {
     setSelectedKodeProgram(initialKode);
     setSelectedUpzId(item.upz_id || '');
 
-    setSelectedCoaCode(item.coa_code || '');
+    // Resolve COA code with fallback hierarchy
+    let initialCoa = item.coa_code || '';
+    if (!initialCoa && rkatId) {
+      const rkatObj = rkatList.find(r => r.id === rkatId || r.no === String(rkatId));
+      if (rkatObj?.coa_codes) {
+        initialCoa = rkatObj.coa_codes.split(',')[0].trim();
+      }
+    }
+    if (!initialCoa && initialKode && PROGRAM_KODE_TO_RKAT_MAP[initialKode]) {
+      const rNo = PROGRAM_KODE_TO_RKAT_MAP[initialKode].rkat_no;
+      const rkatObj = rkatList.find(r => r.no === rNo || r.id === rNo);
+      if (rkatObj?.coa_codes) {
+        initialCoa = rkatObj.coa_codes.split(',')[0].trim();
+      }
+    }
+    setSelectedCoaCode(initialCoa);
     setSelectedAccountId(item.bank_account_id);
     setNominal(String(item.nominal || ''));
     setMetodePembayaran(item.metode_pembayaran || 'TRANSFER');

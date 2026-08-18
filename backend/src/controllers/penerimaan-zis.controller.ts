@@ -158,18 +158,23 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         select: {
           transaksi_id: true,
           coa_code: true
+        },
+        orderBy: {
+          entry_id: 'asc'
         }
       });
       creditEntries.forEach(entry => {
-        if (entry.transaksi_id && !coaMap.has(entry.transaksi_id)) {
+        if (!entry.transaksi_id) return;
+        const isAmilOrDebt = entry.coa_code.startsWith('43') || entry.coa_code.startsWith('21') || entry.coa_code.startsWith('51');
+        if (!isAmilOrDebt) {
+          coaMap.set(entry.transaksi_id, entry.coa_code);
+        } else if (!coaMap.has(entry.transaksi_id)) {
           coaMap.set(entry.transaksi_id, entry.coa_code);
         }
       });
     }
 
     const listWithCoa = list.map((item: any) => {
-      const coa_code = item.transaksi_id ? (coaMap.get(item.transaksi_id) || '') : '';
-
       let rkatObj = item.rkat;
       if (!rkatObj && item.rkat_id) {
         rkatObj = rkatMap.get(item.rkat_id) || null;
@@ -180,6 +185,12 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
           rkatObj = rkatMap.get(rNo) || null;
         }
       }
+
+      // Hierarchy: 1. DB column coa_code -> 2. Journal entry coaMap -> 3. RKAT coa_codes -> 4. Default by category
+      const resolvedCoa = item.coa_code ||
+                          (item.transaksi_id ? (coaMap.get(item.transaksi_id) || '') : '') ||
+                          (rkatObj?.coa_codes ? rkatObj.coa_codes.split(',')[0].trim() : '') ||
+                          (item.jenis_program && item.jenis_program.toLowerCase().includes('infak') ? '42010101' : '41010101');
 
       const simbaNoStr = item.no_transaksi_simba ? String(item.no_transaksi_simba).trim() : '';
       const hasRealSimbaNo = simbaNoStr.length > 0 && 
@@ -197,7 +208,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
         rkat: rkatObj,
         no_transaksi_simba: realSimbaNo,
         status_simba: statusSimba,
-        coa_code
+        coa_code: resolvedCoa
       };
     });
 
@@ -326,6 +337,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
         if (!rkat && rkat_id) throw new Error('Program RKAT Pengumpulan tidak ditemukan');
       }
 
+      let upzObj: any = null;
       let bankAccount = await tx.bankAccount.findUnique({ where: { account_id: bank_account_id } });
       if (!bankAccount) throw new Error('Rekening penerima tidak ditemukan');
 
@@ -423,7 +435,7 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
         // Determine the rule category based on muzakki UPZ and type
         let mappedKategoriRule = '';
         let isPembantuan = false;
-        let upzObj = null;
+        upzObj = null;
 
         if (muzakki && muzakki.upz) {
           upzObj = await tx.upz.findFirst({
@@ -571,12 +583,19 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
         finalMetodePembayaran = isNonKas ? 'NON_KAS' : isKas ? 'TUNAI' : 'TRANSFER';
       }
 
+      let resolvedUpzId = req.body.upz_id || null;
+      if (!resolvedUpzId && upzObj?.id) {
+        resolvedUpzId = upzObj.id;
+      }
+
       // 3. Create PenerimaanZis record in PENDING state (but with transaksi_id set)
       const penerimaan = await tx.penerimaanZis.create({
         data: {
           no_kuitansi: generatedKuitansi,
           muzakki_id,
+          upz_id: resolvedUpzId,
           rkat_id: effectiveRkatId || null,
+          coa_code: creditCoaCode,
           kode_program: targetKodeProgram,
           jenis_program: targetJenisProgram,
           bank_account_id,
@@ -713,6 +732,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      let upzObj: any = null;
       let bankAccount = await tx.bankAccount.findUnique({ where: { account_id: bank_account_id } });
       if (!bankAccount) throw new Error('Rekening penerima tidak ditemukan');
 
@@ -730,6 +750,11 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
           ? `Penerimaan ZIS program ${rkat.nama_program} via ${bankAccount.nama_akun} dari ${muzakki.nama}`
           : `Penerimaan ZIS di luar RKAT via ${bankAccount.nama_akun} dari ${muzakki.nama}`
       );
+
+      let creditCoaCode = coa_code || existing.coa_code || '41010101';
+      if (rkat) {
+        creditCoaCode = coa_code || (rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : (existing.coa_code || '41010101'));
+      }
 
       // If already synced, we need to adjust the balance and recreate journal entries
       if (existing.transaksi_id) {
@@ -749,7 +774,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
           }
         });
 
-        // 3. Update Realisasi
+        // 3. Update Realisasi record
         await tx.realisasi.update({
           where: { transaksi_id: existing.transaksi_id },
           data: {
@@ -775,11 +800,6 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
           }
         });
 
-        // Determine credit COA code
-        let creditCoaCode = coa_code || '41010101';
-        if (rkat) {
-          creditCoaCode = coa_code || (rkat.coa_codes ? rkat.coa_codes.split(',')[0].trim() : '41010101');
-        }
         const coaExists = await tx.chartOfAccounts.findUnique({ where: { coa_code: creditCoaCode } });
         if (!coaExists) {
           await tx.chartOfAccounts.create({
@@ -847,6 +867,7 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
           muzakki_id,
           upz_id: finalUpzId,
           rkat_id: targetRkatId,
+          coa_code: creditCoaCode,
           kode_program: targetKodeProgram || existing.kode_program,
           jenis_program: targetJenisProgram || existing.jenis_program,
           bank_account_id,
@@ -1458,6 +1479,11 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
           tanggalTrx = new Date();
         }
 
+        const bankAcc = bankAccounts.find(b => b.account_id === bankAccountId);
+        const debitCoa = bankAcc ? bankAcc.coa_code : '11010101';
+        const foundRkat = rkatId ? rkats.find(r => r.id === rkatId) : null;
+        const creditCoa = txData.coa_code || (foundRkat?.coa_codes ? foundRkat.coa_codes.split(',')[0].trim() : (kodeProgram || (jenisProgram?.toLowerCase().includes('infak') ? '42010101' : '41010101')));
+
         await prisma.$transaction(async (tx) => {
           const createdRecord = await tx.penerimaanZis.create({
             data: {
@@ -1467,6 +1493,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
               muzakki_id: muzakkiId,
               upz_id: upzId,
               rkat_id: rkatId,
+              coa_code: creditCoa,
               kode_program: kodeProgram,
               jenis_program: jenisProgram,
               bank_account_id: bankAccountId,
@@ -1485,7 +1512,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
 
             const realisasi = await tx.realisasi.create({
               data: {
-                rkat_id: rkatId,
+                rkat_id: rkatId || null,
                 tanggal: tanggalTrx,
                 keterangan: txData.keterangan || 'Penerimaan ZIS'
               }
@@ -1495,10 +1522,6 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
               where: { id: createdRecord.id },
               data: { transaksi_id: realisasi.transaksi_id }
             });
-
-            const bankAcc = bankAccounts.find(b => b.account_id === bankAccountId);
-            const debitCoa = bankAcc ? bankAcc.coa_code : '11010101';
-            const creditCoa = txData.coa_code || '41010101';
 
             await tx.journalEntry.createMany({
               data: [
