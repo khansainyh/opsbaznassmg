@@ -920,7 +920,8 @@ export default function PenerimaanZis() {
   const metodePembayaranOptions: CustomSelectOption[] = useMemo(() => [
     { value: 'TRANSFER', label: 'Transfer Bank' },
     { value: 'TUNAI', label: 'Kas Tunai' },
-    { value: 'QRIS', label: 'QRIS' }
+    { value: 'QRIS', label: 'QRIS' },
+    { value: 'NON_KAS', label: 'Non Kas' }
   ], []);
 
   useEffect(() => {
@@ -2146,10 +2147,17 @@ export default function PenerimaanZis() {
       const sameDay = itemDate.getFullYear() === targetDate.getFullYear() &&
                       itemDate.getMonth() === targetDate.getMonth() &&
                       itemDate.getDate() === targetDate.getDate();
-      const isTunai = item.metode_pembayaran === 'TUNAI' ||
+      const isNonKas = item.metode_pembayaran === 'NON_KAS' ||
+                       item.bankAccount?.tipe_kas === 'NON_KAS' ||
+                       item.bankAccount?.account_id === 'non_kas' ||
+                       (item.bankAccount?.nama_akun || '').toLowerCase().includes('non kas') ||
+                       (item.bankAccount?.nama_akun || '').toLowerCase().includes('non-kas');
+      const isTunai = !isNonKas && (
+                      item.metode_pembayaran === 'TUNAI' ||
                       item.bankAccount?.tipe_kas === 'TUNAI' ||
                       item.bankAccount?.tipe_kas === 'KAS' ||
-                      (item.bankAccount?.nama_akun || '').toLowerCase().includes('kas');
+                      (item.bankAccount?.nama_akun || '').toLowerCase().includes('kas')
+      );
       const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
       return sameDay && isTunai && !isFailed;
     });
@@ -3266,18 +3274,27 @@ export default function PenerimaanZis() {
                  <div className="space-y-1 text-left">
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">via Kas &amp; Bank *</label>
                    <CustomSelect 
-                     value={selectedAccountId}
-                     options={bankAccountOptions}
-                     placeholder="Pilih Rekening Tujuan..."
-                     onChange={(accId) => {
-                       setSelectedAccountId(accId);
-                       const targetAcc = accountsList.find(a => a.account_id === accId);
-                       if (targetAcc) {
-                         const isKasAcc = targetAcc.tipe_kas === 'TUNAI' || targetAcc.tipe_kas === 'KAS' || (targetAcc.nama_akun || '').toLowerCase().includes('kas');
-                         setMetodePembayaran(isKasAcc ? 'TUNAI' : 'TRANSFER');
-                       }
-                     }}
-                   />
+                      value={selectedAccountId}
+                      options={bankAccountOptions}
+                      placeholder="Pilih Rekening Tujuan..."
+                      onChange={(accId) => {
+                        setSelectedAccountId(accId);
+                        const targetAcc = accountsList.find(a => a.account_id === accId);
+                        if (targetAcc) {
+                          const isNonKasAcc = targetAcc.account_id === 'non_kas' || targetAcc.tipe_kas === 'NON_KAS' || (targetAcc.nama_akun || '').toLowerCase().includes('non kas') || (targetAcc.nama_akun || '').toLowerCase().includes('non-kas');
+                          const isKasAcc = !isNonKasAcc && (targetAcc.tipe_kas === 'TUNAI' || targetAcc.tipe_kas === 'KAS' || (targetAcc.nama_akun || '').toLowerCase().includes('kas'));
+                          if (isNonKasAcc) {
+                            setMetodePembayaran('NON_KAS');
+                          } else if (isKasAcc) {
+                            setMetodePembayaran('TUNAI');
+                          } else {
+                            setMetodePembayaran('TRANSFER');
+                          }
+                        } else if (accId === 'non_kas') {
+                          setMetodePembayaran('NON_KAS');
+                        }
+                      }}
+                    />
                  </div>
 
                  {/* Nominal */}
@@ -3566,7 +3583,13 @@ export default function PenerimaanZis() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Metode</p>
-                    <p className="text-sm font-bold text-slate-800">{selectedData.metode_pembayaran}</p>
+                    <p className="text-sm font-bold text-slate-800">
+                      {selectedData.metode_pembayaran === 'NON_KAS' ? 'Non Kas' :
+                       selectedData.metode_pembayaran === 'TRANSFER' ? 'Transfer Bank' :
+                       selectedData.metode_pembayaran === 'TUNAI' ? 'Kas Tunai' :
+                       selectedData.metode_pembayaran === 'QRIS' ? 'QRIS' :
+                       (selectedData.metode_pembayaran || '-')}
+                    </p>
                   </div>
                 </div>
 

@@ -566,8 +566,9 @@ export const createPenerimaanZis = async (req: Request, res: Response) => {
 
       let finalMetodePembayaran = metode_pembayaran;
       if (!finalMetodePembayaran) {
-        const isKas = bankAccount.tipe_kas === 'TUNAI' || bankAccount.tipe_kas === 'KAS' || bankAccount.nama_akun.toLowerCase().includes('kas');
-        finalMetodePembayaran = isKas ? 'TUNAI' : 'TRANSFER';
+        const isNonKas = bankAccount.account_id === 'non_kas' || bankAccount.tipe_kas === 'NON_KAS' || bankAccount.nama_akun.toLowerCase().includes('non kas') || bankAccount.nama_akun.toLowerCase().includes('non-kas');
+        const isKas = !isNonKas && (bankAccount.tipe_kas === 'TUNAI' || bankAccount.tipe_kas === 'KAS' || bankAccount.nama_akun.toLowerCase().includes('kas'));
+        finalMetodePembayaran = isNonKas ? 'NON_KAS' : isKas ? 'TUNAI' : 'TRANSFER';
       }
 
       // 3. Create PenerimaanZis record in PENDING state (but with transaksi_id set)
@@ -805,8 +806,9 @@ export const updatePenerimaanZis = async (req: Request, res: Response) => {
 
       let finalUpdateMetode = metode_pembayaran;
       if (!finalUpdateMetode) {
-        const isKas = bankAccount.tipe_kas === 'TUNAI' || bankAccount.tipe_kas === 'KAS' || bankAccount.nama_akun.toLowerCase().includes('kas');
-        finalUpdateMetode = isKas ? 'TUNAI' : 'TRANSFER';
+        const isNonKas = bankAccount.account_id === 'non_kas' || bankAccount.tipe_kas === 'NON_KAS' || bankAccount.nama_akun.toLowerCase().includes('non kas') || bankAccount.nama_akun.toLowerCase().includes('non-kas');
+        const isKas = !isNonKas && (bankAccount.tipe_kas === 'TUNAI' || bankAccount.tipe_kas === 'KAS' || bankAccount.nama_akun.toLowerCase().includes('kas'));
+        finalUpdateMetode = isNonKas ? 'NON_KAS' : isKas ? 'TUNAI' : 'TRANSFER';
       }
 
       let targetKodeProgram = req.body.kode_program !== undefined ? req.body.kode_program : existing.kode_program;
@@ -1268,7 +1270,9 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         let determinedMetodePembayaran = txData.metode_pembayaran;
         if (rawMetodeVal) {
           const strMetode = String(rawMetodeVal).trim().toUpperCase();
-          if (strMetode.includes('TUNAI') || strMetode.includes('KAS')) {
+          if (strMetode.includes('NON') || strMetode.includes('NON_KAS') || strMetode.includes('NON KAS') || strMetode.includes('NATURA')) {
+            determinedMetodePembayaran = 'NON_KAS';
+          } else if (strMetode.includes('TUNAI') || strMetode.includes('KAS')) {
             determinedMetodePembayaran = 'TUNAI';
           } else if (strMetode.includes('QRIS')) {
             determinedMetodePembayaran = 'QRIS';
@@ -1280,8 +1284,11 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         if (!determinedMetodePembayaran) {
           const targetBankAcc = bankAccounts.find(b => b.account_id === bankAccountId);
           if (targetBankAcc) {
-            const isKas = targetBankAcc.tipe_kas === 'TUNAI' || targetBankAcc.tipe_kas === 'KAS' || targetBankAcc.nama_akun.toLowerCase().includes('kas');
-            determinedMetodePembayaran = isKas ? 'TUNAI' : 'TRANSFER';
+            const isNonKas = targetBankAcc.account_id === 'non_kas' || targetBankAcc.tipe_kas === 'NON_KAS' || targetBankAcc.nama_akun.toLowerCase().includes('non kas') || targetBankAcc.nama_akun.toLowerCase().includes('non-kas');
+            const isKas = !isNonKas && (targetBankAcc.tipe_kas === 'TUNAI' || targetBankAcc.tipe_kas === 'KAS' || targetBankAcc.nama_akun.toLowerCase().includes('kas'));
+            determinedMetodePembayaran = isNonKas ? 'NON_KAS' : isKas ? 'TUNAI' : 'TRANSFER';
+          } else if (sourceQuery.includes('non')) {
+            determinedMetodePembayaran = 'NON_KAS';
           } else if (sourceQuery.includes('kas') || sourceQuery.includes('tunai')) {
             determinedMetodePembayaran = 'TUNAI';
           } else {
