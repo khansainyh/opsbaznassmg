@@ -116,9 +116,13 @@ export default function PersetujuanOperasional() {
       case 'DRAFT':
         return <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-xs font-bold">Draft</span>;
       case 'WAITING_KABID':
-        return <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kabid</span>;
+        return <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kepala Bidang</span>;
+      case 'WAITING_KABAG_ADMIN':
+        return <span className="bg-sky-50 text-sky-700 border border-sky-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kabag Administrasi</span>;
       case 'WAITING_KAPEL':
         return <span className="bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Kapel</span>;
+      case 'WAITING_WAKA4':
+        return <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Waka IV</span>;
       case 'WAITING_WAKA3':
         return <span className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1"><Clock className="size-3" /> Menunggu Waka III</span>;
       case 'WAITING_KETUA':
