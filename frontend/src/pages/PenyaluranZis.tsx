@@ -110,7 +110,7 @@ function CustomSelect({
   placeholder = "Pilih...",
   className
 }: {
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; sublabel?: string }[];
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
@@ -162,7 +162,17 @@ function CustomSelect({
                 value === o.value ? "bg-primary text-white" : "hover:bg-slate-50 text-slate-700 font-medium"
               )}
             >
-              <span className="truncate">{o.label}</span>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate">{o.label}</span>
+                {o.sublabel && (
+                  <span className={cn(
+                    "text-[10px] truncate font-normal mt-0.5",
+                    value === o.value ? "text-white/80" : "text-slate-400"
+                  )}>
+                    {o.sublabel}
+                  </span>
+                )}
+              </div>
               {value === o.value && <CheckCircle2 className="size-3.5 text-white shrink-0 ml-1" />}
             </button>
           ))}
@@ -299,6 +309,16 @@ function SearchableSelect({
   );
 }
 
+// Helper to determine if a program definition is Produktif (Pendayagunaan) vs Konsumtif (Pendistribusian)
+// Menentukan sifat murni dari settingan user di Program & Kegiatan (bukan berdasarkan prefix kode)
+function isProgramDefProduktif(prog: any): boolean {
+  if (!prog) return false;
+  const t = String(prog.tipe || '').toLowerCase().trim();
+  if (t === 'produktif') return true;
+  if (t === 'konsumtif') return false;
+  return false;
+}
+
 // Pilar Program Search Select Component (Grouped and ordered by Pilar like InputProposalMemo)
 function PilarProgramSearchSelect({
   pilars,
@@ -340,15 +360,17 @@ function PilarProgramSearchSelect({
     for (const pilar of activePilars) {
       const prog = (pilar.programs || []).find((p: any) => p.code === value || p.name === value);
       if (prog) {
+        const isProd = isProgramDefProduktif(prog);
         return {
           code: prog.code,
           name: prog.name,
           pilarName: pilar.name,
-          pilarCode: pilar.code
+          pilarCode: pilar.code,
+          tipe: isProd ? 'Produktif' : 'Konsumtif'
         };
       }
     }
-    return { code: value, name: value, pilarName: 'Umum / Lainnya', pilarCode: '' };
+    return { code: value, name: value, pilarName: 'Umum / Lainnya', pilarCode: '', tipe: 'Konsumtif' };
   }, [activePilars, value]);
 
   // Filtered and grouped by Pilar
@@ -397,7 +419,15 @@ function PilarProgramSearchSelect({
                 {selectedInfo.code}
               </span>
               <span className="font-bold text-slate-900 truncate">{selectedInfo.name}</span>
-              <span className={cn("hidden sm:inline-block px-1.5 py-0.5 text-[8.5px] font-bold rounded shrink-0", getPilarStyle(selectedInfo.pilarName).tag)}>
+              <span className={cn(
+                "hidden sm:inline-block px-1.5 py-0.5 text-[8.5px] font-bold rounded shrink-0 border",
+                selectedInfo.tipe === 'Produktif' 
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                  : "bg-blue-50 text-blue-700 border-blue-200"
+              )}>
+                {selectedInfo.tipe}
+              </span>
+              <span className={cn("hidden md:inline-block px-1.5 py-0.5 text-[8.5px] font-bold rounded shrink-0", getPilarStyle(selectedInfo.pilarName).tag)}>
                 {selectedInfo.pilarName}
               </span>
             </span>
@@ -455,6 +485,7 @@ function PilarProgramSearchSelect({
                     <div className="space-y-0.5 pt-0.5">
                       {(pilar.programs || []).map((prog: any) => {
                         const isSelected = value === prog.code || value === prog.name;
+                        const isProgProd = isProgramDefProduktif(prog);
                         return (
                           <button
                             key={prog.code}
@@ -480,7 +511,17 @@ function PilarProgramSearchSelect({
                               </span>
                               <span className="truncate">{prog.name}</span>
                             </div>
-                            {isSelected && <CheckCircle2 className="size-3.5 text-white shrink-0 ml-2" />}
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              <span className={cn(
+                                "px-1.5 py-0.5 text-[8px] font-bold rounded border",
+                                isProgProd
+                                  ? (isSelected ? "bg-white/25 text-white border-white/30" : "bg-emerald-50 text-emerald-700 border-emerald-200")
+                                  : (isSelected ? "bg-white/25 text-white border-white/30" : "bg-blue-50 text-blue-700 border-blue-200")
+                              )}>
+                                {isProgProd ? 'Produktif' : 'Konsumtif'}
+                              </span>
+                              {isSelected && <CheckCircle2 className="size-3.5 text-white shrink-0" />}
+                            </div>
                           </button>
                         );
                       })}
@@ -570,6 +611,7 @@ export default function PenyaluranZis() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('Semua');
   const [selectedKategoriFilter, setSelectedKategoriFilter] = useState<string>('Semua');
   const [selectedAsnafFilter, setSelectedAsnafFilter] = useState<string>('Semua');
+  const [selectedTipeBantuanFilter, setSelectedTipeBantuanFilter] = useState<'Semua' | 'Konsumtif' | 'Produktif'>('Semua');
   const [selectedBulanPencairan, setSelectedBulanPencairan] = useState<string>('Semua');
   const [selectedTahunPencairan, setSelectedTahunPencairan] = useState<string>('Semua');
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
@@ -614,10 +656,11 @@ export default function PenyaluranZis() {
     if (selectedAsalFilter !== 'Semua') count++;
     if (selectedKategoriFilter !== 'Semua') count++;
     if (selectedAsnafFilter !== 'Semua') count++;
+    if (selectedTipeBantuanFilter !== 'Semua') count++;
     if (selectedBulanPencairan !== 'Semua') count++;
     if (selectedTahunPencairan !== 'Semua') count++;
     return count;
-  }, [selectedAsalFilter, selectedKategoriFilter, selectedAsnafFilter, selectedBulanPencairan, selectedTahunPencairan]);
+  }, [selectedAsalFilter, selectedKategoriFilter, selectedAsnafFilter, selectedTipeBantuanFilter, selectedBulanPencairan, selectedTahunPencairan]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -668,6 +711,7 @@ export default function PenyaluranZis() {
   const [formMemoSource, setFormMemoSource] = useState('Ketua BAZNAS');
 
   const [formJenisPermohonan, setFormJenisPermohonan] = useState('');
+  const [formTipeBantuan, setFormTipeBantuan] = useState<'Konsumtif' | 'Produktif'>('Konsumtif');
   const [formAsnaf, setFormAsnaf] = useState('Miskin');
   const [formRkatId, setFormRkatId] = useState('');
   const [formCoaCode, setFormCoaCode] = useState('519999999');
@@ -789,11 +833,35 @@ export default function PenyaluranZis() {
           name: prog.name,
           pilarName: pilar.name,
           rkat_details: prog.rkat_details || [],
-          coa_code: prog.coa_code
+          coa_code: prog.coa_code,
+          tipe: prog.tipe
         });
       });
     });
     return progs;
+  }, [pilars]);
+
+  // Pre-indexed fast lookup Map for Program & Kegiatan (O(1) lookup time, instant & optimized)
+  const programMap = useMemo(() => {
+    const map = new Map<string, { prog: any; pilar: any; tipe: 'Konsumtif' | 'Produktif' }>();
+    const source = (pilars && pilars.length > 0) ? pilars : pilarData;
+
+    source.forEach((pilar: any) => {
+      (pilar.programs || []).forEach((prog: any) => {
+        const isProd = isProgramDefProduktif(prog);
+        const tipe: 'Konsumtif' | 'Produktif' = isProd ? 'Produktif' : 'Konsumtif';
+        const entry = { prog, pilar, tipe };
+
+        if (prog.code) {
+          map.set(String(prog.code).trim().toLowerCase(), entry);
+        }
+        if (prog.name) {
+          map.set(String(prog.name).trim().toLowerCase(), entry);
+        }
+      });
+    });
+
+    return map;
   }, [pilars]);
 
   // Cascading RKAT Penyaluran Options for Selected Program & Asnaf in Modal
@@ -977,12 +1045,36 @@ export default function PenyaluranZis() {
     return '51010101';
   }, [mappingRules, programOptions]);
 
-  // Auto-cascade COA Code when Program changes (Matching Proposal COA Mapping)
+  // Auto-cascade COA Code and Sifat Bantuan (Konsumtif / Produktif) when Program changes based on Program & Kegiatan
   const handleProgramSelect = (programCodeVal: string) => {
     setFormJenisPermohonan(programCodeVal);
     setFormRkatId('');
     const mapped = resolveMappingCoa(programCodeVal, formAsnaf);
     setFormCoaCode(mapped);
+
+    if (!programCodeVal) {
+      setFormTipeBantuan('Konsumtif');
+      return;
+    }
+
+    const key = programCodeVal.trim().toLowerCase();
+    if (programMap.has(key)) {
+      setFormTipeBantuan(programMap.get(key)!.tipe);
+      return;
+    }
+
+    const source = (pilars && pilars.length > 0) ? pilars : pilarData;
+    for (const pilar of source) {
+      const pMatch = (pilar.programs || []).find((p: any) => 
+        String(p.code).trim().toLowerCase() === key || 
+        String(p.name).trim().toLowerCase() === key
+      );
+      if (pMatch) {
+        setFormTipeBantuan(isProgramDefProduktif(pMatch) ? 'Produktif' : 'Konsumtif');
+        return;
+      }
+    }
+    setFormTipeBantuan('Konsumtif');
   };
 
   const handleAsnafSelect = (asnafVal: string) => {
@@ -1251,6 +1343,76 @@ export default function PenyaluranZis() {
     };
   }, [pilars, rkatList]);
 
+  // Fast helper to find matched Program & Kegiatan object (O(1) Map lookup + fallback)
+  const findProgramForTransaction = useCallback((trx: any, activePilarsSource?: any[]) => {
+    if (!trx) return null;
+
+    const rkInfo = getRkatInfo(trx);
+    const targetCode = String(trx.program?.code || trx.program_code || trx.jenis_permohonan || '').trim().toLowerCase();
+    const targetName = String(rkInfo?.rkatName || trx.program?.name || trx.jenis_permohonan || trx.keterangan || '').trim().toLowerCase();
+
+    // 1. Direct O(1) Map match by code
+    if (targetCode && programMap.has(targetCode)) {
+      return programMap.get(targetCode)!;
+    }
+
+    // 2. Direct O(1) Map match by name
+    if (targetName && programMap.has(targetName)) {
+      return programMap.get(targetName)!;
+    }
+
+    // 3. Fallback prefix/substring scan
+    const source = (activePilarsSource && activePilarsSource.length > 0) 
+      ? activePilarsSource 
+      : (pilars && pilars.length > 0 ? pilars : pilarData);
+
+    for (const pilar of source) {
+      for (const prog of (pilar.programs || [])) {
+        const pCode = String(prog.code || '').trim().toLowerCase();
+        const pName = String(prog.name || '').trim().toLowerCase();
+
+        if (targetCode && (targetCode === pCode || targetCode.startsWith(pCode) || targetCode.includes(pCode))) {
+          const isProd = isProgramDefProduktif(prog);
+          const tipe: 'Konsumtif' | 'Produktif' = isProd ? 'Produktif' : 'Konsumtif';
+          return { prog, pilar, tipe };
+        }
+        if (targetName && (targetName === pName || targetName.includes(pName) || pName.includes(targetName))) {
+          const isProd = isProgramDefProduktif(prog);
+          const tipe: 'Konsumtif' | 'Produktif' = isProd ? 'Produktif' : 'Konsumtif';
+          return { prog, pilar, tipe };
+        }
+      }
+    }
+    return null;
+  }, [rkatList, pilars, programMap]);
+
+  // Helper to determine if a transaction is Produktif (Pendayagunaan) or Konsumtif (Pendistribusian)
+  const getIsItemProduktif = useCallback((trx: any, activePilarsSource?: any[]): boolean => {
+    if (!trx) return false;
+
+    // 1. User manual override on transaction (If user explicitly picked / changed tipe_bantuan)
+    if (trx.tipe_bantuan) {
+      const tb = String(trx.tipe_bantuan).toLowerCase().trim();
+      if (tb === 'produktif') return true;
+      if (tb === 'konsumtif') return false;
+    }
+
+    // 2. Primary: Check matched Program & Kegiatan from Master Data (Pilar & Program)
+    const match = findProgramForTransaction(trx, activePilarsSource);
+    if (match) {
+      return match.tipe === 'Produktif' || isProgramDefProduktif(match.prog);
+    }
+
+    // 3. Direct program.tipe if embedded in transaction relation
+    if (trx.program?.tipe) {
+      const pt = String(trx.program.tipe).toLowerCase().trim();
+      if (pt === 'produktif') return true;
+      if (pt === 'konsumtif') return false;
+    }
+
+    return false; // Default to konsumtif
+  }, [findProgramForTransaction]);
+
   // Filtered data
   const filteredData = useMemo(() => {
     return data.filter(item => {
@@ -1322,6 +1484,17 @@ export default function PenyaluranZis() {
         matchesAsnaf = asnafItem === selectedAsnafFilter.toLowerCase();
       }
 
+      // Sifat Bantuan Filter (Konsumtif vs Produktif)
+      let matchesTipeBantuan = true;
+      if (selectedTipeBantuanFilter !== 'Semua') {
+        const isProd = getIsItemProduktif(item, pilars);
+        if (selectedTipeBantuanFilter === 'Produktif') {
+          matchesTipeBantuan = isProd;
+        } else if (selectedTipeBantuanFilter === 'Konsumtif') {
+          matchesTipeBantuan = !isProd;
+        }
+      }
+
       // Filter Bulan Tanggal Pencairan (Bukan Tanggal Masuk/Pengajuan)
       let matchesBulan = true;
       if (selectedBulanPencairan !== 'Semua') {
@@ -1345,7 +1518,7 @@ export default function PenyaluranZis() {
         }
       }
 
-      return matchesSearch && matchesAsal && matchesPilar && matchesStatus && matchesKategori && matchesAsnaf && matchesBulan && matchesTahun;
+      return matchesSearch && matchesAsal && matchesPilar && matchesStatus && matchesKategori && matchesAsnaf && matchesTipeBantuan && matchesBulan && matchesTahun;
     }).sort((a, b) => {
       const rankA = getStatusRank(a.status);
       const rankB = getStatusRank(b.status);
@@ -1358,7 +1531,7 @@ export default function PenyaluranZis() {
       const timeB = new Date(b.created_at || b.tanggal_masuk || 0).getTime();
       return timeB - timeA;
     });
-  }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter, selectedKategoriFilter, selectedAsnafFilter, selectedBulanPencairan, selectedTahunPencairan, getTanggalPencairan]);
+  }, [data, searchTerm, selectedAsalFilter, selectedPilarFilter, selectedStatusFilter, selectedKategoriFilter, selectedAsnafFilter, selectedTipeBantuanFilter, selectedBulanPencairan, selectedTahunPencairan, getTanggalPencairan, getIsItemProduktif, pilars]);
 
   // Dynamic Metrics based on active filtered data (Instant, 0ms latency, reactive to all filters)
   const metrics = useMemo(() => {
@@ -1536,6 +1709,7 @@ export default function PenyaluranZis() {
     setFormHasMemo(false);
     setFormMemoSource('Ketua BAZNAS');
     setFormJenisPermohonan('');
+    setFormTipeBantuan('Konsumtif');
     setFormAsnaf('Miskin');
     setFormRkatId('');
     setFormCoaCode('519999999');
@@ -1570,6 +1744,10 @@ export default function PenyaluranZis() {
     const progCode = item.jenis_permohonan || item.program?.code || '';
     const asnafVal = item.asnaf || 'Miskin';
     setFormJenisPermohonan(progCode);
+
+    const isProd = getIsItemProduktif(item, pilars);
+    setFormTipeBantuan(isProd ? 'Produktif' : 'Konsumtif');
+
     setFormAsnaf(asnafVal);
     setFormRkatId(item.rkat_activity_id || '');
     const mappedCoa = item.coa_code || resolveMappingCoa(progCode, asnafVal);
@@ -1619,7 +1797,7 @@ export default function PenyaluranZis() {
         asnaf: formAsnaf,
         nominal: parsedNominal,
         keterangan: formKeterangan.trim() || 'Penyaluran ZIS',
-        tipe_bantuan: 'Konsumtif',
+        tipe_bantuan: formTipeBantuan,
         volume: isLembagaPerorangan ? formVolumeReal : 1,
         rekomendasi_unit_cost: isLembagaPerorangan ? formUnitCost : parsedNominal
       };
@@ -1664,7 +1842,7 @@ export default function PenyaluranZis() {
         asnaf: formAsnaf,
         nominal: parsedNominal,
         keterangan: formKeterangan.trim(),
-        tipe_bantuan: 'Konsumtif',
+        tipe_bantuan: formTipeBantuan,
         jenis_pengajuan: formKategori,
         volume: isLembagaPerorangan ? formVolumeReal : 1,
         rekomendasi_unit_cost: isLembagaPerorangan ? formUnitCost : parsedNominal
@@ -1697,12 +1875,13 @@ export default function PenyaluranZis() {
         'Alamat': 'Jl. Indrapasta No. 12, Semarang',
         'Jenis_Pengajuan': 'Lembaga',
         'Jenis_Permohonan': '210102.1',
+        'Tipe_Bantuan': 'Produktif',
         'Kode_COA': '5110101',
         'Kode_RKAT': 'asnaf-1786078759614-oc7l',
         'Nominal': 2500000,
         'Asnaf': 'Fisabilillah',
         'Status': 'Selesai',
-        'Keterangan': 'Bantuan renovasi tempat wudhu masjid'
+        'Keterangan': 'Bantuan renovasi sarana bina mandiri masjid'
       },
       {
         'Tanggal_Permohonan': '2026-08-13',
@@ -1713,6 +1892,7 @@ export default function PenyaluranZis() {
         'Alamat': 'Jl. Pemuda No. 45, Semarang',
         'Jenis_Pengajuan': 'Perorangan',
         'Jenis_Permohonan': '210102',
+        'Tipe_Bantuan': 'Konsumtif',
         'Kode_COA': '5110102',
         'Kode_RKAT': 'asnaf-1786078759614-oc7m',
         'Nominal': 1000000,
@@ -1841,6 +2021,8 @@ export default function PenyaluranZis() {
         const alamat = String(getVal(row, 'Alamat', 'alamat', 'Alamat Lengkap') || '');
         const jenisPengajuan = String(getVal(row, 'Jenis_Pengajuan', 'Jenis Pengajuan', 'jenis_pengajuan', 'Kategori', 'kategori') || 'Perorangan');
         const jenisPermohonan = String(getVal(row, 'Jenis_Permohonan', 'Jenis Permohonan', 'jenis_permohonan', 'Program', 'program', 'Kode Program') || '210102');
+        const rawTipe = getVal(row, 'Tipe_Bantuan', 'Tipe Bantuan', 'tipe_bantuan', 'Sifat_Bantuan', 'Sifat Bantuan', 'Tipe', 'tipe');
+        const tipeBantuan = String(rawTipe || '').toLowerCase().includes('prod') ? 'Produktif' : 'Konsumtif';
         const kodeCoa = String(getVal(row, 'Kode_COA', 'Kode COA', 'kode_coa', 'COA', 'coa', 'Akun') || '-');
         const kodeRkat = String(getVal(row, 'Kode_RKAT', 'Kode RKAT', 'kode_rkat', 'RKAT', 'rkat', 'ID RKAT', 'rkat_activity_id') || '-');
         
@@ -1871,6 +2053,7 @@ export default function PenyaluranZis() {
           Alamat: alamat,
           Jenis_Pengajuan: jenisPengajuan,
           Jenis_Permohonan: jenisPermohonan,
+          Tipe_Bantuan: tipeBantuan,
           Kode_COA: kodeCoa,
           Kode_RKAT: kodeRkat,
           Nominal: nominal,
@@ -1949,84 +2132,6 @@ export default function PenyaluranZis() {
     }
   };
 
-  // Helper to find the matched Program & Kegiatan object from activePilars
-  const findProgramForTransaction = (trx: any, activePilarsSource: any[]) => {
-    if (!trx) return null;
-
-    const rkInfo = getRkatInfo(trx);
-    const targetCode = String(trx.program?.code || trx.program_code || trx.jenis_permohonan || '').trim().toLowerCase();
-    const targetName = String(rkInfo?.rkatName || trx.program?.name || trx.jenis_permohonan || trx.keterangan || '').trim().toLowerCase();
-
-    for (const pilar of activePilarsSource) {
-      for (const prog of (pilar.programs || [])) {
-        const pCode = String(prog.code || '').trim().toLowerCase();
-        const pName = String(prog.name || '').trim().toLowerCase();
-
-        if (targetCode && (pCode === targetCode || targetCode.includes(pCode))) {
-          return { prog, pilar };
-        }
-        if (targetName && (pName === targetName || targetName.includes(pName) || pName.includes(targetName))) {
-          return { prog, pilar };
-        }
-      }
-    }
-    return null;
-  };
-
-  // Helper to determine if a program definition is Produktif
-  const isProgramDefProduktif = (prog: any, pilarName?: string): boolean => {
-    if (!prog) return false;
-    const t = String(prog.tipe || '').toLowerCase().trim();
-    if (t === 'produktif') return true;
-    if (t === 'konsumtif') return false;
-
-    const c = String(prog.code || '').trim();
-    if (c.startsWith('2')) return true;
-    if (c.startsWith('1')) return false;
-
-    if (pilarName && pilarName.toLowerCase().includes('makmur')) return true;
-    return false;
-  };
-
-  // Helper to determine if a transaction is Produktif (Pendayagunaan) or Konsumtif (Pendistribusian)
-  const getIsItemProduktif = (trx: any, activePilarsSource: any[]): boolean => {
-    // 1. Direct match from Master Program & Kegiatan
-    const match = findProgramForTransaction(trx, activePilarsSource);
-    if (match) {
-      return isProgramDefProduktif(match.prog, match.pilar?.name);
-    }
-
-    // 2. Direct program.tipe if embedded in transaction
-    if (trx.program?.tipe) {
-      const pt = String(trx.program.tipe).toLowerCase().trim();
-      if (pt === 'produktif') return true;
-      if (pt === 'konsumtif') return false;
-    }
-
-    // 3. Direct tipe_bantuan tag on transaction
-    if (trx.tipe_bantuan) {
-      const tb = String(trx.tipe_bantuan).toLowerCase().trim();
-      if (tb === 'produktif') return true;
-      if (tb === 'konsumtif') return false;
-    }
-
-    // 4. Fallback code 2xxx vs 1xxx
-    const rawCode = String(trx.program?.code || trx.program_code || trx.jenis_permohonan || '').trim();
-    if (rawCode.startsWith('2')) return true;
-    if (rawCode.startsWith('1')) return false;
-
-    // 5. Fallback Pilar / Jenis Permohonan string
-    const pilarStr = String(trx.program?.pilar?.name || trx.jenis_permohonan || trx.keterangan || '').toLowerCase();
-    if (pilarStr.includes('makmur')) return true;
-
-    // 6. Rekomendasi kabag
-    const rek = String(trx.rekomendasi_kabag || '').toLowerCase();
-    if (rek.includes('dayaguna') || rek.includes('produktif')) return true;
-    if (rek.includes('distribusi') || rek.includes('konsumtif')) return false;
-
-    return false; // Default to konsumtif
-  };
-
   // Helper to aggregate data into official BAZNAS monthly report categories dynamically from Program & Kegiatan
   const generateMonthlyReportData = (type: 'pendayagunaan' | 'pendistribusian', targetMonth: number, targetYear: number) => {
     const activePilarsSource: any[] = (pilars && pilars.length > 0) ? pilars : pilarData;
@@ -2060,7 +2165,7 @@ export default function PenyaluranZis() {
     sortedPilars.forEach(pilar => {
       // Filter programs belonging to this report type (Pendayagunaan = Produktif ONLY, Pendistribusian = Konsumtif ONLY)
       const validPrograms = (pilar.programs || []).filter((prog: any) => {
-        const isProgProduktif = isProgramDefProduktif(prog, pilar.name);
+        const isProgProduktif = isProgramDefProduktif(prog);
         return type === 'pendayagunaan' ? isProgProduktif : !isProgProduktif;
       });
 
@@ -2480,6 +2585,7 @@ export default function PenyaluranZis() {
         'No. HP': item.no_telpon || item.mustahik?.handphone || item.mustahik?.telepon || '-',
         'Alamat Lengkap': alamatLengkap,
         'Program Kegiatan': item.program?.name || item.jenis_permohonan || 'Umum',
+        'Sifat Bantuan': getIsItemProduktif(item, pilars) ? 'Produktif (Pendayagunaan)' : 'Konsumtif (Pendistribusian)',
         'Nama Program RKAT (Keterangan Spesifikasi)': rkatDisplay,
         'Kode COA': coaCode,
         'Asnaf': item.asnaf || '-',
@@ -2727,6 +2833,17 @@ export default function PenyaluranZis() {
                   ))}
                 </select>
 
+                {/* Sifat Bantuan Filter (Konsumtif vs Produktif) */}
+                <select 
+                  className="bg-white border border-slate-200 rounded-xl py-2 px-3 focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer font-semibold text-slate-700 shadow-xs"
+                  value={selectedTipeBantuanFilter}
+                  onChange={(e) => { setSelectedTipeBantuanFilter(e.target.value as any); setCurrentPage(1); }}
+                >
+                  <option value="Semua">Sifat: Semua Bantuan</option>
+                  <option value="Konsumtif">Bantuan Konsumtif</option>
+                  <option value="Produktif">Bantuan Produktif</option>
+                </select>
+
                 {/* Bulan Pencairan Filter (Berdasarkan Tanggal Pencairan) */}
                 <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl py-1.5 px-3 shadow-xs">
                   <CalendarCheck className="size-3.5 text-emerald-600 shrink-0" />
@@ -2777,6 +2894,7 @@ export default function PenyaluranZis() {
                       setSelectedStatusFilter('Semua');
                       setSelectedKategoriFilter('Semua');
                       setSelectedAsnafFilter('Semua');
+                      setSelectedTipeBantuanFilter('Semua');
                       setSelectedBulanPencairan('Semua');
                       setSelectedTahunPencairan('Semua');
                       setCurrentPage(1);
@@ -2916,6 +3034,20 @@ export default function PenyaluranZis() {
                         <div className="max-w-xs space-y-1">
                           <p className="font-bold text-slate-900 text-xs line-clamp-1">{programDisplayName}</p>
                           <div className="flex flex-wrap items-center gap-1.5">
+                            {/* Sifat Bantuan Badge */}
+                            {(() => {
+                              const isProd = getIsItemProduktif(item, pilars);
+                              return (
+                                <span className={cn(
+                                  "inline-block px-2 py-0.5 text-[9px] font-bold rounded border",
+                                  isProd
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-blue-50 text-blue-700 border-blue-200"
+                                )}>
+                                  {isProd ? 'Produktif' : 'Konsumtif'}
+                                </span>
+                              );
+                            })()}
                             {/* COA Accounting Code Badge (starting with 5 for Buku Besar) */}
                             <span className="inline-block px-2 py-0.5 text-[9px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/60 rounded" title={`Kode COA Akuntansi: ${coaCode} - ${coaName}`}>
                               {coaCode}
@@ -3371,9 +3503,36 @@ export default function PenyaluranZis() {
                       />
                     </div>
 
-                    {/* b. Custom Select: Golongan Asnaf */}
+                    {/* b. Sifat Bantuan (Konsumtif vs Produktif) */}
                     <div className="space-y-1.5 md:col-span-2">
-                      <label className="font-bold text-slate-700">2. Golongan Asnaf *</label>
+                      <div className="flex justify-between items-center">
+                        <label className="font-bold text-slate-700">2. Sifat / Tipe Bantuan *</label>
+                        <span className={cn(
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                          formTipeBantuan === 'Produktif'
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            : "bg-blue-50 text-blue-700 border-blue-100"
+                        )}>
+                          {formTipeBantuan === 'Produktif' ? 'Bantuan Produktif (Pendayagunaan)' : 'Bantuan Konsumtif (Pendistribusian)'}
+                        </span>
+                      </div>
+                      <CustomSelect
+                        options={[
+                          { value: 'Konsumtif', label: 'Konsumtif (Pendistribusian ZIS)', sublabel: 'Mengikuti program bantuan sosial / karitatif' },
+                          { value: 'Produktif', label: 'Produktif (Pendayagunaan ZIS)', sublabel: 'Mengikuti program bantuan modal / ekonomi / usaha' }
+                        ]}
+                        value={formTipeBantuan}
+                        onChange={(val: any) => setFormTipeBantuan(val)}
+                        placeholder="-- Pilih Sifat Bantuan --"
+                      />
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        * Otomatis terisi mengikuti klasifikasi master Program di Pilar &amp; Program (bisa disesuaikan manual jika diperlukan).
+                      </p>
+                    </div>
+
+                    {/* c. Custom Select: Golongan Asnaf */}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="font-bold text-slate-700">3. Golongan Asnaf *</label>
                       <CustomSelect
                         options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil', 'IST', 'ISTT'].map(a => ({ value: a, label: a }))}
                         value={formAsnaf}
@@ -3382,10 +3541,10 @@ export default function PenyaluranZis() {
                       />
                     </div>
 
-                    {/* c. Search Dropdown: Cascading RKAT Operasional Penyaluran */}
+                    {/* d. Search Dropdown: Cascading RKAT Operasional Penyaluran */}
                     <div className="space-y-1.5 md:col-span-2">
                       <div className="flex justify-between items-center">
-                        <label className="font-bold text-slate-700">3. Program RKAT Operasional Penyaluran</label>
+                        <label className="font-bold text-slate-700">4. Program RKAT Operasional Penyaluran</label>
                         <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
                           {filteredRkatOptions.length} Opsi RKAT Tersedia
                         </span>
@@ -3399,10 +3558,10 @@ export default function PenyaluranZis() {
                       />
                     </div>
 
-                    {/* d. Search Dropdown: COA Akuntansi Penyaluran (Cascading Logic dari Proposal Mapping) */}
+                    {/* e. Search Dropdown: COA Akuntansi Penyaluran (Cascading Logic dari Proposal Mapping) */}
                     <div className="space-y-1.5 md:col-span-2">
                       <div className="flex justify-between items-center">
-                        <label className="font-bold text-slate-700">4. Program Kegiatan (COA Akuntansi Buku Besar)</label>
+                        <label className="font-bold text-slate-700">5. Program Kegiatan (COA Akuntansi Buku Besar)</label>
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
                           Otomatis Mapping dari Program
                         </span>
@@ -3760,9 +3919,36 @@ export default function PenyaluranZis() {
                       />
                     </div>
 
-                    {/* b. Custom Select: Golongan Asnaf */}
+                    {/* b. Sifat Bantuan (Konsumtif vs Produktif) */}
                     <div className="space-y-1.5 md:col-span-2">
-                      <label className="font-bold text-slate-700">2. Golongan Asnaf *</label>
+                      <div className="flex justify-between items-center">
+                        <label className="font-bold text-slate-700">2. Sifat / Tipe Bantuan *</label>
+                        <span className={cn(
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                          formTipeBantuan === 'Produktif'
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            : "bg-blue-50 text-blue-700 border-blue-100"
+                        )}>
+                          {formTipeBantuan === 'Produktif' ? 'Bantuan Produktif (Pendayagunaan)' : 'Bantuan Konsumtif (Pendistribusian)'}
+                        </span>
+                      </div>
+                      <CustomSelect
+                        options={[
+                          { value: 'Konsumtif', label: 'Konsumtif (Pendistribusian ZIS)', sublabel: 'Mengikuti program bantuan sosial / karitatif' },
+                          { value: 'Produktif', label: 'Produktif (Pendayagunaan ZIS)', sublabel: 'Mengikuti program bantuan modal / ekonomi / usaha' }
+                        ]}
+                        value={formTipeBantuan}
+                        onChange={(val: any) => setFormTipeBantuan(val)}
+                        placeholder="-- Pilih Sifat Bantuan --"
+                      />
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        * Otomatis terisi mengikuti klasifikasi master Program di Pilar &amp; Program (bisa disesuaikan manual jika diperlukan).
+                      </p>
+                    </div>
+
+                    {/* c. Custom Select: Golongan Asnaf */}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="font-bold text-slate-700">3. Golongan Asnaf *</label>
                       <CustomSelect
                         options={['Fakir', 'Miskin', 'Amil', 'Muallaf', 'Riqab', 'Gharim', 'Fisabilillah', 'Ibnu Sabil', 'IST', 'ISTT'].map(a => ({ value: a, label: a }))}
                         value={formAsnaf}
@@ -3771,10 +3957,10 @@ export default function PenyaluranZis() {
                       />
                     </div>
 
-                    {/* c. Search Dropdown: Cascading RKAT Operasional Penyaluran */}
+                    {/* d. Search Dropdown: Cascading RKAT Operasional Penyaluran */}
                     <div className="space-y-1.5 md:col-span-2">
                       <div className="flex justify-between items-center">
-                        <label className="font-bold text-slate-700">3. Program RKAT Operasional Penyaluran</label>
+                        <label className="font-bold text-slate-700">4. Program RKAT Operasional Penyaluran</label>
                         <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
                           {filteredRkatOptions.length} Opsi RKAT Tersedia
                         </span>
@@ -3788,10 +3974,10 @@ export default function PenyaluranZis() {
                       />
                     </div>
 
-                    {/* d. Search Dropdown: COA Akuntansi Penyaluran (Cascading Logic dari Proposal Mapping) */}
+                    {/* e. Search Dropdown: COA Akuntansi Penyaluran (Cascading Logic dari Proposal Mapping) */}
                     <div className="space-y-1.5 md:col-span-2">
                       <div className="flex justify-between items-center">
-                        <label className="font-bold text-slate-700">4. Program Kegiatan (COA Akuntansi Buku Besar)</label>
+                        <label className="font-bold text-slate-700">5. Program Kegiatan (COA Akuntansi Buku Besar)</label>
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
                           Otomatis Mapping dari Program
                         </span>
@@ -4026,10 +4212,26 @@ export default function PenyaluranZis() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">NIK</p>
-                    <p className="font-mono font-bold text-slate-800 mt-0.5">{selectedPenyaluran.nik || '-'}</p>
+                    <p className="font-mono font-bold text-slate-800 mt-0.5 truncate">{selectedPenyaluran.nik || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Sifat Bantuan</p>
+                    {(() => {
+                      const isProd = getIsItemProduktif(selectedPenyaluran, pilars);
+                      return (
+                        <span className={cn(
+                          "inline-block mt-0.5 px-2 py-0.5 text-[10px] font-bold rounded-md border",
+                          isProd
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
+                        )}>
+                          {isProd ? 'Produktif' : 'Konsumtif'}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div>
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Asnaf</p>
@@ -4328,6 +4530,7 @@ export default function PenyaluranZis() {
                             <th className="px-3 py-2.5 bg-slate-100">No. Telpon</th>
                             <th className="px-3 py-2.5 bg-slate-100 min-w-[160px]">Alamat</th>
                             <th className="px-3 py-2.5 bg-slate-100">Jenis Pengajuan</th>
+                            <th className="px-3 py-2.5 bg-slate-100 text-center">Sifat Bantuan</th>
                             <th className="px-3 py-2.5 bg-slate-100 min-w-[200px]">Jenis Permohonan (Kegiatan)</th>
                             <th className="px-3 py-2.5 bg-slate-100 min-w-[220px]">Program &amp; RKAT (Spesifikasi)</th>
                             <th className="px-3 py-2.5 bg-slate-100">Kode COA</th>
@@ -4359,6 +4562,18 @@ export default function PenyaluranZis() {
                                 <td className="px-3 py-2.5 text-slate-600">{item.No_Telpon || '-'}</td>
                                 <td className="px-3 py-2.5 text-slate-600 max-w-[200px] truncate" title={item.Alamat}>{item.Alamat || '-'}</td>
                                 <td className="px-3 py-2.5 font-medium text-slate-700">{item.Jenis_Pengajuan}</td>
+                                
+                                {/* Sifat Bantuan (Konsumtif / Produktif) */}
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className={cn(
+                                    "px-2 py-0.5 text-[9px] font-bold rounded border",
+                                    item.Tipe_Bantuan === 'Produktif'
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : "bg-blue-50 text-blue-700 border-blue-200"
+                                  )}>
+                                    {item.Tipe_Bantuan || 'Konsumtif'}
+                                  </span>
+                                </td>
                                 
                                 {/* Resolved Program / Kegiatan */}
                                 <td className="px-3 py-2.5 min-w-[200px]">

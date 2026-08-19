@@ -673,6 +673,14 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
 
         const effectiveTglPencairan = tanggalPencairan || (isSelesai ? tanggalPermohonan : null);
 
+        const rawTipe = item.Tipe_Bantuan || item.tipe_bantuan || item.Tipe || item.tipe;
+        let computedTipe = 'Konsumtif';
+        if (rawTipe) {
+          computedTipe = String(rawTipe).toLowerCase().includes('prod') ? 'Produktif' : 'Konsumtif';
+        } else if (matchedProg?.tipe === 'Produktif') {
+          computedTipe = 'Produktif';
+        }
+
         // Create Proposal Record
         const newProp = await tx.proposal.create({
           data: {
@@ -686,7 +694,7 @@ export const bulkMigratePenyaluranZis = async (req: Request, res: Response): Pro
             jenis_permohonan: matchedProg ? matchedProg.code : (jenisPermohonan || null),
             rkat_activity_id: kodeRkat ? String(kodeRkat) : (matchedProg ? matchedProg.code : null),
             nominal: nominal,
-            tipe_bantuan: 'Konsumtif',
+            tipe_bantuan: computedTipe,
             asnaf: asnaf,
             rekomendasi_kabag: computedDana,
             keterangan: String(keterangan || '-'),
