@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
+import { pilarData } from '../data/pilarData';
 
 interface RealisasiBantuanProps {
   data: ProposalMemo[];
@@ -76,9 +77,22 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
 
   const programTipeMap = useMemo(() => {
     const map: { [code: string]: string } = {};
+    // Base static data from pilarData
+    pilarData.forEach(pilar => {
+      pilar.programs.forEach(prog => {
+        if (prog.tipe) {
+          map[prog.code] = prog.tipe;
+          map[prog.name.toLowerCase()] = prog.tipe;
+        }
+      });
+    });
+    // Dynamic database programs override
     (pilars || []).forEach(pilar => {
       (pilar.programs || []).forEach((prog: any) => {
-        map[prog.code] = prog.tipe || 'Konsumtif';
+        if (prog.tipe) {
+          map[prog.code] = prog.tipe;
+          map[prog.name.toLowerCase()] = prog.tipe;
+        }
       });
     });
     return map;
@@ -92,6 +106,39 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
       return `${parts[0]}.${parts[1]}`;
     }
     return clean;
+  };
+
+  const getProposalTipe = (item: ProposalMemo): 'Konsumtif' | 'Produktif' => {
+    const cleanCode = getParentProgramCode(item.programCode);
+    if (programTipeMap[cleanCode]) return programTipeMap[cleanCode] as 'Konsumtif' | 'Produktif';
+    if (item.programCode && programTipeMap[item.programCode]) return programTipeMap[item.programCode] as 'Konsumtif' | 'Produktif';
+    
+    const permohonan = (item.jenisPermohonan || '').toLowerCase();
+    if (programTipeMap[permohonan]) return programTipeMap[permohonan] as 'Konsumtif' | 'Produktif';
+
+    // Keyword & Pilar detection
+    if (
+      permohonan.includes('ketrampilan') || 
+      permohonan.includes('keterampilan') || 
+      permohonan.includes('pendidikan tinggi') ||
+      permohonan.includes('modal usaha') ||
+      permohonan.includes('pengembangan usaha') ||
+      permohonan.includes('balai ternak') ||
+      permohonan.includes('z-mart') ||
+      permohonan.includes('z-chicken') ||
+      permohonan.includes('z-auto') ||
+      permohonan.includes('santripreneur') ||
+      permohonan.includes('sanitasi') ||
+      permohonan.includes('sumur air') ||
+      permohonan.includes('air bersih') ||
+      permohonan.includes('stunting') ||
+      item.program === 'Semarang Makmur' ||
+      (item.tipeBantuan && item.tipeBantuan.toLowerCase() === 'produktif')
+    ) {
+      return 'Produktif';
+    }
+
+    return 'Konsumtif';
   };
 
   const allPrograms = useMemo(() => {
@@ -124,8 +171,7 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
 
       // Grouping filter (Konsumtif vs Produktif)
       if (activeTab !== 'Semua') {
-        const cleanCode = getParentProgramCode(item.programCode);
-        const tipe = programTipeMap[cleanCode] || 'Konsumtif';
+        const tipe = getProposalTipe(item);
         if (tipe !== activeTab) return false;
       }
 
@@ -339,9 +385,7 @@ BAZNAS Kota Semarang.`;
               const isRealisasi = d.status === 'Realisasi Bantuan';
               if (!isRealisasi) return false;
               if (tab === 'Semua') return true;
-              const cleanCode = getParentProgramCode(d.programCode);
-              const tipe = programTipeMap[cleanCode] || 'Konsumtif';
-              return tipe === tab;
+              return getProposalTipe(d) === tab;
             }).length;
 
             return (
@@ -645,11 +689,11 @@ BAZNAS Kota Semarang.`;
                           </span>
                           <span className={cn(
                             "px-2 py-0.5 rounded text-[9px] font-bold border",
-                            (programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif') === 'Produktif'
+                            getProposalTipe(item) === 'Produktif'
                               ? "bg-purple-50 text-purple-600 border-purple-100"
                               : "bg-blue-50/50 text-blue-500 border-blue-100/50"
                           )}>
-                            {programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif'}
+                            {getProposalTipe(item)}
                           </span>
                         </div>
                         <p className="text-xs text-slate-500 font-medium truncate max-w-[150px]">
@@ -819,11 +863,11 @@ BAZNAS Kota Semarang.`;
                             </span>
                             <span className={cn(
                               "px-1.5 py-0.5 rounded text-[9px] font-bold border",
-                              (programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif') === 'Produktif'
+                              getProposalTipe(item) === 'Produktif'
                                 ? "bg-purple-50 text-purple-600 border-purple-100"
                                 : "bg-blue-50/50 text-blue-500 border-blue-100/50"
                             )}>
-                              {(programTipeMap[getParentProgramCode(item.programCode)] || 'Konsumtif').substring(0, 4)}
+                              {getProposalTipe(item).substring(0, 4)}
                             </span>
                           </div>
                         </div>
