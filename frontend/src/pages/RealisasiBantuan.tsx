@@ -707,11 +707,17 @@ BAZNAS Kota Semarang.`;
                     <td className="px-6 py-4">
                       <span className={cn(
                         "px-2 py-1 rounded text-[10px] font-bold border",
-                        item.tipeBantuan === 'Tunai' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                        item.tipeBantuan === 'Barang' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                        "bg-slate-50 text-slate-400 border-slate-200"
+                        ((item.tipeBantuan as any) === 'Produktif' || getProposalTipe(item) === 'Produktif') && item.tipeBantuan !== 'Tunai' && item.tipeBantuan !== 'Barang'
+                          ? "bg-purple-50 text-purple-700 border-purple-200"
+                          : item.tipeBantuan === 'Tunai'
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                          : item.tipeBantuan === 'Barang'
+                          ? "bg-blue-50 text-blue-600 border-blue-100"
+                          : "bg-slate-50 text-slate-500 border-slate-200"
                       )}>
-                        {item.tipeBantuan || '-'}
+                        {item.tipeBantuan === 'Tunai' || item.tipeBantuan === 'Barang'
+                          ? item.tipeBantuan
+                          : ((item.tipeBantuan as any) === 'Produktif' || getProposalTipe(item) === 'Produktif' ? 'Produktif' : (item.tipeBantuan || 'Konsumtif'))}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -883,11 +889,17 @@ BAZNAS Kota Semarang.`;
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipe Bantuan</p>
                           <span className={cn(
                             "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border mt-1",
-                            item.tipeBantuan === 'Tunai' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                            item.tipeBantuan === 'Barang' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                            "bg-slate-50 text-slate-400 border-slate-200"
+                            ((item.tipeBantuan as any) === 'Produktif' || getProposalTipe(item) === 'Produktif') && item.tipeBantuan !== 'Tunai' && item.tipeBantuan !== 'Barang'
+                              ? "bg-purple-50 text-purple-700 border-purple-200"
+                              : item.tipeBantuan === 'Tunai'
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                              : item.tipeBantuan === 'Barang'
+                              ? "bg-blue-50 text-blue-600 border-blue-100"
+                              : "bg-slate-50 text-slate-500 border-slate-200"
                           )}>
-                            {item.tipeBantuan || '-'}
+                            {item.tipeBantuan === 'Tunai' || item.tipeBantuan === 'Barang'
+                              ? item.tipeBantuan
+                              : ((item.tipeBantuan as any) === 'Produktif' || getProposalTipe(item) === 'Produktif' ? 'Produktif' : (item.tipeBantuan || 'Konsumtif'))}
                           </span>
                         </div>
 

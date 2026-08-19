@@ -33,7 +33,7 @@ import { useWindowFocusRefetch } from '../hooks/useWindowFocusRefetch';
 import axios from 'axios';
 import { skHistoryData as initialSkHistoryData } from '@/src/data/upzData';
 import { UPZ, SKHistory } from '@/src/types/upz';
-import { getNextRenewalSKNumber, getNextBaseSKNumber, isSKPembentukan, parseSKNumber } from '@/src/utils/skUtils';
+import { getNextRenewalSKNumber, getNextBaseSKNumber, formatMasjidSKNumber, getEffectiveSKVersion } from '@/src/utils/skUtils';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -632,8 +632,25 @@ export default function DatabaseUPZ() {
   const [isPrintDateModalOpen, setIsPrintDateModalOpen] = useState(false);
   const [printDateValue, setPrintDateValue] = useState('');
   const [printRequestDateValue, setPrintRequestDateValue] = useState('');
+  const [printKetuaName, setPrintKetuaName] = useState('H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M');
+  const [defaultKetuaName, setDefaultKetuaName] = useState('H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M');
   const [printHistoryTarget, setPrintHistoryTarget] = useState<SKHistory | null>(null);
   const [printActionType, setPrintActionType] = useState<'print' | 'download' | null>(null);
+
+  // Fetch Ketua name from User Management on mount
+  useEffect(() => {
+    axios.get('/api/users')
+      .then(res => {
+        if (Array.isArray(res.data)) {
+          const ketua = res.data.find((u: any) => u.role === 'Ketua');
+          if (ketua && ketua.name) {
+            setPrintKetuaName(ketua.name);
+            setDefaultKetuaName(ketua.name);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const openPrintDateModal = (history: SKHistory, action: 'print' | 'download') => {
     setPrintHistoryTarget(history);
@@ -656,9 +673,9 @@ export default function DatabaseUPZ() {
     if (!printHistoryTarget || !printActionType) return;
     setIsPrintDateModalOpen(false);
     if (printActionType === 'print') {
-      handlePrintSK(printHistoryTarget, printDateValue, printRequestDateValue);
+      handlePrintSK(printHistoryTarget, printDateValue, printRequestDateValue, printKetuaName);
     } else {
-      handleDownloadSKDoc(printHistoryTarget, printDateValue, printRequestDateValue);
+      handleDownloadSKDoc(printHistoryTarget, printDateValue, printRequestDateValue, printKetuaName);
     }
     setPrintHistoryTarget(null);
     setPrintActionType(null);
@@ -1100,9 +1117,12 @@ export default function DatabaseUPZ() {
         const dateB = b && b.startDate ? new Date(b.startDate).getTime() : 0;
         if (dateA !== dateB) return dateA - dateB;
         
-        const skA = String((a && a.skNumber) || '');
-        const skB = String((b && b.skNumber) || '');
-        return skA.localeCompare(skB, undefined, { numeric: true });
+        if (a.skType === 'Baru' && b.skType !== 'Baru') return -1;
+        if (b.skType === 'Baru' && a.skType !== 'Baru') return 1;
+
+        const idA = String(a.id || '');
+        const idB = String(b.id || '');
+        return idA.localeCompare(idB, undefined, { numeric: true });
       });
   };
 
@@ -1445,14 +1465,17 @@ export default function DatabaseUPZ() {
   };
 
 
-  const generateSKHtml = (upz: UPZ, history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string) => {
-    const isPembentukan = history.skType === 'Baru' || isSKPembentukan(history.skNumber);
+  const generateSKHtml = (upz: UPZ, history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string, customNamaKetua?: string) => {
+    const upzHistories = getHistoryForUPZ(upz.id);
+    const effectiveVersion = getEffectiveSKVersion(history, upzHistories);
+    const isPembentukan = effectiveVersion === 0;
+    const namaKetuaDoc = (customNamaKetua || printKetuaName || defaultKetuaName || 'H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M').toUpperCase();
     
     let tipePerubahanTeks = "";
     let aksiBentukAtauUsul = "membentuk";
     
     if (!isPembentukan) {
-      const { version } = parseSKNumber(history.skNumber);
+      const version = effectiveVersion;
       const numbersInWords = ["Pertama", "Kedua", "Ketiga", "Keempat", "Kelima", "Keenam"];
       const versionWord = version > 0 && version <= numbersInWords.length ? numbersInWords[version - 1] : `Ke-${version}`;
       tipePerubahanTeks = `Perubahan ${versionWord}`;
@@ -1746,7 +1769,7 @@ export default function DatabaseUPZ() {
                 <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
@@ -1814,7 +1837,7 @@ export default function DatabaseUPZ() {
                     <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
                 </tr>
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
                 </tr>
             </table>
             <div style="clear: both;"></div>
@@ -2051,7 +2074,7 @@ export default function DatabaseUPZ() {
                 <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
@@ -2119,7 +2142,7 @@ export default function DatabaseUPZ() {
                     <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
                 </tr>
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
                 </tr>
             </table>
             <div style="clear: both;"></div>
@@ -2360,7 +2383,7 @@ export default function DatabaseUPZ() {
                 <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
@@ -2429,7 +2452,7 @@ export default function DatabaseUPZ() {
                     <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 15px; padding-bottom: 75px;">KETUA BAZNAS KOTA SEMARANG,</td>
                 </tr>
                 <tr>
-                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                    <td style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
                 </tr>
             </table>
             <div style="clear: both;"></div>
@@ -2539,7 +2562,7 @@ export default function DatabaseUPZ() {
 
     <div class="text-center uppercase" style="line-height: 1.2; margin-bottom: 12px; font-size: 12pt;">
         <span class="bold">KEPUTUSAN KETUA BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG</span><br>
-        NOMOR ${history.skNumber} -SK / A.1 / BAZNAS - SMG / ${getRomanMonth(chosenDate.getMonth() + 1)} / ${chosenDate.getFullYear()}<br>
+        NOMOR ${formatMasjidSKNumber(history.skNumber, upz.kecamatan, chosenDate, effectiveVersion)}<br>
 
         <div style="margin: 6px 0;">TENTANG</div>
 
@@ -2647,7 +2670,7 @@ export default function DatabaseUPZ() {
                 <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 8px; padding-bottom: 50px;">K E T U A,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">H. ARNAZ AGUNG ANDRARASMARA, S.E., M.M</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
@@ -2670,9 +2693,9 @@ export default function DatabaseUPZ() {
 </html>`;
   };
 
-  const handlePrintSK = (history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string) => {
+  const handlePrintSK = (history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string, customNamaKetua?: string) => {
     if (!selectedUPZ) return;
-    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan, customTglPermohonan);
+    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan, customTglPermohonan, customNamaKetua);
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(htmlContent);
@@ -2684,16 +2707,21 @@ export default function DatabaseUPZ() {
     }
   };
 
-  const handleDownloadSKDoc = (history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string) => {
+  const handleDownloadSKDoc = (history: SKHistory, customTglDitetapkan?: string, customTglPermohonan?: string, customNamaKetua?: string) => {
     if (!selectedUPZ) return;
-    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan, customTglPermohonan);
+    const htmlContent = generateSKHtml(selectedUPZ, history, customTglDitetapkan, customTglPermohonan, customNamaKetua);
     const blob = new Blob(['\ufeff' + htmlContent], {
       type: 'application/msword'
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `SK_UPZ_${selectedUPZ.name.replace(/\s+/g, '_')}_${history.skNumber.replace(/[\/\\:*?"<>|]/g, '_')}.doc`;
+    const chosenDate = customTglDitetapkan ? new Date(customTglDitetapkan) : (history.startDate ? new Date(history.startDate) : new Date());
+    const effectiveVersion = getEffectiveSKVersion(history, getHistoryForUPZ(selectedUPZ.id));
+    const skDisplay = isMasjidCategory(selectedUPZ.category)
+      ? formatMasjidSKNumber(history.skNumber, selectedUPZ.kecamatan, chosenDate, effectiveVersion)
+      : (effectiveVersion > 0 && !history.skNumber.includes('.') ? `${history.skNumber}.${effectiveVersion}` : history.skNumber);
+    a.download = `SK_UPZ_${selectedUPZ.name.replace(/\s+/g, '_')}_${skDisplay.replace(/[\/\\:*?"<>|]/g, '_')}.doc`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -3557,7 +3585,7 @@ export default function DatabaseUPZ() {
               {historyView === 'list' && (
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar flex flex-col min-h-0">
                   {/* Action buttons */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 md:border-0 md:pb-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 md:border-0 md:pb-0 shrink-0">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Daftar Rekam Jejak SK</h4>
                     {(selectedUPZ.status || 'Aktif') !== 'Aktif' ? (
                       <span className="px-3 py-1.5 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg uppercase tracking-wider text-center w-full sm:w-auto">
@@ -3589,43 +3617,45 @@ export default function DatabaseUPZ() {
                   </div>
 
                     {/* Desktop Table Container */}
-                    <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="hidden md:flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1 min-h-[220px] max-h-[440px]">
                       {/* Desktop Table */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead>
-                            <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
-                              <th className="px-6 py-4">No. SK</th>
-                              <th className="px-6 py-4">Masa Berlaku</th>
-                              <th className="px-6 py-4">Pengurus Utama</th>
-                              <th className="px-6 py-4 text-center">Status</th>
-                              <th className="px-6 py-4 text-center">Scan SK</th>
+                      <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
+                        <table className="w-full text-left border-collapse">
+                          <thead className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_rgba(226,232,240,1)]">
+                            <tr className="text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                              <th className="px-6 py-4 bg-slate-50">No. SK</th>
+                              <th className="px-6 py-4 bg-slate-50">Masa Berlaku</th>
+                              <th className="px-6 py-4 bg-slate-50">Pengurus Utama</th>
+                              <th className="px-6 py-4 text-center bg-slate-50">Status</th>
+                              <th className="px-6 py-4 text-center bg-slate-50">Scan SK</th>
                               {selectedUPZ && (
-                                <th className="px-6 py-4 text-right">Draft SK</th>
+                                <th className="px-6 py-4 text-right bg-slate-50">Draft SK</th>
                               )}
-                              <th className="px-6 py-4 text-center">Aksi</th>
+                              <th className="px-6 py-4 text-center bg-slate-50">Aksi</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory, idx: number, list: SKHistory[]) => {
                               const isInactive = (selectedUPZ.status || 'Aktif') !== 'Aktif';
+                              const effectiveVer = getEffectiveSKVersion(history, list);
+                              const isMasjid = isMasjidCategory(selectedUPZ.category);
                               const label = (() => {
-                                if (idx === 0) return '📋 Pembentukan';
-                                if (history.skType === 'Perubahan') return '🔄 Perubahan';
-                                if (history.skType === 'Pembaruan') return '🔄 Pembaruan';
-                                if (history.skType === 'Baru') return '🔄 Pembaruan';
+                                if (idx === 0) return isMasjid ? '📋 Pembentukan (P0)' : '📋 Pembentukan';
+                                if (history.skType === 'Perubahan') return isMasjid ? `🔄 Perubahan (P${effectiveVer})` : '🔄 Perubahan';
+                                if (history.skType === 'Pembaruan') return isMasjid ? `🔄 Pembaruan (P${effectiveVer})` : '🔄 Pembaruan';
+                                if (history.skType === 'Baru') return isMasjid ? `🔄 Pembaruan (P${effectiveVer})` : '🔄 Pembaruan';
                                 const prevSK = list[idx - 1];
                                 if (prevSK && prevSK.skNumber === history.skNumber) {
-                                  return '🔄 Perubahan';
+                                  return isMasjid ? `🔄 Perubahan (P${effectiveVer})` : '🔄 Perubahan';
                                 }
-                                return '🔄 Pembaruan';
+                                return isMasjid ? `🔄 Pembaruan (P${effectiveVer})` : '🔄 Pembaruan';
                               })();
 
                               const badgeColor = isInactive 
                                 ? '#94a3b8' 
-                                : label === '📋 Pembentukan' 
+                                : label.includes('Pembentukan') 
                                 ? '#16a34a' 
-                                : label === '🔄 Perubahan' 
+                                : label.includes('Perubahan') 
                                 ? '#d97706' 
                                 : '#2563eb';
 
@@ -3639,7 +3669,9 @@ export default function DatabaseUPZ() {
                                       <span className={cn(
                                         "text-sm font-black",
                                         (selectedUPZ.status || 'Aktif') !== 'Aktif' ? "text-slate-400 font-medium" : "text-slate-900"
-                                      )}>{history.skNumber}</span>
+                                      )}>
+                                        {history.skNumber}
+                                      </span>
                                       <p className="text-[9px] font-bold uppercase tracking-wider"
                                         style={{ color: badgeColor }}>
                                         {label}
@@ -3766,26 +3798,28 @@ export default function DatabaseUPZ() {
                     </div>
 
                     {/* Mobile Card Layout */}
-                    <div className="block md:hidden space-y-4">
+                    <div className="block md:hidden space-y-4 max-h-[440px] overflow-y-auto custom-scrollbar pr-1">
                         {getHistoryForUPZ(selectedUPZ.id).map((history: SKHistory, idx: number, list: SKHistory[]) => {
                           const isInactive = (selectedUPZ.status || 'Aktif') !== 'Aktif';
+                          const effectiveVer = getEffectiveSKVersion(history, list);
+                          const isMasjid = isMasjidCategory(selectedUPZ.category);
                           const label = (() => {
-                            if (idx === 0) return '📋 Pembentukan';
-                            if (history.skType === 'Perubahan') return '🔄 Perubahan';
-                            if (history.skType === 'Pembaruan') return '🔄 Pembaruan';
-                            if (history.skType === 'Baru') return '🔄 Pembaruan';
+                            if (idx === 0) return isMasjid ? '📋 Pembentukan (P0)' : '📋 Pembentukan';
+                            if (history.skType === 'Perubahan') return isMasjid ? `🔄 Perubahan (P${effectiveVer})` : '🔄 Perubahan';
+                            if (history.skType === 'Pembaruan') return isMasjid ? `🔄 Pembaruan (P${effectiveVer})` : '🔄 Pembaruan';
+                            if (history.skType === 'Baru') return isMasjid ? `🔄 Pembaruan (P${effectiveVer})` : '🔄 Pembaruan';
                             const prevSK = list[idx - 1];
                             if (prevSK && prevSK.skNumber === history.skNumber) {
-                              return '🔄 Perubahan';
+                              return isMasjid ? `🔄 Perubahan (P${effectiveVer})` : '🔄 Perubahan';
                             }
-                            return '🔄 Pembaruan';
+                            return isMasjid ? `🔄 Pembaruan (P${effectiveVer})` : '🔄 Pembaruan';
                           })();
 
                           const badgeClass = isInactive
                             ? 'bg-slate-100 text-slate-500 border border-slate-200'
-                            : label === '📋 Pembentukan'
+                            : label.includes('Pembentukan')
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : label === '🔄 Perubahan'
+                            : label.includes('Perubahan')
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-blue-50 text-blue-700 border border-blue-200';
 
@@ -3799,7 +3833,9 @@ export default function DatabaseUPZ() {
                                   )}>
                                     {label}
                                   </span>
-                                  <p className="text-xs font-mono font-bold text-slate-700 mt-2 break-all">{history.skNumber}</p>
+                                  <p className="text-xs font-mono font-bold text-slate-700 mt-2 break-all">
+                                    {history.skNumber}
+                                  </p>
                                 </div>
                               <span className={cn('px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0',
                                 (history.status === 'Aktif' && (selectedUPZ.status || 'Aktif') === 'Aktif') ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>
@@ -4141,32 +4177,51 @@ export default function DatabaseUPZ() {
               className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Parameter Tanggal SK</h3>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Parameter Cetak & Download SK</h3>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">Konfigurasi tanggal dan penandatangan sebelum cetak/unduh</p>
+                </div>
                 <button onClick={() => setIsPrintDateModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
               <div className="p-6 space-y-4">
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Silakan masukkan tanggal permohonan dan tanggal penetapan SK yang akan tercantum pada dokumen sebelum di-print/unduh.
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Nama Ketua BAZNAS (Penandatangan)
+                    </label>
+                    <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                      User Management
+                    </span>
+                  </div>
+                  <input 
+                    type="text"
+                    value={printKetuaName}
+                    onChange={(e) => setPrintKetuaName(e.target.value)}
+                    placeholder="Nama Ketua BAZNAS..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none transition-all"
+                  />
+                  <p className="text-[10px] text-slate-400">Otomatis diambil dari akun Ketua di User Management (dapat diedit manual jika dibutuhkan).</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Permohonan</label>
                     <input 
                       type="date"
                       value={printRequestDateValue}
                       onChange={(e) => setPrintRequestDateValue(e.target.value)}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none transition-all"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal Ditetapkan</label>
                     <input 
                       type="date"
                       value={printDateValue}
                       onChange={(e) => setPrintDateValue(e.target.value)}
-                      className="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none transition-all"
                     />
                   </div>
                 </div>
