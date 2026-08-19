@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import {
   Search, Filter, Calendar, FileText, Clock, CheckCircle2,
   ChevronLeft, ChevronRight, User, Eye, X, MapPin, Tag, ExternalLink,
-  Send, Edit3
+  Send, Edit3, Sliders, ShieldCheck, Zap, RotateCcw, AlertCircle, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -12,6 +12,35 @@ import { useAuth } from '../context/AuthContext';
 
 interface TrackingSuratProps {
   data: Surat[];
+  onUpdate?: (data: Surat[]) => void;
+}
+
+export const STATUS_OPTIONS_SUPERADMIN_SURAT = [
+  { value: 'Registrasi', label: 'Registrasi', badge: 'ADM', stepIdx: 0, desc: 'Pendaftaran berkas awal & scan surat masuk' },
+  { value: 'Review_Kabag_Admin', label: 'Review Kabag Administrasi', badge: 'KDM', stepIdx: 1, desc: 'Verifikasi kelayakan berkas & disposisi awal' },
+  { value: 'Review_Kepala_Pelaksana', label: 'Review Kepala Pelaksana', badge: 'KAPEL', stepIdx: 2, desc: 'Telaah & rekomendasi Kepala Pelaksana' },
+  { value: 'Review_Pimpinan', label: 'Review Ketua / Pimpinan', badge: 'PIMP', stepIdx: 3, desc: 'Persetujuan & arahan disposisi Ketua BAZNAS' },
+  { value: 'Penugasan_Kepala_Pelaksana', label: 'Penugasan Kepala Pelaksana', badge: 'KAPEL', stepIdx: 4, desc: 'Penunjukan staf/personel untuk menghadiri/menindaklanjuti' },
+  { value: 'Selesai', label: 'Selesai', badge: 'DONE', stepIdx: 5, desc: 'Surat selesai diproses, ditindaklanjuti, dan diarsipkan' },
+  { value: 'Ditolak', label: 'Ditolak', badge: 'TOLAK', stepIdx: -1, desc: 'Surat ditolak dengan catatan alasan' },
+];
+
+export function getStepIndexForSuratStatus(status: string): number {
+  if (!status) return 0;
+  const s = status.toLowerCase().trim();
+  if (s === 'ditolak') return -1;
+  if (s === 'registrasi' || s.includes('scan')) return 0;
+  if (s.includes('kabag')) return 1;
+  if (s.includes('kepala pelaksana') && !s.includes('penugasan')) return 2;
+  if (s.includes('pimpinan') || s.includes('ketua')) return 3;
+  if (s.includes('penugasan')) return 4;
+  if (s.includes('selesai')) return 5;
+  return 0;
+}
+
+function matchesSuratStatus(current: string, target: string) {
+  if (!current || !target) return false;
+  return current.toLowerCase().replace(/[_ ]/g, '') === target.toLowerCase().replace(/[_ ]/g, '');
 }
 
 const MONTHS = ['Semua','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -117,8 +146,9 @@ function toGDriveEmbedUrl(link: string): string | null {
   return null;
 }
 
-export default function TrackingSurat({ data }: TrackingSuratProps) {
+export default function TrackingSurat({ data, onUpdate }: TrackingSuratProps) {
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super_Admin';
   const canEditSuratKeluar = user?.role === 'Staf_Administrasi' || user?.role === 'Kabag_Administrasi' || user?.role === 'Super_Admin';
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -130,6 +160,84 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
   const [editingSuratKeluar, setEditingSuratKeluar] = useState(false);
   const [inputLinkSuratKeluar, setInputLinkSuratKeluar] = useState('');
   const [savingSuratKeluar, setSavingSuratKeluar] = useState(false);
+
+  // Users list for staff assignment
+  const [users, setUsers] = useState<any[]>([]);
+  useEffect(() => {
+    axios.get('/api/users')
+      .then(res => setUsers(res.data || []))
+      .catch(console.error);
+  }, []);
+
+  // Super Admin Status Override State
+  const [overrideSurat, setOverrideSurat] = useState<Surat | null>(null);
+  const [overrideTargetStatus, setOverrideTargetStatus] = useState<string>('Registrasi');
+  const [overrideCatatan, setOverrideCatatan] = useState('');
+  const [overrideAssignedStaff, setOverrideAssignedStaff] = useState<string[]>([]);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [isSavingOverride, setIsSavingOverride] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const openOverrideModal = (item: Surat) => {
+    setOverrideSurat(item);
+    setOverrideTargetStatus(item.status ? item.status.replace(/ /g, '_') : 'Registrasi');
+    setOverrideCatatan('');
+    setOverrideAssignedStaff(Array.isArray(item.assigned_staff) ? (item.assigned_staff as string[]) : []);
+    setStaffSearchQuery('');
+  };
+
+  const handleSaveOverride = async () => {
+    if (!overrideSurat) return;
+    setIsSavingOverride(true);
+    try {
+      const payload: any = {
+        status: overrideTargetStatus,
+        assigned_staff: overrideAssignedStaff
+      };
+
+      if (overrideCatatan && overrideCatatan.trim()) {
+        const note = overrideCatatan.trim();
+        payload.catatanKepala = overrideSurat.catatanKepala 
+          ? `${overrideSurat.catatanKepala}\n[Catatan Super Admin]: ${note}`
+          : `[Catatan Super Admin]: ${note}`;
+      }
+
+      await axios.put(`/api/surats/${overrideSurat.id}`, payload);
+
+      const normalizedStatus = overrideTargetStatus.replace(/_/g, ' ') as any;
+      const updatedSurat: Surat = {
+        ...overrideSurat,
+        status: normalizedStatus,
+        catatanKepala: payload.catatanKepala || overrideSurat.catatanKepala,
+        assigned_staff: overrideAssignedStaff
+      };
+
+      if (selectedSurat && selectedSurat.id === overrideSurat.id) {
+        setSelectedSurat(updatedSurat);
+      }
+
+      if (onUpdate && data) {
+        const updatedList = data.map(s => s.id === overrideSurat.id ? updatedSurat : s);
+        onUpdate(updatedList);
+      }
+
+      setToastMessage({
+        text: `Status Surat #${overrideSurat.agendaNo} berhasil diubah ke "${formatStatusDisplay(overrideTargetStatus)}"`,
+        type: 'success'
+      });
+      setTimeout(() => setToastMessage(null), 3500);
+      setOverrideSurat(null);
+    } catch (err: any) {
+      console.error('Gagal override status surat:', err);
+      setToastMessage({
+        text: err.response?.data?.error || 'Gagal mengubah status surat.',
+        type: 'error'
+      });
+      setTimeout(() => setToastMessage(null), 3500);
+    } finally {
+      setIsSavingOverride(false);
+    }
+  };
 
   const openSuratDetail = (item: Surat) => {
     setSelectedSurat(item);
@@ -329,10 +437,27 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                       <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
                         {formatStatusDisplay(item.status)}
                       </span>
-                      <button onClick={() => openSuratDetail(item)}
-                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                        <Eye className="size-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {isSuperAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => openOverrideModal(item)}
+                            title="Kelola & Ubah Status (Super Admin)"
+                            className="p-1.5 text-primary hover:text-emerald-800 hover:bg-primary/10 rounded-lg transition-all border border-primary/20 bg-primary/5 opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center gap-1 text-[10px] font-bold shrink-0 cursor-pointer shadow-xs"
+                          >
+                            <Sliders className="size-3.5 text-primary" />
+                            <span className="hidden xl:inline">Ubah</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openSuratDetail(item)}
+                          title="Lihat Detail Surat"
+                          className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 cursor-pointer"
+                        >
+                          <Eye className="size-4" />
+                        </button>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -419,11 +544,21 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                 {/* Status Banner */}
-                <div className={cn("p-4 rounded-xl flex items-center justify-between", getStatusColor(selectedSurat.status))}>
+                <div className={cn("p-4 rounded-xl flex items-center justify-between flex-wrap gap-2", getStatusColor(selectedSurat.status))}>
                   <div className="flex items-center gap-3">
                     <Clock className="size-5" />
                     <span className="text-sm font-black uppercase tracking-wider">Status: {formatStatusDisplay(selectedSurat.status)}</span>
                   </div>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => openOverrideModal(selectedSurat)}
+                      className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs border border-slate-200 cursor-pointer ml-auto"
+                    >
+                      <Sliders className="size-3.5 text-primary" />
+                      <span>Kelola Status (Super Admin)</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* PDF/GDrive Viewer Surat Masuk */}
@@ -613,6 +748,27 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
                   </div>
                 </div>
 
+                {/* Staf yang Ditugaskan */}
+                {selectedSurat.assigned_staff && Array.isArray(selectedSurat.assigned_staff) && selectedSurat.assigned_staff.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2 flex items-center gap-1.5">
+                      <User className="size-3.5 text-primary" /> Staf yang Ditugaskan
+                    </h4>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {selectedSurat.assigned_staff.map(id => {
+                        const u = users.find(x => x.id === id);
+                        return (
+                          <div key={id} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-xs font-bold shadow-xs">
+                            <User className="size-3 text-primary" />
+                            <span>{u ? u.name : 'Staf BAZNAS'}</span>
+                            {u?.role && <span className="text-[10px] font-normal text-slate-500">({u.role.replace(/_/g, ' ')})</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Catatan */}
                 {(selectedSurat.catatanKepala || selectedSurat.catatanPimpinan) && (
                   <div className="space-y-3">
@@ -641,6 +797,359 @@ export default function TrackingSurat({ data }: TrackingSuratProps) {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Super Admin Status Override Modal */}
+      <AnimatePresence>
+        {overrideSurat && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isSavingOverride && setOverrideSurat(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200"
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                    <Sliders className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-primary/10 text-primary rounded border border-primary/20 flex items-center gap-1">
+                        <ShieldCheck className="size-3 text-primary" />
+                        Super Admin
+                      </span>
+                      <span className="text-xs text-slate-500 font-bold">
+                        Agenda #{overrideSurat.agendaNo}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight mt-0.5">
+                      Kelola Status Surat Masuk
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !isSavingOverride && setOverrideSurat(null)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Surat Mini Info */}
+              <div className="px-6 pt-5">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="truncate max-w-sm">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pengirim / Instansi</p>
+                    <p className="font-bold text-slate-900 truncate mt-0.5">{overrideSurat.namaInstansi || 'Perorangan'}</p>
+                    {overrideSurat.pimpinanOrganisasi && (
+                      <p className="text-[10px] text-slate-500">{overrideSurat.pimpinanOrganisasi}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Status Saat Ini</p>
+                    <span className={cn("inline-block px-2.5 py-1 font-bold text-[10px] rounded-full uppercase mt-0.5", getStatusColor(overrideSurat.status))}>
+                      {formatStatusDisplay(overrideSurat.status)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+                {/* Select Destination Stage */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Zap className="size-3.5 text-primary" />
+                    Pilih Tahapan / Status Baru
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Pilih tahapan alur surat yang ingin dituju. Super Admin dapat melewati (*skip*) proses atau mengembalikan ke tahapan tertentu.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-56 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-200 custom-scrollbar">
+                    {STATUS_OPTIONS_SUPERADMIN_SURAT.map((opt) => {
+                      const isSelected = overrideTargetStatus === opt.value;
+                      const isCurrent = matchesSuratStatus(overrideSurat.status, opt.value) || matchesSuratStatus(overrideSurat.status, opt.label);
+                      return (
+                        <div
+                          key={opt.value}
+                          onClick={() => setOverrideTargetStatus(opt.value)}
+                          className={cn(
+                            "p-2.5 rounded-lg border text-left cursor-pointer transition-all flex items-start justify-between gap-2",
+                            isSelected
+                              ? "bg-primary/10 border-primary ring-2 ring-primary/20 shadow-xs"
+                              : "bg-white border-slate-200 hover:border-primary/40 hover:bg-slate-50"
+                          )}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={cn(
+                                "px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-tight",
+                                isSelected ? "bg-primary text-white" : "bg-slate-100 text-slate-600"
+                              )}>
+                                {opt.badge}
+                              </span>
+                              <p className={cn("text-xs font-bold truncate", isSelected ? "text-primary" : "text-slate-800")}>
+                                {opt.label}
+                              </p>
+                              {isCurrent && (
+                                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">
+                                  Saat Ini
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{opt.desc}</p>
+                          </div>
+                          {isSelected && <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Visual Stepper & Skip Alert */}
+                {(() => {
+                  const currIdx = getStepIndexForSuratStatus(overrideSurat.status);
+                  const targetIdx = getStepIndexForSuratStatus(overrideTargetStatus);
+                  const isSkipping = currIdx !== -1 && targetIdx !== -1 && targetIdx > currIdx + 1;
+                  const isReverting = currIdx !== -1 && targetIdx !== -1 && targetIdx < currIdx;
+                  const isRejecting = targetIdx === -1;
+
+                  if (isSkipping) {
+                    const skippedNames = STATUS_OPTIONS_SUPERADMIN_SURAT.filter((s) => s.stepIdx > currIdx && s.stepIdx < targetIdx).map(s => s.label);
+                    return (
+                      <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1.5">
+                        <div className="flex items-center gap-2 text-emerald-900 text-xs font-bold">
+                          <Zap className="size-4 text-emerald-600 fill-emerald-600" />
+                          <span>Percepatan: Melewati {skippedNames.length} Tahapan Alur</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800 font-medium leading-relaxed">
+                          Surat ini akan langsung melompat dari <strong>{formatStatusDisplay(overrideSurat.status)}</strong> ke <strong>{formatStatusDisplay(overrideTargetStatus)}</strong>.
+                        </p>
+                        {skippedNames.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {skippedNames.map(name => (
+                              <span key={name} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[9px] font-bold line-through opacity-80">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (isReverting) {
+                    return (
+                      <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+                        <RotateCcw className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-800 font-medium">
+                          <p className="font-bold">Mode Pengembalian (Revert)</p>
+                          <p className="text-[11px] text-amber-700 mt-0.5">
+                            Status dikembalikan ke tahapan <strong>{formatStatusDisplay(overrideTargetStatus)}</strong> untuk diproses ulang.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isRejecting) {
+                    return (
+                      <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5">
+                        <AlertCircle className="size-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-rose-800 font-medium">
+                          <p className="font-bold">Status Ditolak</p>
+                          <p className="text-[11px] text-rose-700 mt-0.5">
+                            Surat akan ditandai sebagai <strong>Ditolak</strong> dan dikeluarkan dari antrean pemrosesan aktif.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
+
+                {/* Contextual: Penugasan Staf (jika status adalah Penugasan Kepala Pelaksana atau setelahnya) */}
+                {(() => {
+                  const targetIdx = getStepIndexForSuratStatus(overrideTargetStatus);
+                  const isPenugasan = targetIdx === 4 || overrideTargetStatus === 'Penugasan_Kepala_Pelaksana' || (overrideSurat.kategori === 'Undangan' && targetIdx >= 4);
+                  if (!isPenugasan) return null;
+
+                  return (
+                    <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-emerald-900 text-xs font-black uppercase tracking-wider">
+                          <User className="size-4 text-emerald-600" />
+                          <span>Pilih / Tugaskan Staf</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800/80 mt-0.5">
+                          Tentukan personel/staf yang akan menerima notifikasi & ditugaskan menghadiri/menindaklanjuti surat ini.
+                        </p>
+                      </div>
+
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
+                        <input
+                          type="text"
+                          placeholder="Cari nama staf untuk ditugaskan..."
+                          value={staffSearchQuery}
+                          onChange={(e) => setStaffSearchQuery(e.target.value)}
+                          className="w-full text-xs bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 outline-none focus:border-primary focus:ring-1 focus:ring-primary font-medium"
+                        />
+                      </div>
+
+                      {/* Dropdown Suggestions */}
+                      {staffSearchQuery.trim() && (
+                        <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-lg flex flex-col divide-y divide-slate-100 z-10 custom-scrollbar">
+                          {users
+                            .filter(u => !overrideAssignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase()))
+                            .map(u => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  setOverrideAssignedStaff(prev => [...prev, u.id]);
+                                  setStaffSearchQuery('');
+                                }}
+                                className="px-3.5 py-2 text-left text-xs font-bold text-slate-700 hover:bg-emerald-50/80 transition-colors flex justify-between items-center group cursor-pointer"
+                              >
+                                <span>{u.name} <span className="font-normal text-slate-400 text-[10px] ml-1">({u.role?.replace(/_/g, ' ')})</span></span>
+                                <span className="text-primary text-[11px] font-black opacity-0 group-hover:opacity-100 transition-opacity">+ Tambah</span>
+                              </button>
+                            ))}
+                          {users.filter(u => !overrideAssignedStaff.includes(u.id) && u.name.toLowerCase().includes(staffSearchQuery.toLowerCase())).length === 0 && (
+                            <div className="px-4 py-2.5 text-xs text-slate-400 text-center italic">
+                              Tidak ditemukan staf dengan nama "{staffSearchQuery}".
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Selected Staff Chips */}
+                      {overrideAssignedStaff.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {overrideAssignedStaff.map(id => {
+                            const u = users.find(x => x.id === id);
+                            return (
+                              <div
+                                key={id}
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-primary text-white rounded-lg text-xs font-bold shadow-xs"
+                              >
+                                <span>{u ? u.name : 'Staf'}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setOverrideAssignedStaff(prev => prev.filter(x => x !== id))}
+                                  className="hover:text-rose-200 transition-colors p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-amber-700 italic">
+                          Belum ada staf yang dipilih untuk penugasan ini.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Catatan / Alasan Override */}
+                <div className="space-y-4 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-1">
+                      Catatan / Alasan Override Super Admin (Opsional)
+                    </label>
+                    <p className="text-[10px] text-slate-400 mb-1.5">
+                      Disimpan sebagai keterangan dokumen surat masuk, tidak mengubah disposisi resmi pimpinan.
+                    </p>
+                    <textarea
+                      rows={2}
+                      placeholder="Contoh: Percepatan disposisi atas instruksi pimpinan / perubahan status manual"
+                      value={overrideCatatan}
+                      onChange={(e) => setOverrideCatatan(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white transition-all resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
+                <button
+                  type="button"
+                  disabled={isSavingOverride}
+                  onClick={() => setOverrideSurat(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingOverride}
+                  onClick={handleSaveOverride}
+                  className="px-5 py-2.5 bg-primary hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingOverride ? (
+                    <>
+                      <div className="size-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="size-4" />
+                      <span>Terapkan Status Baru</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-6 right-6 z-[120] max-w-md shadow-2xl rounded-xl overflow-hidden"
+          >
+            <div className={cn(
+              "px-4 py-3 text-xs font-bold flex items-center gap-3 border shadow-lg",
+              toastMessage.type === 'success'
+                ? "bg-slate-900 text-white border-slate-800"
+                : "bg-rose-900 text-white border-rose-800"
+            )}>
+              {toastMessage.type === 'success' ? (
+                <div className="size-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="size-4" />
+                </div>
+              ) : (
+                <div className="size-6 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertCircle className="size-4" />
+                </div>
+              )}
+              <span className="leading-snug">{toastMessage.text}</span>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

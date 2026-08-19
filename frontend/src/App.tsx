@@ -348,6 +348,10 @@ function App() {
     setProposals(newData);
   };
 
+  const handleUpdateSurats = (newData: Surat[]) => {
+    setSurats(newData);
+  };
+
   if (!isAuthenticated) {
     return <Login />;
   }
@@ -493,7 +497,7 @@ function App() {
         ) : activeMenu === 'Tracking Proposal' ? (
           <TrackingProposal data={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Tracking Surat' ? (
-          <TrackingSurat data={surats} />
+          <TrackingSurat data={surats} onUpdate={handleUpdateSurats} />
         ) : activeMenu === 'Target RKAT' ? (
           <TargetRKAT proposals={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Simulator Pencairan' ? (
