@@ -4,15 +4,52 @@ import axios from 'axios';
 import {
   Search, Filter, FileText, Clock, CheckCircle2,
   ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw,
-  Calendar, CalendarCheck
+  Calendar, CalendarCheck, Sliders, ShieldCheck, Zap, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
+import { useAuth } from '../context/AuthContext';
 
 interface TrackingProposalProps {
   data: ProposalMemo[];
+  onUpdate?: (data: ProposalMemo[]) => void;
+}
+
+export const STATUS_OPTIONS_SUPERADMIN = [
+  { value: 'Registrasi', label: 'Registrasi', badge: 'ADM', stepIdx: 0, desc: 'Pendaftaran berkas awal proposal' },
+  { value: 'Scan_Proposal', label: 'Scan Proposal', badge: 'HUM', stepIdx: 1, desc: 'Scan berkas fisik oleh Humas / Admin' },
+  { value: 'Review_Kabag_Administrasi', label: 'Review Kabag Administrasi', badge: 'KDM', stepIdx: 2, desc: 'Verifikasi kelayakan berkas & disposisi awal' },
+  { value: 'Survei_Assessment', label: 'Survei / Assesment', badge: 'SURV', stepIdx: 3, desc: 'Penugasan survei relawan & cek lokasi' },
+  { value: 'Survei_Selesai', label: 'Review Kabid (Survei Selesai)', badge: 'SURV', stepIdx: 3, desc: 'Review hasil survei lapangan oleh Kabid' },
+  { value: 'Review_Kepala_Pelaksana', label: 'Review Kepala Pelaksana', badge: 'KAPEL', stepIdx: 4, desc: 'Telaah & rekomendasi Kepala Pelaksana' },
+  { value: 'Review_Pimpinan', label: 'Review Ketua / Pimpinan', badge: 'PIMP', stepIdx: 5, desc: 'Persetujuan & instruksi disposisi Ketua' },
+  { value: 'Penentuan_Nominal', label: 'Penentuan Nominal', badge: 'PIMP', stepIdx: 5, desc: 'Penetapan pagu nominal bantuan & persetujuan' },
+  { value: 'Antrean_Pencairan', label: 'Antrean Pencairan Dana', badge: 'KEU', stepIdx: 6, desc: 'Penyiapan kas/bank & proses pencairan staf keuangan' },
+  { value: 'Realisasi_Bantuan', label: 'Realisasi Bantuan', badge: 'DIST', stepIdx: 7, desc: 'Penyaluran bantuan dana / barang ke mustahik' },
+  { value: 'Antrean_SIMBA', label: 'Antrean SIMBA', badge: 'DIST', stepIdx: 7, desc: 'Pencatatan nomor bukti transaksi SIMBA BAZNAS' },
+  { value: 'Antrean_Arsip', label: 'Pengarsipan (Antrean Arsip)', badge: 'Arsip', stepIdx: 8, desc: 'Upload kuitansi bertanda tangan & pengarsipan' },
+  { value: 'Selesai & Arsip', label: 'Selesai (Selesai & Arsip)', badge: 'DONE', stepIdx: 9, desc: 'Proposal selesai tuntas dan terarsip' },
+  { value: 'Ditolak', label: 'Ditolak', badge: 'TOLAK', stepIdx: -1, desc: 'Proposal ditolak dengan catatan alasan' },
+];
+
+export function getStepIndexForStatus(status: string): number {
+  if (!status) return 0;
+  const s = status.toLowerCase().trim();
+  if (s === 'ditolak') return -1;
+  if (s === 'registrasi') return 0;
+  if (s.includes('scan')) return 1;
+  if (s.includes('kabag')) return 2;
+  if (s.includes('survei') || s.includes('kabid')) return 3; // SURV: Survei/Assessment & Review Kabid
+  if (s.includes('kepala pelaksana') || s.includes('kapel')) return 4; // KAPEL: Review Kepala Pelaksana
+  if (s.includes('pimpinan') || s.includes('ketua') || s.includes('nominal')) return 5; // PIMP: Review Ketua & Penentuan Nominal
+  if (s.includes('cair') || s.includes('pencairan')) return 6; // KEU: Antrean Pencairan Dana
+  if (s.includes('realisasi')) return 7;
+  if (s.includes('simba')) return 7; // DIST: Realisasi & Simba
+  if (s.includes('arsip') && !s.includes('selesai')) return 8; // Arsip: Pengarsipan
+  if (s.includes('selesai')) return 9; // DONE: Selesai
+  return 0;
 }
 
 const MEMO_SOURCES = ['Semua', 'Ketua BAZNAS', 'Wakil Ketua I', 'Wakil Ketua II', 'Wakil Ketua III', 'Wakil Ketua IV', 'Kepala Pelaksana'];
@@ -49,8 +86,7 @@ const STATUS_ORDER = [
   'Scan Proposal',
   'Scan_Proposal',
   'Review Kabag Admin', 'Review Kabag', 'Review Kabag Administrasi',
-  'Survei Assessment', 'Proses Disposisi', 'Monitoring Tugas', 'Tim Survei',
-  'Survei Selesai',
+  'Survei Assessment', 'Proses Disposisi', 'Monitoring Tugas', 'Tim Survei', 'Survei Selesai',
   'Review Kepala Pelaksana',
   'Review Pimpinan',
   'Persetujuan Pimpinan',
@@ -105,10 +141,10 @@ function getProgressSteps(status: string) {
       [0,0],   // ADM: Registrasi (idx 0)
       [1,2],   // HUM: Scan Proposal, Scan_Proposal (idx 1-2)
       [3,5],   // KDM: Review Kabag Admin, Review Kabag, Review Kabag Administrasi (idx 3-5)
-      [6,9],   // SURV: Survei Assessment, Proses Disposisi, Monitoring Tugas, Tim Survei (idx 6-9)
-      [10,11], // KAPEL: Survei Selesai, Review Kepala Pelaksana (idx 10-11)
-      [12,13], // PIMP: Review Pimpinan, Persetujuan Pimpinan (idx 12-13)
-      [14,15], // KEU: Penentuan Nominal, Pencairan Dana (idx 14-15)
+      [6,10],  // SURV: Survei Assessment, Proses Disposisi, Monitoring Tugas, Tim Survei, Survei Selesai (idx 6-10)
+      [11,11], // KAPEL: Review Kepala Pelaksana (idx 11)
+      [12,14], // PIMP: Review Pimpinan, Persetujuan Pimpinan, Penentuan Nominal (idx 12-14)
+      [15,15], // KEU: Pencairan Dana (idx 15)
       [16,18], // DIST: Realisasi Bantuan, Antrean SIMBA, Antrean_SIMBA (idx 16-18)
       [19,19], // Arsip: Antrean Arsip (idx 19)
       [20,20]  // DONE: Selesai & Arsip (idx 20)
@@ -364,12 +400,112 @@ function SearchableDropdown({
   );
 }
 
-export default function TrackingProposal({ data }: TrackingProposalProps) {
+export default function TrackingProposal({ data, onUpdate }: TrackingProposalProps) {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'Super_Admin';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState('Semua');
   const [selectedMemo, setSelectedMemo] = useState('Semua');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
+
+  // Super Admin Status Override Modal State
+  const [overrideProposal, setOverrideProposal] = useState<ProposalMemo | null>(null);
+  const [overrideTargetStatus, setOverrideTargetStatus] = useState<string>('Registrasi');
+  const [overrideNominal, setOverrideNominal] = useState<number | string>('');
+  const [overrideTipeBantuan, setOverrideTipeBantuan] = useState<string>('Tunai');
+  const [overrideCatatan, setOverrideCatatan] = useState<string>('');
+  const [isSavingOverride, setIsSavingOverride] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Auto-dismiss toast
+  React.useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  const openOverrideModal = (item: ProposalMemo) => {
+    // Find closest matching option value
+    const found = STATUS_OPTIONS_SUPERADMIN.find(opt => matchesStatus(item.status, opt.value) || matchesStatus(item.status, opt.label));
+    const initialVal = found ? found.value : (item.status ? item.status.replace(/ /g, '_') : 'Registrasi');
+
+    setOverrideProposal(item);
+    setOverrideTargetStatus(initialVal);
+    setOverrideNominal(item.nominal || '');
+    setOverrideTipeBantuan(item.tipeBantuan || 'Tunai');
+    setOverrideCatatan('');
+  };
+
+  const handleSaveOverride = async () => {
+    if (!overrideProposal || !overrideTargetStatus) return;
+    setIsSavingOverride(true);
+    try {
+      const payload: any = {
+        status: overrideTargetStatus
+      };
+
+      if (overrideNominal !== '' && overrideNominal !== undefined && overrideNominal !== null) {
+        const parsedNom = Number(overrideNominal);
+        if (!isNaN(parsedNom) && parsedNom >= 0) {
+          payload.nominal = parsedNom;
+        }
+      }
+
+      if (overrideTipeBantuan) {
+        payload.tipe_bantuan = overrideTipeBantuan;
+      }
+
+      if (overrideCatatan && overrideCatatan.trim()) {
+        const note = overrideCatatan.trim();
+        payload.keterangan = overrideProposal.keterangan 
+          ? `${overrideProposal.keterangan}\n[Super Admin]: ${note}`
+          : `[Super Admin]: ${note}`;
+      }
+
+      await axios.put(`/api/proposals/${overrideProposal.id}`, payload);
+
+      const normalizedStatus = overrideTargetStatus.replace(/_/g, ' ');
+      const updatedProposal: ProposalMemo = {
+        ...overrideProposal,
+        status: normalizedStatus,
+        nominal: payload.nominal !== undefined ? payload.nominal : overrideProposal.nominal,
+        tipeBantuan: payload.tipe_bantuan || overrideProposal.tipeBantuan,
+        keterangan: payload.keterangan !== undefined ? payload.keterangan : overrideProposal.keterangan,
+        catatan: payload.keterangan !== undefined ? payload.keterangan : overrideProposal.catatan,
+        updatedAt: new Date().toISOString()
+      };
+
+      // If detail modal is currently open for this proposal, update its state too
+      if (selectedProposal && selectedProposal.id === overrideProposal.id) {
+        setSelectedProposal(updatedProposal);
+      }
+
+      // Update parent state across App.tsx
+      if (onUpdate) {
+        const updatedData = data.map(item => item.id === overrideProposal.id ? updatedProposal : item);
+        onUpdate(updatedData);
+      }
+
+      setToastMessage({
+        text: `Status proposal Agenda #${overrideProposal.agendaNo || overrideProposal.id} berhasil diubah ke "${formatStatusDisplay(overrideTargetStatus)}"`,
+        type: 'success'
+      });
+      setOverrideProposal(null);
+    } catch (err) {
+      console.error('Error overriding status:', err);
+      setToastMessage({
+        text: 'Gagal mengubah status proposal. Silakan periksa koneksi dan coba lagi.',
+        type: 'error'
+      });
+    } finally {
+      setIsSavingOverride(false);
+    }
+  };
 
   // Filter Lanjutan (Advanced Filters)
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
@@ -773,10 +909,27 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                       <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
                         {formatStatusDisplay(item.status)}
                       </span>
-                      <button onClick={() => setSelectedProposal(item)}
-                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0">
-                        <Eye className="size-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {isSuperAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => openOverrideModal(item)}
+                            title="Kelola & Ubah Status (Super Admin)"
+                            className="p-1.5 text-primary hover:text-emerald-800 hover:bg-primary/10 rounded-lg transition-all border border-primary/20 bg-primary/5 opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center gap-1 text-[10px] font-bold shrink-0 cursor-pointer shadow-xs"
+                          >
+                            <Sliders className="size-3.5 text-primary" />
+                            <span className="hidden xl:inline">Ubah</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProposal(item)}
+                          title="Lihat Detail Proposal"
+                          className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 cursor-pointer"
+                        >
+                          <Eye className="size-4" />
+                        </button>
+                      </div>
                     </div>
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
@@ -872,11 +1025,21 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
 
               <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
                 {/* Status Banner */}
-                <div className={cn("p-4 rounded-xl flex items-center justify-between", getStatusColor(selectedProposal.status))}>
+                <div className={cn("p-4 rounded-xl flex items-center justify-between flex-wrap gap-2", getStatusColor(selectedProposal.status))}>
                   <div className="flex items-center gap-3">
                     <Clock className="size-5" />
                     <span className="text-sm font-black uppercase tracking-wider">Status: {formatStatusDisplay(selectedProposal.status)}</span>
                   </div>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => openOverrideModal(selectedProposal)}
+                      className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs border border-slate-200 cursor-pointer ml-auto"
+                    >
+                      <Sliders className="size-3.5 text-primary" />
+                      <span>Kelola Status (Super Admin)</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Nominal & Tanggal Pencairan */}
@@ -1130,6 +1293,18 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
                       </div>
                     )}
 
+                    {/* Keterangan / Catatan Tambahan */}
+                    {(selectedProposal.keterangan || selectedProposal.catatan) && (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-1.5">Keterangan & Catatan Dokumen</h4>
+                        <div className="p-3.5 bg-white border border-slate-200/80 rounded-xl">
+                          <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed font-medium">
+                            {selectedProposal.keterangan || selectedProposal.catatan}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Riwayat Alur Dokumen */}
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60 pb-1.5 flex items-center gap-1.5">
@@ -1176,6 +1351,326 @@ export default function TrackingProposal({ data }: TrackingProposalProps) {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Super Admin Status Override Modal */}
+      <AnimatePresence>
+        {overrideProposal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isSavingOverride && setOverrideProposal(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200"
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                    <Sliders className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-primary/10 text-primary rounded border border-primary/20 flex items-center gap-1">
+                        <ShieldCheck className="size-3 text-primary" />
+                        Super Admin
+                      </span>
+                      <span className="text-xs text-slate-500 font-bold">
+                        Agenda #{overrideProposal.agendaNo || overrideProposal.id}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight mt-0.5">
+                      Kelola Status Proposal
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !isSavingOverride && setOverrideProposal(null)}
+                  className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Proposal mini info */}
+              <div className="px-6 pt-5">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="truncate max-w-sm">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pemohon / Lembaga</p>
+                    <p className="font-bold text-slate-900 truncate mt-0.5">{overrideProposal.namaPemohon || overrideProposal.namaInstansi || 'Mustahik'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Status Saat Ini</p>
+                    <span className={cn("inline-block px-2.5 py-1 font-bold text-[10px] rounded-full uppercase mt-0.5", getStatusColor(overrideProposal.status))}>
+                      {formatStatusDisplay(overrideProposal.status)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+                {/* Step 1: Select Destination Stage */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Zap className="size-3.5 text-primary" />
+                    Pilih Tahapan / Status Baru
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Pilih tahapan alur yang ingin dituju. Super Admin dapat melewati (*skip*) proses atau mengembalikan ke tahapan tertentu.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-56 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-200 custom-scrollbar">
+                    {STATUS_OPTIONS_SUPERADMIN.map((opt) => {
+                      const isSelected = overrideTargetStatus === opt.value;
+                      const isCurrent = matchesStatus(overrideProposal.status, opt.value) || matchesStatus(overrideProposal.status, opt.label);
+                      return (
+                        <div
+                          key={opt.value}
+                          onClick={() => setOverrideTargetStatus(opt.value)}
+                          className={cn(
+                            "p-2.5 rounded-lg border text-left cursor-pointer transition-all flex items-start justify-between gap-2",
+                            isSelected
+                              ? "bg-primary/10 border-primary ring-2 ring-primary/20 shadow-xs"
+                              : "bg-white border-slate-200 hover:border-primary/40 hover:bg-slate-50"
+                          )}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={cn(
+                                "px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-tight",
+                                isSelected ? "bg-primary text-white" : "bg-slate-100 text-slate-600"
+                              )}>
+                                {opt.badge}
+                              </span>
+                              <p className={cn("text-xs font-bold truncate", isSelected ? "text-primary" : "text-slate-800")}>
+                                {opt.label}
+                              </p>
+                              {isCurrent && (
+                                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">
+                                  Saat Ini
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{opt.desc}</p>
+                          </div>
+                          {isSelected && <CheckCircle2 className="size-4 text-primary shrink-0 mt-0.5" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Step 2: Visual Stepper & Skip Alert */}
+                {(() => {
+                  const currIdx = getStepIndexForStatus(overrideProposal.status);
+                  const targetIdx = getStepIndexForStatus(overrideTargetStatus);
+                  const isSkipping = currIdx !== -1 && targetIdx !== -1 && targetIdx > currIdx + 1;
+                  const isReverting = currIdx !== -1 && targetIdx !== -1 && targetIdx < currIdx;
+                  const isRejecting = targetIdx === -1;
+
+                  if (isSkipping) {
+                    const skippedNames = STEPS.filter((_, idx) => idx > currIdx && idx < targetIdx).map(s => s.full);
+                    return (
+                      <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1.5">
+                        <div className="flex items-center gap-2 text-emerald-900 text-xs font-bold">
+                          <Zap className="size-4 text-emerald-600 fill-emerald-600" />
+                          <span>Percepatan: Melewati {skippedNames.length} Tahapan Alur</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800 font-medium leading-relaxed">
+                          Proposal ini akan langsung melompat dari <strong>{formatStatusDisplay(overrideProposal.status)}</strong> ke <strong>{formatStatusDisplay(overrideTargetStatus)}</strong>.
+                        </p>
+                        {skippedNames.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {skippedNames.map(name => (
+                              <span key={name} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[9px] font-bold line-through opacity-80">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (isReverting) {
+                    return (
+                      <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+                        <RotateCcw className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-800 font-medium">
+                          <p className="font-bold">Mode Pengembalian (Revert)</p>
+                          <p className="text-[11px] text-amber-700 mt-0.5">
+                            Status dikembalikan ke tahapan <strong>{formatStatusDisplay(overrideTargetStatus)}</strong> untuk diproses ulang.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isRejecting) {
+                    return (
+                      <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5">
+                        <AlertCircle className="size-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-rose-800 font-medium">
+                          <p className="font-bold">Status Ditolak</p>
+                          <p className="text-[11px] text-rose-700 mt-0.5">
+                            Proposal akan ditandai sebagai <strong>Ditolak</strong> dan dikeluarkan dari antrean pemrosesan aktif.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
+
+                {/* Step 3: Contextual Settings (Nominal / Tipe Bantuan / Catatan) */}
+                <div className="space-y-4 pt-2 border-t border-slate-100">
+                  {/* If moving to or past Penentuan Nominal */}
+                  {(() => {
+                    const targetIdx = getStepIndexForStatus(overrideTargetStatus);
+                    const showFinancialInputs = targetIdx >= 5 || overrideTargetStatus.toLowerCase().includes('nominal'); // PIMP (Penentuan Nominal) & seterusnya
+                    if (!showFinancialInputs) return null;
+
+                    return (
+                      <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3">
+                        <div className="flex items-center gap-2 text-emerald-900 text-xs font-black uppercase tracking-wider">
+                          <Banknote className="size-4 text-emerald-600" />
+                          <span>Kelola Nominal & Tipe Bantuan</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                              Nominal Bantuan (Rp)
+                            </label>
+                            <input
+                              type="number"
+                              placeholder="Contoh: 1000000"
+                              value={overrideNominal}
+                              onChange={(e) => setOverrideNominal(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            />
+                            {overrideNominal !== '' && Number(overrideNominal) > 0 && (
+                              <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                                {formatCurrency(Number(overrideNominal))}
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                              Tipe Penyaluran Bantuan
+                            </label>
+                            <select
+                              value={overrideTipeBantuan}
+                              onChange={(e) => setOverrideTipeBantuan(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-primary cursor-pointer"
+                            >
+                              <option value="Tunai">Tunai</option>
+                              <option value="Transfer Bank">Transfer Bank</option>
+                              <option value="Barang">Barang / Logistik</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Catatan / Alasan Override */}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-1">
+                      Catatan / Alasan Override Super Admin (Opsional)
+                    </label>
+                    <p className="text-[10px] text-slate-400 mb-1.5">
+                      Disimpan sebagai keterangan dokumen proposal, tidak mengubah catatan review pimpinan.
+                    </p>
+                    <textarea
+                      rows={2}
+                      placeholder="Contoh: Percepatan penyaluran atas instruksi pimpinan / perubahan status manual"
+                      value={overrideCatatan}
+                      onChange={(e) => setOverrideCatatan(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary focus:bg-white transition-all resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
+                <button
+                  type="button"
+                  disabled={isSavingOverride}
+                  onClick={() => setOverrideProposal(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingOverride}
+                  onClick={handleSaveOverride}
+                  className="px-5 py-2.5 bg-primary hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingOverride ? (
+                    <>
+                      <div className="size-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="size-4" />
+                      <span>Terapkan Status Baru</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-6 right-6 z-[120] max-w-md shadow-2xl rounded-xl overflow-hidden"
+          >
+            <div className={cn(
+              "px-4 py-3 text-xs font-bold flex items-center gap-3 border shadow-lg",
+              toastMessage.type === 'success'
+                ? "bg-slate-900 text-white border-slate-800"
+                : "bg-rose-900 text-white border-rose-800"
+            )}>
+              {toastMessage.type === 'success' ? (
+                <div className="size-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="size-4" />
+                </div>
+              ) : (
+                <div className="size-6 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertCircle className="size-4" />
+                </div>
+              )}
+              <span className="flex-1">{toastMessage.text}</span>
+              <button
+                type="button"
+                onClick={() => setToastMessage(null)}
+                className="text-white/60 hover:text-white p-1"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

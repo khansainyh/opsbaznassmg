@@ -14,7 +14,7 @@ export default defineConfig({
         enabled: true
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 5000000,
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
       },
       manifest: {
         name: 'BAZNAS Operational Hub',

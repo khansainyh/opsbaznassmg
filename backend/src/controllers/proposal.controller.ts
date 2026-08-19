@@ -446,7 +446,23 @@ export const updateProposal = async (req: Request, res: Response) => {
     }
 
     await syncRealisasiFromProposal(id);
-    res.status(200).json(proposal);
+
+    const fullUpdatedProposal = await prisma.proposal.findUnique({
+      where: { id },
+      include: { program: true, mustahik: true }
+    });
+
+    const realisasi = await prisma.realisasi.findFirst({
+      where: { proposal_id: id },
+      select: { tanggal: true },
+      orderBy: { tanggal: 'desc' }
+    });
+
+    res.status(200).json({
+      ...(fullUpdatedProposal || proposal),
+      tanggal_pencairan_real: realisasi?.tanggal || null,
+      tanggal_realisasi: realisasi?.tanggal || null
+    });
   } catch (error) {
     console.error('[UPDATE PROPOSAL ERROR]', error);
     res.status(500).json({ error: String(error) });

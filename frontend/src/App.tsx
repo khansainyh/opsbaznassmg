@@ -491,7 +491,7 @@ function App() {
             onUpdate={handleUpdateProposals}
           />
         ) : activeMenu === 'Tracking Proposal' ? (
-          <TrackingProposal data={proposals} />
+          <TrackingProposal data={proposals} onUpdate={handleUpdateProposals} />
         ) : activeMenu === 'Tracking Surat' ? (
           <TrackingSurat data={surats} />
         ) : activeMenu === 'Target RKAT' ? (
