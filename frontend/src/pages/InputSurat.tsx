@@ -24,7 +24,8 @@ import {
   Monitor,
   Download,
   FileSpreadsheet,
-  Printer
+  Printer,
+  Hash
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -82,10 +83,47 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   const [selectedSurat, setSelectedSurat] = useState<Surat | null>(null);
   
   const [editingSurat, setEditingSurat] = useState<Surat | null>(null);
+  const [agendaNoInput, setAgendaNoInput] = useState<string>('');
   const [selectedKategori, setSelectedKategori] = useState<string>('');
   const [isKategoriDropdownOpen, setIsKategoriDropdownOpen] = useState(false);
   const [tanggalAcaraInput, setTanggalAcaraInput] = useState('');
   const [jamAcaraInput, setJamAcaraInput] = useState('');
+
+  const suggestedNextAgenda = React.useMemo(() => {
+    const listToCheck = allData && allData.length > 0 ? allData : data;
+    if (!listToCheck || listToCheck.length === 0) return 1;
+    const sorted = [...listToCheck].sort((a, b) => {
+      const dateA = new Date(a.tanggalMasuk).getTime();
+      const dateB = new Date(b.tanggalMasuk).getTime();
+      if (!isNaN(dateA) && !isNaN(dateB) && dateB !== dateA) return dateB - dateA;
+      return Number(b.agendaNo || (b as any).agenda_no || 0) - Number(a.agendaNo || (a as any).agenda_no || 0);
+    });
+    const firstItem = sorted[0];
+    const num = typeof firstItem.agendaNo === 'number' ? firstItem.agendaNo : parseInt(String(firstItem.agendaNo || (firstItem as any).agenda_no || ''), 10);
+    return !isNaN(num) && num > 0 ? num + 1 : 1;
+  }, [data, allData]);
+
+  const duplicateSurat = React.useMemo(() => {
+    if (!agendaNoInput || !agendaNoInput.trim()) return null;
+    const targetNum = parseInt(agendaNoInput.trim(), 10);
+    if (isNaN(targetNum) || targetNum <= 0) return null;
+    
+    const listToCheck = allData && allData.length > 0 ? allData : data;
+    return listToCheck.find(s => {
+      if (editingSurat && s.id === editingSurat.id) return false;
+      const num = typeof s.agendaNo === 'number' ? s.agendaNo : parseInt(String(s.agendaNo || (s as any).agenda_no || ''), 10);
+      return num === targetNum;
+    }) || null;
+  }, [editingSurat, agendaNoInput, allData, data]);
+
+  const handleOpenAddModal = () => {
+    setEditingSurat(null);
+    setAgendaNoInput(String(suggestedNextAgenda));
+    setSelectedKategori('');
+    setTanggalAcaraInput('');
+    setJamAcaraInput('');
+    setIsModalOpen(true);
+  };
 
   // Scan modal state
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -796,7 +834,17 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
     const fd = new FormData(e.currentTarget);
     const get = (name: string) => String(fd.get(name) ?? '');
 
+    if (duplicateSurat) {
+      const confirmSave = window.confirm(
+        `⚠️ Peringatan No. Agenda Terduplikasi:\n\nNo. Agenda ${agendaNoInput} saat ini sudah digunakan oleh surat lain atas nama:\n• ${duplicateSurat.namaInstansi || duplicateSurat.pimpinanOrganisasi || duplicateSurat.yangMengajukan || 'Tanpa Nama'} (${duplicateSurat.kategori || 'Surat Masuk'})\n\nApakah Anda yakin ingin TETAP MENYIMPAN nomor agenda ini?`
+      );
+      if (!confirmSave) return;
+    }
+
+    const agendaNoVal = get('agendaNo') || agendaNoInput;
+
     const payload: Record<string, any> = {
+      agenda_no:           parseInt(agendaNoVal, 10),
       tanggal_masuk:       get('tanggalMasuk'),
       jam_pengajuan:       get('jamPengajuan'),
       nama_instansi:       get('namaInstansi') || null,
@@ -830,6 +878,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
   const handleEditClick = (surat: Surat) => {
     setEditingSurat(surat);
+    setAgendaNoInput(String(surat.agendaNo || (surat as any).agenda_no || ''));
     setSelectedKategori(surat.kategori || '');
     setTanggalAcaraInput(surat.tanggalAcara ? surat.tanggalAcara.split('T')[0] : '');
     setJamAcaraInput(surat.jamAcara || '');
@@ -990,13 +1039,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               Cetak Laporan / Rekap
             </button>
             <button 
-              onClick={() => {
-                setEditingSurat(null);
-                setSelectedKategori('');
-                setTanggalAcaraInput('');
-                setJamAcaraInput('');
-                setIsModalOpen(true);
-              }}
+              onClick={handleOpenAddModal}
               className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95"
             >
               <Plus className="size-4" />
@@ -1491,6 +1534,49 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
                   {/* Left Column */}
                   <div className="space-y-4">
                     <h4 className="text-xs font-black text-primary uppercase tracking-widest border-b border-primary/10 pb-2">Informasi Surat</h4>
+
+                    {/* Input No. Agenda (Untuk Input Baru & Edit) */}
+                    <div className="space-y-2 bg-amber-50/80 p-3.5 rounded-2xl border border-amber-200/90 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black text-amber-900 uppercase tracking-widest flex items-center gap-1.5">
+                          <Hash className="size-3.5 text-amber-600" />
+                          No. Agenda Surat *
+                        </label>
+                        <span className="text-[10px] text-amber-700 font-medium">
+                          {editingSurat ? 'Ubah jika ada koreksi urutan agenda' : 'Nomor urut otomatis (bisa disesuaikan)'}
+                        </span>
+                      </div>
+                      <input 
+                        required 
+                        name="agendaNo" 
+                        type="number" 
+                        min="1"
+                        value={agendaNoInput}
+                        onChange={(e) => setAgendaNoInput(e.target.value)}
+                        className={cn(
+                          "w-full bg-white border rounded-xl px-4 py-2.5 text-sm font-bold text-slate-900 focus:ring-2 outline-none transition-all shadow-xs",
+                          duplicateSurat 
+                            ? "border-amber-400 focus:ring-amber-400 bg-amber-50/20" 
+                            : "border-amber-300 focus:ring-amber-400"
+                        )}
+                        placeholder="e.g. 959"
+                      />
+                      {duplicateSurat && (
+                        <div className="p-3 bg-amber-100/90 border border-amber-300/80 rounded-xl text-xs text-amber-950 space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                            <AlertCircle className="size-4 text-amber-600 shrink-0" />
+                            <span>Perhatian: No. Agenda {agendaNoInput} sudah terdaftar</span>
+                          </div>
+                          <p className="text-[11px] text-amber-900">
+                            Digunakan oleh: <span className="font-bold">{duplicateSurat.namaInstansi || duplicateSurat.pimpinanOrganisasi || duplicateSurat.yangMengajukan || 'Tanpa Nama'}</span> ({duplicateSurat.kategori || 'Surat Masuk'})
+                            {duplicateSurat.tanggalMasuk ? ` · Tanggal Masuk: ${formatTanggalIndo(duplicateSurat.tanggalMasuk)}` : ''}.
+                          </p>
+                          <p className="text-[10px] text-amber-800 font-semibold italic">
+                            * Anda tetap dapat menyimpannya jika nomor agenda ini memang sesuai.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
@@ -1854,11 +1940,7 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
               <button
                 onClick={() => {
                   setIsFabOpen(false);
-                  setEditingSurat(null);
-                  setSelectedKategori('');
-                  setTanggalAcaraInput('');
-                  setJamAcaraInput('');
-                  setIsModalOpen(true);
+                  handleOpenAddModal();
                 }}
                 className="flex items-center gap-2.5 bg-primary text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold whitespace-nowrap"
               >

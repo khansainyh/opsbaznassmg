@@ -183,7 +183,7 @@ model Proposal {
 
 model Surat {
   id                  String    @id @default(uuid())
-  agenda_no           Int       @unique @default(autoincrement())
+  agenda_no           Int       @default(0)
   tanggal_masuk       DateTime
   nama_instansi       String?
   pimpinan_organisasi String?
@@ -207,6 +207,8 @@ model Surat {
   kategori            String?
   tanggal_acara       DateTime?
   assigned_staff      Json?
+
+  @@index([agenda_no])
 }
 
 model Notification {

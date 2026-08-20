@@ -81,8 +81,9 @@ const buildCleanSuratPayload = (body: any, isUpdate = false) => {
     }
   }
 
-  if (body.agenda_no !== undefined && body.agenda_no !== null && body.agenda_no !== '') {
-    const num = Number(body.agenda_no);
+  const rawAgenda = body.agenda_no ?? body.agendaNo ?? body.no_agenda ?? body.nomor_agenda;
+  if (rawAgenda !== undefined && rawAgenda !== null && rawAgenda !== '') {
+    const num = Number(rawAgenda);
     if (!isNaN(num) && num > 0) {
       payload.agenda_no = num;
     }
@@ -167,29 +168,30 @@ export const createSurat = async (req: Request, res: Response) => {
   try {
     const payload = buildCleanSuratPayload(req.body, false);
 
-    // Auto-calculate next agenda_no based on max existing agenda_no in that year if not explicitly provided
+    // Auto-calculate next agenda_no if not explicitly provided
     if (!payload.agenda_no) {
-      const suratDate = payload.tanggal_masuk ? new Date(payload.tanggal_masuk) : new Date();
-      const year = suratDate.getFullYear();
-      const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
-      const endOfYear = new Date(`${year + 1}-01-01T00:00:00.000Z`);
-
       const maxSurat = await prisma.surat.findFirst({
-        where: {
-          tanggal_masuk: {
-            gte: startOfYear,
-            lt: endOfYear
-          }
-        },
         orderBy: { agenda_no: 'desc' },
         select: { agenda_no: true }
       });
-
-      let nextAgenda = (maxSurat?.agenda_no || 0) + 1;
-      while (await prisma.surat.findUnique({ where: { agenda_no: nextAgenda } })) {
-        nextAgenda++;
+      payload.agenda_no = (maxSurat?.agenda_no || 0) + 1;
+      if (payload.agenda_no <= 0) payload.agenda_no = 1;
+    } else {
+      // Check if target agenda_no is used by another Surat; if so, reassign conflicting Surat to next free number
+      const existingConflict = await prisma.surat.findFirst({
+        where: { agenda_no: payload.agenda_no }
+      });
+      if (existingConflict) {
+        const maxSurat = await prisma.surat.findFirst({
+          orderBy: { agenda_no: 'desc' },
+          select: { agenda_no: true }
+        });
+        const nextFree = (maxSurat?.agenda_no || 0) + 1;
+        await prisma.surat.update({
+          where: { id: existingConflict.id },
+          data: { agenda_no: nextFree }
+        });
       }
-      payload.agenda_no = nextAgenda;
     }
 
     const surat = await prisma.surat.create({ data: payload });
@@ -209,6 +211,28 @@ export const updateSurat = async (req: Request, res: Response) => {
     }
 
     const payload = buildCleanSuratPayload(req.body, true);
+
+    // If agenda_no is being updated to a number already held by another Surat, reassign the conflicting Surat
+    if (payload.agenda_no && payload.agenda_no !== existingSurat.agenda_no) {
+      const existingConflict = await prisma.surat.findFirst({
+        where: {
+          agenda_no: payload.agenda_no,
+          NOT: { id }
+        }
+      });
+      if (existingConflict) {
+        const maxSurat = await prisma.surat.findFirst({
+          orderBy: { agenda_no: 'desc' },
+          select: { agenda_no: true }
+        });
+        const nextFree = (maxSurat?.agenda_no || 0) + 1;
+        await prisma.surat.update({
+          where: { id: existingConflict.id },
+          data: { agenda_no: nextFree }
+        });
+      }
+    }
+
     const surat = await prisma.surat.update({
       where: { id },
       data: payload
