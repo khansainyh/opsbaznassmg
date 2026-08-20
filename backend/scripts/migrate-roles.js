@@ -4,15 +4,18 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Running pre-migration fixes in database...');
   try {
-    // 1. Fix Proposal.agenda_no AUTO_INCREMENT removal so Prisma db push can drop unique index safely
+    // 1. Fix Proposal & Surat agenda_no AUTO_INCREMENT removal so Prisma db push can drop unique index safely
     try {
-      console.log('Fixing Proposal.agenda_no AUTO_INCREMENT...');
+      console.log('Fixing Proposal.agenda_no & Surat.agenda_no AUTO_INCREMENT...');
       await prisma.$executeRawUnsafe(
         `ALTER TABLE Proposal MODIFY COLUMN agenda_no INT NOT NULL DEFAULT 0`
       );
-      console.log('Successfully removed AUTO_INCREMENT from Proposal.agenda_no');
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE Surat MODIFY COLUMN agenda_no INT NOT NULL DEFAULT 0`
+      );
+      console.log('Successfully removed AUTO_INCREMENT from Proposal.agenda_no & Surat.agenda_no');
     } catch (e) {
-      console.warn('Note on Proposal.agenda_no modify:', e.message);
+      console.warn('Note on agenda_no modify:', e.message);
     }
 
     // 2. Temporarily alter the column to VARCHAR to bypass strict enum checks during updates
