@@ -27,11 +27,14 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       baseWhere.status_simba = statusSimbaFilter;
     }
 
-    if (startDate && endDate) {
-      baseWhere.tanggal_pembayaran = {
-        gte: new Date(`${startDate}T00:00:00.000Z`),
-        lte: new Date(`${endDate}T23:59:59.999Z`)
-      };
+    if (startDate || endDate) {
+      baseWhere.tanggal_pembayaran = {};
+      if (startDate) {
+        baseWhere.tanggal_pembayaran.gte = new Date(`${startDate}T00:00:00.000Z`);
+      }
+      if (endDate) {
+        baseWhere.tanggal_pembayaran.lte = new Date(`${endDate}T23:59:59.999Z`);
+      }
     }
 
     if (kodeProgramFilter && kodeProgramFilter !== 'all' && kodeProgramFilter !== 'Semua') {
@@ -108,7 +111,7 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       }
     }
 
-    const [totalRecords, aggregateSum, totalPendingSimba, list] = await prisma.$transaction([
+    const [totalRecords, aggregateSum, totalPendingSimba, list] = await Promise.all([
       prisma.penerimaanZis.count({ where: baseWhere }),
       prisma.penerimaanZis.aggregate({
         where: baseWhere,
@@ -150,28 +153,32 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
     const trxIds = list.map((item: any) => item.transaksi_id).filter(Boolean);
     const coaMap = new Map<string, string>();
     if (trxIds.length > 0) {
-      const creditEntries = await prisma.journalEntry.findMany({
-        where: {
-          transaksi_id: { in: trxIds },
-          kredit: { gt: 0 }
-        },
-        select: {
-          transaksi_id: true,
-          coa_code: true
-        },
-        orderBy: {
-          entry_id: 'asc'
-        }
-      });
-      creditEntries.forEach(entry => {
-        if (!entry.transaksi_id) return;
-        const isAmilOrDebt = entry.coa_code.startsWith('43') || entry.coa_code.startsWith('21') || entry.coa_code.startsWith('51');
-        if (!isAmilOrDebt) {
-          coaMap.set(entry.transaksi_id, entry.coa_code);
-        } else if (!coaMap.has(entry.transaksi_id)) {
-          coaMap.set(entry.transaksi_id, entry.coa_code);
-        }
-      });
+      const chunkSize = 500;
+      for (let i = 0; i < trxIds.length; i += chunkSize) {
+        const chunk = trxIds.slice(i, i + chunkSize);
+        const creditEntries = await prisma.journalEntry.findMany({
+          where: {
+            transaksi_id: { in: chunk },
+            kredit: { gt: 0 }
+          },
+          select: {
+            transaksi_id: true,
+            coa_code: true
+          },
+          orderBy: {
+            entry_id: 'asc'
+          }
+        });
+        creditEntries.forEach(entry => {
+          if (!entry.transaksi_id) return;
+          const isAmilOrDebt = entry.coa_code.startsWith('43') || entry.coa_code.startsWith('21') || entry.coa_code.startsWith('51');
+          if (!isAmilOrDebt) {
+            coaMap.set(entry.transaksi_id, entry.coa_code);
+          } else if (!coaMap.has(entry.transaksi_id)) {
+            coaMap.set(entry.transaksi_id, entry.coa_code);
+          }
+        });
+      }
     }
 
     const listWithCoa = list.map((item: any) => {
@@ -212,22 +219,24 @@ export const getPenerimaanZis = async (req: Request, res: Response) => {
       };
     });
 
-    const summaryItems = await prisma.penerimaanZis.findMany({
-      where: baseWhere,
-      select: {
-        nominal: true,
-        rkat_id: true,
-        kode_program: true,
-        jenis_program: true,
-        rkat: { select: { kategori: true } }
-      }
-    });
+    const summarySource = isAll
+      ? list
+      : await prisma.penerimaanZis.findMany({
+          where: baseWhere,
+          select: {
+            nominal: true,
+            rkat_id: true,
+            kode_program: true,
+            jenis_program: true,
+            rkat: { select: { kategori: true } }
+          }
+        });
 
     let totalZakat = 0;
     let totalInfak = 0;
     let totalDskl = 0;
 
-    summaryItems.forEach((item: any) => {
+    summarySource.forEach((item: any) => {
       const nom = Number(item.nominal || 0);
       let strKode = item.kode_program ? String(item.kode_program).trim() : '';
 

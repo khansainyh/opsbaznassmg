@@ -1941,8 +1941,14 @@ export default function PenerimaanZis() {
     setIsLoading(true);
     try {
       let dataFiltered: any[] = [];
-      const res = await axios.get('/api/penerimaan-zis', { params: { all: 'true' } });
-      const allData: any[] = res.data?.data || penerimaanData;
+      const res = await axios.get('/api/penerimaan-zis', {
+        params: {
+          all: 'true',
+          startDate: reportStartDate || undefined,
+          endDate: reportEndDate || undefined
+        }
+      });
+      const allData: any[] = res.data?.data || (penerimaanData && penerimaanData.length > 0 ? penerimaanData : []);
 
       if (reportStartDate && reportEndDate) {
         const [sY, sM, sD] = reportStartDate.split('-').map(Number);
@@ -1954,12 +1960,12 @@ export default function PenerimaanZis() {
         dataFiltered = allData.filter(item => {
           if (!item.tanggal_pembayaran) return false;
           const pDate = new Date(item.tanggal_pembayaran);
-          const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
+          const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong') || (item.no_kuitansi || '').includes('Gagal');
           if (isFailed) return false;
           return pDate.getTime() >= start.getTime() && pDate.getTime() <= end.getTime();
         });
       } else {
-        dataFiltered = allData.filter(item => item.status_simba !== 'FAILED' && !(item.keterangan || '').toLowerCase().includes('gagal potong'));
+        dataFiltered = allData.filter(item => item.status_simba !== 'FAILED' && !(item.keterangan || '').toLowerCase().includes('gagal potong') && !(item.no_kuitansi || '').includes('Gagal'));
       }
 
       if (dataFiltered.length === 0) {
@@ -1967,40 +1973,255 @@ export default function PenerimaanZis() {
         return;
       }
 
-      const reportData = dataFiltered.map((item, idx) => ({
-        'No': idx + 1,
-        'Tanggal Transaksi': item.tanggal_pembayaran ? new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID') : '-',
-        'No Registrasi (NPWZ)': (item.muzakki?.npwz && !/^(WZ-|PENDING-|NIK-)/i.test(item.muzakki.npwz)) ? item.muzakki.npwz : '-',
-        'No Kuitansi / BSZ': item.no_kuitansi || '-',
-        'Nama Muzakki': item.muzakki?.nama || '-',
-        'Nama UPZ': item.upz?.nama_upz || '-',
-        'Keterangan': item.keterangan || '-',
-        'Jenis Dana': item.rkat?.kategori || (item.jenis_program?.toLowerCase().includes('zakat') ? 'Zakat' : item.jenis_program?.toLowerCase().includes('infak') ? 'Infak' : 'Infak/Sedekah'),
-        'Kegiatan (RKAT)': item.rkat?.nama_program || item.jenis_program || '-',
-        'Kode Program': item.kode_program || '-',
-        'via (Kas & Bank)': item.bankAccount?.nama_akun || '-',
-        'Program Kegiatan (COA)': (() => {
-          const code = (item.coa_code || (item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : '')).trim();
-          if (!code || code === '-') return '-';
-          const coa = coaList.find(c => c.coa_code === code);
-          const coaName = coa?.nama_akun || item.rkat?.nama_program || '';
-          return coaName ? `${code} - ${coaName}` : code;
-        })(),
-        'Nominal (Rp)': Number(item.nominal || 0),
-        'No Transaksi SIMBA': item.no_transaksi_simba || '-',
-        'Status SIMBA': item.status_simba || 'PENDING'
-      }));
+      try {
+        // Use ExcelJS for high quality formatted Excel file
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'BAZNAS Kota Semarang';
+        workbook.created = new Date();
 
-      const worksheet = XLSX.utils.json_to_sheet(reportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Penerimaan ZIS');
-      const filename = (reportStartDate && reportEndDate) 
-        ? `Laporan_Penerimaan_ZIS_${reportStartDate}_sd_${reportEndDate}.xlsx`
-        : `Laporan_Penerimaan_ZIS_Lengkap_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(workbook, filename);
-    } catch (err) {
+        const worksheet = workbook.addWorksheet('Penerimaan ZIS', {
+          views: [{ showGridLines: true }]
+        });
+
+        // 1. Title Rows
+        worksheet.mergeCells('A1:O1');
+        const r1 = worksheet.getCell('A1');
+        r1.value = 'BADAN AMIL ZAKAT NASIONAL (BAZNAS) KOTA SEMARANG';
+        r1.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF064E3B' } };
+        r1.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        worksheet.mergeCells('A2:O2');
+        const r2 = worksheet.getCell('A2');
+        r2.value = 'LAPORAN RINCIAN DATA PENERIMAAN ZIS';
+        r2.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF0F766E' } };
+        r2.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        const periodeText = (reportStartDate && reportEndDate)
+          ? `Periode: ${reportStartDate} s/d ${reportEndDate}`
+          : `Tanggal Unduh: ${new Date().toLocaleDateString('id-ID')}`;
+
+        worksheet.mergeCells('A3:O3');
+        const r3 = worksheet.getCell('A3');
+        r3.value = `${periodeText} | Total: ${dataFiltered.length} Data Transaksi`;
+        r3.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
+        r3.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        worksheet.addRow([]); // Blank Row 4
+
+        // 2. Table Headers
+        const headers = [
+          'No',
+          'Tanggal Transaksi',
+          'No Registrasi (NPWZ)',
+          'No Kuitansi / BSZ',
+          'Nama Muzakki',
+          'Nama UPZ',
+          'Keterangan',
+          'Jenis Dana',
+          'Kegiatan (RKAT)',
+          'Kode Program',
+          'via (Kas & Bank)',
+          'Program Kegiatan (COA)',
+          'Nominal (Rp)',
+          'No Transaksi SIMBA',
+          'Status SIMBA'
+        ];
+
+        const headerRow = worksheet.addRow(headers);
+        headerRow.height = 26;
+        headerRow.eachCell((cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF047857' } // Emerald 700
+          };
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          cell.border = {
+            top: { style: 'medium', color: { argb: 'FF064E3B' } },
+            bottom: { style: 'medium', color: { argb: 'FF064E3B' } },
+            left: { style: 'thin', color: { argb: 'FF10B981' } },
+            right: { style: 'thin', color: { argb: 'FF10B981' } }
+          };
+        });
+
+        const thinBorder: Partial<ExcelJS.Borders> = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        };
+
+        let grandTotal = 0;
+
+        // 3. Data Rows
+        dataFiltered.forEach((item, idx) => {
+          const npwzVal = (item.muzakki?.npwz && !/^(WZ-|PENDING-|NIK-)/i.test(item.muzakki.npwz)) ? item.muzakki.npwz : '-';
+          const tglStr = item.tanggal_pembayaran ? new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID') : '-';
+          const coaResolved = (() => {
+            const code = (item.coa_code || (item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : '')).trim();
+            if (!code || code === '-') return '-';
+            const coa = coaList.find(c => c.coa_code === code);
+            const coaName = coa?.nama_akun || item.rkat?.nama_program || '';
+            return coaName ? `${code} - ${coaName}` : code;
+          })();
+          const nominalVal = Number(item.nominal || 0);
+          grandTotal += nominalVal;
+
+          const row = worksheet.addRow([
+            idx + 1,
+            tglStr,
+            npwzVal,
+            item.no_kuitansi || '-',
+            item.muzakki?.nama || '-',
+            item.upz?.nama_upz || '-',
+            item.keterangan || '-',
+            item.rkat?.kategori || (item.jenis_program?.toLowerCase().includes('zakat') ? 'Zakat' : item.jenis_program?.toLowerCase().includes('infak') ? 'Infak' : 'Infak/Sedekah'),
+            item.rkat?.nama_program || item.jenis_program || '-',
+            item.kode_program || '-',
+            item.bankAccount?.nama_akun || '-',
+            coaResolved,
+            nominalVal,
+            item.no_transaksi_simba || '-',
+            item.status_simba || 'PENDING'
+          ]);
+
+          row.height = 20;
+
+          // Cell styling & alignment
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            cell.font = { name: 'Calibri', size: 10 };
+            cell.border = thinBorder;
+            
+            // Alignments
+            if (colNumber === 1 || colNumber === 2 || colNumber === 3 || colNumber === 4 || colNumber === 8 || colNumber === 10 || colNumber === 14 || colNumber === 15) {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            } else if (colNumber === 13) {
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+              cell.numFmt = '#,##0';
+            } else {
+              cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            }
+          });
+
+          // Alternate row zebra tint
+          if (idx % 2 === 1) {
+            row.eachCell({ includeEmpty: true }, (cell) => {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF8FAFC' }
+              };
+            });
+          }
+        });
+
+        // 4. Total Row
+        const totalRowIndex = worksheet.rowCount + 1;
+        worksheet.mergeCells(`A${totalRowIndex}:L${totalRowIndex}`);
+        const totalLabelCell = worksheet.getCell(`A${totalRowIndex}`);
+        totalLabelCell.value = 'TOTAL NOMINAL PENERIMAAN ZIS';
+        totalLabelCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF064E3B' } };
+        totalLabelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+        const totalNominalCell = worksheet.getCell(`M${totalRowIndex}`);
+        totalNominalCell.value = grandTotal;
+        totalNominalCell.numFmt = '#,##0';
+        totalNominalCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF064E3B' } };
+        totalNominalCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+        const totalRow = worksheet.getRow(totalRowIndex);
+        totalRow.height = 24;
+        totalRow.eachCell({ includeEmpty: true }, (cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFECFDF5' } // Light Emerald Tint
+          };
+          cell.border = {
+            top: { style: 'medium', color: { argb: 'FF047857' } },
+            bottom: { style: 'double', color: { argb: 'FF047857' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+        });
+
+        // 5. Column Widths
+        worksheet.columns = [
+          { width: 6 },   // No
+          { width: 14 },  // Tanggal Transaksi
+          { width: 22 },  // NPWZ
+          { width: 24 },  // No Kuitansi
+          { width: 28 },  // Nama Muzakki
+          { width: 24 },  // Nama UPZ
+          { width: 32 },  // Keterangan
+          { width: 14 },  // Jenis Dana
+          { width: 26 },  // Kegiatan (RKAT)
+          { width: 14 },  // Kode Program
+          { width: 20 },  // via Kas & Bank
+          { width: 26 },  // Program Kegiatan (COA)
+          { width: 18 },  // Nominal (Rp)
+          { width: 22 },  // No Transaksi SIMBA
+          { width: 16 }   // Status SIMBA
+        ];
+
+        // 6. Write Buffer & Download
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        const filename = (reportStartDate && reportEndDate) 
+          ? `Laporan_Penerimaan_ZIS_${reportStartDate}_sd_${reportEndDate}.xlsx`
+          : `Laporan_Penerimaan_ZIS_Lengkap_${new Date().toISOString().split('T')[0]}.xlsx`;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+
+        setMessages([{ type: 'success', text: `Laporan Penerimaan ZIS (${dataFiltered.length} transaksi) berhasil diunduh (Excel)!` }]);
+        setIsReportModalOpen(false);
+      } catch (excelErr) {
+        console.warn('ExcelJS export failed, falling back to XLSX:', excelErr);
+        // Fallback to XLSX
+        const reportData = dataFiltered.map((item, idx) => ({
+          'No': idx + 1,
+          'Tanggal Transaksi': item.tanggal_pembayaran ? new Date(item.tanggal_pembayaran).toLocaleDateString('id-ID') : '-',
+          'No Registrasi (NPWZ)': (item.muzakki?.npwz && !/^(WZ-|PENDING-|NIK-)/i.test(item.muzakki.npwz)) ? item.muzakki.npwz : '-',
+          'No Kuitansi / BSZ': item.no_kuitansi || '-',
+          'Nama Muzakki': item.muzakki?.nama || '-',
+          'Nama UPZ': item.upz?.nama_upz || '-',
+          'Keterangan': item.keterangan || '-',
+          'Jenis Dana': item.rkat?.kategori || (item.jenis_program?.toLowerCase().includes('zakat') ? 'Zakat' : item.jenis_program?.toLowerCase().includes('infak') ? 'Infak' : 'Infak/Sedekah'),
+          'Kegiatan (RKAT)': item.rkat?.nama_program || item.jenis_program || '-',
+          'Kode Program': item.kode_program || '-',
+          'via (Kas & Bank)': item.bankAccount?.nama_akun || '-',
+          'Program Kegiatan (COA)': (() => {
+            const code = (item.coa_code || (item.rkat?.coa_codes ? item.rkat.coa_codes.split(',')[0].trim() : '')).trim();
+            if (!code || code === '-') return '-';
+            const coa = coaList.find(c => c.coa_code === code);
+            const coaName = coa?.nama_akun || item.rkat?.nama_program || '';
+            return coaName ? `${code} - ${coaName}` : code;
+          })(),
+          'Nominal (Rp)': Number(item.nominal || 0),
+          'No Transaksi SIMBA': item.no_transaksi_simba || '-',
+          'Status SIMBA': item.status_simba || 'PENDING'
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(reportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Penerimaan ZIS');
+        const filename = (reportStartDate && reportEndDate) 
+          ? `Laporan_Penerimaan_ZIS_${reportStartDate}_sd_${reportEndDate}.xlsx`
+          : `Laporan_Penerimaan_ZIS_Lengkap_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(workbook, filename);
+        setMessages([{ type: 'success', text: `Laporan Penerimaan ZIS (${dataFiltered.length} transaksi) berhasil diunduh!` }]);
+        setIsReportModalOpen(false);
+      }
+    } catch (err: any) {
       console.error('Error exporting Excel:', err);
-      alert('Gagal mengunduh file Excel penerimaan.');
+      const errMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Gagal mengunduh file Excel penerimaan.';
+      alert(`Gagal mengunduh file Excel penerimaan: ${errMsg}`);
+      setMessages([{ type: 'error', text: `Gagal mengunduh Excel: ${errMsg}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -4204,10 +4425,20 @@ export default function PenerimaanZis() {
                     </div>
                     <button
                       onClick={handleExportExcel}
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                      disabled={isLoading}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
                     >
-                      <FileSpreadsheet className="size-4" />
-                      Unduh Excel
+                      {isLoading ? (
+                        <>
+                          <RefreshCw className="size-4 animate-spin" />
+                          <span>Sedang Mengunduh...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileSpreadsheet className="size-4" />
+                          <span>Unduh Excel</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 )}
