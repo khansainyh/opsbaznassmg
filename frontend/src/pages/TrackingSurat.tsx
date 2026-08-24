@@ -149,7 +149,8 @@ function toGDriveEmbedUrl(link: string): string | null {
 export default function TrackingSurat({ data, onUpdate }: TrackingSuratProps) {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'Super_Admin';
-  const canEditSuratKeluar = user?.role === 'Staf_Administrasi' || user?.role === 'Kabag_Administrasi' || user?.role === 'Super_Admin';
+  const canEditSuratKeluar = user?.role === 'Staf_Administrasi' || user?.role === 'Super_Admin';
+  const canEditScanSurat = user?.role === 'Staf_Administrasi' || user?.role === 'Super_Admin';
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
@@ -160,6 +161,10 @@ export default function TrackingSurat({ data, onUpdate }: TrackingSuratProps) {
   const [editingSuratKeluar, setEditingSuratKeluar] = useState(false);
   const [inputLinkSuratKeluar, setInputLinkSuratKeluar] = useState('');
   const [savingSuratKeluar, setSavingSuratKeluar] = useState(false);
+
+  const [editingScanSurat, setEditingScanSurat] = useState(false);
+  const [inputLinkScanSurat, setInputLinkScanSurat] = useState('');
+  const [savingScanSurat, setSavingScanSurat] = useState(false);
 
   // Users list for staff assignment
   const [users, setUsers] = useState<any[]>([]);
@@ -243,6 +248,48 @@ export default function TrackingSurat({ data, onUpdate }: TrackingSuratProps) {
     setSelectedSurat(item);
     setInputLinkSuratKeluar(item.linkSuratKeluar || item.link_surat_keluar || '');
     setEditingSuratKeluar(false);
+    setInputLinkScanSurat(item.fileGdriveLink || item.file_gdrive_link || '');
+    setEditingScanSurat(false);
+  };
+
+  const handleSaveScanSurat = async () => {
+    if (!selectedSurat) return;
+    setSavingScanSurat(true);
+    try {
+      const newLink = inputLinkScanSurat.trim();
+      await axios.put(`/api/surats/${selectedSurat.id}`, {
+        file_gdrive_link: newLink || null
+      });
+
+      const updatedSurat: Surat = {
+        ...selectedSurat,
+        fileGdriveLink: newLink || undefined,
+        file_gdrive_link: newLink || undefined
+      };
+
+      setSelectedSurat(updatedSurat);
+
+      if (onUpdate && data) {
+        const updatedList = data.map(s => s.id === selectedSurat.id ? updatedSurat : s);
+        onUpdate(updatedList);
+      }
+
+      setEditingScanSurat(false);
+      setToastMessage({
+        text: 'Berhasil menyimpan Link GDrive Scan Surat!',
+        type: 'success'
+      });
+      setTimeout(() => setToastMessage(null), 3500);
+    } catch (e: any) {
+      console.error(e);
+      setToastMessage({
+        text: 'Gagal menyimpan tautan GDrive Scan Surat: ' + (e.response?.data?.error || e.message),
+        type: 'error'
+      });
+      setTimeout(() => setToastMessage(null), 3500);
+    } finally {
+      setSavingScanSurat(false);
+    }
   };
 
   const handleSaveSuratKeluar = async () => {
@@ -254,20 +301,32 @@ export default function TrackingSurat({ data, onUpdate }: TrackingSuratProps) {
         link_surat_keluar: newLink || null
       });
 
-      selectedSurat.linkSuratKeluar = newLink || undefined;
-      selectedSurat.link_surat_keluar = newLink || undefined;
+      const updatedSurat: Surat = {
+        ...selectedSurat,
+        linkSuratKeluar: newLink || undefined,
+        link_surat_keluar: newLink || undefined
+      };
 
-      const matchedInList = data.find(d => d.id === selectedSurat.id);
-      if (matchedInList) {
-        matchedInList.linkSuratKeluar = newLink || undefined;
-        matchedInList.link_surat_keluar = newLink || undefined;
+      setSelectedSurat(updatedSurat);
+
+      if (onUpdate && data) {
+        const updatedList = data.map(s => s.id === selectedSurat.id ? updatedSurat : s);
+        onUpdate(updatedList);
       }
 
       setEditingSuratKeluar(false);
-      alert('Berhasil menyimpan Tautan Surat Keluar!');
+      setToastMessage({
+        text: 'Berhasil menyimpan Tautan Surat Keluar!',
+        type: 'success'
+      });
+      setTimeout(() => setToastMessage(null), 3500);
     } catch (e: any) {
       console.error(e);
-      alert('Gagal menyimpan tautan Surat Keluar: ' + (e.response?.data?.error || e.message));
+      setToastMessage({
+        text: 'Gagal menyimpan tautan Surat Keluar: ' + (e.response?.data?.error || e.message),
+        type: 'error'
+      });
+      setTimeout(() => setToastMessage(null), 3500);
     } finally {
       setSavingSuratKeluar(false);
     }
@@ -568,22 +627,87 @@ export default function TrackingSurat({ data, onUpdate }: TrackingSuratProps) {
                       <FileText className="size-4 text-primary" />
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dokumen Surat Masuk</h4>
                     </div>
-                    {selectedSurat.fileGdriveLink && (
-                      <a href={selectedSurat.fileGdriveLink} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
-                        <ExternalLink className="size-3" /> Buka di Drive
-                      </a>
-                    )}
-                  </div>
-                  {selectedSurat.fileGdriveLink && toGDriveEmbedUrl(selectedSurat.fileGdriveLink) ? (
-                    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: '320px' }}>
-                      <iframe
-                        src={toGDriveEmbedUrl(selectedSurat.fileGdriveLink)!}
-                        className="w-full h-full bg-slate-100"
-                        title="Dokumen Surat Masuk"
-                        allow="autoplay"
-                      />
+                    <div className="flex items-center gap-2">
+                      {(selectedSurat.fileGdriveLink || selectedSurat.file_gdrive_link) && (
+                        <>
+                          <a href={selectedSurat.fileGdriveLink || selectedSurat.file_gdrive_link} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline">
+                            <ExternalLink className="size-3" /> Buka di Drive
+                          </a>
+                          {!editingScanSurat && canEditScanSurat && (
+                            <button 
+                              onClick={() => setEditingScanSurat(true)}
+                              className="flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-all cursor-pointer"
+                            >
+                              <Edit3 className="size-3 text-primary" /> Edit Scan Surat
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
+                  </div>
+
+                  {editingScanSurat ? (
+                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 space-y-3">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                        Tautan Google Drive / Scan Surat Masuk:
+                      </label>
+                      <input 
+                        type="url"
+                        value={inputLinkScanSurat}
+                        onChange={(e) => setInputLinkScanSurat(e.target.value)}
+                        placeholder="https://drive.google.com/file/d/..."
+                        className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-primary font-mono"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setEditingScanSurat(false)}
+                          className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          onClick={handleSaveScanSurat}
+                          disabled={savingScanSurat}
+                          className="px-4 py-1.5 text-xs font-bold text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                        >
+                          {savingScanSurat ? 'Menyimpan...' : 'Simpan Link'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (selectedSurat.fileGdriveLink || selectedSurat.file_gdrive_link) ? (
+                    toGDriveEmbedUrl(selectedSurat.fileGdriveLink || selectedSurat.file_gdrive_link || '') ? (
+                      <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: '320px' }}>
+                        <iframe
+                          src={toGDriveEmbedUrl(selectedSurat.fileGdriveLink || selectedSurat.file_gdrive_link || '')!}
+                          className="w-full h-full bg-slate-100"
+                          title="Dokumen Surat Masuk"
+                          allow="autoplay"
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 truncate max-w-[350px]">
+                          {selectedSurat.fileGdriveLink || selectedSurat.file_gdrive_link}
+                        </span>
+                        <a 
+                          href={selectedSurat.fileGdriveLink || selectedSurat.file_gdrive_link} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="px-3 py-1 bg-primary text-white text-xs font-bold rounded-lg"
+                        >
+                          Buka Link
+                        </a>
+                      </div>
+                    )
+                  ) : canEditScanSurat ? (
+                    <button 
+                      onClick={() => setEditingScanSurat(true)}
+                      className="w-full py-2.5 px-4 bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20 border-dashed rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <FileText className="size-3.5 text-primary" />
+                      + Tambah Scan Surat
+                    </button>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-28 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
                       <FileText className="size-6 mb-1 opacity-30" />
