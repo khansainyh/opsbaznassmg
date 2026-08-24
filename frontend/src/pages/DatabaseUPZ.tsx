@@ -2473,19 +2473,31 @@ export default function DatabaseUPZ() {
         @page {
             size: 8.5in 14.0in; /* US Legal size */
             margin-top: 1.8in;
-            margin-bottom: 1.0in;
+            margin-bottom: 0.6in;
             margin-left: 0.6in;
             margin-right: 0.6in;
         }
         @page Section1 {
             size: 8.5in 14.0in; /* US Legal size */
             margin-top: 1.8in;
-            margin-bottom: 1.0in;
+            margin-bottom: 0.6in;
             margin-left: 0.6in;
             margin-right: 0.6in;
             mso-header-margin: 0.5in;
             mso-footer-margin: 0.5in;
             mso-paper-source: 0;
+        }
+        @media print {
+            @page {
+                size: 8.5in 14.0in;
+                margin-top: 1.8in;
+                margin-bottom: 0.6in;
+                margin-left: 0.6in;
+                margin-right: 0.6in;
+            }
+            html, body {
+                height: 100%;
+            }
         }
         div.Section1 {
             page: Section1;
@@ -2503,7 +2515,7 @@ export default function DatabaseUPZ() {
         }
         body {
             font-family: Arial, sans-serif;
-            font-size: 12pt;
+            font-size: 11pt;
             color: #000;
             background-color: #fff;
         }
@@ -2515,30 +2527,30 @@ export default function DatabaseUPZ() {
         .layout-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 8px;
+            margin-top: 4px;
             vertical-align: top;
         }
         .layout-table td {
             padding: 1px 0;
             vertical-align: top;
         }
-        .col-title { width: 110px; font-weight: bold; font-size: 12pt; }
-        .col-colon { width: 15px; text-align: center; font-weight: bold; font-size: 12pt; }
-        .col-content { width: calc(100% - 125px); text-align: justify; font-size: 12pt; }
+        .col-title { width: 105px; font-weight: bold; font-size: 11pt; }
+        .col-colon { width: 15px; text-align: center; font-weight: bold; font-size: 11pt; }
+        .col-content { width: calc(100% - 120px); text-align: justify; font-size: 11pt; }
 
         /* Tabel Susunan Pengurus */
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 5px;
-            margin-bottom: 5px;
+            margin-top: 4px;
+            margin-bottom: 4px;
         }
         .data-table th, .data-table td {
             border: 1px solid black;
-            padding: 3px 5px;
+            padding: 2px 4px;
             text-align: left;
-            font-size: 11pt;
-            line-height: 1.1;
+            font-size: 10pt;
+            line-height: 1.05;
         }
         .data-table th { text-align: center; font-weight: bold; }
 
@@ -2546,12 +2558,12 @@ export default function DatabaseUPZ() {
             padding-left: 15px;
         }
         li {
-            line-height: 1.1;
+            line-height: 1.05;
             text-align: justify;
         }
 
         .tembusan, .tembusan * {
-            line-height: 1.1 !important;
+            line-height: 1.05 !important;
         }
     </style>
 </head>
@@ -2654,37 +2666,37 @@ export default function DatabaseUPZ() {
         </tr>
     </table>
 
-    <div style="clear: both; margin-top: 20px; width: 100%; page-break-inside: avoid;">
-        <table align="right" style="width: 350px; margin-left: auto; margin-right: 30px; border-collapse: collapse; border: none; text-align: left;">
+    <div style="clear: both; margin-top: 10px; width: 100%; page-break-inside: avoid;">
+        <table align="right" style="width: 330px; margin-left: auto; margin-right: 20px; border-collapse: collapse; border: none; text-align: left;">
             <tr>
-                <td style="width: 90px; border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
-                <td style="width: 10px; border: none; padding: 1px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">Semarang</td>
+                <td style="width: 85px; border: none; padding: 1px 0; font-size: 11pt; font-family: Arial, sans-serif;">Ditetapkan di</td>
+                <td style="width: 10px; border: none; padding: 1px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 1px 0; font-size: 11pt; font-family: Arial, sans-serif;">Semarang</td>
             </tr>
             <tr>
-                <td style="border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">Pada tanggal</td>
-                <td style="border: none; padding: 1px 0; text-align: center; font-size: 12pt; font-family: Arial, sans-serif;">:</td>
-                <td style="border: none; padding: 1px 0; font-size: 12pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
+                <td style="border: none; padding: 1px 0; font-size: 11pt; font-family: Arial, sans-serif;">Pada tanggal</td>
+                <td style="border: none; padding: 1px 0; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">:</td>
+                <td style="border: none; padding: 1px 0; font-size: 11pt; font-family: Arial, sans-serif;">${tglDitetapkan}</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif; padding-top: 8px; padding-bottom: 50px;">K E T U A,</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif; padding-top: 4px; padding-bottom: 38px;">K E T U A,</td>
             </tr>
             <tr>
-                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11.5pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
+                <td colspan="3" style="border: none; padding: 0; text-align: left; font-weight: bold; font-size: 11pt; font-family: Arial, sans-serif;">${namaKetuaDoc}</td>
             </tr>
         </table>
         <div style="clear: both;"></div>
     </div>
 
-    <div class="tembusan" style="margin-top: 15px; font-size: 10pt; line-height: 1.1; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
+    <div class="tembusan" style="margin-top: 8px; font-size: 9.5pt; line-height: 1.05; font-family: Arial, sans-serif; color: #000; page-break-inside: avoid; text-align: left;">
         <div style="font-weight: bold; text-decoration: underline; margin-bottom: 2px;">Tembusan ini disampaikan kepada Yth.:</div>
         <ol style="margin: 0; padding-left: 12px; list-style-type: decimal;">
-            <li style="margin-bottom: 1px;">Walikota Semarang (sebagai laporan);</li>
-            <li style="margin-bottom: 1px;">Ketua BAZNAS Provinsi Jawa Tengah (sebagai laporan);</li>
-            <li style="margin-bottom: 1px;">Kepala Kementerian Agama Kota Semarang;</li>
-            <li style="margin-bottom: 1px;">Ketua Dewan Masjid Indonesia (DMI) Kota Semarang;</li>
-            <li style="margin-bottom: 1px;">Camat ${upz.kecamatan};</li>
-            <li style="margin-bottom: 1px;">Lurah ${upz.kelurahan}.</li>
+            <li style="margin-bottom: 0px;">Walikota Semarang (sebagai laporan);</li>
+            <li style="margin-bottom: 0px;">Ketua BAZNAS Provinsi Jawa Tengah (sebagai laporan);</li>
+            <li style="margin-bottom: 0px;">Kepala Kementerian Agama Kota Semarang;</li>
+            <li style="margin-bottom: 0px;">Ketua Dewan Masjid Indonesia (DMI) Kota Semarang;</li>
+            <li style="margin-bottom: 0px;">Camat ${upz.kecamatan};</li>
+            <li style="margin-bottom: 0px;">Lurah ${upz.kelurahan}.</li>
         </ol>
     </div>
 
