@@ -105,22 +105,15 @@ export default function DatabaseUPZ() {
           }
         });
         
-        if (dbHistories.length > 0) {
-          setSkHistory(prev => {
-            const merged = (prev || []).filter(m => m && typeof m === 'object' && m.id);
-            dbHistories.forEach(h => {
-              if (h && h.id) {
-                if (!merged.some(m => m.id === h.id)) {
-                  merged.push(h);
-                } else {
-                  const idx = merged.findIndex(m => m.id === h.id);
-                  merged[idx] = h;
-                }
-              }
-            });
-            return merged;
-          });
-        }
+        const fetchedUpzIds = new Set(fetchedData.map((u: any) => String(u.id)));
+        setSkHistory(prev => {
+          const otherHistories = (prev || []).filter(h => h && h.id && !fetchedUpzIds.has(String(h.upzId)));
+          const updated = [...otherHistories, ...dbHistories];
+          try {
+            localStorage.setItem('baznas_upz_sk_history', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
       }
     } catch (err) {
       console.error('Error fetching UPZ list:', err);
@@ -1385,17 +1378,28 @@ export default function DatabaseUPZ() {
     if (!selectedUPZ) return;
     if (!window.confirm("Apakah Anda yakin ingin menghapus SK ini dari riwayat?")) return;
 
-    const originalHistory = selectedUPZ.metadata?.skHistory || [];
-    const skToDelete = originalHistory.find(h => h.id === skIdToDelete);
-    if (!skToDelete) return;
+    // Get metadata history list or fallback to skHistory state
+    const metadataHistory: SKHistory[] = Array.isArray(selectedUPZ.metadata?.skHistory)
+      ? selectedUPZ.metadata.skHistory
+      : [];
+    const stateHistory = skHistory.filter(h => h && String(h.upzId) === String(selectedUPZ.id));
+    
+    // Combine to ensure we don't miss any entry
+    const combinedHistoryMap = new Map<string, SKHistory>();
+    stateHistory.forEach(h => { if (h && h.id) combinedHistoryMap.set(String(h.id), h); });
+    metadataHistory.forEach(h => { if (h && h.id) combinedHistoryMap.set(String(h.id), h); });
 
-    const updatedHistoryList = originalHistory.filter(h => h.id !== skIdToDelete);
+    const skToDelete = combinedHistoryMap.get(String(skIdToDelete));
+
+    // Remaining items after removing target ID
+    combinedHistoryMap.delete(String(skIdToDelete));
+    const updatedHistoryList = Array.from(combinedHistoryMap.values());
     
     let activeSKNumber = selectedUPZ.activeSKNumber;
     let skStartYear = selectedUPZ.skStartYear;
     let skExpiryDate = selectedUPZ.skExpiryDate;
 
-    if (skToDelete.skNumber === selectedUPZ.activeSKNumber) {
+    if (skToDelete && skToDelete.skNumber === selectedUPZ.activeSKNumber) {
       const remainingActive = updatedHistoryList.find(h => h.status === 'Aktif');
       if (remainingActive) {
         activeSKNumber = remainingActive.skNumber;
@@ -1421,10 +1425,21 @@ export default function DatabaseUPZ() {
 
     try {
       await axios.put(`/api/upz/${selectedUPZ.id}`, updatedUpz);
-      setSkHistory(prev => prev.filter(h => h.id !== skIdToDelete));
+
+      // Update state and local storage immediately
+      setSkHistory(prev => {
+        const next = (prev || []).filter(h => h && String(h.id) !== String(skIdToDelete));
+        try {
+          localStorage.setItem('baznas_upz_sk_history', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
       setSelectedUPZ(updatedUpz);
+      setData(prevData => prevData.map(u => String(u.id) === String(selectedUPZ.id) ? updatedUpz : u));
+
       await fetchUPZList();
-      alert("SK berhasil dihapus dari riwayat.");
+      alert("✅ SK berhasil dihapus dari riwayat.");
     } catch (err) {
       console.error(err);
       alert("Gagal menghapus SK.");
