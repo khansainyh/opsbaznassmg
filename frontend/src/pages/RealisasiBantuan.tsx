@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import { 
   Search, 
   Filter, 
@@ -228,6 +229,78 @@ export default function RealisasiBantuan({ data, onUpdate }: RealisasiBantuanPro
     }
   };
 
+  const handleExportExcel = () => {
+    const itemsToExport = selectedIds.length > 0 
+      ? filteredData.filter(d => selectedIds.includes(d.id))
+      : filteredData;
+
+    if (itemsToExport.length === 0) {
+      alert("Tidak ada data realisasi bantuan yang dapat diexport.");
+      return;
+    }
+
+    const exportRows = itemsToExport.map((item, idx) => {
+      const namaMustahik = getMustahikDisplayName(item);
+      const formattedDate = item.tanggalMasuk ? new Date(item.tanggalMasuk).toLocaleDateString('id-ID', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+      }) : '-';
+
+      const formattedJadwal = item.jadwalRealisasi ? new Date(item.jadwalRealisasi).toLocaleDateString('id-ID', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+      }) : '-';
+
+      return {
+        "No": idx + 1,
+        "No. Agenda": item.agendaNo || '-',
+        "Tgl Masuk": formattedDate,
+        "Nama Mustahik / Pemohon": namaMustahik,
+        "NIK / No. Identitas": item.nik || '-',
+        "Alamat": item.alamat || '-',
+        "Kelurahan": item.kelurahan || '-',
+        "Kecamatan": item.kecamatan || '-',
+        "No. Telepon / WA": item.noTelpon || '-',
+        "Pilar Bantuan": (item as any).pilar || (item as any).pilarName || '-',
+        "Kegiatan / Program RKAT": (item as any).kegiatan || item.program || '-',
+        "Jenis Bantuan": item.jenisPermohonan || item.tipeBantuan || '-',
+        "Nominal (Rp)": item.nominal || 0,
+        "Jadwal Realisasi": formattedJadwal,
+        "Asnaf": item.asnaf || '-',
+        "Status": item.status || 'Realisasi Bantuan',
+        "Keterangan": item.keterangan || '-'
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    
+    worksheet['!cols'] = [
+      { wch: 5 },  // No
+      { wch: 14 }, // No. Agenda
+      { wch: 14 }, // Tgl Masuk
+      { wch: 30 }, // Nama Mustahik
+      { wch: 20 }, // NIK
+      { wch: 35 }, // Alamat
+      { wch: 18 }, // Kelurahan
+      { wch: 18 }, // Kecamatan
+      { wch: 16 }, // No Telepon
+      { wch: 20 }, // Pilar
+      { wch: 32 }, // Kegiatan RKAT
+      { wch: 25 }, // Jenis Bantuan
+      { wch: 16 }, // Nominal
+      { wch: 16 }, // Jadwal Realisasi
+      { wch: 15 }, // Asnaf
+      { wch: 20 }, // Status
+      { wch: 30 }, // Keterangan
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Realisasi Bantuan");
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `Laporan_Realisasi_Bantuan_BAZNAS_${dateStr}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
+  };
+
   const handleSchedule = () => {
     if (!selectedProposal || !scheduleDate) return;
     const updatedData = data.map(item => 
@@ -438,16 +511,14 @@ BAZNAS Kota Semarang.`;
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {selectedIds.length > 0 && (
-              <motion.button 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-xs font-black rounded-lg shadow-sm shadow-primary/20 hover:bg-primary/90 transition-all w-full sm:w-auto"
-              >
-                <DownloadCloud className="size-4" />
-                EXPORT LAPORAN ({selectedIds.length})
-              </motion.button>
-            )}
+            <button 
+              onClick={handleExportExcel}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-lg shadow-sm shadow-emerald-600/20 transition-all w-full sm:w-auto cursor-pointer"
+              title="Export Laporan Realisasi Bantuan ke Excel (.xlsx)"
+            >
+              <DownloadCloud className="size-4" />
+              EXPORT LAPORAN {selectedIds.length > 0 ? `(${selectedIds.length} Terpilih)` : `(${filteredData.length})`}
+            </button>
 
             {/* Search Dropdown for Pilar */}
             <div className="relative w-full sm:w-auto">
