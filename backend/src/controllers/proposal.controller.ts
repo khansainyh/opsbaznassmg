@@ -340,21 +340,44 @@ export const updateProposal = async (req: Request, res: Response) => {
         fotoDokumenLainnya: ' - Foto Dokumen Lainnya'
       };
 
-      const hasSurveyPhotos = files.some(f => surveyPhotoFields.includes(f.fieldname));
-      let agendaNo = '';
-      let surveyFolderId = '';
+      // Fetch proposal record details for dynamic folder & file naming
+      let proposalRecord: any = null;
+      try {
+        proposalRecord = await prisma.proposal.findUnique({
+          where: { id },
+          select: {
+            agenda_no: true,
+            nama_pemohon: true,
+            nama_instansi: true,
+            tanggal_masuk: true,
+            created_at: true,
+            memo_source: true,
+            keterangan: true
+          }
+        });
+      } catch (err) {
+        console.error('Error fetching proposal details for file upload:', err);
+      }
 
-      if (hasSurveyPhotos) {
-        try {
-          const proposalRecord = await prisma.proposal.findUnique({
-            where: { id },
-            select: { agenda_no: true }
-          });
-          agendaNo = proposalRecord?.agenda_no ? String(proposalRecord.agenda_no) : id;
-          surveyFolderId = await createFolderInDrive(agendaNo, 'gdrive_folder_survei');
-        } catch (err) {
-          console.error('Error preparing survey folder/agenda number:', err);
-        }
+      const agendaVal = proposalRecord?.agenda_no ? Number(proposalRecord.agenda_no) : 0;
+      const isDirect = agendaVal === 0 || proposalRecord?.memo_source === 'DIRECT_PENYALURAN' || (proposalRecord?.keterangan || '').includes('[DIRECT PENYALURAN]');
+      const rawNama = (proposalRecord?.nama_pemohon || proposalRecord?.nama_instansi || 'Mustahik').trim();
+      const cleanNama = rawNama.replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s+/g, '_') || 'Mustahik';
+      const rawDate = proposalRecord?.tanggal_masuk || proposalRecord?.created_at || new Date();
+      const tglStr = new Date(rawDate).toISOString().split('T')[0];
+
+      // Folder naming:
+      // Direct: DIRECT_2026-08-28_Suwarningsih
+      // Proposal: Agenda_622_Suwarningsih
+      const archiveFolderName = isDirect
+        ? `DIRECT_${tglStr}_${cleanNama}`
+        : `Agenda_${agendaVal}_${cleanNama}`;
+
+      let archiveFolderId = '';
+      try {
+        archiveFolderId = await createFolderInDrive(archiveFolderName, 'gdrive_folder_penerimaan');
+      } catch (err) {
+        console.error('Error creating archive folder in drive:', err);
       }
 
       for (const f of files) {
@@ -363,25 +386,43 @@ export const updateProposal = async (req: Request, res: Response) => {
           data.file_gdrive_link = gdriveRes.webViewLink;
           data.file_gdrive_id = gdriveRes.id;
         } else if (surveyPhotoFields.includes(f.fieldname)) {
-          // Survey photo: Upload to custom subfolder with custom name
-          const ext = path.extname(f.originalname) || '';
-          const customFileName = `${agendaNo}${suffixMap[f.fieldname] || ''}${ext}`;
+          const ext = path.extname(f.originalname) || '.jpg';
+          const customFileName = isDirect
+            ? `Survey_Direct_${cleanNama}_${tglStr}${suffixMap[f.fieldname] || ''}${ext}`
+            : `${agendaVal}${suffixMap[f.fieldname] || ''}${ext}`;
           
-          const gdriveRes = await uploadToDrive(f, customFileName, surveyFolderId || 'gdrive_folder_survei');
+          const gdriveRes = await uploadToDrive(f, customFileName, archiveFolderId || 'gdrive_folder_survei');
+          if (!existingSurveyData) {
+            existingSurveyData = {};
+          }
+          existingSurveyData[f.fieldname] = gdriveRes.webViewLink;
+          data.survey_data = existingSurveyData;
+        } else if (f.fieldname === 'kuitansi_ditandatangani') {
+          const ext = path.extname(f.originalname) || '.pdf';
+          const customFileName = isDirect
+            ? `Kuitansi_Direct_${cleanNama}_${tglStr}${ext}`
+            : `Kuitansi_Agenda_${agendaVal}_${cleanNama}${ext}`;
+
+          const gdriveRes = await uploadToDrive(f, customFileName, archiveFolderId || 'gdrive_folder_kuitansi');
+          if (!existingSurveyData) {
+            existingSurveyData = {};
+          }
+          existingSurveyData[f.fieldname] = gdriveRes.webViewLink;
+          data.survey_data = existingSurveyData;
+        } else if (f.fieldname === 'bukti_foto_realisasi') {
+          const ext = path.extname(f.originalname) || '.jpg';
+          const customFileName = isDirect
+            ? `FotoRealisasi_Direct_${cleanNama}_${tglStr}${ext}`
+            : `FotoRealisasi_Agenda_${agendaVal}_${cleanNama}${ext}`;
+
+          const gdriveRes = await uploadToDrive(f, customFileName, archiveFolderId || 'gdrive_folder_penerimaan');
           if (!existingSurveyData) {
             existingSurveyData = {};
           }
           existingSurveyData[f.fieldname] = gdriveRes.webViewLink;
           data.survey_data = existingSurveyData;
         } else {
-          // Asumsi fieldname lain adalah bukti realisasi / kuitansi
-          const folderKey = f.fieldname === 'bukti_foto_realisasi'
-            ? 'gdrive_folder_penerimaan'
-            : f.fieldname === 'kuitansi_ditandatangani'
-              ? 'gdrive_folder_kuitansi'
-              : 'gdrive_folder_survei';
-
-          const gdriveRes = await uploadToDrive(f, undefined, folderKey);
+          const gdriveRes = await uploadToDrive(f, undefined, archiveFolderId || 'gdrive_folder_survei');
           if (!existingSurveyData) {
             existingSurveyData = {};
           }

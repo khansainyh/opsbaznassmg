@@ -130,13 +130,18 @@ const STEPS = [
   { id: 'DONE',  label: 'DONE',  full: 'Selesai' },
 ];
 
-function getProgressSteps(status: string) {
+function getProgressSteps(status: string, isDirect: boolean = false) {
   const normStatus = (status === 'Selesai' || status === 'Selesai & Arsip' || status?.toLowerCase().startsWith('selesai')) ? 'Selesai & Arsip' : status;
   if (normStatus === 'Ditolak') return STEPS.map(s => ({ ...s, active: false, completed: false, rejected: true }));
   if (normStatus === 'Selesai & Arsip') return STEPS.map(s => ({ ...s, active: false, completed: true, rejected: false }));
 
   const idx = STATUS_ORDER.findIndex(s => s.toLowerCase() === normStatus.toLowerCase());
   return STEPS.map((step, i) => {
+    // For Jalur Direct, early stages (ADM..PIMP, indices 0..5) are automatically skipped & marked completed
+    if (isDirect && i <= 5) {
+      return { ...step, active: false, completed: true, rejected: false };
+    }
+
     const ranges = [
       [0,0],   // ADM: Registrasi (idx 0)
       [1,2],   // HUM: Scan Proposal, Scan_Proposal (idx 1-2)
@@ -150,8 +155,15 @@ function getProgressSteps(status: string) {
       [20,20]  // DONE: Selesai & Arsip (idx 20)
     ];
     const [lo, hi] = ranges[i];
-    const active = idx >= lo && idx <= hi;
-    const completed = idx > hi;
+
+    let active = idx >= lo && idx <= hi;
+    let completed = idx > hi;
+
+    if (isDirect && idx < 15) {
+      // Default initial stage for Direct is KEU (idx 15 - Pencairan Dana)
+      if (i === 6) active = true;
+    }
+
     return { ...step, active, completed, rejected: false };
   });
 }
@@ -409,6 +421,7 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
   const [selectedMonth, setSelectedMonth] = useState('Semua');
   const [selectedMemo, setSelectedMemo] = useState('Semua');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
+  const [selectedAsalFilter, setSelectedAsalFilter] = useState<'Semua' | 'Jalur Proposal' | 'Jalur Direct'>('Semua');
 
   // Super Admin Status Override Modal State
   const [overrideProposal, setOverrideProposal] = useState<ProposalMemo | null>(null);
@@ -618,20 +631,52 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
   const years = Array.from(new Set(data.map(d => new Date(d.tanggalMasuk).getFullYear().toString()))).sort().reverse();
   if (!years.includes(selectedYear)) years.push(selectedYear);
 
+  const matchesMemoFilter = (memoSourceStr: string | undefined, hasMemoFlag: boolean, filter: string) => {
+    if (filter === 'Semua') return true;
+    if (filter === 'Tanpa Memo') return !hasMemoFlag && (!memoSourceStr || memoSourceStr === 'Tanpa Memo');
+
+    if (!memoSourceStr) return false;
+    const cleanSource = memoSourceStr.toLowerCase();
+    const cleanFilter = filter.toLowerCase();
+
+    if (cleanFilter.includes('ketua') && !cleanFilter.includes('wakil') && !cleanFilter.includes('waka')) {
+      return cleanSource.includes('ketua') && !cleanSource.includes('wakil') && !cleanSource.includes('waka');
+    }
+    if (cleanFilter.includes('wakil ketua i') || cleanFilter.includes('waka i') || cleanFilter.includes('waka 1') || cleanFilter.includes('wakil ketua 1')) {
+      return cleanSource.includes('waka i') || cleanSource.includes('waka 1') || cleanSource.includes('wakil ketua i') || cleanSource.includes('wakil ketua 1');
+    }
+    if (cleanFilter.includes('wakil ketua ii') || cleanFilter.includes('waka ii') || cleanFilter.includes('waka 2') || cleanFilter.includes('wakil ketua 2')) {
+      return cleanSource.includes('waka ii') || cleanSource.includes('waka 2') || cleanSource.includes('wakil ketua ii') || cleanSource.includes('wakil ketua 2');
+    }
+    if (cleanFilter.includes('wakil ketua iii') || cleanFilter.includes('waka iii') || cleanFilter.includes('waka 3') || cleanFilter.includes('wakil ketua 3')) {
+      return cleanSource.includes('waka iii') || cleanSource.includes('waka 3') || cleanSource.includes('wakil ketua iii') || cleanSource.includes('wakil ketua 3');
+    }
+    if (cleanFilter.includes('wakil ketua iv') || cleanFilter.includes('waka iv') || cleanFilter.includes('waka 4') || cleanFilter.includes('wakil ketua 4')) {
+      return cleanSource.includes('waka iv') || cleanSource.includes('waka 4') || cleanSource.includes('wakil ketua iv') || cleanSource.includes('wakil ketua 4');
+    }
+    if (cleanFilter.includes('pelaksana') || cleanFilter.includes('kabag')) {
+      return cleanSource.includes('pelaksana') || cleanSource.includes('kabag');
+    }
+
+    return cleanSource.includes(cleanFilter) || cleanFilter.includes(cleanSource);
+  };
+
   const filtered = useMemo(() => {
     return data
       .filter(item => {
-        if (item.jenisPengajuan === 'OBS') return false;
         const isDirect = item.memoSource === 'DIRECT_PENYALURAN' || 
           (item.keterangan || '').includes('[DIRECT PENYALURAN]') || 
           (item as any).asal_data === 'Jalur Direct' || 
-          (item as any).asalData === 'Jalur Direct';
-        if (isDirect) return false;
+          (item as any).asalData === 'Jalur Direct' ||
+          Number(item.agendaNo || 0) === 0;
+
+        const asalOk = selectedAsalFilter === 'Semua' || (isDirect ? 'Jalur Direct' : 'Jalur Proposal') === selectedAsalFilter;
+        if (!asalOk) return false;
 
         const date = new Date(item.tanggalMasuk);
         const yearOk = date.getFullYear().toString() === selectedYear;
         const monthOk = selectedMonth === 'Semua' || (date.getMonth()+1).toString().padStart(2,'0') === MONTH_MAP[selectedMonth];
-        const memoOk = selectedMemo === 'Semua' || (selectedMemo === 'Tanpa Memo' ? !item.hasMemo : item.memoSource === selectedMemo);
+        const memoOk = matchesMemoFilter(item.memoSource, item.hasMemo, selectedMemo);
         const statusOk = matchesStatus(item.status, selectedStatus);
         const searchOk = !searchTerm ||
           (item.agendaNo || '').toString().includes(searchTerm) ||
@@ -651,12 +696,30 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
 
         return yearOk && monthOk && memoOk && statusOk && searchOk && kecOk && kelOk && progOk;
       })
-      .sort((a, b) => Number(b.agendaNo || 0) - Number(a.agendaNo || 0));
-  }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus, selectedKecamatan, selectedKelurahan, selectedProgram]);
+      .sort((a, b) => {
+        const aAgenda = Number(a.agendaNo || 0);
+        const bAgenda = Number(b.agendaNo || 0);
+
+        // Proposals with Agenda No > 0 sorted by agendaNo descending
+        if (aAgenda > 0 && bAgenda > 0) {
+          return bAgenda - aAgenda;
+        }
+        if (aAgenda > 0 && bAgenda === 0) {
+          return -1;
+        }
+        if (aAgenda === 0 && bAgenda > 0) {
+          return 1;
+        }
+        // Both are Direct (agenda === 0), sort by date descending
+        const aTime = new Date(a.tanggalMasuk).getTime();
+        const bTime = new Date(b.tanggalMasuk).getTime();
+        return bTime - aTime;
+      });
+  }, [data, searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus, selectedKecamatan, selectedKelurahan, selectedProgram, selectedAsalFilter]);
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus, selectedKecamatan, selectedKelurahan, selectedProgram]);
+  }, [searchTerm, selectedYear, selectedMonth, selectedMemo, selectedStatus, selectedKecamatan, selectedKelurahan, selectedProgram, selectedAsalFilter]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
 
@@ -725,6 +788,20 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
           <select className="text-sm bg-emerald-50 border border-emerald-200 rounded-lg py-2 px-3 outline-none cursor-pointer text-emerald-800 font-semibold"
             value={selectedMemo} onChange={e => setSelectedMemo(e.target.value)}>
             {MEMO_SOURCES.map(m => <option key={m} value={m}>{m === 'Semua' ? 'Semua Memo' : m}</option>)}
+          </select>
+
+          {/* Filter Asal Data */}
+          <select 
+            className="text-sm bg-purple-50 border border-purple-200 rounded-lg py-2 px-3 outline-none cursor-pointer text-purple-800 font-semibold"
+            value={selectedAsalFilter}
+            onChange={e => {
+              setSelectedAsalFilter(e.target.value as any);
+              setCurrentPage(1);
+            }}
+          >
+            <option value="Semua">Semua Asal Data</option>
+            <option value="Jalur Proposal">Jalur Proposal</option>
+            <option value="Jalur Direct">Jalur Direct</option>
           </select>
 
           {/* Filter Lanjutan Toggle Button */}
@@ -883,25 +960,28 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-0.5 py-1">
-                      {getProgressSteps(item.status).map((step, idx, arr) => (
-                        <React.Fragment key={step.id}>
-                          <div className="flex flex-col items-center gap-0.5 shrink-0">
-                            <div title={step.full} className={cn(
-                              "size-5 rounded-full flex items-center justify-center text-[8px] font-black transition-all cursor-default shrink-0",
-                              step.completed ? "bg-primary text-white" :
-                              step.active ? "bg-white border-2 border-primary text-primary animate-pulse" :
-                              step.rejected ? "bg-rose-100 text-rose-400" :
-                              "bg-slate-100 text-slate-400"
-                            )}>
-                              {step.completed ? <CheckCircle2 className="size-3" /> : step.id.slice(0,2)}
+                      {(() => {
+                        const isDirectItem = item.memoSource === 'DIRECT_PENYALURAN' || (item.keterangan || '').includes('[DIRECT PENYALURAN]') || (item as any).asal_data === 'Jalur Direct' || (item as any).asalData === 'Jalur Direct' || Number(item.agendaNo || 0) === 0;
+                        return getProgressSteps(item.status, isDirectItem).map((step, idx, arr) => (
+                          <React.Fragment key={step.id}>
+                            <div className="flex flex-col items-center gap-0.5 shrink-0">
+                              <div title={step.full} className={cn(
+                                "size-5 rounded-full flex items-center justify-center text-[8px] font-black transition-all cursor-default shrink-0",
+                                step.completed ? "bg-primary text-white" :
+                                step.active ? "bg-white border-2 border-primary text-primary animate-pulse" :
+                                step.rejected ? "bg-rose-100 text-rose-400" :
+                                "bg-slate-100 text-slate-400"
+                              )}>
+                                {step.completed ? <CheckCircle2 className="size-3" /> : step.id.slice(0,2)}
+                              </div>
+                              <span className={cn("text-[7px] font-black uppercase tracking-tight", step.completed||step.active?"text-primary":"text-slate-400")}>
+                                {step.label}
+                              </span>
                             </div>
-                            <span className={cn("text-[7px] font-black uppercase tracking-tight", step.completed||step.active?"text-primary":"text-slate-400")}>
-                              {step.label}
-                            </span>
-                          </div>
-                          {idx < arr.length-1 && <div className={cn("w-3 h-[2px] mb-3.5 shrink-0", step.completed?"bg-primary":"bg-slate-100")} />}
-                        </React.Fragment>
-                      ))}
+                            {idx < arr.length-1 && <div className={cn("w-3 h-[2px] mb-3.5 shrink-0", step.completed?"bg-primary":"bg-slate-100")} />}
+                          </React.Fragment>
+                        ));
+                      })()}
                     </div>
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap">
@@ -1311,29 +1391,32 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                         <History className="size-4 text-primary" /> Riwayat Alur Dokumen
                       </h4>
                       <div className="space-y-3 pl-1">
-                        {getProgressSteps(selectedProposal.status).map((step, idx) => (
-                          <div key={step.id} className="flex gap-3">
-                            <div className="flex flex-col items-center">
-                              <div className={cn("size-6 rounded-full flex items-center justify-center text-[10px] font-bold z-10 shrink-0",
-                                step.completed ? "bg-primary text-white" :
-                                step.active ? "bg-white border-2 border-primary text-primary" :
-                                step.rejected ? "bg-rose-100 text-rose-500" :
-                                "bg-slate-100 text-slate-400"
-                              )}>
-                                {step.completed ? <CheckCircle2 className="size-3" /> : idx+1}
+                        {(() => {
+                          const isDirectModal = selectedProposal.memoSource === 'DIRECT_PENYALURAN' || (selectedProposal.keterangan || '').includes('[DIRECT PENYALURAN]') || (selectedProposal as any).asal_data === 'Jalur Direct' || (selectedProposal as any).asalData === 'Jalur Direct' || Number(selectedProposal.agendaNo || 0) === 0;
+                          return getProgressSteps(selectedProposal.status, isDirectModal).map((step, idx) => (
+                            <div key={step.id} className="flex gap-3">
+                              <div className="flex flex-col items-center">
+                                <div className={cn("size-6 rounded-full flex items-center justify-center text-[10px] font-bold z-10 shrink-0",
+                                  step.completed ? "bg-primary text-white" :
+                                  step.active ? "bg-white border-2 border-primary text-primary" :
+                                  step.rejected ? "bg-rose-100 text-rose-500" :
+                                  "bg-slate-100 text-slate-400"
+                                )}>
+                                  {step.completed ? <CheckCircle2 className="size-3" /> : idx+1}
+                                </div>
+                                {idx < STEPS.length-1 && <div className={cn("w-[1.5px] flex-1 my-1", step.completed ? "bg-primary" : "bg-slate-100")} style={{ minHeight: 12 }} />}
                               </div>
-                              {idx < STEPS.length-1 && <div className={cn("w-[1.5px] flex-1 my-1", step.completed ? "bg-primary" : "bg-slate-100")} style={{ minHeight: 12 }} />}
+                              <div className="pb-1">
+                                <p className={cn("text-xs font-bold", step.completed||step.active ? "text-slate-900" : "text-slate-400")}>
+                                  {step.full}
+                                </p>
+                                <p className="text-[9px] text-slate-400 font-semibold">
+                                  {step.completed ? 'Selesai diverifikasi' : step.active ? 'Sedang diproses' : step.rejected ? 'Ditolak' : 'Menunggu'}
+                                </p>
+                              </div>
                             </div>
-                            <div className="pb-1">
-                              <p className={cn("text-xs font-bold", step.completed||step.active ? "text-slate-900" : "text-slate-400")}>
-                                {step.full}
-                              </p>
-                              <p className="text-[9px] text-slate-400 font-semibold">
-                                {step.completed ? 'Selesai diverifikasi' : step.active ? 'Sedang diproses' : step.rejected ? 'Ditolak' : 'Menunggu'}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                          ));
+                        })()}
                       </div>
                     </div>
 

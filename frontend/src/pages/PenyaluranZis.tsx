@@ -33,7 +33,9 @@ import {
   FileText,
   Printer,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Image as ImageIcon,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getMustahikDisplayName } from '../lib/utils';
@@ -4402,6 +4404,64 @@ export default function PenyaluranZis() {
                     {selectedPenyaluran.keterangan || '-'}
                   </p>
                 </div>
+
+                {/* Dokumen & Berkas Pertanggungjawaban (Arsip) */}
+                {(() => {
+                  const sData = selectedPenyaluran.survey_data || {};
+                  const kuitansiLink = sData.kuitansi_ditandatangani || sData.kuitansi;
+                  const fotoLink = sData.bukti_foto_realisasi || sData.foto_realisasi;
+                  const driveLink = selectedPenyaluran.file_gdrive_link;
+
+                  if (!kuitansiLink && !fotoLink && !driveLink) return null;
+
+                  return (
+                    <div className="space-y-2 bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-100/80">
+                      <p className="text-emerald-800 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <FileCheck className="size-3.5 text-emerald-600" /> Dokumen &amp; Berkas Pertanggungjawaban (Arsip)
+                      </p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        {kuitansiLink && (
+                          <a
+                            href={kuitansiLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 text-xs font-bold transition-all shadow-xs"
+                          >
+                            <FileText className="size-4 text-emerald-600 shrink-0" />
+                            <span className="truncate">Kuitansi Bertanda Tangan</span>
+                            <ExternalLink className="size-3 text-emerald-400 ml-auto shrink-0" />
+                          </a>
+                        )}
+
+                        {fotoLink && (
+                          <a
+                            href={fotoLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 text-xs font-bold transition-all shadow-xs"
+                          >
+                            <ImageIcon className="size-4 text-emerald-600 shrink-0" />
+                            <span className="truncate">Bukti Foto Realisasi</span>
+                            <ExternalLink className="size-3 text-emerald-400 ml-auto shrink-0" />
+                          </a>
+                        )}
+
+                        {driveLink && !kuitansiLink && !fotoLink && (
+                          <a
+                            href={driveLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="col-span-2 flex items-center gap-2 px-3 py-2 bg-white hover:bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 text-xs font-bold transition-all shadow-xs"
+                          >
+                            <ExternalLink className="size-4 text-emerald-600 shrink-0" />
+                            <span className="truncate">Buka Berkas Google Drive</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="p-4 border-t border-slate-100 bg-slate-50/80 shrink-0 flex items-center justify-between">
