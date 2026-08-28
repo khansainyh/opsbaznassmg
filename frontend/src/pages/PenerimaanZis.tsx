@@ -463,27 +463,44 @@ export default function PenerimaanZis() {
       return defaultToday ? new Date().toISOString().split('T')[0] : '';
     }
 
-    // 1. If already JS Date object (from SheetJS cellDates)
-    if (val instanceof Date && !isNaN(val.getTime())) {
-      const yUTC = val.getUTCFullYear();
-      const mUTC = String(val.getUTCMonth() + 1).padStart(2, '0');
-      const dUTC = String(val.getUTCDate()).padStart(2, '0');
-
-      const yLoc = val.getFullYear();
-      const mLoc = String(val.getMonth() + 1).padStart(2, '0');
-      const dLoc = String(val.getDate()).padStart(2, '0');
-
-      // If UTC hours >= 12 (e.g. 17:00 or 19:00 from negative timezone offset adjustment), local date is the intended date.
-      if (val.getUTCHours() >= 12) {
-        return `${yLoc}-${mLoc}-${dLoc}`;
-      }
-      return `${yUTC}-${mUTC}-${dUTC}`;
+    // 1. If string (e.g. "27-08-2026", "27/08/2026", "27.08.2026")
+    const str = String(val).trim();
+    if (!str || str === '-' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') {
+      return defaultToday ? new Date().toISOString().split('T')[0] : '';
     }
 
-    // 2. If number or numeric string (Excel serial code, e.g. 45260 or "45260")
-    const num = typeof val === 'number' ? val : (typeof val === 'string' && /^\d+(\.\d+)?$/.test(val.trim()) ? parseFloat(val.trim()) : NaN);
+    // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (dmyMatch) {
+      const day = dmyMatch[1].padStart(2, '0');
+      const month = dmyMatch[2].padStart(2, '0');
+      const year = dmyMatch[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    // DD/MM/YY or DD-MM-YY or DD.MM.YY (2-digit year)
+    const dmy2DigitMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
+    if (dmy2DigitMatch) {
+      const day = dmy2DigitMatch[1].padStart(2, '0');
+      const month = dmy2DigitMatch[2].padStart(2, '0');
+      const shortYear = parseInt(dmy2DigitMatch[3], 10);
+      const year = shortYear > 50 ? `19${dmy2DigitMatch[3]}` : `20${dmy2DigitMatch[3].padStart(2, '0')}`;
+      return `${year}-${month}-${day}`;
+    }
+
+    // YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD
+    const ymdMatch = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+    if (ymdMatch) {
+      const year = ymdMatch[1];
+      const month = ymdMatch[2].padStart(2, '0');
+      const day = ymdMatch[3].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // 2. If number or numeric string (Excel serial code, e.g. 46261 or "46261")
+    const num = typeof val === 'number' ? val : (/^\d+(\.\d+)?$/.test(str) ? parseFloat(str) : NaN);
     if (!isNaN(num) && num >= 1000 && num <= 100000) {
-      const utcDays = num - 25569;
+      const utcDays = Math.round(num - 25569);
       const utcValue = utcDays * 86400 * 1000;
       const d = new Date(utcValue);
       if (!isNaN(d.getTime())) {
@@ -496,46 +513,37 @@ export default function PenerimaanZis() {
       }
     }
 
-    const str = String(val).trim();
-    if (!str || str === '-' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') {
-      return defaultToday ? new Date().toISOString().split('T')[0] : '';
-    }
-
-    // DD/MM/YYYY or DD-MM-YYYY
-    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (dmyMatch) {
-      const day = dmyMatch[1].padStart(2, '0');
-      const month = dmyMatch[2].padStart(2, '0');
-      const year = dmyMatch[3];
-      return `${year}-${month}-${day}`;
-    }
-
-    // DD/MM/YY or DD-MM-YY (2-digit year)
-    const dmy2DigitMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
-    if (dmy2DigitMatch) {
-      const day = dmy2DigitMatch[1].padStart(2, '0');
-      const month = dmy2DigitMatch[2].padStart(2, '0');
-      const shortYear = parseInt(dmy2DigitMatch[3], 10);
-      const year = shortYear > 50 ? `19${dmy2DigitMatch[3]}` : `20${dmy2DigitMatch[3].padStart(2, '0')}`;
-      return `${year}-${month}-${day}`;
-    }
-
-    // YYYY-MM-DD or YYYY/MM/DD
-    const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if (ymdMatch) {
-      const year = ymdMatch[1];
-      const month = ymdMatch[2].padStart(2, '0');
-      const day = ymdMatch[3].padStart(2, '0');
-      return `${year}-${month}-${day}`;
+    // 3. If JS Date object (fallback)
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      const utcHours = val.getUTCHours();
+      if (utcHours >= 12) {
+        const year = val.getFullYear();
+        const month = String(val.getMonth() + 1).padStart(2, '0');
+        const day = String(val.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } else {
+        const year = val.getUTCFullYear();
+        const month = String(val.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(val.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
     }
 
     // Standard date parsing fallback
     const parsed = new Date(str);
     if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= 1970 && parsed.getFullYear() <= 2100) {
-      const y = parsed.getUTCHours() >= 12 ? parsed.getFullYear() : parsed.getUTCFullYear();
-      const m = String((parsed.getUTCHours() >= 12 ? parsed.getMonth() : parsed.getUTCMonth()) + 1).padStart(2, '0');
-      const d = String(parsed.getUTCHours() >= 12 ? parsed.getDate() : parsed.getUTCDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
+      const utcHours = parsed.getUTCHours();
+      if (utcHours >= 12) {
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } else {
+        const year = parsed.getUTCFullYear();
+        const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
     }
 
     return defaultToday ? new Date().toISOString().split('T')[0] : str;
@@ -549,7 +557,7 @@ export default function PenerimaanZis() {
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: false });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const rawRows = XLSX.utils.sheet_to_json(ws);
