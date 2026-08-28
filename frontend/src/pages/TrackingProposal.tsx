@@ -57,9 +57,22 @@ const MEMO_SOURCES = ['Semua', 'Ketua BAZNAS', 'Wakil Ketua I', 'Wakil Ketua II'
 const MONTHS = ['Semua','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const MONTH_MAP: Record<string, string> = { Januari:'01',Februari:'02',Maret:'03',April:'04',Mei:'05',Juni:'06',Juli:'07',Agustus:'08',September:'09',Oktober:'10',November:'11',Desember:'12' };
 
-export function formatStatusDisplay(status: string) {
-  if (!status) return status;
+export function formatStatusDisplay(status: string, isDirect: boolean = false) {
+  if (!status) return isDirect ? 'Pencairan Dana' : status;
   const s = status.trim();
+  const sUpper = s.toUpperCase().replace(/_/g, ' ');
+
+  if (isDirect) {
+    if (sUpper.includes('SELESAI') || sUpper.includes('ARSIP')) {
+      if (sUpper.includes('SELESAI')) return 'Selesai & Arsip';
+      return 'Antrean Arsip';
+    }
+    if (sUpper.includes('SIMBA')) return 'Antrean SIMBA';
+    if (sUpper.includes('REALISASI')) return 'Realisasi Bantuan';
+    // For Jalur Direct in Keuangan/payout stage:
+    return 'Pencairan Dana';
+  }
+
   if (s === 'Review Kabag' || s === 'Review Kabag Admin' || s === 'Review Kabag Administrasi') {
     return 'Review Kabag Administrasi';
   }
@@ -77,6 +90,9 @@ export function formatStatusDisplay(status: string) {
   }
   if (s === 'Survei Assessment' || s === 'Survei_Assessment' || s === 'Survei/Assesment') {
     return 'Survei/Assesment';
+  }
+  if (sUpper.includes('PERSETUJUAN') || sUpper.includes('DISETUJUI') || sUpper === 'ACC') {
+    return 'Pencairan Dana';
   }
   return s;
 }
@@ -924,45 +940,47 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                     </div>
                   </td>
                 </tr>
-              ) : paginatedItems.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-5 py-3 whitespace-nowrap">
-                    {item.memoSource === 'DIRECT_PENYALURAN' || (item.keterangan || '').includes('[DIRECT PENYALURAN]') ? (
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-mono font-medium text-slate-400">—</span>
-                        <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">Jalur Direct</span>
-                      </div>
-                    ) : (
-                      <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo || '-'}</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 whitespace-nowrap">
-                    {(() => {
-                      const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
-                      return (
-                        <>
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-bold text-slate-900">{title}</p>
-                            {isLembaga && (
-                              <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
-                                Lembaga
-                              </span>
-                            )}
-                          </div>
-                          {subtitle && (
-                            <div className="flex flex-col gap-0.5 mt-0.5">
-                              <span className="text-[10px] text-slate-500 font-medium">{subtitle}</span>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </td>
-                  <td className="px-5 py-3 whitespace-nowrap">
-                    <div className="flex items-center gap-0.5 py-1">
+              ) : paginatedItems.map(item => {
+                const numAgenda = Number(item.agendaNo || 0);
+                const isDirectItem = item.memoSource === 'DIRECT_PENYALURAN' || (item.keterangan || '').includes('[DIRECT PENYALURAN]') || (item as any).asal_data === 'Jalur Direct' || (item as any).asalData === 'Jalur Direct' || numAgenda === 0 || numAgenda >= 90000;
+
+                return (
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-5 py-3 whitespace-nowrap">
+                      {isDirectItem ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-mono font-medium text-slate-400">—</span>
+                          <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 w-fit">Jalur Direct</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">{item.agendaNo || '-'}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 whitespace-nowrap">
                       {(() => {
-                        const isDirectItem = item.memoSource === 'DIRECT_PENYALURAN' || (item.keterangan || '').includes('[DIRECT PENYALURAN]') || (item as any).asal_data === 'Jalur Direct' || (item as any).asalData === 'Jalur Direct' || Number(item.agendaNo || 0) === 0;
-                        return getProgressSteps(item.status, isDirectItem).map((step, idx, arr) => (
+                        const { title, subtitle, isLembaga } = getMustahikDisplayName(item);
+                        return (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-bold text-slate-900">{title}</p>
+                              {isLembaga && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded border border-purple-200 uppercase">
+                                  Lembaga
+                                </span>
+                              )}
+                            </div>
+                            {subtitle && (
+                              <div className="flex flex-col gap-0.5 mt-0.5">
+                                <span className="text-[10px] text-slate-500 font-medium">{subtitle}</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-5 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-0.5 py-1">
+                        {getProgressSteps(item.status, isDirectItem).map((step, idx, arr) => (
                           <React.Fragment key={step.id}>
                             <div className="flex flex-col items-center gap-0.5 shrink-0">
                               <div title={step.full} className={cn(
@@ -980,15 +998,14 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                             </div>
                             {idx < arr.length-1 && <div className={cn("w-3 h-[2px] mb-3.5 shrink-0", step.completed?"bg-primary":"bg-slate-100")} />}
                           </React.Fragment>
-                        ));
-                      })()}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 whitespace-nowrap">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
-                        {formatStatusDisplay(item.status)}
-                      </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 whitespace-nowrap">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn("px-2 py-1 text-[10px] font-bold rounded-full uppercase whitespace-nowrap", getStatusColor(item.status))}>
+                          {formatStatusDisplay(item.status, isDirectItem)}
+                        </span>
                       <div className="flex items-center gap-1">
                         {isSuperAdmin && (
                           <button
@@ -1022,8 +1039,9 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              );
+            })}
+          </tbody>
           </table>
         </div>
 
@@ -1095,7 +1113,20 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                   </div>
                   <div>
                     <h3 className="text-lg font-black text-slate-900">Detail Proposal</h3>
-                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Agenda #{selectedProposal.agendaNo}</p>
+                    {(() => {
+                      const numAgenda = Number(selectedProposal.agendaNo || 0);
+                      const isDirectModalHeader = selectedProposal.memoSource === 'DIRECT_PENYALURAN' || (selectedProposal.keterangan || '').includes('[DIRECT PENYALURAN]') || (selectedProposal as any).asal_data === 'Jalur Direct' || (selectedProposal as any).asalData === 'Jalur Direct' || numAgenda === 0 || numAgenda >= 90000;
+                      if (isDirectModalHeader) {
+                        return (
+                          <p className="text-xs text-purple-700 font-extrabold uppercase tracking-widest bg-purple-50 px-2 py-0.5 rounded border border-purple-100 w-fit mt-0.5">
+                            Agenda — · Jalur Direct
+                          </p>
+                        );
+                      }
+                      return (
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Agenda #{selectedProposal.agendaNo}</p>
+                      );
+                    })()}
                   </div>
                 </div>
                 <button onClick={() => setSelectedProposal(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
@@ -1108,7 +1139,15 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                 <div className={cn("p-4 rounded-xl flex items-center justify-between flex-wrap gap-2", getStatusColor(selectedProposal.status))}>
                   <div className="flex items-center gap-3">
                     <Clock className="size-5" />
-                    <span className="text-sm font-black uppercase tracking-wider">Status: {formatStatusDisplay(selectedProposal.status)}</span>
+                    {(() => {
+                      const numAgenda = Number(selectedProposal.agendaNo || 0);
+                      const isDirectModalStatus = selectedProposal.memoSource === 'DIRECT_PENYALURAN' || (selectedProposal.keterangan || '').includes('[DIRECT PENYALURAN]') || (selectedProposal as any).asal_data === 'Jalur Direct' || (selectedProposal as any).asalData === 'Jalur Direct' || numAgenda === 0 || numAgenda >= 90000;
+                      return (
+                        <span className="text-sm font-black uppercase tracking-wider">
+                          Status: {formatStatusDisplay(selectedProposal.status, isDirectModalStatus)}
+                        </span>
+                      );
+                    })()}
                   </div>
                   {isSuperAdmin && (
                     <button

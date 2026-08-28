@@ -576,7 +576,7 @@ function formatStatusDisplay(status: string) {
   if (s.includes('REALISASI')) {
     return 'REALISASI BANTUAN';
   }
-  if (s.includes('PENCAIRAN') || s === 'ACC' || s.includes('CAIR')) {
+  if (s.includes('PENCAIRAN') || s === 'ACC' || s.includes('CAIR') || s.includes('PERSETUJUAN') || s.includes('DISETUJUI')) {
     return 'ANTREAN PENCAIRAN';
   }
   return s;
