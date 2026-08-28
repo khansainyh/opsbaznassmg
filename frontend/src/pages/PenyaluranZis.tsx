@@ -1913,12 +1913,20 @@ export default function PenyaluranZis() {
       return defaultToday ? new Date().toISOString().split('T')[0] : '';
     }
 
-    // 1. If already JS Date object
+    // 1. If already JS Date object (from SheetJS cellDates)
     if (val instanceof Date && !isNaN(val.getTime())) {
-      const year = val.getFullYear();
-      const month = String(val.getMonth() + 1).padStart(2, '0');
-      const day = String(val.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+      const yUTC = val.getUTCFullYear();
+      const mUTC = String(val.getUTCMonth() + 1).padStart(2, '0');
+      const dUTC = String(val.getUTCDate()).padStart(2, '0');
+
+      const yLoc = val.getFullYear();
+      const mLoc = String(val.getMonth() + 1).padStart(2, '0');
+      const dLoc = String(val.getDate()).padStart(2, '0');
+
+      if (val.getUTCHours() >= 12) {
+        return `${yLoc}-${mLoc}-${dLoc}`;
+      }
+      return `${yUTC}-${mUTC}-${dUTC}`;
     }
 
     // 2. If number or numeric string (Excel serial code, e.g. 45260 or "45260")
@@ -1951,6 +1959,16 @@ export default function PenyaluranZis() {
       return `${year}-${month}-${day}`;
     }
 
+    // DD/MM/YY or DD-MM-YY (2-digit year)
+    const dmy2DigitMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+    if (dmy2DigitMatch) {
+      const day = dmy2DigitMatch[1].padStart(2, '0');
+      const month = dmy2DigitMatch[2].padStart(2, '0');
+      const shortYear = parseInt(dmy2DigitMatch[3], 10);
+      const year = shortYear > 50 ? `19${dmy2DigitMatch[3]}` : `20${dmy2DigitMatch[3].padStart(2, '0')}`;
+      return `${year}-${month}-${day}`;
+    }
+
     // YYYY-MM-DD or YYYY/MM/DD
     const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
     if (ymdMatch) {
@@ -1963,10 +1981,10 @@ export default function PenyaluranZis() {
     // Standard date parsing fallback
     const parsed = new Date(str);
     if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= 1970 && parsed.getFullYear() <= 2100) {
-      const year = parsed.getFullYear();
-      const month = String(parsed.getMonth() + 1).padStart(2, '0');
-      const day = String(parsed.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+      const y = parsed.getUTCHours() >= 12 ? parsed.getFullYear() : parsed.getUTCFullYear();
+      const m = String((parsed.getUTCHours() >= 12 ? parsed.getMonth() : parsed.getUTCMonth()) + 1).padStart(2, '0');
+      const d = String(parsed.getUTCHours() >= 12 ? parsed.getDate() : parsed.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
 
     return defaultToday ? new Date().toISOString().split('T')[0] : str;
