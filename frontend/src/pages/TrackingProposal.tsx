@@ -437,7 +437,7 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
   const [selectedMonth, setSelectedMonth] = useState('Semua');
   const [selectedMemo, setSelectedMemo] = useState('Semua');
   const [selectedStatus, setSelectedStatus] = useState('Semua Status');
-  const [selectedAsalFilter, setSelectedAsalFilter] = useState<'Semua' | 'Jalur Proposal' | 'Jalur Direct'>('Semua');
+  const [selectedAsalFilter, setSelectedAsalFilter] = useState<'Semua' | 'Jalur Proposal' | 'Jalur Direct'>('Jalur Proposal');
 
   // Super Admin Status Override Modal State
   const [overrideProposal, setOverrideProposal] = useState<ProposalMemo | null>(null);
@@ -680,11 +680,15 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
   const filtered = useMemo(() => {
     return data
       .filter(item => {
+        const isOBS = item.jenisPengajuan === 'OBS' || (item as any).jenis_pengajuan === 'OBS' || (item.keterangan || '').toUpperCase().includes('OBS') || (item.keterangan || '').toUpperCase().includes('OFF-BALANCING');
+        if (isOBS) return false;
+
         const isDirect = item.memoSource === 'DIRECT_PENYALURAN' || 
           (item.keterangan || '').includes('[DIRECT PENYALURAN]') || 
           (item as any).asal_data === 'Jalur Direct' || 
           (item as any).asalData === 'Jalur Direct' ||
-          Number(item.agendaNo || 0) === 0;
+          Number(item.agendaNo || 0) === 0 ||
+          Number(item.agendaNo || 0) >= 90000;
 
         const asalOk = selectedAsalFilter === 'Semua' || (isDirect ? 'Jalur Direct' : 'Jalur Proposal') === selectedAsalFilter;
         if (!asalOk) return false;

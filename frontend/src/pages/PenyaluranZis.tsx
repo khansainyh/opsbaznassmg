@@ -66,6 +66,10 @@ function SummaryCard({ title, value, subtext, icon, colorClass }: any) {
 
 export const checkIsDirectPenyaluran = (item: any): boolean => {
   if (!item) return false;
+  // STRICT: Exclude Off-Balancing (OBS) records from being classified as Jalur Direct
+  const isOBS = item.jenis_pengajuan === 'OBS' || item.jenisPengajuan === 'OBS' || String(item.jenis_pengajuan || item.jenisPengajuan || '').toUpperCase().includes('OBS') || String(item.keterangan || '').toUpperCase().includes('OBS') || String(item.keterangan || '').toUpperCase().includes('OFF-BALANCING');
+  if (isOBS) return false;
+
   const rawAgenda = item.agenda_no !== undefined ? item.agenda_no : item.agendaNo;
   if (rawAgenda !== null && rawAgenda !== undefined && String(rawAgenda).trim() !== '') {
     const numAgenda = Number(rawAgenda);
