@@ -325,7 +325,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
 
     const filtered = reportSource.filter(item => {
       if (!item.tanggalMasuk) return false;
-      const [y, m, d] = item.tanggalMasuk.split('-').map(Number);
+      const [y, m] = item.tanggalMasuk.split('-').map(Number);
       if (reportType === 'harian_pilar' || reportType === 'harian_detail') {
         return item.tanggalMasuk === selectedDate;
       } else if (reportType === 'mingguan') {
