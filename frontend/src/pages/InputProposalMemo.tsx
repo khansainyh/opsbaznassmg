@@ -280,6 +280,8 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedWeek, setSelectedWeek] = useState(1);
+  const [selectedWeekStartDate, setSelectedWeekStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedWeekEndDate, setSelectedWeekEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [users, setUsers] = useState<any[]>([]);
   const [signatories, setSignatories] = useState({
     kepalaPelaksana: 'H. Muhammad Asyhar, S.Sos.I.',
@@ -327,12 +329,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
       if (reportType === 'harian_pilar' || reportType === 'harian_detail') {
         return item.tanggalMasuk === selectedDate;
       } else if (reportType === 'mingguan') {
-        if (y !== selectedYear || m !== selectedMonth) return false;
-        if (selectedWeek === 1) return d >= 1 && d <= 7;
-        if (selectedWeek === 2) return d >= 8 && d <= 14;
-        if (selectedWeek === 3) return d >= 15 && d <= 21;
-        if (selectedWeek === 4) return d >= 22 && d <= 28;
-        if (selectedWeek === 5) return d >= 29;
+        return item.tanggalMasuk >= selectedWeekStartDate && item.tanggalMasuk <= selectedWeekEndDate;
       } else if (reportType === 'bulanan') {
         return y === selectedYear && m === selectedMonth;
       }
@@ -366,9 +363,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
       semarangDate = formatIndonesianDateStr(selectedDate);
     } else if (reportType === 'mingguan') {
       title = `REKAP PROPOSAL MASUK MINGGU KE-${selectedWeek} BULAN ${MONTH_NAMES[selectedMonth - 1].toUpperCase()} ${selectedYear}`;
-      const endDay = selectedWeek === 1 ? 7 : selectedWeek === 2 ? 14 : selectedWeek === 3 ? 21 : selectedWeek === 4 ? 28 : new Date(selectedYear, selectedMonth, 0).getDate();
-      const endDayStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
-      semarangDate = formatIndonesianDateStr(endDayStr);
+      semarangDate = formatIndonesianDateStr(selectedWeekEndDate);
     } else if (reportType === 'bulanan') {
       title = `REKAP PROPOSAL MASUK BULAN ${MONTH_NAMES[selectedMonth - 1].toUpperCase()} ${selectedYear}`;
       const endDay = new Date(selectedYear, selectedMonth, 0).getDate();
@@ -3050,50 +3045,69 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                   )}
 
                   {reportType === 'mingguan' && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-600">Tahun</label>
-                        <input 
-                          type="number"
-                          value={selectedYear}
-                          onChange={(e) => setSelectedYear(Number(e.target.value))}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                        />
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600">Tahun</label>
+                          <input 
+                            type="number"
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(Number(e.target.value))}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600">Bulan</label>
+                          <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          >
+                            <option value={1}>Januari</option>
+                            <option value={2}>Februari</option>
+                            <option value={3}>Maret</option>
+                            <option value={4}>April</option>
+                            <option value={5}>Mei</option>
+                            <option value={6}>Juni</option>
+                            <option value={7}>Juli</option>
+                            <option value={8}>Agustus</option>
+                            <option value={9}>September</option>
+                            <option value={10}>Oktober</option>
+                            <option value={11}>November</option>
+                            <option value={12}>Desember</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600">Minggu Ke-</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="5"
+                            value={selectedWeek}
+                            onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-600">Bulan</label>
-                        <select
-                          value={selectedMonth}
-                          onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                        >
-                          <option value={1}>Januari</option>
-                          <option value={2}>Februari</option>
-                          <option value={3}>Maret</option>
-                          <option value={4}>April</option>
-                          <option value={5}>Mei</option>
-                          <option value={6}>Juni</option>
-                          <option value={7}>Juli</option>
-                          <option value={8}>Agustus</option>
-                          <option value={9}>September</option>
-                          <option value={10}>Oktober</option>
-                          <option value={11}>November</option>
-                          <option value={12}>Desember</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-600">Minggu Ke-</label>
-                        <select
-                          value={selectedWeek}
-                          onChange={(e) => setSelectedWeek(Number(e.target.value))}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                        >
-                          <option value={1}>1 (Tanggal 1-7)</option>
-                          <option value={2}>2 (Tanggal 8-14)</option>
-                          <option value={3}>3 (Tanggal 15-21)</option>
-                          <option value={4}>4 (Tanggal 22-28)</option>
-                          <option value={5}>5 (Tanggal 29+)</option>
-                        </select>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600">Dari Tanggal</label>
+                          <input 
+                            type="date"
+                            value={selectedWeekStartDate}
+                            onChange={(e) => setSelectedWeekStartDate(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600">Sampai Tanggal</label>
+                          <input 
+                            type="date"
+                            value={selectedWeekEndDate}
+                            onChange={(e) => setSelectedWeekEndDate(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
