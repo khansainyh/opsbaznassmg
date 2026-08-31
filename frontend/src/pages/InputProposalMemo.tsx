@@ -850,7 +850,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
       jenis_pengajuan:     jenisPengajuanState,
       nama_instansi:       jenisPengajuanState === 'Lembaga' ? get('namaInstansi') : (get('namaInstansi') || null),
       pimpinan_organisasi: jenisPengajuanState === 'Lembaga' ? get('pimpinanOrganisasi') : (get('pimpinanOrganisasi') || null),
-      nama_pemohon:        get('namaPemohon') || (jenisPengajuanState === 'Lembaga' ? (get('pimpinanOrganisasi') || get('namaInstansi')) : ''),
+      nama_pemohon:        get('namaPemohon') || (jenisPengajuanState === 'Lembaga' ? '-' : ''),
       nama_anak:           get('namaAnak') || null,
       nik:                 nikCheckStr || get('nik') || null,
       no_kk:               jenisPengajuanState === 'Perorangan' ? (noKk || null) : null,
