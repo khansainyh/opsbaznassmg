@@ -403,7 +403,7 @@ export const updateProposal = async (req: Request, res: Response) => {
             ? `Kuitansi_Direct_${cleanNama}_${tglStr}${ext}`
             : `Kuitansi_Agenda_${agendaVal}_${cleanNama}${ext}`;
 
-          const gdriveRes = await uploadToDrive(f, customFileName, archiveFolderId || 'gdrive_folder_kuitansi');
+          const gdriveRes = await uploadToDrive(f, customFileName, 'gdrive_folder_kuitansi');
           if (!existingSurveyData) {
             existingSurveyData = {};
           }
@@ -415,7 +415,7 @@ export const updateProposal = async (req: Request, res: Response) => {
             ? `FotoRealisasi_Direct_${cleanNama}_${tglStr}${ext}`
             : `FotoRealisasi_Agenda_${agendaVal}_${cleanNama}${ext}`;
 
-          const gdriveRes = await uploadToDrive(f, customFileName, archiveFolderId || 'gdrive_folder_penerimaan');
+          const gdriveRes = await uploadToDrive(f, customFileName, 'gdrive_folder_penerimaan');
           if (!existingSurveyData) {
             existingSurveyData = {};
           }
