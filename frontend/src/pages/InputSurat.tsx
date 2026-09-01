@@ -249,6 +249,9 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
   // Report modal state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportType, setReportType] = useState<'print' | 'excel'>('print');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [users, setUsers] = useState<any[]>([]);
   const [signatories, setSignatories] = useState({
     kepalaPelaksana: 'H. Muhammad Asyhar, S.Sos.I.',
@@ -441,6 +444,34 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
       </html>
     `);
     printWindow.document.close();
+  };
+
+  const handleDownloadExcel = () => {
+    const filtered = allData.filter(item => {
+      if (!item.tanggalMasuk) return false;
+      return item.tanggalMasuk >= startDate && item.tanggalMasuk <= endDate;
+    });
+
+    const dataToExport = filtered.map((item, index) => ({
+      'No': index + 1,
+      'No Agenda': item.agendaNo,
+      'Tanggal Proposal Masuk': item.tanggalMasuk,
+      'Nama Instansi': item.namaInstansi || '-',
+      'Pimpinan Organisasi': item.pimpinanOrganisasi || '-',
+      'Alamat': item.alamat || '-',
+      'Kelurahan': item.kelurahan || '-',
+      'Kecamatan': item.kecamatan || '-',
+      'Keperluan': item.keperluan || '-',
+      'No Telpon': item.noTelpon || '-',
+      'Jam Pengajuan': item.jamPengajuan || '-',
+      'Yang Mengajukan': item.yangMengajukan || '-',
+      'Keterangan': item.arsip || '-'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan_Surat");
+    XLSX.writeFile(wb, `Laporan_Surat_${startDate}_to_${endDate}.xlsx`);
   };
 
   const handlePrintDisposisi = (surat: Surat) => {
@@ -1791,117 +1822,170 @@ export default function InputSurat({ data, allData }: InputSuratProps) {
 
               {/* Body */}
               <div className="p-6 overflow-y-auto custom-scrollbar space-y-5">
-                {/* Filter Tanggal */}
+                {/* Jenis Laporan */}
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Waktu & Periode</h4>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-600">Pilih Tanggal</label>
-                    <input 
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                    />
-                  </div>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis Laporan</h4>
+                  <select 
+                    value={reportType}
+                    onChange={(e) => setReportType(e.target.value as 'print' | 'excel')}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all font-semibold text-slate-700"
+                  >
+                    <option value="print">Cetak Rekap Surat</option>
+                    <option value="excel">Download Laporan Excel</option>
+                  </select>
                 </div>
 
-                {/* Penandatangan (Signatories) */}
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
-                  {/* Kepala Pelaksana */}
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold text-slate-600">Nama Kepala Pelaksana</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }));
-                          }
-                        }}
-                        value={users.some(u => u.name === signatories.kepalaPelaksana) ? signatories.kepalaPelaksana : ''}
-                      >
-                        <option value="">-- Pilih User --</option>
-                        {users.filter(u => u.role === 'Kepala_Pelaksana').map(u => (
-                          <option key={u.id} value={u.name}>{u.name}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        value={signatories.kepalaPelaksana}
-                        onChange={(e) => setSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
-                        placeholder="Nama Kepala Pelaksana..."
-                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                      />
+                {reportType === 'print' ? (
+                  <>
+                    {/* Filter Tanggal */}
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Waktu & Periode</h4>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600">Pilih Tanggal</label>
+                        <input 
+                          type="date"
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Kabag Administrasi */}
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
-                          }
-                        }}
-                        value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
-                      >
-                        <option value="">-- Pilih User --</option>
-                        {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
-                          <option key={u.id} value={u.name}>{u.name}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        value={signatories.kabagAdministrasi}
-                        onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
-                        placeholder="Nama Kabag Administrasi..."
-                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
+                    {/* Penandatangan (Signatories) */}
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
+                      {/* Kepala Pelaksana */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold text-slate-600">Nama Kepala Pelaksana</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.kepalaPelaksana) ? signatories.kepalaPelaksana : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.filter(u => u.role === 'Kepala_Pelaksana').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.kepalaPelaksana}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, kepalaPelaksana: e.target.value }))}
+                            placeholder="Nama Kepala Pelaksana..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
 
-                  {/* Staff Administrasi */}
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-semibold text-slate-600">Nama Staff Administrasi</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }));
-                          }
-                        }}
-                        value={users.some(u => u.name === signatories.stafAdministrasi) ? signatories.stafAdministrasi : ''}
-                      >
-                        <option value="">-- Pilih User --</option>
-                        {users.filter(u => u.role === 'Staf_Administrasi').map(u => (
-                          <option key={u.id} value={u.name}>{u.name}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        value={signatories.stafAdministrasi}
-                        onChange={(e) => setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }))}
-                        placeholder="Nama Staff Administrasi..."
-                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
-                      />
+                      {/* Kabag Administrasi */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold text-slate-600">Nama Kabag Administrasi</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.kabagAdministrasi) ? signatories.kabagAdministrasi : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.filter(u => u.role === 'Kabag_Administrasi').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.kabagAdministrasi}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, kabagAdministrasi: e.target.value }))}
+                            placeholder="Nama Kabag Administrasi..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Staff Administrasi */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-semibold text-slate-600">Nama Staff Administrasi</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="w-1/3 bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }));
+                              }
+                            }}
+                            value={users.some(u => u.name === signatories.stafAdministrasi) ? signatories.stafAdministrasi : ''}
+                          >
+                            <option value="">-- Pilih User --</option>
+                            {users.filter(u => u.role === 'Staf_Administrasi').map(u => (
+                              <option key={u.id} value={u.name}>{u.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={signatories.stafAdministrasi}
+                            onChange={(e) => setSignatories(prev => ({ ...prev, stafAdministrasi: e.target.value }))}
+                            placeholder="Nama Staff Administrasi..."
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-amber-200 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Rentang Waktu</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600">Dari Tanggal</label>
+                          <input 
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-green-200 outline-none transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600">Sampai Tanggal</label>
+                          <input 
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-green-200 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Footer */}
               <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
-                <button
-                  onClick={handlePrintReport}
-                  className="w-full px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
-                >
-                  <ClipboardList className="size-4" />
-                  Cetak / Preview
-                </button>
+                {reportType === 'print' ? (
+                  <button
+                    onClick={handlePrintReport}
+                    className="w-full px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2"
+                  >
+                    <ClipboardList className="size-4" />
+                    Cetak / Preview
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleDownloadExcel}
+                    className="w-full px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-green-600/20 flex items-center justify-center gap-2"
+                  >
+                    <FileSpreadsheet className="size-4" />
+                    Download Excel
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
