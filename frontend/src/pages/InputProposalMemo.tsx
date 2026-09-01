@@ -1006,14 +1006,15 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
     setTanggalLahirInput(dob);
     setMatchedMustahikId(proposal.mustahik_id || null);
 
-    const isLembaga = (proposal as any).jenis_pengajuan === 'Lembaga' ||
-                      (proposal as any).jenis_pengajuan === 'Kelompok' ||
-                      proposal.jenisPengajuan === 'Lembaga' ||
-                      proposal.jenisPengajuan === 'Kelompok' ||
-                      (proposal as any).kategori === 'Lembaga' ||
-                      (proposal as any).kategoriPemohon === 'Lembaga' ||
-                      (proposal as any).mustahik?.kategori === 'Lembaga' ||
-                      Boolean(proposal.namaInstansi && proposal.namaInstansi.trim() && proposal.namaInstansi !== '-');
+    let isLembaga = false;
+    const jp = (proposal as any).jenis_pengajuan || proposal.jenisPengajuan || (proposal as any).kategori || (proposal as any).kategoriPemohon || (proposal as any).mustahik?.kategori;
+    if (jp === 'Perorangan') {
+      isLembaga = false;
+    } else if (jp === 'Lembaga' || jp === 'Kelompok') {
+      isLembaga = true;
+    } else {
+      isLembaga = Boolean(proposal.namaInstansi && proposal.namaInstansi.trim() && proposal.namaInstansi !== '-');
+    }
     setJenisPengajuanState(isLembaga ? 'Lembaga' : 'Perorangan');
     
     const isSemarang = kecamatanKelurahanSemarang.some(k => k.kecamatan === proposal.kecamatan);
