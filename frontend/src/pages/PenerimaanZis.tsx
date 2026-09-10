@@ -568,10 +568,26 @@ export default function PenerimaanZis() {
         }
 
         const previewList = rawRows.map((item: any, idx: number) => {
-          const rawNom = item.Nominal || item.nominal || item.Jumlah || item.NOMINAL || 0;
-          const nominalVal = typeof rawNom === 'string' 
-            ? Number(rawNom.replace(/[^0-9.-]+/g, '')) 
-            : Number(rawNom || 0);
+          const rawNom = item.Nominal || item.nominal || item.NOMINAL || item.Nominal_Rp || item['Nominal (Rp)'] || item['Nominal(Rp)'] || item.Jumlah || item['Jumlah Rp'] || item['Jumlah (Rp)'] || item.Total || item.Kredit || item.kredit || item.Debet || item.debet || item.Nilai || item.NILAI || 0;
+          let nominalVal = 0;
+          if (typeof rawNom === 'number') {
+            nominalVal = isNaN(rawNom) ? 0 : rawNom;
+          } else if (rawNom) {
+            let str = String(rawNom).trim().replace(/^(Rp|IDR)\.?\s*/i, '').trim();
+            if (str.includes(',') && str.includes('.')) {
+              str = str.indexOf('.') < str.indexOf(',') ? str.replace(/\./g, '').replace(',', '.') : str.replace(/,/g, '');
+            } else if (str.includes('.') && !str.includes(',')) {
+              const parts = str.split('.');
+              if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) str = str.replace(/\./g, '');
+            } else if (str.includes(',') && !str.includes('.')) {
+              const parts = str.split(',');
+              if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) str = str.replace(/,/g, '');
+              else if (parts.length === 2 && (parts[1].length === 1 || parts[1].length === 2)) str = str.replace(',', '.');
+            }
+            str = str.replace(/[^0-9.-]+/g, '');
+            const parsed = parseFloat(str);
+            nominalVal = isNaN(parsed) ? 0 : parsed;
+          }
 
           const rawUpzName = item['Nama UPZ'] || item.nama_upz || item['UPZ'] || item['Nama OPD / UPZ'] || item.upz || '';
           const cleanUpzStr = String(rawUpzName || '').trim();

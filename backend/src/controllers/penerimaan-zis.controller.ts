@@ -1228,10 +1228,50 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
     let failedCount = 0;
     const errors: any[] = [];
 
-    const bankAccounts = await prisma.bankAccount.findMany();
+    let bankAccounts = await prisma.bankAccount.findMany();
+    if (!bankAccounts || bankAccounts.length === 0) {
+      // Create fallback default BankAccount if table is empty
+      const defaultBank = await prisma.bankAccount.create({
+        data: {
+          account_id: 'kas_utama',
+          nama_akun: 'Kas Utama / Penerimaan ZIS',
+          tipe_kas: 'TUNAI',
+          kelompok_dana: 'AMIL',
+          no_rekening: '0000000000',
+          coa_code: '11010101',
+          saldo: new Prisma.Decimal(0)
+        }
+      });
+      bankAccounts = [defaultBank];
+    }
+
     const muzakkis = await prisma.muzakki.findMany();
     const rkats = await prisma.rkatPengumpulan.findMany();
     const upzs = await prisma.upz.findMany();
+
+    // Cache existing ChartOfAccounts codes to ensure JournalEntry relation never fails
+    const existingCoaRecords = await prisma.chartOfAccounts.findMany({ select: { coa_code: true } });
+    const coaSet = new Set(existingCoaRecords.map(c => c.coa_code));
+
+    const ensureCoaExists = async (code: string, name: string) => {
+      if (!code) return;
+      if (!coaSet.has(code)) {
+        try {
+          await prisma.chartOfAccounts.create({
+            data: {
+              coa_code: code,
+              nama_akun: name || `COA ${code}`,
+              klasifikasi: code.startsWith('1') ? 'Aset' : code.startsWith('4') ? 'Penerimaan' : 'Lainnya',
+              tipe_dana: 'ZAKAT',
+              saldo_awal: new Prisma.Decimal(0)
+            }
+          });
+          coaSet.add(code);
+        } catch (e) {
+          // Ignore if already created or existing
+        }
+      }
+    };
 
     const bankAccountMap = new Map<string, string>();
     bankAccounts.forEach(acc => {
@@ -1263,19 +1303,51 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       return null;
     };
 
+    const parseNominalVal = (val: any): number => {
+      if (val === null || val === undefined) return 0;
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      let str = String(val).trim();
+      if (!str) return 0;
+      
+      str = str.replace(/^(Rp|IDR)\.?\s*/i, '').trim();
+
+      if (str.includes(',') && str.includes('.')) {
+        if (str.indexOf('.') < str.indexOf(',')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+          str = str.replace(/,/g, '');
+        }
+      } else if (str.includes('.') && !str.includes(',')) {
+        const parts = str.split('.');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          str = str.replace(/\./g, '');
+        }
+      } else if (str.includes(',') && !str.includes('.')) {
+        const parts = str.split(',');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          str = str.replace(/,/g, '');
+        } else if (parts.length === 2 && (parts[1].length === 1 || parts[1].length === 2)) {
+          str = str.replace(',', '.');
+        }
+      }
+
+      str = str.replace(/[^0-9.-]+/g, '');
+      const num = parseFloat(str);
+      return isNaN(num) ? 0 : num;
+    };
+
     for (let i = 0; i < transactions.length; i++) {
       const txData = transactions[i];
       const rowNum = txData.rowNum || (i + 1);
 
       try {
-        const rawNominalVal = getVal(txData, ['Nominal', 'nominal', 'NOMINAL', 'Nominal_Rp', 'Jumlah', 'Total', 'Jumlah Rp']);
-        let rawNominal = rawNominalVal;
-        if (typeof rawNominal === 'string') {
-          rawNominal = rawNominal.replace(/[^0-9.-]+/g, '');
-        }
-        const nominal = Number(rawNominal || 0);
+        const rawNominalVal = getVal(txData, [
+          'Nominal', 'nominal', 'NOMINAL', 'Nominal_Rp', 'Nominal (Rp)', 'Nominal(Rp)',
+          'Jumlah', 'Total', 'Jumlah Rp', 'Jumlah (Rp)', 'Jumlah (Rp.)', 'Kredit', 'kredit', 'Debet', 'debet', 'Nilai', 'NILAI'
+        ]);
+        const nominal = parseNominalVal(rawNominalVal);
         if (nominal <= 0) {
-          throw new Error('Nominal transaksi harus lebih besar dari 0');
+          throw new Error(`Nominal transaksi (${rawNominalVal || 0}) tidak valid / harus lebih besar dari 0`);
         }
 
         let bankAccountId = txData.bank_account_id;
@@ -1294,7 +1366,7 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         if (!bankAccountId) bankAccountId = bankAccounts[0]?.account_id;
-        if (!bankAccountId) throw new Error('Rekening bank/kas tidak valid');
+        if (!bankAccountId) throw new Error('Rekening bank/kas tidak ditemukan di database');
 
         const rawMetodeVal = getVal(txData, ['metode_pembayaran', 'Metode Pembayaran', 'Metode', 'Metode Trx', 'Via', 'Jenis Pembayaran', 'Cara Pembayaran', 'Metode Bayar']);
         let determinedMetodePembayaran = txData.metode_pembayaran;
@@ -1364,7 +1436,20 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
             muzakkiId = newMuz.id;
             muzakkiNamaMap.set(inputNamaMuzakki.toLowerCase(), newMuz.id);
           } catch (e) {
-            // Fallback if null nik conflict occurs
+            // Unique constraint fallback: lookup existing Muzakki by NIK, NPWZ, or Nama
+            const existingMuz = await prisma.muzakki.findFirst({
+              where: {
+                OR: [
+                  ...(cleanNik ? [{ nik: cleanNik }] : []),
+                  ...(inputNpwzMuzakki ? [{ npwz: inputNpwzMuzakki }] : []),
+                  { nama: inputNamaMuzakki }
+                ]
+              }
+            });
+            if (existingMuz) {
+              muzakkiId = existingMuz.id;
+              muzakkiNamaMap.set(inputNamaMuzakki.toLowerCase(), existingMuz.id);
+            }
           }
         }
 
@@ -1468,17 +1553,23 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
 
         let tanggalTrx = new Date();
         const rawDateVal = getVal(txData, ['Tanggal Trx', 'tanggal_pembayaran', 'tanggal_trx', 'Tanggal', 'Tgl']);
-        if (rawDateVal !== null && rawDateVal !== undefined) {
+        if (rawDateVal !== null && rawDateVal !== undefined && rawDateVal !== '') {
           if (typeof rawDateVal === 'number') {
             tanggalTrx = new Date(Math.round((rawDateVal - 25569) * 86400 * 1000));
           } else {
             const rawDateStr = String(rawDateVal).trim();
-            if (rawDateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-              const parts = rawDateStr.split('/');
-              tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
-            } else if (rawDateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
-              const parts = rawDateStr.split('-');
-              tanggalTrx = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00.000Z`);
+            const dmYMatch = rawDateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            const yMdMatch = rawDateStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+            if (dmYMatch) {
+              const d = dmYMatch[1].padStart(2, '0');
+              const m = dmYMatch[2].padStart(2, '0');
+              const y = dmYMatch[3];
+              tanggalTrx = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
+            } else if (yMdMatch) {
+              const y = yMdMatch[1];
+              const m = yMdMatch[2].padStart(2, '0');
+              const d = yMdMatch[3].padStart(2, '0');
+              tanggalTrx = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
             } else {
               tanggalTrx = new Date(rawDateStr);
             }
@@ -1489,9 +1580,13 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
         }
 
         const bankAcc = bankAccounts.find(b => b.account_id === bankAccountId);
-        const debitCoa = bankAcc ? bankAcc.coa_code : '11010101';
+        const debitCoa = bankAcc?.coa_code || '11010101';
         const foundRkat = rkatId ? rkats.find(r => r.id === rkatId) : null;
         const creditCoa = txData.coa_code || (foundRkat?.coa_codes ? foundRkat.coa_codes.split(',')[0].trim() : (kodeProgram || (jenisProgram?.toLowerCase().includes('infak') ? '42010101' : '41010101')));
+
+        // Ensure both COA codes exist in ChartOfAccounts before creating JournalEntries
+        await ensureCoaExists(debitCoa, bankAcc?.nama_akun || 'Kas / Rekening Bank');
+        await ensureCoaExists(creditCoa, jenisProgram || 'Penerimaan ZIS');
 
         await prisma.$transaction(async (tx) => {
           const createdRecord = await tx.penerimaanZis.create({
@@ -1579,8 +1674,8 @@ export const migratePenerimaanZis = async (req: Request, res: Response) => {
       }
     });
   } catch (error: any) {
-    console.error(error);
-    res.status(500).json({ error: error.message || String(error) });
+    console.error('Migrate Penerimaan ZIS Error:', error);
+    res.status(500).json({ error: error.message || 'Gagal memproses migrasi data Penerimaan ZIS' });
   }
 };
 
