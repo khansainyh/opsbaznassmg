@@ -4,9 +4,10 @@ import axios from 'axios';
 import {
   Search, Filter, FileText, Clock, CheckCircle2,
   ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw,
-  Calendar, CalendarCheck, Sliders, ShieldCheck, Zap, Check
+  Calendar, CalendarCheck, Sliders, ShieldCheck, Zap, Check, FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
 import { cn, getMustahikDisplayName } from '../lib/utils';
 import { ProposalMemo } from '../data/proposalMemoData';
 import { kecamatanKelurahanSemarang } from '../data/kecamatanKelurahan';
@@ -756,6 +757,155 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
     rejected: filtered.filter(d => d.status === 'Ditolak').length,
   }), [filtered]);
 
+  const canDownloadExcel = useMemo(() => {
+    if (!user) return false;
+    const r = user.role;
+    return r === 'Staf_Pendistribusian' || 
+           r === 'Staf_Pendayagunaan' || 
+           r === 'Kabag_Pendistribusian' || 
+           r === 'Kabag_Pendayagunaan' || 
+           r === 'Super_Admin';
+  }, [user]);
+
+  const handleDownloadExcel = () => {
+    if (!filtered || filtered.length === 0) {
+      setToastMessage({
+        text: 'Tidak ada data proposal yang dapat diunduh untuk filter ini.',
+        type: 'error'
+      });
+      return;
+    }
+
+    const mapProposalRow = (item: ProposalMemo, idx: number) => {
+      const numAgenda = Number(item.agendaNo || 0);
+      const isDirect = item.memoSource === 'DIRECT_PENYALURAN' || 
+        (item.keterangan || '').includes('[DIRECT PENYALURAN]') || 
+        (item as any).asal_data === 'Jalur Direct' || 
+        (item as any).asalData === 'Jalur Direct' || 
+        numAgenda === 0 || 
+        numAgenda >= 90000;
+
+      const jenisPengajuanStr = String(item.jenisPengajuan || (item as any).jenis_pengajuan || '').toLowerCase();
+      const isLembaga = jenisPengajuanStr.includes('lembaga') || 
+        (Boolean(item.namaInstansi) && !item.namaInstansi.toLowerCase().includes('tanpa nama') && (!item.namaPemohon || item.namaPemohon.toLowerCase().includes('tanpa nama')));
+
+      const isGarbage = (s: string) => !s || s.toLowerCase().includes('tanpa nama') || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined' || s === '-';
+
+      const cleanInstansi = isGarbage(item.namaInstansi) ? '-' : item.namaInstansi;
+      const cleanPimpinan = isGarbage(item.pimpinanOrganisasi) ? '-' : item.pimpinanOrganisasi;
+      const cleanPemohon = isGarbage(item.namaPemohon) ? '-' : item.namaPemohon;
+      const cleanAnak = isGarbage(item.namaAnak) ? '-' : item.namaAnak;
+
+      let ttl = '-';
+      if (item.tempat_lahir || item.tanggal_lahir) {
+        ttl = [item.tempat_lahir, item.tanggal_lahir].filter(Boolean).join(', ');
+      } else if (item.ttl) {
+        ttl = item.ttl;
+      }
+
+      let jenisPermohonanCombined = '-';
+      if (item.programCode && item.jenisPermohonan && item.programCode !== item.jenisPermohonan) {
+        jenisPermohonanCombined = `${item.programCode} - ${item.jenisPermohonan}`;
+      } else if (item.jenisPermohonan) {
+        jenisPermohonanCombined = item.jenisPermohonan;
+      } else if (item.programCode) {
+        jenisPermohonanCombined = item.programCode;
+      }
+
+      if (item.program && !jenisPermohonanCombined.includes(item.program)) {
+        jenisPermohonanCombined += ` [Pilar: ${item.program}]`;
+      }
+
+      return {
+        'No': idx + 1,
+        'No. Agenda': isDirect ? '-' : (item.agendaNo ? String(item.agendaNo) : '-'),
+        'Tanggal Proposal Masuk': item.tanggalMasuk || '-',
+        'Kategori Mustahik': isLembaga ? 'Lembaga' : 'Perorangan',
+        'Nama Instansi / Lembaga': cleanInstansi,
+        'Pimpinan Organisasi': cleanPimpinan,
+        'Nama Pemohon': cleanPemohon,
+        'Nama Anak / Siswa': cleanAnak,
+        'No. KK': item.no_kk || (item as any).noKK || '-',
+        'NIK': item.nik || '-',
+        'TTL (Tempat, Tanggal Lahir)': ttl,
+        'Jenis Kelamin': item.jenis_kelamin || '-',
+        'Alamat': item.alamat || '-',
+        'Kelurahan': item.kelurahan || '-',
+        'Kecamatan': item.kecamatan || '-',
+        'Pekerjaan': item.pekerjaan || '-',
+        'Jenis Permohonan (Kode & Kegiatan)': jenisPermohonanCombined,
+        'No. Telepon / HP': item.noTelpon || (item as any).no_telepon || (item as any).noTelepon || '-',
+        'Jam Pengajuan': item.jamPengajuan || '-',
+        'Yang Mengajukan': item.yangMengajukan || '-',
+        'Asal Data': isDirect ? 'Jalur Direct' : 'Jalur Proposal',
+        'Memo Disposisi': item.hasMemo ? (item.memoSource || 'Ada Memo') : 'Tanpa Memo',
+        'Status Proposal': formatStatusDisplay(item.status, isDirect),
+        'Nominal Disetujui (Rp)': item.nominal ? item.nominal : '-',
+        'Tipe Bantuan': item.tipeBantuan || '-',
+        'Keterangan / Catatan': item.keterangan || item.catatan || '-'
+      };
+    };
+
+    const allRows = filtered.map((item, idx) => mapProposalRow(item, idx));
+
+    const peroranganRows = filtered
+      .filter(item => {
+        const jenisPengajuanStr = String(item.jenisPengajuan || (item as any).jenis_pengajuan || '').toLowerCase();
+        const isLembaga = jenisPengajuanStr.includes('lembaga') || 
+          (Boolean(item.namaInstansi) && !item.namaInstansi.toLowerCase().includes('tanpa nama') && (!item.namaPemohon || item.namaPemohon.toLowerCase().includes('tanpa nama')));
+        return !isLembaga;
+      })
+      .map((item, idx) => mapProposalRow(item, idx));
+
+    const lembagaRows = filtered
+      .filter(item => {
+        const jenisPengajuanStr = String(item.jenisPengajuan || (item as any).jenis_pengajuan || '').toLowerCase();
+        const isLembaga = jenisPengajuanStr.includes('lembaga') || 
+          (Boolean(item.namaInstansi) && !item.namaInstansi.toLowerCase().includes('tanpa nama') && (!item.namaPemohon || item.namaPemohon.toLowerCase().includes('tanpa nama')));
+        return isLembaga;
+      })
+      .map((item, idx) => mapProposalRow(item, idx));
+
+    const workbook = XLSX.utils.book_new();
+
+    const wsAll = XLSX.utils.json_to_sheet(allRows);
+    XLSX.utils.book_append_sheet(workbook, wsAll, 'Semua Proposal');
+
+    const wsPerorangan = XLSX.utils.json_to_sheet(peroranganRows.length > 0 ? peroranganRows : [{ Note: 'Tidak ada data proposal perorangan' }]);
+    XLSX.utils.book_append_sheet(workbook, wsPerorangan, 'Data Perorangan');
+
+    const wsLembaga = XLSX.utils.json_to_sheet(lembagaRows.length > 0 ? lembagaRows : [{ Note: 'Tidak ada data proposal lembaga' }]);
+    XLSX.utils.book_append_sheet(workbook, wsLembaga, 'Data Lembaga');
+
+    [wsAll, wsPerorangan, wsLembaga].forEach(ws => {
+      if (ws['!ref']) {
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        const colWidths = [];
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          let maxLen = 12;
+          for (let R = range.s.r; R <= range.e.r; ++R) {
+            const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+            if (cell && cell.v) {
+              const len = String(cell.v).length;
+              if (len > maxLen) maxLen = Math.min(len, 40);
+            }
+          }
+          colWidths.push({ wch: maxLen + 3 });
+        }
+        ws['!cols'] = colWidths;
+      }
+    });
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `Data_Tracking_Proposal_BAZNAS_${dateStr}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    setToastMessage({
+      text: `Berhasil mendownload ${filtered.length} proposal ke format Excel (${fileName})`,
+      type: 'success'
+    });
+  };
+
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-50/50">
       {/* Header */}
@@ -844,6 +994,22 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
             )}
             <ChevronDown className={cn("size-4 transition-transform duration-200", isFilterExpanded && "rotate-180")} />
           </button>
+
+          {/* Download Excel Button (Khusus Staf Pendistribusian & Staf Pendayagunaan) */}
+          {canDownloadExcel && (
+            <button
+              type="button"
+              onClick={handleDownloadExcel}
+              title="Download Data Proposal ke Format Excel (.xlsx)"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ml-auto sm:ml-0"
+            >
+              <FileSpreadsheet className="size-4" />
+              <span>Download Excel</span>
+              <span className="bg-emerald-700 text-emerald-100 text-[10px] px-1.5 py-0.5 rounded-full font-black ml-0.5">
+                {filtered.length}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Collapsible Advanced Filters Drawer */}

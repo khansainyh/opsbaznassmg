@@ -10,6 +10,7 @@ export interface ProposalMemo {
   no_kk?: string;
   tempat_lahir?: string;
   tanggal_lahir?: string;
+  ttl?: string;
   jenis_kelamin?: string;
   email?: string;
   catatan?: string;
