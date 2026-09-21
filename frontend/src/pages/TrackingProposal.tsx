@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   Search, Filter, FileText, Clock, CheckCircle2,
   ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw,
-  Calendar, CalendarCheck, Sliders, ShieldCheck, Zap, Check, FileSpreadsheet, UserCheck
+  Calendar, CalendarCheck, Sliders, ShieldCheck, Zap, Check, FileSpreadsheet, UserCheck, Phone, User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -1467,6 +1467,7 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                         {(() => {
                           const isLembaga = (selectedProposal.jenisPengajuan || '').toLowerCase().includes('lembaga') || (selectedProposal.namaInstansi && !selectedProposal.namaInstansi.toLowerCase().includes('tanpa nama'));
                           const mainName = selectedProposal.namaAnak || (isLembaga ? (selectedProposal.namaInstansi && !selectedProposal.namaInstansi.toLowerCase().includes('tanpa nama') ? selectedProposal.namaInstansi : selectedProposal.namaPemohon) : (selectedProposal.namaPemohon && !selectedProposal.namaPemohon.toLowerCase().includes('tanpa nama') ? selectedProposal.namaPemohon : selectedProposal.namaInstansi));
+                          const pimpinanName = selectedProposal.pimpinanOrganisasi || (selectedProposal as any).pimpinan_organisasi || (selectedProposal as any).namaPimpinan || (selectedProposal as any).mustahik?.nama_pimpinan;
 
                           return (
                             <>
@@ -1478,12 +1479,30 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                               {selectedProposal.namaPemohon && selectedProposal.namaPemohon !== mainName && !selectedProposal.namaPemohon.toLowerCase().includes('tanpa nama') && (
                                 <p className="text-xs text-slate-500 font-medium mt-0.5">Pemohon: {selectedProposal.namaPemohon}</p>
                               )}
+                              {isLembaga && (
+                                <div className="mt-1.5 pt-1.5 border-t border-slate-200/60">
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                                    <User className="size-3 text-slate-400" /> Nama Pimpinan / Ketua
+                                  </p>
+                                  <p className="text-xs font-bold text-slate-800">
+                                    {pimpinanName && !pimpinanName.toLowerCase().includes('tanpa nama') ? pimpinanName : '-'}
+                                  </p>
+                                </div>
+                              )}
                             </>
                           );
                         })()}
                         {selectedProposal.nik && (
                           <p className="text-[10px] text-slate-400 font-medium mt-1">NIK: {selectedProposal.nik}</p>
                         )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                          <Phone className="size-3 text-slate-400" /> No. Telepon / WhatsApp
+                        </p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {selectedProposal.noTelpon || (selectedProposal as any).no_telepon || (selectedProposal as any).noTelepon || (selectedProposal as any).no_hp || (selectedProposal as any).mustahik?.no_telpon || '-'}
+                        </p>
                       </div>
                       <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
