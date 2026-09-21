@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   Search, Filter, FileText, Clock, CheckCircle2,
   ChevronLeft, ChevronRight, ChevronDown, Eye, X, Banknote, History, ExternalLink, Home, AlertCircle, RotateCcw,
-  Calendar, CalendarCheck, Sliders, ShieldCheck, Zap, Check, FileSpreadsheet
+  Calendar, CalendarCheck, Sliders, ShieldCheck, Zap, Check, FileSpreadsheet, UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -1484,6 +1484,14 @@ export default function TrackingProposal({ data, onUpdate }: TrackingProposalPro
                         {selectedProposal.nik && (
                           <p className="text-[10px] text-slate-400 font-medium mt-1">NIK: {selectedProposal.nik}</p>
                         )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                          <UserCheck className="size-3 text-slate-400" /> Yang Mengajukan
+                        </p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {selectedProposal.yangMengajukan || (selectedProposal as any).yang_mengajukan || selectedProposal.memoSource || '-'}
+                        </p>
                       </div>
                       <div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase">Program / Jenis Permohonan</p>
