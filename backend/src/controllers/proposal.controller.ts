@@ -747,7 +747,7 @@ export async function syncRealisasiFromProposal(proposalId: string) {
 
           const personName = item.nama_lengkap || item.nama || `Penerima ${i + 1}`;
           const personKeterangan = `Bantuan ${cleanProgram} an. ${personName} (${lembagaName})`;
-          const personNrm = item.nrm ? String(item.nrm).trim() : null;
+          const personNrm = item.nrm ? String(item.nrm).trim().slice(0, 100) : null;
 
           const newReal = await tx.realisasi.create({
             data: {
@@ -792,6 +792,9 @@ export async function syncRealisasiFromProposal(proposalId: string) {
           if (nrms.length > 0) {
             updatedNrm = nrms.join(', ');
           }
+        }
+        if (updatedNrm && updatedNrm.length > 100) {
+          updatedNrm = updatedNrm.slice(0, 97) + '...';
         }
         const formattedKeterangan = formatDisbursementKeterangan(updatedProposal);
 

@@ -812,6 +812,7 @@ export default function PenerimaanZis() {
   const [reportStartDate, setReportStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [pdfReportDate, setPdfReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isExportingDailyPDF, setIsExportingDailyPDF] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [signatories, setSignatories] = useState({
     kabagKeuangan: '',
@@ -1936,9 +1937,18 @@ export default function PenerimaanZis() {
 
 
 
+  const parseLocalDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+    return new Date(dateStr);
+  };
+
   const getIndonesianDayName = (dateStr: string) => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     return days[date.getDay()];
   };
 
@@ -1959,7 +1969,7 @@ export default function PenerimaanZis() {
   };
 
   const getSignatureDateString = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     const day = String(date.getDate()).padStart(2, '0');
     const month = getIndonesianMonthName(date.getMonth());
     const year = date.getFullYear();
@@ -2424,161 +2434,203 @@ export default function PenerimaanZis() {
     }
   };
 
-  const handleExportPDFDaily = () => {
+  const handleExportPDFDaily = async () => {
     const targetDateStr = pdfReportDate;
-    const targetDate = new Date(targetDateStr);
-    targetDate.setHours(0,0,0,0);
-    
-    const dataFiltered = penerimaanData.filter(item => {
-      const itemDate = new Date(item.tanggal_pembayaran);
-      const sameDay = itemDate.getFullYear() === targetDate.getFullYear() &&
-                      itemDate.getMonth() === targetDate.getMonth() &&
-                      itemDate.getDate() === targetDate.getDate();
-      const isNonKas = item.metode_pembayaran === 'NON_KAS' ||
-                       item.bankAccount?.tipe_kas === 'NON_KAS' ||
-                       item.bankAccount?.account_id === 'non_kas' ||
-                       (item.bankAccount?.nama_akun || '').toLowerCase().includes('non kas') ||
-                       (item.bankAccount?.nama_akun || '').toLowerCase().includes('non-kas');
-      const isTunai = !isNonKas && (
-                      item.metode_pembayaran === 'TUNAI' ||
-                      item.bankAccount?.tipe_kas === 'TUNAI' ||
-                      item.bankAccount?.tipe_kas === 'KAS' ||
-                      (item.bankAccount?.nama_akun || '').toLowerCase().includes('kas')
-      );
-      const isFailed = item.status_simba === 'FAILED' || (item.keterangan || '').toLowerCase().includes('gagal potong');
-      return sameDay && isTunai && !isFailed;
-    });
-
-    if (dataFiltered.length === 0) {
-      alert('Tidak ada transaksi Kas Tunai pada tanggal tersebut.');
+    if (!targetDateStr) {
+      alert('Pilih tanggal laporan terlebih dahulu.');
       return;
     }
 
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('Laporan Kas Masuk', 105, 15, { align: 'center' });
-    doc.text('Via Tunai', 105, 21, { align: 'center' });
-    
-    const dayName = getIndonesianDayName(targetDateStr);
-    const formattedDate = formatIndonesianDate(targetDateStr);
-    doc.text(`Hari ${dayName} Tanggal ${formattedDate}`, 105, 27, { align: 'center' });
-
-    const tableBody: any[] = [];
-    let totalZakat = 0;
-    let totalInfak = 0;
-    let totalDonasi = 0;
-
-    dataFiltered.forEach((item, index) => {
-      const nominal = Number(item.nominal || 0);
-      const category = classifyPenerimaan(item);
-      
-      let zakatCol = 'Rp -';
-      let infakCol = 'Rp -';
-      let donasiCol = 'Rp -';
-
-      if (category === 'ZAKAT') {
-        zakatCol = `Rp ${nominal.toLocaleString('id-ID')}`;
-        totalZakat += nominal;
-      } else if (category === 'INFAK') {
-        infakCol = `Rp ${nominal.toLocaleString('id-ID')}`;
-        totalInfak += nominal;
-      } else {
-        donasiCol = `Rp ${nominal.toLocaleString('id-ID')}`;
-        totalDonasi += nominal;
+    setIsExportingDailyPDF(true);
+    try {
+      let rawData: any[] = [];
+      try {
+        const res = await axios.get('/api/penerimaan-zis', {
+          params: {
+            all: 'true',
+            startDate: targetDateStr,
+            endDate: targetDateStr
+          }
+        });
+        rawData = res.data?.data || [];
+      } catch (e) {
+        console.warn('Gagal mengambil data dari API, fallback ke data lokal:', e);
+        rawData = penerimaanData || [];
       }
 
+      const sourceData = rawData.length > 0 ? rawData : (penerimaanData || []);
+      const [tY, tM, tD] = targetDateStr.split('-').map(Number);
+      
+      const dataFiltered = sourceData.filter(item => {
+        if (!item.tanggal_pembayaran) return false;
+        
+        const itemDate = new Date(item.tanggal_pembayaran);
+        const sameDay = itemDate.getFullYear() === tY &&
+                        (itemDate.getMonth() + 1) === tM &&
+                        itemDate.getDate() === tD;
+
+        const metode = (item.metode_pembayaran || '').toUpperCase();
+        const tipeKas = (item.bankAccount?.tipe_kas || '').toUpperCase();
+        const namaAkun = (item.bankAccount?.nama_akun || '').toLowerCase();
+
+        const isNonKas = metode === 'NON_KAS' ||
+                         tipeKas === 'NON_KAS' ||
+                         item.bankAccount?.account_id === 'non_kas' ||
+                         namaAkun.includes('non kas') ||
+                         namaAkun.includes('non-kas');
+
+        const isTunai = !isNonKas && (
+                        metode === 'TUNAI' ||
+                        tipeKas === 'TUNAI' ||
+                        tipeKas === 'KAS' ||
+                        namaAkun.includes('kas') ||
+                        metode === 'KAS' ||
+                        (!item.bankAccount && metode !== 'NON_KAS' && metode !== 'TRANSFER' && metode !== 'QRIS')
+        );
+
+        const isFailed = item.status_simba === 'FAILED' || 
+                         (item.keterangan || '').toLowerCase().includes('gagal potong') ||
+                         (item.no_kuitansi || '').includes('Gagal');
+
+        return sameDay && isTunai && !isFailed;
+      });
+
+      if (dataFiltered.length === 0) {
+        alert('Tidak ada transaksi Kas Tunai pada tanggal tersebut.');
+        return;
+      }
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text('Laporan Kas Masuk', 105, 15, { align: 'center' });
+      doc.text('Via Tunai', 105, 21, { align: 'center' });
+      
+      const dayName = getIndonesianDayName(targetDateStr);
+      const formattedDate = formatIndonesianDate(targetDateStr);
+      doc.text(`Hari ${dayName} Tanggal ${formattedDate}`, 105, 27, { align: 'center' });
+
+      const tableBody: any[] = [];
+      let totalZakat = 0;
+      let totalInfak = 0;
+      let totalDonasi = 0;
+
+      dataFiltered.forEach((item, index) => {
+        const nominal = Number(item.nominal || 0);
+        const category = classifyPenerimaan(item);
+        
+        let zakatCol = 'Rp -';
+        let infakCol = 'Rp -';
+        let donasiCol = 'Rp -';
+
+        if (category === 'ZAKAT') {
+          zakatCol = `Rp ${nominal.toLocaleString('id-ID')}`;
+          totalZakat += nominal;
+        } else if (category === 'INFAK') {
+          infakCol = `Rp ${nominal.toLocaleString('id-ID')}`;
+          totalInfak += nominal;
+        } else {
+          donasiCol = `Rp ${nominal.toLocaleString('id-ID')}`;
+          totalDonasi += nominal;
+        }
+
+        tableBody.push([
+          String(index + 1),
+          item.no_transaksi_simba || '-',
+          item.keterangan || `Terima ZIS dari ${item.muzakki?.nama || '-'}`,
+          zakatCol,
+          infakCol,
+          donasiCol
+        ]);
+      });
+
+      const totalAll = totalZakat + totalInfak + totalDonasi;
+
       tableBody.push([
-        String(index + 1),
-        item.no_transaksi_simba || '-',
-        item.keterangan || `Terima ZIS dari ${item.muzakki?.nama || '-'}`,
-        zakatCol,
-        infakCol,
-        donasiCol
+        { content: 'JUMLAH', colSpan: 3, styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+        { content: totalZakat > 0 ? `Rp ${totalZakat.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+        { content: totalInfak > 0 ? `Rp ${totalInfak.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+        { content: totalDonasi > 0 ? `Rp ${totalDonasi.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } }
       ]);
-    });
 
-    const totalAll = totalZakat + totalInfak + totalDonasi;
+      tableBody.push([
+        { content: 'TOTAL', colSpan: 3, styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
+        { content: `Rp ${totalAll.toLocaleString('id-ID')}`, colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } }
+      ]);
 
-    tableBody.push([
-      { content: 'JUMLAH', colSpan: 3, styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
-      { content: totalZakat > 0 ? `Rp ${totalZakat.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
-      { content: totalInfak > 0 ? `Rp ${totalInfak.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
-      { content: totalDonasi > 0 ? `Rp ${totalDonasi.toLocaleString('id-ID')}` : 'Rp -', styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } }
-    ]);
-
-    tableBody.push([
-      { content: 'TOTAL', colSpan: 3, styles: { fontStyle: 'bold', halign: 'center', fillColor: [240, 240, 240] } },
-      { content: `Rp ${totalAll.toLocaleString('id-ID')}`, colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240, 240, 240] } }
-    ]);
-
-    autoTable(doc, {
-      startY: 35,
-      head: [
-        [
-          { content: 'No', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
-          { content: 'No Transaksi', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
-          { content: 'Nama', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
-          { content: 'Jenis Penerimaan', colSpan: 3, styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } }
+      autoTable(doc, {
+        startY: 35,
+        head: [
+          [
+            { content: 'No', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+            { content: 'No Transaksi', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+            { content: 'Nama', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+            { content: 'Jenis Penerimaan', colSpan: 3, styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } }
+          ],
+          [
+            { content: 'Zakat', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+            { content: 'Infak', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
+            { content: 'Donasi', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } }
+          ]
         ],
-        [
-          { content: 'Zakat', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
-          { content: 'Infak', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } },
-          { content: 'Donasi', styles: { halign: 'center', fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' } }
-        ]
-      ],
-      body: tableBody,
-      theme: 'grid',
-      styles: {
-        fontSize: 8,
-        cellPadding: 3,
-        lineColor: [0, 0, 0],
-        lineWidth: 0.1
-      },
-      headStyles: {
-        lineColor: [0, 0, 0],
-        lineWidth: 0.1
-      },
-      columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
-        1: { cellWidth: 40, halign: 'center' },
-        2: { cellWidth: 'auto', halign: 'left' },
-        3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 25, halign: 'center' },
-        5: { cellWidth: 25, halign: 'center' }
-      },
-      margin: { left: 15, right: 15 }
-    });
+        body: tableBody,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.1
+        },
+        headStyles: {
+          lineColor: [0, 0, 0],
+          lineWidth: 0.1
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 40, halign: 'center' },
+          2: { cellWidth: 'auto', halign: 'left' },
+          3: { cellWidth: 25, halign: 'center' },
+          4: { cellWidth: 25, halign: 'center' },
+          5: { cellWidth: 25, halign: 'center' }
+        },
+        margin: { left: 15, right: 15 }
+      });
 
-    let finalY = (doc as any).lastAutoTable.finalY || 100;
-    if (finalY + 65 > 297) {
-      doc.addPage();
-      finalY = 20;
+      let finalY = (doc as any).lastAutoTable.finalY || 100;
+      if (finalY + 65 > 297) {
+        doc.addPage();
+        finalY = 20;
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(getSignatureDateString(targetDateStr), 195, finalY + 12, { align: 'right' });
+
+      doc.text('Penerima.', 15, finalY + 20);
+      doc.text('Kabag Keuangan', 15, finalY + 25);
+
+      doc.text('Kabid Pengumpulan', 105, finalY + 25, { align: 'center' });
+
+      doc.text('Penyetor,', 195, finalY + 20, { align: 'right' });
+      doc.text('Staff Bid. Pengumpulan', 195, finalY + 25, { align: 'right' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(signatories.kabagKeuangan || '........................', 15, finalY + 55);
+      doc.text(signatories.kabidPengumpulan || '........................', 105, finalY + 55, { align: 'center' });
+      doc.text(signatories.stafPengumpulan || '........................', 195, finalY + 55, { align: 'right' });
+
+      doc.save(`Laporan_Kas_Masuk_Tunai_${formattedDate.replace(/\//g, '-')}.pdf`);
+    } catch (err: any) {
+      console.error('Error generating PDF daily report:', err);
+      alert('Gagal membuat file PDF Laporan Harian: ' + (err.message || 'Terjadi kesalahan'));
+    } finally {
+      setIsExportingDailyPDF(false);
     }
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(getSignatureDateString(targetDateStr), 195, finalY + 12, { align: 'right' });
-
-    doc.text('Penerima.', 15, finalY + 20);
-    doc.text('Kabag Keuangan', 15, finalY + 25);
-
-    doc.text('Kabid Pengumpulan', 105, finalY + 25, { align: 'center' });
-
-    doc.text('Penyetor,', 195, finalY + 20, { align: 'right' });
-    doc.text('Staff Bid. Pengumpulan', 195, finalY + 25, { align: 'right' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.text(signatories.kabagKeuangan || '........................', 15, finalY + 55);
-    doc.text(signatories.kabidPengumpulan || '........................', 105, finalY + 55, { align: 'center' });
-    doc.text(signatories.stafPengumpulan || '........................', 195, finalY + 55, { align: 'right' });
-
-    doc.save(`Laporan_Kas_Masuk_Tunai_${formattedDate.replace(/\//g, '-')}.pdf`);
   };
 
   return (
@@ -4225,10 +4277,20 @@ export default function PenerimaanZis() {
 
                     <button
                       onClick={handleExportPDFDaily}
-                      className="w-full py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+                      disabled={isExportingDailyPDF}
+                      className="w-full py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
                     >
-                      <FileText className="size-4" />
-                      Cetak Laporan Harian PDF
+                      {isExportingDailyPDF ? (
+                        <>
+                          <RefreshCw className="size-4 animate-spin" />
+                          Menyiapkan PDF...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="size-4" />
+                          Cetak Laporan Harian PDF
+                        </>
+                      )}
                     </button>
                   </div>
                 )}
