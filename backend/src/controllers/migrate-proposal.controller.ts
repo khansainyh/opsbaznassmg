@@ -307,18 +307,17 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
         // Execute DB Insertion in a transaction
         await prisma.$transaction(async (tx) => {
           const noPengajuan = idProposal;
-          
-          const createdPengajuan = await tx.pengajuanPencairan.upsert({
-            where: { no_pengajuan: noPengajuan },
-            update: {
-              tanggal: validTglCair,
-              keterangan: `${keterangan} (Pemohon: ${finalNamaPemohon}${pic ? ` - PIC: ${pic}` : ''})`,
-              nominal: new Prisma.Decimal(nominalVal),
-              rkat_id: validRkatOperasionalId,
-              status: StatusPengajuan.CAIR,
-              sumber_dana: sumberDana
-            },
-            create: {
+
+          // Cek apakah no_pengajuan sudah ada — kalau sudah, migrasi GAGAL (tidak auto-replace)
+          const existingPengajuan = await tx.pengajuanPencairan.findUnique({
+            where: { no_pengajuan: noPengajuan }
+          });
+          if (existingPengajuan) {
+            throw new Error(`No pengajuan "${noPengajuan}" sudah ada di database. Migrasi dibatalkan untuk baris ini.`);
+          }
+
+          const createdPengajuan = await tx.pengajuanPencairan.create({
+            data: {
               no_pengajuan: noPengajuan,
               tanggal: validTglCair,
               pengaju_id: defaultUser.id,
@@ -382,58 +381,35 @@ export const migrateProposalExcel = async (req: Request, res: Response): Promise
             }
           });
 
+          // Kalau proposal sudah ada, migrasi GAGAL (tidak auto-replace)
           if (existingProposal) {
-            await tx.proposal.update({
-              where: { id: existingProposal.id },
-              data: {
-                ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
-                tanggal_masuk: validTglProp,
-                updated_at: validTglCair,
-                nama_pemohon: finalNamaPemohon,
-                nama_instansi: finalNamaInstansi,
-                pimpinan_organisasi: pimpinanOrganisasiVal || existingProposal.pimpinan_organisasi,
-                nama_anak: namaAnakVal || existingProposal.nama_anak,
-                nik: nikVal || existingProposal.nik,
-                no_kk: noKkVal || existingProposal.no_kk,
-                alamat: alamatVal || existingProposal.alamat,
-                kelurahan: kelurahanVal || existingProposal.kelurahan,
-                kecamatan: kecamatanVal || existingProposal.kecamatan,
-                no_telpon: noTelponVal || existingProposal.no_telpon,
-                jenis_permohonan: validProgramCode || existingProposal.jenis_permohonan,
-                rkat_activity_id: displayRkatActivityId || existingProposal.rkat_activity_id,
-                nominal: nominalVal > 0 ? Math.round(nominalVal) : existingProposal.nominal,
-                asnaf: asnafVal || existingProposal.asnaf,
-                keterangan: `${idProposal}: ${keterangan}`,
-                jenis_pengajuan: finalJenisPengajuan,
-                status: statusVal || existingProposal.status
-              }
-            });
-          } else {
-            await tx.proposal.create({
-              data: {
-                ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
-                tanggal_masuk: validTglProp,
-                updated_at: validTglCair,
-                nama_pemohon: finalNamaPemohon,
-                nama_instansi: finalNamaInstansi,
-                pimpinan_organisasi: pimpinanOrganisasiVal,
-                nama_anak: namaAnakVal,
-                nik: nikVal,
-                no_kk: noKkVal,
-                alamat: alamatVal,
-                kelurahan: kelurahanVal,
-                kecamatan: kecamatanVal,
-                no_telpon: noTelponVal,
-                jenis_permohonan: validProgramCode,
-                rkat_activity_id: displayRkatActivityId,
-                nominal: nominalVal > 0 ? Math.round(nominalVal) : null,
-                asnaf: asnafVal,
-                keterangan: `${idProposal}: ${keterangan}`,
-                jenis_pengajuan: finalJenisPengajuan,
-                status: statusVal
-              }
-            });
+            throw new Error(`Proposal "${idProposal}" (atau dengan agenda no ${agendaNoVal ?? '-'}) sudah ada di database. Migrasi dibatalkan untuk baris ini.`);
           }
+
+          await tx.proposal.create({
+            data: {
+              ...(agendaNoVal ? { agenda_no: agendaNoVal } : {}),
+              tanggal_masuk: validTglProp,
+              updated_at: validTglCair,
+              nama_pemohon: finalNamaPemohon,
+              nama_instansi: finalNamaInstansi,
+              pimpinan_organisasi: pimpinanOrganisasiVal,
+              nama_anak: namaAnakVal,
+              nik: nikVal,
+              no_kk: noKkVal,
+              alamat: alamatVal,
+              kelurahan: kelurahanVal,
+              kecamatan: kecamatanVal,
+              no_telpon: noTelponVal,
+              jenis_permohonan: validProgramCode,
+              rkat_activity_id: displayRkatActivityId,
+              nominal: nominalVal > 0 ? Math.round(nominalVal) : null,
+              asnaf: asnafVal,
+              keterangan: `${idProposal}: ${keterangan}`,
+              jenis_pengajuan: finalJenisPengajuan,
+              status: statusVal
+            }
+          });
         });
 
         importedCount++;

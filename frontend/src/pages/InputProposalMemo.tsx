@@ -150,6 +150,12 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{
+    total_proposal: number;
+    total_nominal: number;
+    total_mustahik_by_name: number;
+    errors: string[];
+  } | null>(null);
 
   const downloadProposalTemplate = () => {
     const templateRows = [
@@ -212,6 +218,7 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
     if (!file) return;
 
     setMigrating(true);
+    setMigrationResult(null);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -221,12 +228,25 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
       });
 
       const { summary } = res.data;
-      alert(`Migrasi Berhasil!\n\nTotal Proposal: ${summary.total_proposal}\nTotal Nominal: Rp ${Number(summary.total_nominal).toLocaleString('id-ID')}\nMustahik By Name: ${summary.total_mustahik_by_name} orang`);
-      setIsMigrationModalOpen(false);
-      window.location.reload();
+      setMigrationResult(summary);
+
+      // Kalau tidak ada error, langsung reload setelah sebentar
+      if (!summary.errors || summary.errors.length === 0) {
+        setTimeout(() => {
+          setIsMigrationModalOpen(false);
+          setMigrationResult(null);
+          window.location.reload();
+        }, 1500);
+      }
+      // Kalau ada error, biarkan modal tetap terbuka supaya user bisa baca
     } catch (err: any) {
       console.error('Error importing proposal excel:', err);
-      alert('Gagal memproses file Excel: ' + (err.response?.data?.error || err.message));
+      setMigrationResult({
+        total_proposal: 0,
+        total_nominal: 0,
+        total_mustahik_by_name: 0,
+        errors: ['Gagal memproses file Excel: ' + (err.response?.data?.error || err.message)]
+      });
     } finally {
       setMigrating(false);
       e.target.value = '';
@@ -3490,43 +3510,106 @@ export default function InputProposalMemo({ data, allData: _allData, onUpdate: _
                   <X className="size-5 text-slate-400" />
                 </button>
               </div>
-              <div className="p-8 space-y-6">
-                <div className="text-center space-y-2">
-                  <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
-                    <FileSpreadsheet className="size-8" />
+              <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                {/* Loading state */}
+                {migrating && (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3">
+                    <div className="size-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm font-bold text-slate-600 font-sans">Sedang memproses migrasi...</p>
                   </div>
-                  <h4 className="font-bold text-slate-900 font-sans">Impor Data Proposal & Mustahik (Excel 2-Sheet)</h4>
-                  <p className="text-xs text-slate-500 font-sans leading-relaxed">Gunakan file Excel (.xlsx) dengan 2 Sheet: Sheet 1 (HEADER_PROPOSAL untuk data lembaga, tanggal, nominal global, RKAT & COA) dan Sheet 2 (DETAIL_MUSTAHIK untuk rincian penerima By Name By Address).</p>
-                </div>
+                )}
 
-                <div className="space-y-3">
-                  <button onClick={downloadProposalTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
-                    <div className="flex items-center gap-3">
-                      <Download className="size-5 text-primary" />
-                      <div className="text-left font-sans">
-                        <p className="text-sm font-bold text-primary">Download Format Template</p>
-                        <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+                {/* Result: ada error */}
+                {!migrating && migrationResult && migrationResult.errors && migrationResult.errors.length > 0 && (
+                  <div className="space-y-4">
+                    {/* Summary sukses (kalau ada yang berhasil) */}
+                    {migrationResult.total_proposal > 0 && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                        <p className="text-sm font-black text-emerald-700 font-sans mb-1">✅ Sebagian Berhasil Diimpor</p>
+                        <p className="text-xs text-emerald-600 font-sans">{migrationResult.total_proposal} proposal berhasil · Rp {Number(migrationResult.total_nominal).toLocaleString('id-ID')}</p>
+                      </div>
+                    )}
+
+                    {/* Warning box error */}
+                    <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-amber-500 text-lg">⚠️</span>
+                        <p className="text-sm font-black text-amber-800 font-sans">{migrationResult.errors.length} baris gagal diimpor</p>
+                      </div>
+                      <p className="text-[11px] text-amber-700 font-sans font-medium">Baris-baris berikut tidak diimpor karena nomor agenda/proposal sudah ada di database:</p>
+                      <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                        {migrationResult.errors.map((err, idx) => (
+                          <div key={idx} className="bg-amber-100 rounded-lg px-3 py-2">
+                            <p className="text-[11px] text-amber-800 font-sans font-semibold leading-relaxed">{err}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </button>
 
-                  <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
-                    <div className="flex items-center gap-3">
-                      <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
-                      <div className="text-left font-sans">
-                        <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
-                        <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+                    <button
+                      onClick={() => {
+                        setMigrationResult(null);
+                        setIsMigrationModalOpen(false);
+                        window.location.reload();
+                      }}
+                      className="w-full py-3 bg-primary text-white font-bold text-sm rounded-xl hover:bg-primary/90 transition-all font-sans"
+                    >
+                      Tutup & Refresh Data
+                    </button>
+                  </div>
+                )}
+
+                {/* Result: semua berhasil */}
+                {!migrating && migrationResult && (!migrationResult.errors || migrationResult.errors.length === 0) && (
+                  <div className="flex flex-col items-center justify-center py-6 gap-3">
+                    <div className="size-14 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 text-2xl">✅</div>
+                    <p className="text-base font-black text-slate-900 font-sans">Migrasi Berhasil!</p>
+                    <p className="text-xs text-slate-500 font-sans text-center">{migrationResult.total_proposal} proposal · Rp {Number(migrationResult.total_nominal).toLocaleString('id-ID')} · {migrationResult.total_mustahik_by_name} mustahik</p>
+                    <p className="text-[11px] text-slate-400 font-sans">Halaman akan dimuat ulang...</p>
+                  </div>
+                )}
+
+                {/* Default: form upload */}
+                {!migrating && !migrationResult && (
+                  <>
+                    <div className="text-center space-y-2">
+                      <div className="size-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto mb-4">
+                        <FileSpreadsheet className="size-8" />
                       </div>
+                      <h4 className="font-bold text-slate-900 font-sans">Impor Data Proposal & Mustahik (Excel 2-Sheet)</h4>
+                      <p className="text-xs text-slate-500 font-sans leading-relaxed">Gunakan file Excel (.xlsx) dengan 2 Sheet: Sheet 1 (HEADER_PROPOSAL untuk data lembaga, tanggal, nominal global, RKAT & COA) dan Sheet 2 (DETAIL_MUSTAHIK untuk rincian penerima By Name By Address).</p>
                     </div>
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept=".xlsx,.xls,.csv" 
-                      onChange={handleProposalFileUpload} 
-                      disabled={migrating}
-                    />
-                  </label>
-                </div>
+
+                    <div className="space-y-3">
+                      <button onClick={downloadProposalTemplate} className="w-full flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl group hover:bg-primary/10 transition-all">
+                        <div className="flex items-center gap-3">
+                          <Download className="size-5 text-primary" />
+                          <div className="text-left font-sans">
+                            <p className="text-sm font-bold text-primary">Download Format Template</p>
+                            <p className="text-[10px] text-primary/70 font-medium">Format: .xlsx (Excel)</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      <label className="w-full flex items-center justify-between p-4 border border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
+                        <div className="flex items-center gap-3">
+                          <Upload className="size-5 text-slate-400 group-hover:text-primary transition-colors" />
+                          <div className="text-left font-sans">
+                            <p className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">Upload File Data Baru</p>
+                            <p className="text-[10px] text-slate-400 font-medium">Pilih file .xlsx dari perangkat.</p>
+                          </div>
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept=".xlsx,.xls,.csv"
+                          onChange={handleProposalFileUpload}
+                          disabled={migrating}
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
           </div>
